@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#d4af35",
+                        "background-light": "#f8f7f6",
+                        "background-dark": "#201d12",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<title>Cathedral Spaces | Interiorismo de Lujo en Madrid</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<!-- Top Navigation -->
+<header class="sticky top-0 z-50 w-full bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm border-b border-primary/10 px-6 lg:px-20">
+<div class="max-w-7xl mx-auto flex items-center justify-between h-20">
+<div class="flex items-center gap-3">
+<div class="text-primary size-8">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M12.0799 24L4 19.2479L9.95537 8.75216L18.04 13.4961L18.0446 4H29.9554L29.96 13.4961L38.0446 8.75216L44 19.2479L35.92 24L44 28.7521L38.0446 39.2479L29.96 34.5039L29.9554 44H18.0446L18.04 34.5039L9.95537 39.2479L4 28.7521L12.0799 24Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h1 class="text-xl font-bold tracking-tight uppercase">Cathedral Spaces</h1>
+</div>
+<nav class="hidden md:flex items-center gap-10">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Proyectos</a>
+<a class="text-sm font-medium hover:text-primary transition-colors border-b-2 border-primary" href="#">Servicios</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Nosotros</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Contacto</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="px-4 py-2 border border-primary/30 rounded text-xs font-bold hover:bg-primary/10 transition-colors">
+                    ES / EN
+                </button>
+</div>
+</div>
+</header>
+<main>
+<!-- Hero Section -->
+<section class="relative h-[85vh] w-full overflow-hidden">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105" data-alt="Modern architectural living room with high ceilings and natural light" style="background-image: linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.6)), url('https://lh3.googleusercontent.com/aida-public/AB6AXuBc4m-DR6j4ZAzNF9OV38RqyAZ-fk9FpspLdkzh3Y_qEnlhwrhgXraY2nHRmAkPZ2ntNWA9EqvU9cQ-aDrGnpWGXERmLZKy5RtuglFi1U_2fOnVRRGdch7RBcj0-1i0HQxGKTwzwDucjJKgAm3MgaeCnEOpM-UTvgrVlluxVmpE5ieKKvNRs51MGQbL68zVXaTiqIfnrfCDQNklmpq2wBmYgclphPcmp0kS0d3PZDucgHG5iM7fXjfUtUCVbyMUQSWTe4fr0QhgjMM');">
+</div>
+<div class="relative h-full flex flex-col items-center justify-center text-center px-4">
+<span class="text-primary uppercase tracking-[0.4em] text-sm mb-6">Estudio de Arquitectura</span>
+<h2 class="text-white text-5xl md:text-7xl font-light tracking-tight mb-8 max-w-4xl">
+                    Interiorismo de Lujo <br/><span class="font-bold italic">en Madrid</span>
+</h2>
+<button class="bg-primary text-background-dark px-10 py-4 rounded-lg font-bold uppercase tracking-widest text-sm hover:opacity-90 transition-opacity">
+                    Explorar Proyectos
+                </button>
+</div>
+</section>
+<!-- Philosophy Section -->
+<section class="py-24 px-6 lg:px-20 bg-white dark:bg-background-dark">
+<div class="max-w-4xl mx-auto text-center">
+<h3 class="text-primary text-xs font-bold uppercase tracking-[0.3em] mb-4">La Esencia</h3>
+<h2 class="text-3xl md:text-4xl font-bold mb-10">Filosofía de Diseño</h2>
+<p class="text-slate-600 dark:text-slate-400 text-lg leading-relaxed font-light">
+                    Creamos espacios elegantes, funcionales y sofisticados donde la luz y la materia dialogan en perfecta armonía. Nuestro enfoque arquitectónico busca la excelencia en cada detalle, transformando cada residencia en una obra de arte habitable que refleja la personalidad de quienes la habitan.
+                </p>
+<div class="mt-12 h-px w-24 bg-primary/40 mx-auto"></div>
+</div>
+</section>
+<!-- Services Grid -->
+<section class="py-24 px-6 lg:px-20 bg-background-light dark:bg-background-dark/50">
+<div class="max-w-7xl mx-auto">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+<div class="p-8 bg-white dark:bg-background-dark border border-primary/10 rounded-xl hover:shadow-xl transition-all group">
+<span class="material-symbols-outlined text-primary text-4xl mb-6">architecture</span>
+<h4 class="text-xl font-bold mb-4">Interiorismo Residencial</h4>
+<p class="text-sm text-slate-500 leading-relaxed">Proyectos integrales que redefinen el lujo doméstico a través de la arquitectura interior.</p>
+</div>
+<div class="p-8 bg-white dark:bg-background-dark border border-primary/10 rounded-xl hover:shadow-xl transition-all group">
+<span class="material-symbols-outlined text-primary text-4xl mb-6">chair</span>
+<h4 class="text-xl font-bold mb-4">Mobiliario a Medida</h4>
+<p class="text-sm text-slate-500 leading-relaxed">Diseño y fabricación de piezas exclusivas que se integran perfectamente en cada espacio.</p>
+</div>
+<div class="p-8 bg-white dark:bg-background-dark border border-primary/10 rounded-xl hover:shadow-xl transition-all group">
+<span class="material-symbols-outlined text-primary text-4xl mb-6">light</span>
+<h4 class="text-xl font-bold mb-4">Iluminación Arquitectónica</h4>
+<p class="text-sm text-slate-500 leading-relaxed">Estudio técnico y creativo de la luz para realzar texturas, volúmenes y sensaciones.</p>
+</div>
+<div class="p-8 bg-white dark:bg-background-dark border border-primary/10 rounded-xl hover:shadow-xl transition-all group">
+<span class="material-symbols-outlined text-primary text-4xl mb-6">palette</span>
+<h4 class="text-xl font-bold mb-4">Materiales y Acabados</h4>
+<p class="text-sm text-slate-500 leading-relaxed">Curaduría experta de piedras naturales, maderas nobles y textiles de alta gama.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Projects Gallery -->
+<section class="py-24 px-6 lg:px-20">
+<div class="max-w-7xl mx-auto">
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+<div>
+<h3 class="text-primary text-xs font-bold uppercase tracking-[0.3em] mb-4">Portfolio</h3>
+<h2 class="text-4xl font-bold">Proyectos Destacados</h2>
+</div>
+<a class="text-primary font-bold text-sm tracking-widest uppercase border-b border-primary pb-1" href="#">Ver todos los proyectos</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="relative group aspect-[4/5] overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="Luxury apartment interior in Salamanca district Madrid" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDckr8TIb6K2eh8eAvFei7DGUrN0qcmlKrd_5EBtr0h29cPti-71sghbAplpE1pV97ZYJV5ZQWQf6KksVg35XrdI_dUW1iQ_zMJRu4SBD1XsB0MwRKMOCYetUzYrWkNqh_lf9cavYjpM8jt7h9EeDqK6tjH6WNzFHIc8pXjkeFM16OyyF28ZjNDeHnOpY_Q9XcbD9Zfsq_ThF3O1BhGiu-roOrtUqzUb0Bd5ONVx71g-ei39sHtw4a7i6SNUes9kLO3JjjOJreBtWY"/>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-8">
+<h5 class="text-white text-xl font-bold">Residencia Salamanca</h5>
+<p class="text-white/80 text-sm">Minimalismo Clásico</p>
+</div>
+</div>
+<div class="relative group aspect-[4/5] overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="Modern penthouse design overlooking Retiro Park Madrid" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMqk-PGFCiWPC_v1jM9CyhAYeQjMwQnOduFvLT4mmVA0YsWGzLr2Pm2sC10oK0anWPRZcSKfeArUQ0-n6vIvhT2zj6dHO7IvNssgTaMrQa7x_UrdfyK4IoTBh7dga1M9tsr3sn1Lr-KC19YxBWjsNCJDFMU0C7sa0PFuMyhcZrN6yMBjm9BA9pL1Sseeqx-NcXd9vl-yxUhpBhr2mwoTTUcivHR-uTTDHgSVdZyqWP63jJ9-WtDqiUVBwfOEcq-IKkJcjwml8rbsA"/>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-8">
+<h5 class="text-white text-xl font-bold">Ático Retiro</h5>
+<p class="text-white/80 text-sm">Vistas y Luz Natural</p>
+</div>
+</div>
+<div class="relative group aspect-[4/5] overflow-hidden rounded-lg">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="Contemporary loft in Chamberi Madrid" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcChMglUfm38pFO3ikbNrYIWnsGn3h87WUihycZarP9gCmWZwK4VDv3vajB87_X89SWSB6xV3U6YTgh0IMe9TLw6p50eFODcZsW-_E4pUJmYlwIKO3_IEuYyiHKbk8IYk_OGsqOBvly83c8Y8zkq3tGraElKg_MTizCh27dR8Dp3SZF42S5eOrYC0rG3UCPDQafHwP11ceZ7nSrkmO7fsh6y_6aRhXwXj2fa7tsbS1gn39UyY-vO-FSj0tK9a7YxD_mF3VLDRi1Rw"/>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-8">
+<h5 class="text-white text-xl font-bold">Loft Chamberí</h5>
+<p class="text-white/80 text-sm">Diseño Industrial Refinado</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Process Section -->
+<section class="py-24 px-6 lg:px-20 bg-background-light dark:bg-background-dark/30">
+<div class="max-w-7xl mx-auto">
+<div class="text-center mb-16">
+<h3 class="text-primary text-xs font-bold uppercase tracking-[0.3em] mb-4">Metodología</h3>
+<h2 class="text-4xl font-bold">Proceso de Diseño</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
+<div class="hidden md:block absolute top-12 left-0 w-full h-px bg-primary/20 -z-10"></div>
+<div class="flex flex-col items-center text-center">
+<div class="size-12 rounded-full bg-primary text-background-dark flex items-center justify-center font-bold mb-6">01</div>
+<h5 class="text-lg font-bold mb-2">Concepto</h5>
+<p class="text-sm text-slate-500">Definición de estilo, paleta y narrativa visual.</p>
+</div>
+<div class="flex flex-col items-center text-center">
+<div class="size-12 rounded-full bg-primary text-background-dark flex items-center justify-center font-bold mb-6">02</div>
+<h5 class="text-lg font-bold mb-2">Desarrollo</h5>
+<p class="text-sm text-slate-500">Planos técnicos, 3D y selección de materiales.</p>
+</div>
+<div class="flex flex-col items-center text-center">
+<div class="size-12 rounded-full bg-primary text-background-dark flex items-center justify-center font-bold mb-6">03</div>
+<h5 class="text-lg font-bold mb-2">Gestión</h5>
+<p class="text-sm text-slate-500">Coordinación de gremios y control de calidad.</p>
+</div>
+<div class="flex flex-col items-center text-center">
+<div class="size-12 rounded-full bg-primary text-background-dark flex items-center justify-center font-bold mb-6">04</div>
+<h5 class="text-lg font-bold mb-2">Instalación</h5>
+<p class="text-sm text-slate-500">Montaje final y estilismo "llave en mano".</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Location Section -->
+<section class="py-24 px-6 lg:px-20 bg-white dark:bg-background-dark">
+<div class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-16 items-center">
+<div class="flex-1 space-y-8">
+<div>
+<h3 class="text-primary text-xs font-bold uppercase tracking-[0.3em] mb-4">Presencia</h3>
+<h2 class="text-4xl font-bold mb-6">Zonas de Actuación</h2>
+<p class="text-slate-600 dark:text-slate-400">Operamos en los barrios más exclusivos de Madrid, aportando sofisticación a cada rincón de la capital.</p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="flex items-center gap-2">
+<span class="size-2 rounded-full bg-primary"></span>
+<span class="text-sm font-medium">Salamanca</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="size-2 rounded-full bg-primary"></span>
+<span class="text-sm font-medium">Retiro</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="size-2 rounded-full bg-primary"></span>
+<span class="text-sm font-medium">Chamberí</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="size-2 rounded-full bg-primary"></span>
+<span class="text-sm font-medium">El Viso</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="size-2 rounded-full bg-primary"></span>
+<span class="text-sm font-medium">La Moraleja</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="size-2 rounded-full bg-primary"></span>
+<span class="text-sm font-medium">Justicia</span>
+</div>
+</div>
+</div>
+<div class="flex-1 w-full aspect-video rounded-xl overflow-hidden grayscale contrast-125 border border-primary/10">
+<div class="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center relative">
+<img class="absolute inset-0 w-full h-full object-cover opacity-30" data-alt="Abstract map representation of Madrid neighborhoods" data-location="Madrid" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDQt5PPEgbtHvvls5AfH-UlMvjzhctjOvLmNVEks8488sakx0UeFwZYRB2rejtszd5Q5lmkaptFxCMu5X1IK9qh-jKm454clshthtAdZUQcMLd9bfi2uwGlJLP3gaFHRZB3JS-MnBrkj-uxwLejMKS3eEEiPDT1rjtXOkuueecfhqDSlS1svm0-agir1PbOBYQBNkz2ox0UfC8H4hUTwZMp-sYGMN1fKBPSXB32GWgsgZGPgQFLCseDhWk_qUeC1yyrDzfBrG_3qsk"/>
+<div class="relative z-10 flex flex-col items-center">
+<span class="material-symbols-outlined text-primary text-5xl mb-2">location_on</span>
+<span class="text-xs uppercase tracking-widest font-bold">Madrid, España</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Contact Section -->
+<section class="py-24 px-6 lg:px-20 bg-background-light dark:bg-background-dark/50">
+<div class="max-w-3xl mx-auto bg-white dark:bg-background-dark p-12 lg:p-16 rounded-2xl shadow-sm border border-primary/5">
+<div class="text-center mb-12">
+<h2 class="text-3xl font-bold mb-4">Solicitar Consulta</h2>
+<p class="text-slate-500 text-sm">Iniciemos el viaje hacia su espacio ideal.</p>
+</div>
+<form class="space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-wider text-slate-400">Nombre</label>
+<input class="w-full bg-background-light dark:bg-background-dark/80 border-0 focus:ring-1 focus:ring-primary rounded-lg py-3 px-4" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-wider text-slate-400">Email</label>
+<input class="w-full bg-background-light dark:bg-background-dark/80 border-0 focus:ring-1 focus:ring-primary rounded-lg py-3 px-4" type="email"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-wider text-slate-400">Mensaje</label>
+<textarea class="w-full bg-background-light dark:bg-background-dark/80 border-0 focus:ring-1 focus:ring-primary rounded-lg py-3 px-4" rows="4"></textarea>
+</div>
+<button class="w-full bg-primary text-background-dark font-bold uppercase tracking-widest py-4 rounded-lg hover:bg-primary/90 transition-all">
+                        Enviar solicitud
+                    </button>
+</form>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-background-dark text-slate-300 py-16 px-6 lg:px-20">
+<div class="max-w-7xl mx-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+<div class="space-y-6">
+<div class="flex items-center gap-3 text-white">
+<div class="text-primary size-6">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M12.0799 24L4 19.2479L9.95537 8.75216L18.04 13.4961L18.0446 4H29.9554L29.96 13.4961L38.0446 8.75216L44 19.2479L35.92 24L44 28.7521L38.0446 39.2479L29.96 34.5039L29.9554 44H18.0446L18.04 34.5039L9.95537 39.2479L4 28.7521L12.0799 24Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h1 class="text-lg font-bold tracking-tight uppercase">Cathedral Spaces</h1>
+</div>
+<p class="text-sm text-slate-500 leading-relaxed max-w-xs">
+                        Elevando el concepto de arquitectura interior a través del diseño atemporal y la excelencia artesanal.
+                    </p>
+</div>
+<div class="space-y-6">
+<h5 class="text-white font-bold uppercase text-xs tracking-widest">Navegación</h5>
+<ul class="space-y-4 text-sm">
+<li><a class="hover:text-primary transition-colors" href="#">Proyectos</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Servicios</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Filosofía</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Contacto</a></li>
+</ul>
+</div>
+<div class="space-y-6">
+<h5 class="text-white font-bold uppercase text-xs tracking-widest">Contacto</h5>
+<ul class="space-y-4 text-sm text-slate-500">
+<li>Calle de Serrano, Madrid</li>
+<li>+34 912 345 678</li>
+<li>info@cathedralspaces.com</li>
+</ul>
+</div>
+<div class="space-y-6">
+<h5 class="text-white font-bold uppercase text-xs tracking-widest">Síguenos</h5>
+<div class="flex gap-4">
+<a class="size-10 rounded-full border border-primary/20 flex items-center justify-center hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">camera</span>
+</a>
+<a class="size-10 rounded-full border border-primary/20 flex items-center justify-center hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">share</span>
+</a>
+<a class="size-10 rounded-full border border-primary/20 flex items-center justify-center hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">mail</span>
+</a>
+</div>
+</div>
+</div>
+<div class="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-600">
+<p>© 2024 Cathedral Spaces. Todos los derechos reservados.</p>
+<div class="flex gap-6">
+<a class="hover:text-white transition-colors" href="#">Aviso Legal</a>
+<a class="hover:text-white transition-colors" href="#">Privacidad</a>
+</div>
+</div>
+</div>
+</footer>
+</body></html>
