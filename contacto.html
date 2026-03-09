@@ -208,7 +208,7 @@ if (form) {
         status.textContent = result.message || "Mensaje enviado correctamente.";
         form.reset();
       } else {
-        status.textContent = result.error || result.details || rawText || "Hubo un problema al enviar el formulario.";
+     status.textContent = result.details || result.error || rawText || "Hubo un problema al enviar el formulario.";
       }
 
     } catch (error) {
