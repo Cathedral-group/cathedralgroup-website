@@ -162,4 +162,40 @@
 </div>
 </div>
 </footer>
+<script>
+const form = document.getElementById("contact-form");
+const status = document.getElementById("form-status");
+
+if (form) {
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    status.textContent = "Enviando...";
+
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        status.textContent = "Mensaje enviado correctamente.";
+        form.reset();
+      } else {
+        status.textContent = result.error || "Hubo un problema al enviar el formulario.";
+      }
+    } catch (error) {
+      status.textContent = "Error de conexión. Inténtelo de nuevo.";
+    }
+  });
+}
+</script>        
 </body></html>
