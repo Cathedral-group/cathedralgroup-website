@@ -38,7 +38,8 @@
         .map-grayscale {
             filter: grayscale(100%) invert(8%) contrast(90%);
         }
-    </style>
+</style>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased">
 <!-- Header / Navigation -->
@@ -148,6 +149,11 @@
 <div class="space-y-2">
 <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Mensaje</label>
 <textarea name="mensaje" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-lg p-4 focus:ring-2 focus:ring-accent-gold outline-none transition-all" placeholder="Cuéntenos brevemente sobre su visión..." rows="5"></textarea>
+</div>
+
+<div class="cf-turnstile"
+     data-sitekey="0x4AAAAAACoXVuKbf-SK4ICl"
+     data-theme="light">
 </div>
 <button class="w-full bg-primary text-white py-4 rounded-xl font-bold text-lg hover:brightness-110 transition-all shadow-lg shadow-primary/20" type="submit">
                         Enviar Consulta
