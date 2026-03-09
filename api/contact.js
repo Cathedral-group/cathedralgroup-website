@@ -7,35 +7,24 @@ export default async function handler(req, res) {
     let body = req.body;
 
     if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch {
-        return res.status(400).json({ error: "El body no es JSON válido" });
-      }
+      body = JSON.parse(body);
     }
 
-    if (!body || typeof body !== "object") {
-      return res.status(400).json({ error: "No se recibió el body correctamente" });
-    }
-
-    const { nombre, email, tipo_proyecto, mensaje } = body;
+    const { nombre, email, tipo_proyecto, mensaje } = body || {};
 
     if (!nombre || !email || !mensaje) {
       return res.status(400).json({
-        error: "Faltan campos obligatorios",
-        debug: { nombre, email, tipo_proyecto, mensaje }
+        error: "Faltan campos obligatorios"
       });
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl) {
-      return res.status(500).json({ error: "Falta SUPABASE_URL en Vercel" });
-    }
-
-    if (!serviceKey) {
-      return res.status(500).json({ error: "Falta SUPABASE_SERVICE_ROLE_KEY en Vercel" });
+    if (!supabaseUrl || !serviceKey) {
+      return res.status(500).json({
+        error: "Faltan variables de entorno en Vercel"
+      });
     }
 
     const response = await fetch(`${supabaseUrl}/rest/v1/leads`, {
@@ -68,13 +57,11 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      message: "Lead guardado correctamente",
-      details: text
+      message: "Lead guardado correctamente"
     });
   } catch (error) {
     return res.status(500).json({
-      error: "Error interno del servidor",
-      details: String(error)
+      error: "Error interno del servidor"
     });
   }
 }
