@@ -195,18 +195,26 @@ if (form) {
         body: JSON.stringify(data)
       });
 
-      const result = await res.json();
+      const rawText = await res.text();
+
+      let result = {};
+      try {
+        result = JSON.parse(rawText);
+      } catch {
+        result = { error: rawText };
+      }
 
       if (res.ok) {
-        status.textContent = "Mensaje enviado correctamente.";
+        status.textContent = result.message || "Mensaje enviado correctamente.";
         form.reset();
       } else {
-        status.textContent = result.error || "Hubo un problema al enviar el formulario.";
+        status.textContent = result.error || result.details || rawText || "Hubo un problema al enviar el formulario.";
       }
+
     } catch (error) {
       status.textContent = "Error de conexión. Inténtelo de nuevo.";
     }
   });
 }
-</script>        
+</script>  
 </body></html>
