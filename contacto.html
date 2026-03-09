@@ -221,12 +221,20 @@ if (form) {
         result = { error: rawText };
       }
 
-      if (res.ok) {
-        status.textContent = result.message || "Mensaje enviado correctamente.";
-        form.reset();
-      } else {
-     status.textContent = result.details || result.error || rawText || "Hubo un problema al enviar el formulario.";
-      }
+  if (res.ok) {
+  status.textContent = result.message || "Mensaje enviado correctamente.";
+  form.reset();
+
+  if (window.turnstile) {
+    window.turnstile.reset();
+  }
+} else {
+  status.textContent = result.details || result.error || rawText || "Hubo un problema al enviar el formulario.";
+
+  if (window.turnstile) {
+    window.turnstile.reset();
+  }
+}
 
     } catch (error) {
       status.textContent = "Error de conexión. Inténtelo de nuevo.";
