@@ -33,14 +33,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // Honeypot: si viene relleno, bloqueamos
     if (empresa_web && String(empresa_web).trim() !== "") {
       return res.status(400).json({
         error: "Formulario bloqueado"
       });
     }
 
-    // Normalización y validación básica de email
     const emailNormalizado = String(email).trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,7 +48,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Bloqueo de dominios temporales / sospechosos
     const blockedEmailDomains = [
       "mailinator.com",
       "guerrillamail.com",
@@ -70,7 +67,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Filtro básico de palabras spam
     const textoAnalisis =
       `${nombre} ${emailNormalizado} ${tipo_proyecto || ""} ${mensaje}`.toLowerCase();
 
@@ -99,7 +95,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Turnstile
     const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
 
     if (!turnstileSecret) {
@@ -144,7 +139,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Supabase
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
