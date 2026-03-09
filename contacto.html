@@ -191,6 +191,7 @@ if (form) {
 
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+          data["cf-turnstile-response"] = formData.get("cf-turnstile-response");
 
     try {
       const res = await fetch("/api/contact", {
