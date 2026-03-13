@@ -195,57 +195,88 @@
 </div>
 </footer>
 <script>
+
 const form = document.getElementById("contact-form");
 const status = document.getElementById("form-status");
+const submitButton = document.getElementById("submit-button");
 
-if (form) {
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+form.addEventListener("submit", async (e) => {
 
-    status.textContent = "Enviando...";
+e.preventDefault();
 
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-          data["empresa_web"] = formData.get("empresa_web");
-          data["cf-turnstile-response"] = formData.get("cf-turnstile-response");
+submitButton.disabled = true;
 
-    try {
-      const res = await fetch("/api/contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(data)
-      });
+status.textContent = "Enviando...";
 
-      const rawText = await res.text();
 
-      let result = {};
-      try {
-        result = JSON.parse(rawText);
-      } catch {
-        result = { error: rawText };
-      }
+const data = {
 
-  if (res.ok) {
-  status.textContent = result.message || "Mensaje enviado correctamente.";
-  form.reset();
+nombre: document.querySelector('[name="nombre"]').value.trim(),
 
-  if (window.turnstile) {
-    window.turnstile.reset();
-  }
-} else {
-  status.textContent = result.details || result.error || rawText || "Hubo un problema al enviar el formulario.";
+email: document.querySelector('[name="email"]').value.trim(),
 
-  if (window.turnstile) {
-    window.turnstile.reset();
-  }
+tipo_proyecto: document.querySelector('[name="tipo_proyecto"]').value.trim(),
+
+mensaje: document.querySelector('[name="mensaje"]').value.trim(),
+
+empresa_web: document.querySelector('[name="empresa_web"]').value,
+
+"cf-turnstile-response": document.querySelector('[name="cf-turnstile-response"]')?.value || ""
+
+};
+
+
+
+try {
+
+const response = await fetch("/api/contact", {
+
+method: "POST",
+
+headers: {
+
+"Content-Type": "application/json"
+
+},
+
+body: JSON.stringify(data)
+
+});
+
+
+const result = await response.json();
+
+
+if (response.ok) {
+
+status.textContent = "Mensaje enviado correctamente.";
+
+form.reset();
+
+if (window.turnstile) turnstile.reset();
+
 }
 
-    } catch (error) {
-      status.textContent = "Error de conexión. Inténtelo de nuevo.";
-    }
-  });
+else {
+
+status.textContent = result.error || "Error enviando formulario";
+
+if (window.turnstile) turnstile.reset();
+
 }
-</script>  
+
+
+}
+
+catch (error) {
+
+status.textContent = "Error de conexión. Inténtelo de nuevo.";
+
+}
+
+submitButton.disabled = false;
+
+});
+
+</script>
 </body></html>
