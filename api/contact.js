@@ -32,7 +32,12 @@ export default async function handler(req, res) {
         error: "Faltan campos obligatorios"
       });
     }
-
+    
+if (empresa_web && String(empresa_web).trim() !== "") {
+  return res.status(400).json({
+    error: "Formulario bloqueado"
+  });
+}
     if (empresa_web && String(empresa_web).trim() !== "") {
       return res.status(400).json({
         error: "Formulario bloqueado"
