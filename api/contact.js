@@ -15,7 +15,9 @@ export default async function handler(req, res) {
     }
 
     if (!body || typeof body !== "object") {
-      return res.status(400).json({ error: "No se recibió el body correctamente" });
+      return res.status(400).json({
+        error: "No se recibió el body correctamente"
+      });
     }
 
     const {
@@ -27,23 +29,21 @@ export default async function handler(req, res) {
       "cf-turnstile-response": turnstileToken
     } = body;
 
-    if (!nombre || !email || !mensaje) {
-      return res.status(400).json({
-        error: "Faltan campos obligatorios"
-      });
-    }
-    
-if (empresa_web && String(empresa_web).trim() !== "") {
-  return res.status(400).json({
-    error: "Formulario bloqueado"
-  });
-}
+    // Honeypot anti-bots
     if (empresa_web && String(empresa_web).trim() !== "") {
       return res.status(400).json({
         error: "Formulario bloqueado"
       });
     }
 
+    // Validación de campos obligatorios
+    if (!nombre || !email || !mensaje) {
+      return res.status(400).json({
+        error: "Faltan campos obligatorios"
+      });
+    }
+
+    // Normalización y validación de email
     const emailNormalizado = String(email).trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -53,6 +53,7 @@ if (empresa_web && String(empresa_web).trim() !== "") {
       });
     }
 
+    // Bloqueo de emails temporales / desechables
     const blockedEmailDomains = [
       "mailinator.com",
       "guerrillamail.com",
@@ -72,6 +73,7 @@ if (empresa_web && String(empresa_web).trim() !== "") {
       });
     }
 
+    // Filtro básico anti-spam
     const textoAnalisis =
       `${nombre} ${emailNormalizado} ${tipo_proyecto || ""} ${mensaje}`.toLowerCase();
 
@@ -100,6 +102,7 @@ if (empresa_web && String(empresa_web).trim() !== "") {
       });
     }
 
+    // Verificación Turnstile
     const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
 
     if (!turnstileSecret) {
@@ -119,10 +122,10 @@ if (empresa_web && String(empresa_web).trim() !== "") {
       req.socket?.remoteAddress ||
       "";
 
-    const formData = new URLSearchParams();
-    formData.append("secret", turnstileSecret);
-    formData.append("response", turnstileToken);
-    if (ip) formData.append("remoteip", ip);
+    const turnstileFormData = new URLSearchParams();
+    turnstileFormData.append("secret", turnstileSecret);
+    turnstileFormData.append("response", turnstileToken);
+    if (ip) turnstileFormData.append("remoteip", ip);
 
     const turnstileResponse = await fetch(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -131,7 +134,7 @@ if (empresa_web && String(empresa_web).trim() !== "") {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded"
         },
-        body: formData.toString()
+        body: turnstileFormData.toString()
       }
     );
 
@@ -144,17 +147,23 @@ if (empresa_web && String(empresa_web).trim() !== "") {
       });
     }
 
+    // Variables de entorno Supabase
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl) {
-      return res.status(500).json({ error: "Falta SUPABASE_URL en Vercel" });
+      return res.status(500).json({
+        error: "Falta SUPABASE_URL en Vercel"
+      });
     }
 
     if (!serviceKey) {
-      return res.status(500).json({ error: "Falta SUPABASE_SERVICE_ROLE_KEY en Vercel" });
+      return res.status(500).json({
+        error: "Falta SUPABASE_SERVICE_ROLE_KEY en Vercel"
+      });
     }
 
+    // Guardado en Supabase
     const response = await fetch(`${supabaseUrl}/rest/v1/leads`, {
       method: "POST",
       headers: {
