@@ -157,18 +157,18 @@ html.lenis, html.lenis body {
   right: 24px;
   width: 60px;
   height: 60px;
-  background: #25D366;
+  background: #d4af35;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 20px rgba(37, 211, 102, 0.4);
+  box-shadow: 0 4px 20px rgba(212, 175, 53, 0.4);
   z-index: 9999;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 .whatsapp-float:hover {
   transform: scale(1.1);
-  box-shadow: 0 6px 30px rgba(37, 211, 102, 0.6);
+  box-shadow: 0 6px 30px rgba(212, 175, 53, 0.6);
 }
 .whatsapp-float svg {
   width: 32px;
