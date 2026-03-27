@@ -9,15 +9,18 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid md:grid-cols-4 gap-8 mb-10 items-start">
           {/* Column 1: Logo & Description */}
-          <div>
-            <Image
-              src="/img/logo.png"
-              alt="Cathedral Group"
-              width={40}
-              height={40}
-              className="h-10 w-auto object-contain mb-4"
-            />
-            <p className="text-sm text-neutral-600 leading-relaxed">
+          <div className="col-span-1">
+            <div className="flex items-center gap-3 mb-8">
+              <Image
+                src="/img/logo.png"
+                alt="Cathedral Group"
+                width={40}
+                height={40}
+                className="h-10 w-auto object-contain"
+              />
+              <h2 className="text-sm font-light tracking-[0.3em] uppercase">Cathedral Group</h2>
+            </div>
+            <p className="text-neutral-500 leading-relaxed text-sm">
               {t('description')}
             </p>
           </div>
@@ -27,7 +30,7 @@ export default function Footer() {
             <h5 className="text-xs font-bold uppercase tracking-widest mb-6">
               {t('divisions')}
             </h5>
-            <ul className="space-y-3 text-sm text-neutral-600">
+            <ul className="space-y-3 text-xs font-bold uppercase tracking-widest text-neutral-500">
               <li><a href="#" className="hover:text-primary transition-colors">Cathedral Spaces</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Cathedral Capital</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Cathedral Properties</a></li>
@@ -41,8 +44,7 @@ export default function Footer() {
               {t('contact')}
             </h5>
             <ul className="space-y-3 text-sm text-neutral-600">
-              <li>Paseo de la Castellana 40, 8º</li>
-              <li>28046 Madrid, España</li>
+              <li>Paseo de la Castellana 40, 8º 28046 Madrid, Espa&ntilde;a</li>
               <li>+34 684 725 606</li>
               <li>info@cathedralgroup.es</li>
             </ul>
@@ -56,7 +58,7 @@ export default function Footer() {
             <div className="flex gap-4">
               <a
                 href="#"
-                className="w-10 h-10 border border-neutral-200 flex items-center justify-center hover:bg-primary hover:text-white transition-colors"
+                className="w-10 h-10 border border-neutral-200 flex items-center justify-center hover:bg-primary hover:text-white transition-colors premium-transition"
                 aria-label="Instagram"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -65,7 +67,7 @@ export default function Footer() {
               </a>
               <a
                 href="#"
-                className="w-10 h-10 border border-neutral-200 flex items-center justify-center hover:bg-primary hover:text-white transition-colors"
+                className="w-10 h-10 border border-neutral-200 flex items-center justify-center hover:bg-primary hover:text-white transition-colors premium-transition"
                 aria-label="LinkedIn"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -78,11 +80,11 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-neutral-100 flex flex-col md:flex-row justify-between gap-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-          <p>© Cathedral House Investment S.L. {t('rights')}</p>
+          <p>&copy; Cathedral House Investment S.L. {t('rights')}</p>
           <div className="flex gap-6">
-            <a href="/legal" className="hover:text-primary transition-colors">{t('legal')}</a>
-            <a href="/legal" className="hover:text-primary transition-colors">{t('privacy')}</a>
-            <a href="/legal" className="hover:text-primary transition-colors">{t('cookies')}</a>
+            <a href="/legal" className="hover:text-primary premium-transition">{t('legal')}</a>
+            <a href="/legal" className="hover:text-primary premium-transition">{t('privacy')}</a>
+            <a href="/legal" className="hover:text-primary premium-transition">{t('cookies')}</a>
           </div>
         </div>
       </div>

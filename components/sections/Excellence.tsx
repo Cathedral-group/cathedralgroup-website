@@ -13,7 +13,7 @@ export default function Excellence() {
           <strong className="font-bold">{t('bold')}</strong>
           {t('text2')}
         </h3>
-        <p className="text-neutral-600 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-base text-neutral-600 max-w-2xl mx-auto leading-relaxed">
           {t('text3')}
         </p>
       </div>

@@ -44,7 +44,7 @@ export default function Projects() {
         {PROJECTS.map((project) => (
           <div
             key={project.name}
-            className="relative aspect-[4/5] bg-neutral-100 overflow-hidden group"
+            className="relative aspect-[4/5] bg-neutral-100 overflow-hidden group img-hover-zoom"
           >
             <div
               className="w-full h-full bg-center bg-cover transition-transform duration-800 group-hover:scale-105"
@@ -52,7 +52,7 @@ export default function Projects() {
               role="img"
               aria-label={project.alt}
             />
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end p-10">
+            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-10 premium-transition">
               <div className="text-white">
                 <p className="text-xs font-bold uppercase tracking-widest mb-2">
                   {project.location}
