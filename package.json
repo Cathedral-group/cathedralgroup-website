@@ -1,0 +1,43 @@
+{
+  "name": "cathedralgroup-website",
+  "version": "1.0.0",
+  "description": "Official website of Cathedral Group",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cathedral-group/cathedralgroup-website.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Cathedral-group/cathedralgroup-website/issues"
+  },
+  "homepage": "https://github.com/Cathedral-group/cathedralgroup-website#readme",
+  "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.100.1",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/postcss": "^4.2.2",
+    "autoprefixer": "^10.4.27",
+    "gsap": "^3.14.2",
+    "lenis": "^1.3.21",
+    "next": "^16.2.1",
+    "next-intl": "^4.8.3",
+    "postcss": "^8.5.8",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "typescript": "^5.9.3"
+  }
+}
