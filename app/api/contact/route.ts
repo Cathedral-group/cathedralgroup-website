@@ -19,9 +19,14 @@ export async function POST(request: Request) {
     const {
       nombre,
       email,
+      telefono,
       tipo_proyecto,
+      zona,
+      metros_cuadrados,
+      presupuesto_rango,
       mensaje,
       empresa_web,
+      source_page,
       'cf-turnstile-response': turnstileToken,
     } = body
 
@@ -109,8 +114,13 @@ export async function POST(request: Request) {
         {
           nombre: String(nombre).trim(),
           email: emailNormalizado,
+          telefono: telefono ? String(telefono).trim() : null,
           tipo_proyecto: tipo_proyecto ? String(tipo_proyecto).trim() : null,
+          zona: zona ? String(zona).trim() : null,
+          metros_cuadrados: metros_cuadrados ? Number(metros_cuadrados) : null,
+          presupuesto_rango: presupuesto_rango || null,
           mensaje: String(mensaje).trim(),
+          source_page: source_page || 'cathedralgroup.es',
           origen: 'cathedralgroup.es',
         },
       ]),
