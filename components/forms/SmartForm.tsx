@@ -174,10 +174,10 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, tipo_proyecto: value }))
                   nextStep()
                 }}
-                className={`p-4 text-sm text-left border transition-all duration-300 hover:border-primary hover:bg-white ${
+                className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.tipo_proyecto === value
                     ? 'border-primary bg-white font-medium'
-                    : 'border-neutral-300 bg-white/60'
+                    : 'border-neutral-300 bg-white'
                 }`}
               >
                 {label}
@@ -237,10 +237,10 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, presupuesto_rango: value }))
                   nextStep()
                 }}
-                className={`p-4 text-sm text-left border transition-all duration-300 hover:border-primary hover:bg-white ${
+                className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.presupuesto_rango === value
                     ? 'border-primary bg-white font-medium'
-                    : 'border-neutral-300 bg-white/60'
+                    : 'border-neutral-300 bg-white'
                 }`}
               >
                 {label}
