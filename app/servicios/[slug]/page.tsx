@@ -1,7 +1,79 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { services, getServiceBySlug } from '@/content/services'
 import SmartForm from '@/components/forms/SmartForm'
 import SectionLabel from '@/components/ui/SectionLabel'
+
+const relatedContent: Record<string, { posts: { href: string; labelEs: string; labelEn: string }[]; zones: { href: string; labelEs: string; labelEn: string }[] }> = {
+  'reformas-integrales-madrid': {
+    posts: [
+      { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+      { href: '/blog/reformar-atico-madrid-precio', labelEs: 'Reformar un ático en Madrid: precio', labelEn: 'Penthouse renovation in Madrid: cost' },
+      { href: '/blog/reforma-integral-vs-parcial', labelEs: 'Reforma integral vs parcial', labelEn: 'Full vs partial renovation' },
+    ],
+    zones: [
+      { href: '/zonas/reformas-salamanca', labelEs: 'Reformas en Salamanca', labelEn: 'Renovations in Salamanca' },
+      { href: '/zonas/reformas-chamberi', labelEs: 'Reformas en Chamberí', labelEn: 'Renovations in Chamberí' },
+      { href: '/zonas/reformas-chamartin', labelEs: 'Reformas en Chamartín', labelEn: 'Renovations in Chamartín' },
+      { href: '/zonas/reformas-retiro', labelEs: 'Reformas en Retiro', labelEn: 'Renovations in Retiro' },
+    ],
+  },
+  'interiorismo-madrid': {
+    posts: [
+      { href: '/blog/tendencias-interiorismo-2026', labelEs: 'Tendencias en interiorismo 2026', labelEn: 'Interior design trends 2026' },
+      { href: '/blog/reformas-lujo-salamanca-madrid', labelEs: 'Reformas de lujo en Salamanca', labelEn: 'Luxury renovations in Salamanca' },
+    ],
+    zones: [
+      { href: '/zonas/reformas-salamanca', labelEs: 'Interiorismo en Salamanca', labelEn: 'Interior design in Salamanca' },
+      { href: '/zonas/reformas-chamberi', labelEs: 'Interiorismo en Chamberí', labelEn: 'Interior design in Chamberí' },
+      { href: '/zonas/reformas-la-moraleja', labelEs: 'Interiorismo en La Moraleja', labelEn: 'Interior design in La Moraleja' },
+    ],
+  },
+  'arquitectura-madrid': {
+    posts: [
+      { href: '/blog/licencia-obra-madrid-guia', labelEs: 'Licencia de obra en Madrid: guía', labelEn: 'Building permit in Madrid: guide' },
+      { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+    ],
+    zones: [
+      { href: '/zonas/reformas-salamanca', labelEs: 'Arquitectura en Salamanca', labelEn: 'Architecture in Salamanca' },
+      { href: '/zonas/reformas-chamberi', labelEs: 'Arquitectura en Chamberí', labelEn: 'Architecture in Chamberí' },
+      { href: '/zonas/reformas-chamartin', labelEs: 'Arquitectura en Chamartín', labelEn: 'Architecture in Chamartín' },
+    ],
+  },
+  'cambio-uso-local-vivienda-madrid': {
+    posts: [
+      { href: '/blog/cambio-uso-local-vivienda-guia-completa', labelEs: 'Cambio de uso de local a vivienda: guía completa', labelEn: 'Commercial to residential conversion: full guide' },
+      { href: '/blog/licencia-obra-madrid-guia', labelEs: 'Licencia de obra en Madrid: guía', labelEn: 'Building permit in Madrid: guide' },
+    ],
+    zones: [
+      { href: '/zonas/reformas-chamberi', labelEs: 'Cambio de uso en Chamberí', labelEn: 'Conversion in Chamberí' },
+      { href: '/zonas/reformas-salamanca', labelEs: 'Cambio de uso en Salamanca', labelEn: 'Conversion in Salamanca' },
+      { href: '/zonas/reformas-retiro', labelEs: 'Cambio de uso en Retiro', labelEn: 'Conversion in Retiro' },
+    ],
+  },
+  'obra-nueva-madrid': {
+    posts: [
+      { href: '/blog/licencia-obra-madrid-guia', labelEs: 'Licencia de obra en Madrid: guía', labelEn: 'Building permit in Madrid: guide' },
+      { href: '/blog/tendencias-interiorismo-2026', labelEs: 'Tendencias en interiorismo 2026', labelEn: 'Interior design trends 2026' },
+    ],
+    zones: [
+      { href: '/zonas/reformas-pozuelo', labelEs: 'Obra nueva en Pozuelo', labelEn: 'New construction in Pozuelo' },
+      { href: '/zonas/reformas-las-rozas', labelEs: 'Obra nueva en Las Rozas', labelEn: 'New construction in Las Rozas' },
+      { href: '/zonas/reformas-la-moraleja', labelEs: 'Obra nueva en La Moraleja', labelEn: 'New construction in La Moraleja' },
+    ],
+  },
+  'promocion-inmobiliaria-madrid': {
+    posts: [
+      { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+      { href: '/blog/cambio-uso-local-vivienda-guia-completa', labelEs: 'Cambio de uso de local a vivienda', labelEn: 'Commercial to residential conversion' },
+    ],
+    zones: [
+      { href: '/zonas/reformas-salamanca', labelEs: 'Promociones en Salamanca', labelEn: 'Developments in Salamanca' },
+      { href: '/zonas/reformas-chamartin', labelEs: 'Promociones en Chamartín', labelEn: 'Developments in Chamartín' },
+      { href: '/zonas/reformas-pozuelo', labelEs: 'Promociones en Pozuelo', labelEn: 'Developments in Pozuelo' },
+    ],
+  },
+}
 
 export function generateStaticParams() {
   return services.map((s) => ({ slug: s.slug }))
@@ -80,6 +152,46 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           </div>
         </div>
       </section>
+
+      {/* Related Content */}
+      {relatedContent[slug] && (
+        <section className="py-16 bg-white">
+          <div className="max-w-3xl mx-auto px-6" data-animate="fade-up">
+            {relatedContent[slug].posts.length > 0 && (
+              <div className="mb-12">
+                <h2 className="text-xl font-medium uppercase tracking-wide mb-6">
+                  {locale === 'en' ? 'Related Articles' : 'Artículos Relacionados'}
+                </h2>
+                <ul className="space-y-3">
+                  {relatedContent[slug].posts.map((post) => (
+                    <li key={post.href}>
+                      <Link href={post.href} className="text-primary hover:underline">
+                        {locale === 'en' ? post.labelEn : post.labelEs}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {relatedContent[slug].zones.length > 0 && (
+              <div>
+                <h2 className="text-xl font-medium uppercase tracking-wide mb-6">
+                  {locale === 'en' ? 'Areas We Serve' : 'Zonas Donde Trabajamos'}
+                </h2>
+                <ul className="grid grid-cols-2 gap-3">
+                  {relatedContent[slug].zones.map((zone) => (
+                    <li key={zone.href}>
+                      <Link href={zone.href} className="text-primary hover:underline">
+                        {locale === 'en' ? zone.labelEn : zone.labelEs}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* SmartForm */}
       <section className="py-16 bg-white" id="contacto">

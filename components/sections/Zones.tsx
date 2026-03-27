@@ -1,3 +1,5 @@
+'use client'
+
 import { useT } from '@/lib/translations'
 
 const ZONES = [

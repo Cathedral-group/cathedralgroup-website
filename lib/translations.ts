@@ -171,19 +171,27 @@ const allTranslations = { es, en }
 export type Locale = 'es' | 'en'
 type Section = keyof typeof es
 
-let currentLocale: Locale = 'es'
+// Read locale from cookie (works on client only)
+function getLocaleFromCookie(): Locale {
+  if (typeof document === 'undefined') return 'es'
+  const match = document.cookie.match(/locale=(es|en)/)
+  return (match?.[1] as Locale) || 'es'
+}
 
 export function setLocale(locale: Locale) {
-  currentLocale = locale
+  if (typeof document !== 'undefined') {
+    document.cookie = `locale=${locale};path=/;max-age=31536000`
+  }
 }
 
 export function getLocale(): Locale {
-  return currentLocale
+  return getLocaleFromCookie()
 }
 
 export function useT(section: Section) {
+  const locale = getLocaleFromCookie()
   return (key: string) => {
-    const s = allTranslations[currentLocale][section] as Record<string, string>
+    const s = allTranslations[locale][section] as Record<string, string>
     return s[key] ?? key
   }
 }
