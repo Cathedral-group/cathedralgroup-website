@@ -145,14 +145,15 @@ export async function POST(request: Request) {
         {
           nombre: String(nombre).trim(),
           email: emailNormalizado,
-          telefono: telefono ? String(telefono).trim() : null,
+          phone: telefono ? String(telefono).trim() : null,
           tipo_proyecto: tipo_proyecto ? String(tipo_proyecto).trim() : null,
-          zona: zona ? String(zona).trim() : null,
-          metros_cuadrados: metros_cuadrados ? Number(metros_cuadrados) : null,
-          presupuesto_rango: presupuesto_rango || null,
           mensaje: String(mensaje).trim(),
-          source_page: source_page || 'cathedralgroup.es',
-          origen: 'cathedralgroup.es',
+          origen: source_page || 'cathedralgroup.es',
+          notes: [
+            zona ? `Zona: ${zona}` : null,
+            metros_cuadrados ? `m²: ${metros_cuadrados}` : null,
+            presupuesto_rango ? `Presupuesto: ${presupuesto_rango}` : null,
+          ].filter(Boolean).join(' | ') || null,
         },
       ]),
     })
