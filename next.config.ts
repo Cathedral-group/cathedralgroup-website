@@ -1,11 +1,7 @@
 import type { NextConfig } from 'next'
-import createNextIntlPlugin from 'next-intl/plugin'
-
-const withNextIntl = createNextIntlPlugin('./lib/i18n/request.ts')
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['gray-matter', 'reading-time'],
-  i18n: undefined, // Handled by next-intl plugin
   async redirects() {
     return [
       { source: '/index.html', destination: '/', permanent: true },
@@ -31,4 +27,4 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default withNextIntl(nextConfig)
+export default nextConfig
