@@ -54,6 +54,7 @@ export default function SmartForm({
     presupuesto_rango: '',
     nombre: '',
     email: '',
+    telefono_prefijo: '+34',
     telefono: '',
     mensaje: '',
     empresa_web: '', // honeypot
@@ -118,6 +119,7 @@ export default function SmartForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          telefono: formData.telefono ? `${formData.telefono_prefijo}${formData.telefono.replace(/\s/g, '')}` : '',
           source_page: source,
           'cf-turnstile-response': turnstileToken,
         }),
@@ -312,14 +314,37 @@ export default function SmartForm({
               </div>
               <div>
                 <label className={labelClass}>{t('phone')}</label>
-                <input
-                  type="tel"
-                  name="telefono"
-                  value={formData.telefono}
-                  onChange={handleChange}
-                  placeholder="+34 600 000 000"
-                  className={inputClass}
-                />
+                <div className="flex">
+                  <select
+                    name="telefono_prefijo"
+                    value={formData.telefono_prefijo}
+                    onChange={handleChange}
+                    className="bg-white border border-neutral-300 border-r-0 focus:border-primary focus:ring-1 focus:ring-primary p-4 text-sm text-neutral-900 w-24 flex-shrink-0"
+                  >
+                    <option value="+34">+34</option>
+                    <option value="+1">+1</option>
+                    <option value="+44">+44</option>
+                    <option value="+33">+33</option>
+                    <option value="+49">+49</option>
+                    <option value="+39">+39</option>
+                    <option value="+351">+351</option>
+                    <option value="+41">+41</option>
+                    <option value="+52">+52</option>
+                    <option value="+54">+54</option>
+                    <option value="+55">+55</option>
+                    <option value="+57">+57</option>
+                    <option value="+56">+56</option>
+                    <option value="+971">+971</option>
+                  </select>
+                  <input
+                    type="tel"
+                    name="telefono"
+                    value={formData.telefono}
+                    onChange={handleChange}
+                    placeholder="600000000"
+                    className="w-full bg-white border border-neutral-300 focus:border-primary focus:ring-1 focus:ring-primary p-4 text-sm text-neutral-900 placeholder:text-neutral-400"
+                  />
+                </div>
               </div>
             </div>
 
