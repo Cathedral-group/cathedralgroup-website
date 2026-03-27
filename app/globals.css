@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+/**
+ * Cathedral Group — Custom CSS
+ */
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; background: transparent; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #5A5550; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #4A4541; }
+html { scrollbar-width: thin; scrollbar-color: #5A5550 transparent; }
+
+/* Smooth Scroll (Lenis) */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+
+/* Fluid Typography */
+.text-fluid-xs { font-size: clamp(0.75rem, 0.5vw + 0.5rem, 0.875rem); }
+.text-fluid-sm { font-size: clamp(0.875rem, 0.5vw + 0.625rem, 1rem); }
+.text-fluid-base { font-size: clamp(1rem, 0.5vw + 0.75rem, 1.125rem); }
+.text-fluid-lg { font-size: clamp(1.25rem, 1vw + 0.75rem, 1.75rem); }
+.text-fluid-xl { font-size: clamp(1.5rem, 2vw + 0.5rem, 2.5rem); }
+.text-fluid-2xl { font-size: clamp(2rem, 3vw + 0.5rem, 3.5rem); }
+.text-fluid-3xl { font-size: clamp(2.5rem, 4vw + 0.5rem, 5rem); }
+.text-fluid-hero { font-size: clamp(3rem, 5vw + 1rem, 6rem); }
+
+/* Header Transitions */
+.header-transparent { background: transparent !important; border-color: transparent !important; backdrop-filter: none !important; }
+.header-solid { background: rgba(255, 255, 255, 0.95) !important; backdrop-filter: blur(12px) !important; border-color: rgba(0, 0, 0, 0.05) !important; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* Parallax */
+.parallax-container { overflow: hidden; position: relative; }
+.parallax-container img { will-change: transform; object-fit: cover; width: 100%; height: 120%; }
+
+/* Image Hover */
+.img-hover-zoom { overflow: hidden; }
+.img-hover-zoom img { transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+.img-hover-zoom:hover img { transform: scale(1.08); }
+.img-hover-grayscale img { filter: grayscale(100%); transition: filter 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+.img-hover-grayscale:hover img { filter: grayscale(0%); }
+
+/* Reveal */
+.reveal-clip { clip-path: inset(0 0 100% 0); }
+
+/* Premium Buttons */
+.btn-cathedral { position: relative; overflow: hidden; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1; }
+.btn-cathedral::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; transform: scaleX(0); transform-origin: right; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: -1; }
+.btn-cathedral:hover::before { transform: scaleX(1); transform-origin: left; }
+.btn-cathedral:hover { color: #fff; }
+
+.btn-cathedral-gold { position: relative; overflow: hidden; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1; }
+.btn-cathedral-gold::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #B4A898; transform: scaleX(0); transform-origin: right; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: -1; }
+.btn-cathedral-gold:hover::before { transform: scaleX(1); transform-origin: left; }
+.btn-cathedral-gold:hover { color: #fff; }
+
+/* WhatsApp Float */
+.whatsapp-float { position: fixed; bottom: 24px; right: 24px; width: 60px; height: 60px; background: #B4A898; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(180, 168, 152, 0.4); z-index: 9999; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+.whatsapp-float:hover { transform: scale(1.1); box-shadow: 0 6px 30px rgba(180, 168, 152, 0.6); }
+.whatsapp-float svg { width: 32px; height: 32px; fill: #1a1a1a; }
+
+/* Multi-step Form */
+.form-step { display: none; opacity: 0; transform: translateX(20px); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+.form-step.active { display: block; opacity: 1; transform: translateX(0); }
+.form-progress { display: flex; gap: 8px; margin-bottom: 2rem; }
+.form-progress-dot { width: 40px; height: 4px; background: #e5e7eb; border-radius: 2px; transition: background 0.3s ease; }
+.form-progress-dot.active { background: #B4A898; }
+
+/* Selection */
+::selection { background: #B4A898; color: #fff; }
+
+/* Premium transition */
+.premium-transition { transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1); }

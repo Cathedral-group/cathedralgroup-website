@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "projects": "Proyectos",
+    "services": "Servicios",
+    "zones": "Zonas",
+    "about": "Nosotros",
+    "contact": "Contacto",
+    "blog": "Blog",
+    "consult": "Consultar"
+  },
+  "hero": {
+    "title": "Cathedral Spaces:",
+    "subtitle": "Arquitectura y diseño de alto nivel",
+    "cta": "Explorar Proyectos"
+  },
+  "divisions": {
+    "label": "Nuestras Divisiones",
+    "title": "Estructura de Excelencia",
+    "spaces": "Spaces",
+    "spacesDesc": "Arquitectura residencial y reformas integrales de alto standing.",
+    "capital": "Capital",
+    "capitalDesc": "Gestión estratégica de inversiones y consultoría inmobiliaria.",
+    "properties": "Properties",
+    "propertiesDesc": "Comercialización selecta de activos residenciales de lujo.",
+    "developments": "Developments",
+    "developmentsDesc": "Promoción y desarrollo de proyectos arquitectónicos singulares.",
+    "explore": "Explorar división"
+  },
+  "projects": {
+    "label": "Portafolio",
+    "title": "Proyectos Destacados",
+    "viewAll": "Ver Todos"
+  },
+  "zones": {
+    "label": "Donde Trabajamos",
+    "title": "Zonas de",
+    "titleHighlight": "Actuación",
+    "description": "Operamos en los barrios más exclusivos de Madrid, donde la herencia arquitectónica y el diseño arquitectónico alcanza su máxima expresión."
+  },
+  "about": {
+    "label": "Sobre Nosotros",
+    "title": "La Filosofía Cathedral",
+    "paragraph1": "Fundada con la visión de elevar los estándares de la vivienda de lujo en Madrid, Cathedral Group se ha convertido en un referente de sofisticación y precisión técnica.",
+    "paragraph2": "No solo diseñamos espacios; orquestamos experiencias sensoriales donde la luz, la materia y la proporción convergen para crear entornos de serenidad y distinción absoluta.",
+    "yearsLabel": "Años de Experiencia",
+    "projectsLabel": "Proyectos Entregados"
+  },
+  "form": {
+    "title": "Inicie su Proyecto",
+    "subtitle": "Complete el formulario y nuestro equipo de consultores se pondrá en contacto para una sesión privada.",
+    "name": "Nombre Completo",
+    "email": "Email",
+    "phone": "Teléfono",
+    "projectType": "Tipo de Proyecto",
+    "zone": "Zona",
+    "sqm": "m² aproximados",
+    "budget": "Presupuesto Estimado",
+    "message": "Mensaje / Interés",
+    "submit": "Enviar Solicitud",
+    "selectOption": "Seleccione una opción",
+    "step1": "Proyecto",
+    "step2": "Ubicación",
+    "step3": "Presupuesto",
+    "step4": "Contacto"
+  },
+  "footer": {
+    "description": "Holding inmobiliario en Madrid, especializado en arquitectura de lujo, inversión estratégica y desarrollo de proyectos residenciales exclusivos.",
+    "divisions": "Divisiones",
+    "contact": "Contacto",
+    "follow": "Síguenos",
+    "legal": "Aviso Legal",
+    "privacy": "Privacidad",
+    "cookies": "Cookies",
+    "rights": "Cathedral House Investment S.L. Todos los derechos reservados."
+  },
+  "excellence": {
+    "label": "Excelencia y Rigor",
+    "text1": "Redefinimos el concepto de lujo a través de",
+    "bold": "reformas residenciales de alto nivel",
+    "text2": ", interiorismo sofisticado y una construcción meticulosamente orientada al diseño.",
+    "text3": "Ubicados en el corazón de Madrid, nuestro estudio fusiona la herencia arquitectónica con las tendencias contemporáneas para crear hogares que son verdaderas obras de arte."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "projects": "Projects",
+    "services": "Services",
+    "zones": "Zones",
+    "about": "About",
+    "contact": "Contact",
+    "blog": "Blog",
+    "consult": "Enquire"
+  },
+  "hero": {
+    "title": "Cathedral Spaces:",
+    "subtitle": "Architecture and design at the highest level",
+    "cta": "Explore Projects"
+  },
+  "divisions": {
+    "label": "Our Divisions",
+    "title": "Structure of Excellence",
+    "spaces": "Spaces",
+    "spacesDesc": "High-end residential architecture and comprehensive renovations.",
+    "capital": "Capital",
+    "capitalDesc": "Strategic investment management and real estate advisory.",
+    "properties": "Properties",
+    "propertiesDesc": "Select marketing of luxury residential assets.",
+    "developments": "Developments",
+    "developmentsDesc": "Promotion and development of unique architectural projects.",
+    "explore": "Explore division"
+  },
+  "projects": {
+    "label": "Portfolio",
+    "title": "Featured Projects",
+    "viewAll": "View All"
+  },
+  "zones": {
+    "label": "Where We Work",
+    "title": "Areas of",
+    "titleHighlight": "Operation",
+    "description": "We operate in Madrid's most exclusive neighborhoods, where architectural heritage and design reach their highest expression."
+  },
+  "about": {
+    "label": "About Us",
+    "title": "The Cathedral Philosophy",
+    "paragraph1": "Founded with the vision of elevating the standards of luxury living in Madrid, Cathedral Group has become a benchmark of sophistication and technical precision.",
+    "paragraph2": "We don't just design spaces; we orchestrate sensory experiences where light, material and proportion converge to create environments of serenity and absolute distinction.",
+    "yearsLabel": "Years of Experience",
+    "projectsLabel": "Projects Delivered"
+  },
+  "form": {
+    "title": "Start Your Project",
+    "subtitle": "Complete the form and our team of consultants will contact you for a private session.",
+    "name": "Full Name",
+    "email": "Email",
+    "phone": "Phone",
+    "projectType": "Project Type",
+    "zone": "Zone",
+    "sqm": "Approx. sqm",
+    "budget": "Estimated Budget",
+    "message": "Message / Interest",
+    "submit": "Submit Request",
+    "selectOption": "Select an option",
+    "step1": "Project",
+    "step2": "Location",
+    "step3": "Budget",
+    "step4": "Contact"
+  },
+  "footer": {
+    "description": "Madrid-based real estate holding, specializing in luxury architecture, strategic investment and exclusive residential development.",
+    "divisions": "Divisions",
+    "contact": "Contact",
+    "follow": "Follow Us",
+    "legal": "Legal Notice",
+    "privacy": "Privacy",
+    "cookies": "Cookies",
+    "rights": "Cathedral House Investment S.L. All rights reserved."
+  },
+  "excellence": {
+    "label": "Excellence and Rigour",
+    "text1": "We redefine the concept of luxury through",
+    "bold": "high-end residential renovations",
+    "text2": ", sophisticated interior design and meticulously design-oriented construction.",
+    "text3": "Located in the heart of Madrid, our studio blends architectural heritage with contemporary trends to create homes that are true works of art."
+  }
+}
