@@ -1,8 +1,8 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 import SmartForm from '@/components/forms/SmartForm'
 
 export default function ContactoPage() {
-  const t = useTranslations('form')
+  const t = useT('form')
 
   return (
     <>

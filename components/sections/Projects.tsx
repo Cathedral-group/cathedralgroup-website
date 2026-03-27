@@ -1,4 +1,4 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 const PROJECTS = [
@@ -17,7 +17,7 @@ const PROJECTS = [
 ]
 
 export default function Projects() {
-  const t = useTranslations('projects')
+  const t = useT('projects')
 
   return (
     <section className="pt-12 pb-0 bg-white" id="proyectos">

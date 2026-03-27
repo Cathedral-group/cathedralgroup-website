@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { useTranslations } from 'next-intl'
-import { Link } from '@/lib/i18n/routing'
-import LanguageSwitcher from '@/components/ui/LanguageSwitcher'
+import { useT } from '@/lib/translations'
+import Link from 'next/link'
 
 const NAV_ITEMS = [
   { key: 'projects', href: '#proyectos' },
@@ -15,7 +14,7 @@ const NAV_ITEMS = [
 ]
 
 export default function Header() {
-  const t = useTranslations('nav')
+  const t = useT('nav')
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -64,7 +63,6 @@ export default function Header() {
 
         {/* Right: Language + Mobile Menu */}
         <div className="flex items-center gap-4">
-          <LanguageSwitcher />
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="md:hidden w-10 h-10 flex items-center justify-center"

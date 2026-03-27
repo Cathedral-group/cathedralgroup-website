@@ -1,7 +1,7 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 
 export default function Hero() {
-  const t = useTranslations('hero')
+  const t = useT('hero')
 
   return (
     <section className="relative h-[90vh] flex items-center overflow-hidden">

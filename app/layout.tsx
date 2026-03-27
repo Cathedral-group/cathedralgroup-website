@@ -1,5 +1,17 @@
 import type { Metadata } from 'next'
+import { Manrope } from 'next/font/google'
 import './globals.css'
+import Header from '@/components/layout/Header'
+import Footer from '@/components/layout/Footer'
+import WhatsAppFloat from '@/components/layout/WhatsAppFloat'
+import SmoothScroll from '@/components/animations/SmoothScroll'
+import ScrollAnimations from '@/components/animations/ScrollAnimations'
+
+const manrope = Manrope({
+  subsets: ['latin'],
+  variable: '--font-manrope',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://cathedralgroup.es'),
@@ -13,18 +25,11 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'es_ES',
-    alternateLocale: 'en_GB',
     url: 'https://cathedralgroup.es',
     siteName: 'Cathedral Group',
     title: 'Cathedral Group | Arquitectura y Diseño de Lujo en Madrid',
     description: 'Estudio de arquitectura, diseño y reformas en Madrid especializado en proyectos residenciales de alto standing.',
     images: [{ url: '/img/hero_final.jpg', width: 2048, height: 1365, alt: 'Cathedral Group' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Cathedral Group',
-    description: 'Arquitectura y Diseño de Lujo en Madrid',
-    images: ['/img/hero_final.jpg'],
   },
   icons: {
     icon: [
@@ -34,10 +39,6 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://cathedralgroup.es',
-    languages: {
-      'es': 'https://cathedralgroup.es',
-      'en': 'https://cathedralgroup.es/en',
-    },
   },
 }
 
@@ -46,5 +47,18 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return (
+    <html lang="es" className={manrope.variable}>
+      <body className="font-display text-neutral-900 antialiased">
+        <Header />
+        <main className="pt-20">
+          {children}
+        </main>
+        <Footer />
+        <WhatsAppFloat />
+        <SmoothScroll />
+        <ScrollAnimations />
+      </body>
+    </html>
+  )
 }

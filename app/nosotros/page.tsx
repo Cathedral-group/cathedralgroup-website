@@ -1,8 +1,8 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 export default function NosotrosPage() {
-  const t = useTranslations('about')
+  const t = useT('about')
 
   return (
     <>

@@ -1,8 +1,8 @@
 import Image from 'next/image'
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 
 export default function Footer() {
-  const t = useTranslations('footer')
+  const t = useT('footer')
 
   return (
     <footer className="bg-white border-t border-neutral-100 py-16">

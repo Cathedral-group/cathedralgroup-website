@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, FormEvent } from 'react'
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 
 const PROJECT_TYPES = [
   { value: 'reforma', label: 'Reforma integral' },
@@ -41,7 +41,7 @@ export default function SmartForm({
   compact = false,
   source = 'homepage',
 }: SmartFormProps) {
-  const t = useTranslations('form')
+  const t = useT('form')
   const [step, setStep] = useState(1)
   const totalSteps = 4
 

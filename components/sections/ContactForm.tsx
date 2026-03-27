@@ -1,8 +1,8 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 import SmartForm from '@/components/forms/SmartForm'
 
 export default function ContactForm() {
-  const t = useTranslations('form')
+  const t = useT('form')
 
   return (
     <section className="py-16 bg-beige-subtle" id="contacto">

@@ -1,4 +1,4 @@
-import { Link } from '@/lib/i18n/routing'
+import Link from 'next/link'
 import { getAllPosts, getAllCategories } from '@/lib/blog'
 import SectionLabel from '@/components/ui/SectionLabel'
 

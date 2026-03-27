@@ -1,8 +1,8 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 export default function Excellence() {
-  const t = useTranslations('excellence')
+  const t = useT('excellence')
 
   return (
     <section className="py-12 bg-white">

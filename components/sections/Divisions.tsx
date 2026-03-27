@@ -1,4 +1,4 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 
 const DIVISIONS = [
   { key: 'spaces' },
@@ -8,7 +8,7 @@ const DIVISIONS = [
 ] as const
 
 export default function Divisions() {
-  const t = useTranslations('divisions')
+  const t = useT('divisions')
 
   return (
     <section className="bg-beige-subtle" id="servicios">

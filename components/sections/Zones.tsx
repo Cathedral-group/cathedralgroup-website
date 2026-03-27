@@ -1,10 +1,10 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 
 const ZONES_LEFT = ['Salamanca', 'Chamberí', 'Retiro', 'El Viso']
 const ZONES_RIGHT = ['Pozuelo de Alarcón', 'La Moraleja', 'Aravaca', 'Puerta de Hierro']
 
 export default function Zones() {
-  const t = useTranslations('zones')
+  const t = useT('zones')
 
   return (
     <>

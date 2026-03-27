@@ -1,8 +1,8 @@
-import { useTranslations } from 'next-intl'
+import { useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 export default function About() {
-  const t = useTranslations('about')
+  const t = useT('about')
 
   return (
     <section className="pt-12 pb-0 bg-white" id="nosotros">
