@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, useRef, FormEvent } from 'react'
 import { useT } from '@/lib/translations'
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
 
 const PROJECT_TYPES = [
   { value: 'reforma', label: 'Reforma integral' },
@@ -60,6 +62,42 @@ export default function SmartForm({
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const turnstileRef = useRef<HTMLDivElement>(null)
+
+  // Load Turnstile widget
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return
+
+    // Load script if not already loaded
+    if (!document.querySelector('script[src*="turnstile"]')) {
+      const script = document.createElement('script')
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+      script.async = true
+      script.defer = true
+      document.head.appendChild(script)
+    }
+
+    // Render widget when script is ready
+    const interval = setInterval(() => {
+      if (
+        typeof window !== 'undefined' &&
+        (window as any).turnstile &&
+        turnstileRef.current &&
+        !turnstileRef.current.hasChildNodes()
+      ) {
+        ;(window as any).turnstile.render(turnstileRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token: string) => setTurnstileToken(token),
+          theme: 'light',
+          size: 'flexible',
+        })
+        clearInterval(interval)
+      }
+    }, 200)
+
+    return () => clearInterval(interval)
+  }, [step]) // Re-check when step changes
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -82,6 +120,7 @@ export default function SmartForm({
         body: JSON.stringify({
           ...formData,
           source_page: source,
+          'cf-turnstile-response': turnstileToken,
         }),
       })
 
@@ -311,6 +350,11 @@ export default function SmartForm({
             </div>
           </div>
 
+          {/* Cloudflare Turnstile */}
+          {TURNSTILE_SITE_KEY && (
+            <div ref={turnstileRef} className="mt-6 flex justify-center" />
+          )}
+
           {error && <p className="text-red-600 text-sm text-center mt-4">{error}</p>}
 
           <div className="flex gap-4 mt-8">
@@ -319,8 +363,8 @@ export default function SmartForm({
             </button>
             <button
               type="submit"
-              disabled={submitting}
-              className="flex-1 py-3 text-sm font-medium uppercase tracking-widest bg-primary text-white hover:bg-stone-dark transition-colors disabled:opacity-50"
+              disabled={submitting || (!turnstileToken && !!TURNSTILE_SITE_KEY)}
+              className="flex-1 py-3 text-sm font-medium uppercase tracking-widest bg-[#5A5550] text-white hover:bg-primary transition-colors disabled:opacity-50"
             >
               {submitting ? '...' : t('submit')}
             </button>
