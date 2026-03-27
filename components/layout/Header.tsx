@@ -6,11 +6,11 @@ import { useT, getLocale, setLocale, type Locale } from '@/lib/translations'
 import Link from 'next/link'
 
 const NAV_ITEMS = [
-  { key: 'projects', href: '#proyectos' },
-  { key: 'services', href: '#servicios' },
-  { key: 'zones', href: '#zonas' },
-  { key: 'about', href: '#nosotros' },
-  { key: 'contact', href: '#contacto' },
+  { key: 'projects', href: '/proyectos' },
+  { key: 'services', href: '/servicios' },
+  { key: 'zones', href: '/zonas' },
+  { key: 'about', href: '/nosotros' },
+  { key: 'contact', href: '/contacto' },
   { key: 'budget', href: '/presupuesto' },
 ]
 

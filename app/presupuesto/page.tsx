@@ -246,7 +246,7 @@ export default function PresupuestoPage() {
           <SelectionCard
             key={key}
             selected={projectType === key}
-            onClick={() => setProjectType(key)}
+            onClick={() => { setProjectType(key); setTimeout(() => setStep(2), 300) }}
           >
             <div className="flex items-center gap-4">
               <span className="text-2xl text-primary opacity-60">{icon}</span>
@@ -267,7 +267,7 @@ export default function PresupuestoPage() {
       <StepHeader titleKey="step2Title" subtitleKey="step2Subtitle" />
       <div className="space-y-3">
         {ZONES.map((z, i) => (
-          <SelectionCard key={z.key} selected={zone === i} onClick={() => setZone(i)}>
+          <SelectionCard key={z.key} selected={zone === i} onClick={() => { setZone(i); setTimeout(() => setStep(3), 300) }}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-neutral-800">{t(z.key)}</p>
               <span
@@ -341,7 +341,7 @@ export default function PresupuestoPage() {
       <StepHeader titleKey="step4Title" subtitleKey="step4Subtitle" />
       <div className="grid md:grid-cols-2 gap-3">
         {FINISH_LEVELS.map((fl, i) => (
-          <SelectionCard key={fl.key} selected={finishLevel === i} onClick={() => setFinishLevel(i)}>
+          <SelectionCard key={fl.key} selected={finishLevel === i} onClick={() => { setFinishLevel(i); setTimeout(() => setStep(5), 300) }}>
             <p className="text-sm font-medium text-neutral-800 mb-1">{t(fl.key)}</p>
             <p className="text-xs font-bold text-primary mb-1">{t(fl.rangeKey)}</p>
             <p className="text-xs text-neutral-400">{t(fl.descKey)}</p>
