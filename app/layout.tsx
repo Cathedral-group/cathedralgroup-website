@@ -7,6 +7,7 @@ import Footer from '@/components/layout/Footer'
 import WhatsAppFloat from '@/components/layout/WhatsAppFloat'
 import SmoothScroll from '@/components/animations/SmoothScroll'
 import ScrollAnimations from '@/components/animations/ScrollAnimations'
+import LocaleInit from '@/components/LocaleInit'
 
 const GA_ID = 'G-5FTL67Y0S6'
 
@@ -63,6 +64,7 @@ export default function RootLayout({
         </main>
         <Footer />
         <WhatsAppFloat />
+        <LocaleInit />
         <SmoothScroll />
         <ScrollAnimations />
       </body>

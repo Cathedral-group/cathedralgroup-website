@@ -1,5 +1,4 @@
-// Traducciones hardcoded — se reemplazará con i18n cuando añadamos inglés
-const translations = {
+const es = {
   nav: {
     projects: 'Proyectos',
     services: 'Servicios',
@@ -48,7 +47,7 @@ const translations = {
   },
   form: {
     title: 'Inicie su Proyecto',
-    subtitle: 'Complete el formulario y nuestro equipo de consultores se pondrá en contacto para una sesión privada.',
+    subtitle: 'Complete el formulario y nuestro equipo se pondrá en contacto para una sesión privada.',
     name: 'Nombre Completo',
     email: 'Email',
     phone: 'Teléfono',
@@ -81,15 +80,112 @@ const translations = {
     text2: ', interiorismo sofisticado y una construcción meticulosamente orientada al diseño.',
     text3: 'Ubicados en el corazón de Madrid, nuestro estudio fusiona la herencia arquitectónica con las tendencias contemporáneas para crear hogares que son verdaderas obras de arte.',
   },
-} as const
+}
 
-type Section = keyof typeof translations
+const en = {
+  nav: {
+    projects: 'Projects',
+    services: 'Services',
+    zones: 'Areas',
+    about: 'About',
+    contact: 'Contact',
+    blog: 'Blog',
+    consult: 'Enquire',
+  },
+  hero: {
+    title: 'Cathedral Spaces:',
+    subtitle: 'Architecture and design of the highest level',
+    cta: 'Explore Projects',
+  },
+  divisions: {
+    label: 'Our Divisions',
+    title: 'Structure of Excellence',
+    spaces: 'Spaces',
+    spacesDesc: 'Residential architecture and high-end comprehensive renovations.',
+    capital: 'Capital',
+    capitalDesc: 'Strategic investment management and real estate consultancy.',
+    properties: 'Properties',
+    propertiesDesc: 'Select marketing of luxury residential assets.',
+    developments: 'Developments',
+    developmentsDesc: 'Promotion and development of singular architectural projects.',
+    explore: 'Explore division',
+  },
+  projects: {
+    label: 'Portfolio',
+    title: 'Featured Projects',
+    viewAll: 'View All',
+  },
+  zones: {
+    label: 'Where We Work',
+    title: 'Areas of',
+    titleHighlight: 'Operation',
+    description: 'We operate in the most exclusive neighbourhoods of Madrid, where architectural heritage and design reach their highest expression.',
+  },
+  about: {
+    label: 'About Us',
+    title: 'The Cathedral Philosophy',
+    paragraph1: 'Founded with the vision of elevating the standards of luxury living in Madrid, Cathedral Group has become a benchmark for sophistication and technical precision.',
+    paragraph2: 'We don\'t just design spaces; we orchestrate sensory experiences where light, material and proportion converge to create environments of serenity and absolute distinction.',
+    yearsLabel: 'Years of Experience',
+    projectsLabel: 'Projects Delivered',
+  },
+  form: {
+    title: 'Start Your Project',
+    subtitle: 'Complete the form and our team will get in touch for a private consultation.',
+    name: 'Full Name',
+    email: 'Email',
+    phone: 'Phone',
+    projectType: 'Project Type',
+    zone: 'Area',
+    sqm: 'Approx. m²',
+    budget: 'Estimated Budget',
+    message: 'Message / Interest',
+    submit: 'Submit Request',
+    selectOption: 'Select an option',
+    step1: 'Project',
+    step2: 'Location',
+    step3: 'Budget',
+    step4: 'Contact',
+  },
+  footer: {
+    description: 'Real estate holding in Madrid, specialising in luxury architecture, strategic investment and exclusive residential project development.',
+    divisions: 'Divisions',
+    contact: 'Contact',
+    follow: 'Follow Us',
+    legal: 'Legal Notice',
+    privacy: 'Privacy',
+    cookies: 'Cookies',
+    rights: 'Cathedral House Investment S.L. All rights reserved.',
+  },
+  excellence: {
+    label: 'Excellence and Rigour',
+    text1: 'We redefine the concept of luxury through',
+    bold: 'high-end residential renovations',
+    text2: ', sophisticated interior design and construction meticulously oriented towards design.',
+    text3: 'Based in the heart of Madrid, our studio fuses architectural heritage with contemporary trends to create homes that are true works of art.',
+  },
+}
+
+const allTranslations = { es, en }
+
+export type Locale = 'es' | 'en'
+type Section = keyof typeof es
+
+let currentLocale: Locale = 'es'
+
+export function setLocale(locale: Locale) {
+  currentLocale = locale
+}
+
+export function getLocale(): Locale {
+  return currentLocale
+}
 
 export function useT(section: Section) {
   return (key: string) => {
-    const s = translations[section] as Record<string, string>
+    const s = allTranslations[currentLocale][section] as Record<string, string>
     return s[key] ?? key
   }
 }
 
-export default translations
+export default allTranslations

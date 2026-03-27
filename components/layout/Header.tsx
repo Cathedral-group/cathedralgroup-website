@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { useT } from '@/lib/translations'
+import { useT, getLocale, setLocale, type Locale } from '@/lib/translations'
 import Link from 'next/link'
 
 const NAV_ITEMS = [
@@ -17,6 +17,16 @@ export default function Header() {
   const t = useT('nav')
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [locale, setLocaleState] = useState<Locale>(getLocale())
+
+  const toggleLocale = () => {
+    const newLocale = locale === 'es' ? 'en' : 'es'
+    setLocale(newLocale)
+    setLocaleState(newLocale)
+    document.documentElement.lang = newLocale
+    document.cookie = `locale=${newLocale};path=/;max-age=31536000`
+    window.location.reload()
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80)
@@ -63,6 +73,12 @@ export default function Header() {
 
         {/* Right: Language + Mobile Menu */}
         <div className="flex items-center gap-4">
+          <button
+            onClick={toggleLocale}
+            className="text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-primary transition-colors border border-neutral-200 px-3 py-1.5"
+          >
+            {locale === 'es' ? 'EN' : 'ES'}
+          </button>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="md:hidden w-10 h-10 flex items-center justify-center"
