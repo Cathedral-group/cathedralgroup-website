@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
@@ -21,7 +22,12 @@ function animateElement(el: HTMLElement, from: gsap.TweenVars) {
 }
 
 export default function ScrollAnimations() {
+  const pathname = usePathname()
+
   useEffect(() => {
+    // Kill previous triggers on route change
+    ScrollTrigger.getAll().forEach((t) => t.kill())
+
     const timer = requestAnimationFrame(() => {
       // Fade Up
       gsap.utils.toArray<HTMLElement>('[data-animate="fade-up"]').forEach((el) => {
@@ -105,7 +111,7 @@ export default function ScrollAnimations() {
       cancelAnimationFrame(timer)
       ScrollTrigger.getAll().forEach((t) => t.kill())
     }
-  }, [])
+  }, [pathname])
 
   return null
 }
