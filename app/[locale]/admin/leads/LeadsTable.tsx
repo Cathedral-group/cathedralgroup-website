@@ -9,14 +9,16 @@ interface Lead {
   id: string
   nombre: string
   email: string
-  telefono?: string
+  phone?: string
   tipo_proyecto?: string
-  zona?: string
-  metros_cuadrados?: number
-  presupuesto_rango?: string
   mensaje?: string
-  estado?: string
-  source_page?: string
+  lead_status?: string
+  lead_score?: number
+  lead_summary?: string
+  budget_estimate?: string
+  assigned_to?: string
+  notes?: string
+  origen?: string
   created_at: string
   [key: string]: unknown
 }
@@ -29,12 +31,12 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const [filter, setFilter] = useState('')
 
   const filteredLeads = filter
-    ? leads.filter((l) => l.estado === filter)
+    ? leads.filter((l) => l.lead_status === filter)
     : leads
 
   const updateStatus = async (id: string, estado: string) => {
     const supabase = createClient()
-    await supabase.from('leads').update({ estado }).eq('id', id)
+    await supabase.from('leads').update({ lead_status: estado }).eq('id', id)
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, estado } : l)))
     if (selectedLead?.id === id) setSelectedLead({ ...selectedLead, estado })
   }
@@ -43,9 +45,9 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
     { key: 'nombre', label: 'Nombre' },
     { key: 'email', label: 'Email' },
     { key: 'tipo_proyecto', label: 'Tipo' },
-    { key: 'zona', label: 'Zona' },
+    { key: 'budget_estimate', label: 'Presupuesto' },
     {
-      key: 'estado',
+      key: 'lead_status',
       label: 'Estado',
       render: (val: unknown) => <StatusBadge status={String(val || 'nuevo')} />,
     },
@@ -69,7 +71,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
           Todos ({leads.length})
         </button>
         {STATUSES.map((s) => {
-          const count = leads.filter((l) => (l.estado || 'nuevo') === s).length
+          const count = leads.filter((l) => (l.lead_status || 'nuevo') === s).length
           if (count === 0) return null
           return (
             <button
@@ -109,10 +111,10 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
             </div>
 
             <div className="space-y-4">
-              {selectedLead.telefono && (
+              {selectedLead.phone && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Teléfono</p>
-                  <p className="text-sm">{selectedLead.telefono}</p>
+                  <p className="text-sm">{selectedLead.phone}</p>
                 </div>
               )}
               {selectedLead.tipo_proyecto && (
@@ -121,22 +123,22 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   <p className="text-sm">{selectedLead.tipo_proyecto}</p>
                 </div>
               )}
-              {selectedLead.zona && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Zona</p>
-                  <p className="text-sm">{selectedLead.zona}</p>
-                </div>
-              )}
-              {selectedLead.metros_cuadrados && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">m²</p>
-                  <p className="text-sm">{selectedLead.metros_cuadrados}</p>
-                </div>
-              )}
-              {selectedLead.presupuesto_rango && (
+              {selectedLead.budget_estimate && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Presupuesto</p>
-                  <p className="text-sm">{selectedLead.presupuesto_rango}</p>
+                  <p className="text-sm">{selectedLead.budget_estimate}</p>
+                </div>
+              )}
+              {selectedLead.lead_score != null && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Score</p>
+                  <p className="text-sm">{selectedLead.lead_score}/100</p>
+                </div>
+              )}
+              {selectedLead.lead_summary && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Resumen IA</p>
+                  <p className="text-sm bg-neutral-50 p-3">{selectedLead.lead_summary}</p>
                 </div>
               )}
               {selectedLead.mensaje && (
@@ -145,10 +147,16 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   <p className="text-sm bg-neutral-50 p-3">{selectedLead.mensaje}</p>
                 </div>
               )}
-              {selectedLead.source_page && (
+              {selectedLead.origen && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Origen</p>
-                  <p className="text-sm">{selectedLead.source_page}</p>
+                  <p className="text-sm">{selectedLead.origen}</p>
+                </div>
+              )}
+              {selectedLead.notes && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Notas</p>
+                  <p className="text-sm">{selectedLead.notes}</p>
                 </div>
               )}
 
@@ -161,7 +169,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                       key={s}
                       onClick={() => updateStatus(selectedLead.id, s)}
                       className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 border transition-colors ${
-                        (selectedLead.estado || 'nuevo') === s
+                        (selectedLead.lead_status || 'nuevo') === s
                           ? 'bg-primary text-white border-primary'
                           : 'border-neutral-200 hover:border-primary'
                       }`}

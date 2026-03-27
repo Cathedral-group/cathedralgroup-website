@@ -18,19 +18,18 @@ export default async function ProyectosPage() {
       table="projects"
       data={data || []}
       columns={[
-        { key: 'title', label: 'Título' },
-        { key: 'zone', label: 'Zona' },
-        { key: 'service_type', label: 'Tipo' },
+        { key: 'code', label: 'Código' },
+        { key: 'name', label: 'Nombre' },
+        { key: 'type', label: 'Tipo' },
         { key: 'status', label: 'Estado' },
       ]}
       fields={[
-        { name: 'title', label: 'Título', type: 'text', required: true },
-        { name: 'slug', label: 'Slug', type: 'text', required: true },
+        { name: 'code', label: 'Código', type: 'text', required: true },
+        { name: 'name', label: 'Nombre', type: 'text' },
         { name: 'description', label: 'Descripción', type: 'textarea' },
-        { name: 'zone', label: 'Zona', type: 'text' },
-        { name: 'service_type', label: 'Tipo de servicio', type: 'select', options: ['reforma', 'interiorismo', 'cambio-uso', 'obra-nueva', 'promocion'] },
-        { name: 'sqm', label: 'm²', type: 'number' },
-        { name: 'status', label: 'Estado', type: 'select', options: ['borrador', 'publicado', 'destacado'] },
+        { name: 'type', label: 'Tipo', type: 'select', options: ['reforma', 'interiorismo', 'cambio-uso', 'obra-nueva', 'promocion'] },
+        { name: 'status', label: 'Estado', type: 'select', options: ['presupuesto', 'en_curso', 'completado', 'cancelado'] },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
       ]}
     />
   )

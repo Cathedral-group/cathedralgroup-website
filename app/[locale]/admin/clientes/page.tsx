@@ -18,18 +18,18 @@ export default async function ClientesPage() {
       table="clients"
       data={data || []}
       columns={[
-        { key: 'nombre', label: 'Nombre' },
+        { key: 'name', label: 'Nombre' },
         { key: 'email', label: 'Email' },
-        { key: 'telefono', label: 'Teléfono' },
-        { key: 'zona', label: 'Zona' },
+        { key: 'phone', label: 'Teléfono' },
+        { key: 'type', label: 'Tipo' },
       ]}
       fields={[
-        { name: 'nombre', label: 'Nombre', type: 'text', required: true },
+        { name: 'name', label: 'Nombre', type: 'text', required: true },
         { name: 'email', label: 'Email', type: 'email' },
-        { name: 'telefono', label: 'Teléfono', type: 'text' },
-        { name: 'direccion', label: 'Dirección', type: 'text' },
-        { name: 'zona', label: 'Zona', type: 'text' },
-        { name: 'notas', label: 'Notas', type: 'textarea' },
+        { name: 'phone', label: 'Teléfono', type: 'text' },
+        { name: 'address', label: 'Dirección', type: 'text' },
+        { name: 'type', label: 'Tipo', type: 'select', options: ['particular', 'empresa', 'inversor'] },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
       ]}
     />
   )
