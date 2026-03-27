@@ -5,6 +5,7 @@ const withNextIntl = createNextIntlPlugin('./lib/i18n/request.ts')
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['gray-matter', 'reading-time'],
+  i18n: undefined, // Handled by next-intl plugin
   async redirects() {
     return [
       { source: '/index.html', destination: '/', permanent: true },
