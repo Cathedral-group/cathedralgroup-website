@@ -1,11 +1,14 @@
 import type { Metadata } from 'next'
 import { Manrope } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import WhatsAppFloat from '@/components/layout/WhatsAppFloat'
 import SmoothScroll from '@/components/animations/SmoothScroll'
 import ScrollAnimations from '@/components/animations/ScrollAnimations'
+
+const GA_ID = 'G-5FTL67Y0S6'
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -49,6 +52,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className={manrope.variable}>
+      <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
+      <Script id="ga4-init" strategy="afterInteractive">
+        {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`}
+      </Script>
       <body className="font-display text-neutral-900 antialiased">
         <Header />
         <main className="pt-20">
