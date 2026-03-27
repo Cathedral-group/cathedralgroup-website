@@ -11,7 +11,7 @@ const config: Config = {
       colors: {
         primary: '#B4A898',
         logo: '#9A8D7C',
-        'beige-subtle': '#E8E6E3',
+        'beige-subtle': '#D9D0C7',
         'stone-dark': '#5A5550',
       },
       fontFamily: {

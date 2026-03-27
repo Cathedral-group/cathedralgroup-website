@@ -7,20 +7,20 @@ export default function Footer() {
   return (
     <footer className="bg-white border-t border-neutral-100 py-16">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid md:grid-cols-4 gap-8 mb-10 items-start">
+        <div className="grid md:grid-cols-4 gap-12 mb-10">
           {/* Column 1: Logo & Description */}
-          <div className="col-span-1">
-            <div className="flex items-center gap-3 mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-6">
               <Image
                 src="/img/logo.png"
                 alt="Cathedral Group"
-                width={40}
-                height={40}
-                className="h-10 w-auto object-contain"
+                width={24}
+                height={24}
+                className="h-6 w-auto object-contain"
               />
-              <h2 className="text-sm font-light tracking-[0.3em] uppercase">Cathedral Group</h2>
+              <span className="text-xs font-bold uppercase tracking-widest">Cathedral Group</span>
             </div>
-            <p className="text-neutral-500 leading-relaxed text-sm">
+            <p className="text-xs text-neutral-500 leading-relaxed">
               {t('description')}
             </p>
           </div>
@@ -30,7 +30,7 @@ export default function Footer() {
             <h5 className="text-xs font-bold uppercase tracking-widest mb-6">
               {t('divisions')}
             </h5>
-            <ul className="space-y-3 text-xs font-bold uppercase tracking-widest text-neutral-500">
+            <ul className="space-y-3 text-xs text-neutral-500">
               <li><a href="#" className="hover:text-primary transition-colors">Cathedral Spaces</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Cathedral Capital</a></li>
               <li><a href="#" className="hover:text-primary transition-colors">Cathedral Properties</a></li>
@@ -43,8 +43,9 @@ export default function Footer() {
             <h5 className="text-xs font-bold uppercase tracking-widest mb-6">
               {t('contact')}
             </h5>
-            <ul className="space-y-3 text-sm text-neutral-600">
-              <li>Paseo de la Castellana 40, 8º 28046 Madrid, Espa&ntilde;a</li>
+            <ul className="space-y-3 text-xs text-neutral-500">
+              <li>Paseo de la Castellana 40, 8&ordm;</li>
+              <li>28046 Madrid, Espa&ntilde;a</li>
               <li>+34 684 725 606</li>
               <li>info@cathedralgroup.es</li>
             </ul>
