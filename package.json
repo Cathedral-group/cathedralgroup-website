@@ -2,7 +2,7 @@
   "name": "cathedralgroup-website",
   "version": "1.0.0",
   "description": "Official website of Cathedral Group",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
