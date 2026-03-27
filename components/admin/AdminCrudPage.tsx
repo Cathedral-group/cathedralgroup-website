@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase'
 interface Field {
   name: string
   label: string
-  type: 'text' | 'email' | 'number' | 'textarea' | 'select'
+  type: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'date'
   required?: boolean
   options?: string[]
 }

@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { label: 'Proyectos', href: '/admin/proyectos', icon: '🏗️' },
   { label: 'Clientes', href: '/admin/clientes', icon: '👤' },
   { label: 'Proveedores', href: '/admin/proveedores', icon: '🔧' },
+  { label: 'Facturas', href: '/admin/facturas', icon: '📄' },
 ]
 
 export default function AdminSidebar() {

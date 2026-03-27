@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { key: 'zones', href: '#zonas' },
   { key: 'about', href: '#nosotros' },
   { key: 'contact', href: '#contacto' },
+  { key: 'budget', href: '/presupuesto' },
 ]
 
 export default function Header() {
@@ -60,15 +61,25 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">
-          {NAV_ITEMS.map(({ key, href }) => (
-            <a
-              key={key}
-              href={href}
-              className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-700 hover:text-primary transition-colors"
-            >
-              {t(key)}
-            </a>
-          ))}
+          {NAV_ITEMS.map(({ key, href }) =>
+            href.startsWith('/') ? (
+              <Link
+                key={key}
+                href={href}
+                className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-700 hover:text-primary transition-colors"
+              >
+                {t(key)}
+              </Link>
+            ) : (
+              <a
+                key={key}
+                href={href}
+                className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-700 hover:text-primary transition-colors"
+              >
+                {t(key)}
+              </a>
+            )
+          )}
         </nav>
 
         {/* Right: Language + Mobile Menu */}
@@ -98,16 +109,27 @@ export default function Header() {
       {/* Mobile Menu */}
       {menuOpen && (
         <nav className="md:hidden bg-white border-t border-neutral-100 px-6 py-6 space-y-4">
-          {NAV_ITEMS.map(({ key, href }) => (
-            <a
-              key={key}
-              href={href}
-              onClick={() => setMenuOpen(false)}
-              className="block text-sm font-bold uppercase tracking-widest text-neutral-700 hover:text-primary transition-colors"
-            >
-              {t(key)}
-            </a>
-          ))}
+          {NAV_ITEMS.map(({ key, href }) =>
+            href.startsWith('/') ? (
+              <Link
+                key={key}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className="block text-sm font-bold uppercase tracking-widest text-neutral-700 hover:text-primary transition-colors"
+              >
+                {t(key)}
+              </Link>
+            ) : (
+              <a
+                key={key}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className="block text-sm font-bold uppercase tracking-widest text-neutral-700 hover:text-primary transition-colors"
+              >
+                {t(key)}
+              </a>
+            )
+          )}
         </nav>
       )}
     </header>
