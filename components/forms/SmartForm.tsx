@@ -63,6 +63,7 @@ export default function SmartForm({
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileRendered, setTurnstileRendered] = useState(false)
   const turnstileRef = useRef<HTMLDivElement>(null)
 
   // Load Turnstile script once
@@ -78,23 +79,24 @@ export default function SmartForm({
 
   // Render Turnstile widget when on step 4
   useEffect(() => {
-    if (!TURNSTILE_SITE_KEY || step !== 4) return
+    if (!TURNSTILE_SITE_KEY || step !== 4 || turnstileRendered) return
 
     const interval = setInterval(() => {
       const w = window as any
-      if (w.turnstile && turnstileRef.current && !turnstileRef.current.hasChildNodes()) {
+      if (w.turnstile && turnstileRef.current) {
         w.turnstile.render(turnstileRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
           callback: (token: string) => setTurnstileToken(token),
           theme: 'light',
           size: 'flexible',
         })
+        setTurnstileRendered(true)
         clearInterval(interval)
       }
     }, 300)
 
     return () => clearInterval(interval)
-  }, [step])
+  }, [step, turnstileRendered])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
