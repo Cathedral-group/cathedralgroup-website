@@ -146,9 +146,9 @@ export default function SmartForm({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-xl font-medium uppercase tracking-wide mb-3">Solicitud Enviada</h3>
-        <p className="text-neutral-600 text-sm">
-          Nuestro equipo se pondrá en contacto en las próximas 24 horas.
+        <h3 className="text-xl font-medium uppercase tracking-wide mb-3">Solicitud Recibida</h3>
+        <p className="text-neutral-500 text-sm leading-relaxed">
+          Gracias por su interés. Nuestro equipo de consultores revisará su solicitud y se pondrá en contacto con usted a la mayor brevedad.
         </p>
       </div>
     )
