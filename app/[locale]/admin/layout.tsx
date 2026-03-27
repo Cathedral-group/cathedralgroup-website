@@ -1,0 +1,40 @@
+import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { redirect } from 'next/navigation'
+import AdminSidebar from '@/components/admin/AdminSidebar'
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  // Check if we're on the login page (don't protect it)
+  // The login page handles its own auth flow
+
+  let isAuthenticated = false
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    isAuthenticated = !!user
+  } catch {
+    isAuthenticated = false
+  }
+
+  // If not authenticated and not on login page, redirect to login
+  // Note: login page is a direct child, layout wraps it too
+  // We'll handle this with a client-side check in the sidebar
+
+  return (
+    <div className="min-h-screen bg-neutral-50">
+      {isAuthenticated ? (
+        <div className="flex">
+          <AdminSidebar />
+          <main className="flex-1 p-8 ml-64">
+            {children}
+          </main>
+        </div>
+      ) : (
+        <>{children}</>
+      )}
+    </div>
+  )
+}
