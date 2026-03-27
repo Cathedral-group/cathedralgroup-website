@@ -114,7 +114,7 @@ export default function SmartForm({
     )
   }
 
-  const inputClass = 'w-full bg-white border-0 focus:ring-1 focus:ring-primary p-4 text-sm'
+  const inputClass = 'w-full bg-white border border-neutral-300 focus:border-primary focus:ring-1 focus:ring-primary p-4 text-sm text-neutral-900 placeholder:text-neutral-400'
   const labelClass = 'text-xs font-bold uppercase tracking-widest text-neutral-500 block mb-2'
 
   return (
@@ -174,10 +174,10 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, tipo_proyecto: value }))
                   nextStep()
                 }}
-                className={`p-4 text-sm text-left border transition-all duration-300 hover:border-primary hover:bg-primary/5 ${
+                className={`p-4 text-sm text-left border transition-all duration-300 hover:border-primary hover:bg-white ${
                   formData.tipo_proyecto === value
-                    ? 'border-primary bg-primary/5'
-                    : 'border-neutral-200'
+                    ? 'border-primary bg-white font-medium'
+                    : 'border-neutral-300 bg-white/60'
                 }`}
               >
                 {label}
@@ -216,10 +216,10 @@ export default function SmartForm({
           </div>
 
           <div className="flex gap-4 mt-8">
-            <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-200 hover:border-primary transition-colors">
+            <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-400 text-neutral-700 hover:border-primary hover:text-primary transition-colors">
               Anterior
             </button>
-            <button type="button" onClick={nextStep} className="flex-1 py-3 text-sm font-medium uppercase tracking-widest bg-primary text-white hover:bg-stone-dark transition-colors">
+            <button type="button" onClick={nextStep} className="flex-1 py-3 text-sm font-medium uppercase tracking-widest bg-[#5A5550] text-white hover:bg-primary transition-colors">
               Siguiente
             </button>
           </div>
@@ -237,10 +237,10 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, presupuesto_rango: value }))
                   nextStep()
                 }}
-                className={`p-4 text-sm text-left border transition-all duration-300 hover:border-primary hover:bg-primary/5 ${
+                className={`p-4 text-sm text-left border transition-all duration-300 hover:border-primary hover:bg-white ${
                   formData.presupuesto_rango === value
-                    ? 'border-primary bg-primary/5'
-                    : 'border-neutral-200'
+                    ? 'border-primary bg-white font-medium'
+                    : 'border-neutral-300 bg-white/60'
                 }`}
               >
                 {label}
@@ -249,7 +249,7 @@ export default function SmartForm({
           </div>
 
           <div className="mt-8">
-            <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-200 hover:border-primary transition-colors">
+            <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-400 text-neutral-700 hover:border-primary hover:text-primary transition-colors">
               Anterior
             </button>
           </div>
@@ -314,7 +314,7 @@ export default function SmartForm({
           {error && <p className="text-red-600 text-sm text-center mt-4">{error}</p>}
 
           <div className="flex gap-4 mt-8">
-            <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-200 hover:border-primary transition-colors">
+            <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-400 text-neutral-700 hover:border-primary hover:text-primary transition-colors">
               Anterior
             </button>
             <button
