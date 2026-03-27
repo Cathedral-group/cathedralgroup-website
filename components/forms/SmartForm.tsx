@@ -362,7 +362,7 @@ export default function SmartForm({
             </button>
             <button
               type="submit"
-              disabled={submitting || (!turnstileToken && !!TURNSTILE_SITE_KEY)}
+              disabled={submitting}
               className="flex-1 py-3 text-sm font-medium uppercase tracking-widest bg-[#5A5550] text-white hover:bg-primary transition-colors disabled:opacity-50"
             >
               {submitting ? '...' : t('submit')}
