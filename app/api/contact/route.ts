@@ -88,39 +88,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Mensaje bloqueado por filtro anti-spam' }, { status: 400 })
     }
 
-    // Turnstile verification
+    // Turnstile verification (non-blocking: validates if token present, allows if not)
     const turnstileSecret = process.env.TURNSTILE_SECRET_KEY
-    if (!turnstileSecret) {
-      return NextResponse.json({ error: 'Falta TURNSTILE_SECRET_KEY' }, { status: 500 })
-    }
+    let turnstileValid = false
 
-    if (!turnstileToken) {
-      return NextResponse.json({ error: 'Falta validación Turnstile' }, { status: 400 })
-    }
+    if (turnstileSecret && turnstileToken) {
+      try {
+        const turnstileFormData = new URLSearchParams()
+        turnstileFormData.append('secret', turnstileSecret)
+        turnstileFormData.append('response', turnstileToken)
+        if (clientIp !== 'unknown') turnstileFormData.append('remoteip', clientIp)
 
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || ''
+        const turnstileResponse = await fetch(
+          'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: turnstileFormData.toString(),
+          }
+        )
 
-    const turnstileFormData = new URLSearchParams()
-    turnstileFormData.append('secret', turnstileSecret)
-    turnstileFormData.append('response', turnstileToken)
-    if (ip) turnstileFormData.append('remoteip', ip)
-
-    const turnstileResponse = await fetch(
-      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: turnstileFormData.toString(),
+        const turnstileResult = await turnstileResponse.json()
+        if (turnstileResult.success) {
+          turnstileValid = true
+        } else {
+          // Token present but invalid — likely a bot
+          return NextResponse.json(
+            { error: 'Validación anti-bot no superada' },
+            { status: 400 }
+          )
+        }
+      } catch {
+        // Turnstile API error — allow submission (don't block real users)
+        turnstileValid = false
       }
-    )
-
-    const turnstileResult = await turnstileResponse.json()
-    if (!turnstileResult.success) {
-      return NextResponse.json(
-        { error: 'Validación anti-bot no superada', details: turnstileResult['error-codes'] || [] },
-        { status: 400 }
-      )
     }
+    // If no token at all (widget didn't load), allow — other filters still protect
 
     // Supabase insert
     const supabaseUrl = process.env.SUPABASE_URL
