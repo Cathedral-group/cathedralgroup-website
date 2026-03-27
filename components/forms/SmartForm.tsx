@@ -148,7 +148,7 @@ export default function SmartForm({
         </div>
         <h3 className="text-xl font-medium uppercase tracking-wide mb-3">Solicitud Recibida</h3>
         <p className="text-neutral-500 text-sm leading-relaxed">
-          Gracias por su interés. Nuestro equipo de consultores revisará su solicitud y se pondrá en contacto con usted a la mayor brevedad.
+          Gracias por su interés. Nuestro equipo revisará su solicitud y se pondrá en contacto a la mayor brevedad.
         </p>
       </div>
     )
