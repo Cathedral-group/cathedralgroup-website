@@ -18,19 +18,19 @@ export default async function ProveedoresPage() {
       table="suppliers"
       data={data || []}
       columns={[
-        { key: 'nombre', label: 'Nombre' },
-        { key: 'categoria', label: 'Categoría' },
-        { key: 'telefono', label: 'Teléfono' },
-        { key: 'valoracion', label: 'Valoración' },
+        { key: 'name', label: 'Nombre' },
+        { key: 'category', label: 'Categoría' },
+        { key: 'phone', label: 'Teléfono' },
+        { key: 'rating', label: 'Valoración' },
       ]}
       fields={[
-        { name: 'nombre', label: 'Nombre', type: 'text', required: true },
-        { name: 'categoria', label: 'Categoría', type: 'select', options: ['electricidad', 'fontaneria', 'pintura', 'carpinteria', 'marmol', 'cristaleria', 'climatizacion', 'domotica', 'otro'] },
-        { name: 'telefono', label: 'Teléfono', type: 'text' },
+        { name: 'name', label: 'Nombre', type: 'text', required: true },
+        { name: 'category', label: 'Categoría', type: 'select', options: ['electricidad', 'fontaneria', 'pintura', 'carpinteria', 'marmol', 'cristaleria', 'climatizacion', 'domotica', 'otro'] },
+        { name: 'phone', label: 'Teléfono', type: 'text' },
         { name: 'email', label: 'Email', type: 'email' },
         { name: 'cif', label: 'CIF', type: 'text' },
-        { name: 'valoracion', label: 'Valoración (1-5)', type: 'number' },
-        { name: 'notas', label: 'Notas', type: 'textarea' },
+        { name: 'rating', label: 'Valoración (1-5)', type: 'number' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
       ]}
     />
   )
