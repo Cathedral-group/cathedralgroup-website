@@ -20,7 +20,7 @@ export default function Projects() {
   const t = useT('projects')
 
   return (
-    <section className="pt-12 pb-0 bg-white" id="proyectos">
+    <section className="pt-16 pb-0 bg-beige-subtle" id="proyectos">
       <div className="max-w-7xl mx-auto px-6">
         {/* Header */}
         <div className="flex justify-between items-end mb-10">

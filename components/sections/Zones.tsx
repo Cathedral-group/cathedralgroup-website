@@ -10,7 +10,7 @@ export default function Zones() {
 
   return (
     <>
-      <section className="py-20 bg-beige-subtle text-neutral-900" id="zonas">
+      <section className="py-20 bg-white text-neutral-900" id="zonas">
         <div className="max-w-7xl mx-auto px-6">
           {/* Header — centered, matching other sections */}
           <div className="text-center mb-16" data-animate="fade-up">

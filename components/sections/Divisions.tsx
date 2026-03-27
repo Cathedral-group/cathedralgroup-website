@@ -11,7 +11,7 @@ export default function Divisions() {
   const t = useT('divisions')
 
   return (
-    <section className="bg-beige-subtle" id="servicios">
+    <section className="bg-white" id="servicios">
       {/* Header */}
       <div className="text-center pt-16 pb-10 px-6" data-animate="fade-up">
         <span className="text-primary text-sm font-bold uppercase tracking-[0.3em] mb-4 block">

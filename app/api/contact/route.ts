@@ -1,5 +1,24 @@
 import { NextResponse } from 'next/server'
 
+// Rate limiting — in-memory store (resets on deploy, good enough for Vercel serverless)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_MAX = 5 // max requests
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000 // 1 hour
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(ip)
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
+    return false
+  }
+
+  entry.count++
+  if (entry.count > RATE_LIMIT_MAX) return true
+  return false
+}
+
 const BLOCKED_DOMAINS = [
   'mailinator.com', 'guerrillamail.com', '10minutemail.com',
   'temp-mail.org', 'tempmail.com', 'yopmail.com',
@@ -14,6 +33,15 @@ const SPAM_KEYWORDS = [
 
 export async function POST(request: Request) {
   try {
+    // Rate limiting by IP
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    if (isRateLimited(clientIp)) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes. Inténtelo de nuevo más tarde.' },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
 
     const {

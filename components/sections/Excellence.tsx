@@ -5,7 +5,7 @@ export default function Excellence() {
   const t = useT('excellence')
 
   return (
-    <section className="py-12 bg-white">
+    <section className="py-16 bg-beige-subtle">
       <div className="max-w-5xl mx-auto px-6 text-center" data-animate="fade-up">
         <SectionLabel text={t('label')} className="mb-6" />
         <h3 className="text-lg md:text-xl font-light leading-relaxed mb-6">

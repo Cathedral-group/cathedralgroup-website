@@ -5,7 +5,7 @@ export default function ContactForm() {
   const t = useT('form')
 
   return (
-    <section className="py-12 bg-beige-subtle" id="contacto">
+    <section className="py-16 bg-white" id="contacto">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl mx-auto text-center mb-6" data-animate="fade-up">
           <h3 className="text-2xl font-medium uppercase tracking-wide mb-4">

@@ -5,7 +5,7 @@ export default function About() {
   const t = useT('about')
 
   return (
-    <section className="pt-12 pb-0 bg-white" id="nosotros">
+    <section className="pt-16 pb-0 bg-beige-subtle" id="nosotros">
       <div className="max-w-7xl mx-auto px-6">
         <div data-animate="fade-right">
           <SectionLabel text={t('label')} className="mb-6" />
