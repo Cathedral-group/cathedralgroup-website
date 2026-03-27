@@ -1,48 +1,41 @@
 import { useT } from '@/lib/translations'
 
-const ZONES_LEFT = ['Salamanca', 'Chamberí', 'Retiro', 'El Viso']
-const ZONES_RIGHT = ['Pozuelo de Alarcón', 'La Moraleja', 'Aravaca', 'Puerta de Hierro']
+const ZONES = [
+  'Salamanca', 'Chamberí', 'Chamartín', 'Retiro',
+  'Pozuelo de Alarcón', 'La Moraleja', 'Aravaca', 'Puerta de Hierro',
+]
 
 export default function Zones() {
   const t = useT('zones')
 
   return (
     <>
-      <section className="py-12 bg-beige-subtle text-neutral-900" id="zonas">
+      <section className="py-20 bg-beige-subtle text-neutral-900" id="zonas">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 items-center gap-10">
-            {/* Text + Zone List */}
-            <div data-animate="fade-left">
-              <h3 className="text-2xl font-light mb-6">
-                {t('title')}{' '}
-                <span className="text-neutral-900">{t('titleHighlight')}</span>
-              </h3>
-              <p className="text-neutral-600 mb-12 leading-relaxed">
-                {t('description')}
-              </p>
+          {/* Header — centered, matching other sections */}
+          <div className="text-center mb-16" data-animate="fade-up">
+            <span className="text-primary text-sm font-bold uppercase tracking-[0.3em] mb-4 block">
+              {t('label') || 'Zonas'}
+            </span>
+            <h3 className="text-2xl font-medium uppercase tracking-wide mb-6">
+              {t('title')} {t('titleHighlight')}
+            </h3>
+            <p className="text-neutral-500 max-w-2xl mx-auto leading-relaxed">
+              {t('description')}
+            </p>
+          </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <ul className="space-y-4">
-                  {ZONES_LEFT.map((zone) => (
-                    <li key={zone} className="flex items-center gap-3">
-                      <span className="w-1.5 h-1.5 bg-primary" />
-                      {zone}
-                    </li>
-                  ))}
-                </ul>
-                <ul className="space-y-4">
-                  {ZONES_RIGHT.map((zone) => (
-                    <li key={zone} className="flex items-center gap-3">
-                      <span className="w-1.5 h-1.5 bg-primary" />
-                      {zone}
-                    </li>
-                  ))}
-                </ul>
+          {/* 4 columns × 2 rows */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-12 gap-y-6 max-w-4xl mx-auto" data-animate="stagger">
+            {ZONES.map((zone) => (
+              <div
+                key={zone}
+                className="flex items-center gap-3 text-neutral-800"
+              >
+                <span className="w-1.5 h-1.5 bg-primary flex-shrink-0" />
+                <span className="text-sm tracking-wide">{zone}</span>
               </div>
-            </div>
-
-            {/* Right placeholder for balance */}
-            <div className="hidden md:block" />
+            ))}
           </div>
         </div>
       </section>
