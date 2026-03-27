@@ -65,28 +65,25 @@ export default function SmartForm({
   const [turnstileToken, setTurnstileToken] = useState('')
   const turnstileRef = useRef<HTMLDivElement>(null)
 
-  // Load Turnstile widget
+  // Load Turnstile script once
   useEffect(() => {
     if (!TURNSTILE_SITE_KEY) return
+    if (document.querySelector('script[src*="turnstile"]')) return
+    const script = document.createElement('script')
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+    script.async = true
+    script.defer = true
+    document.head.appendChild(script)
+  }, [])
 
-    // Load script if not already loaded
-    if (!document.querySelector('script[src*="turnstile"]')) {
-      const script = document.createElement('script')
-      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
-      script.async = true
-      script.defer = true
-      document.head.appendChild(script)
-    }
+  // Render Turnstile widget when on step 4
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY || step !== 4) return
 
-    // Render widget when script is ready
     const interval = setInterval(() => {
-      if (
-        typeof window !== 'undefined' &&
-        (window as any).turnstile &&
-        turnstileRef.current &&
-        !turnstileRef.current.hasChildNodes()
-      ) {
-        ;(window as any).turnstile.render(turnstileRef.current, {
+      const w = window as any
+      if (w.turnstile && turnstileRef.current && !turnstileRef.current.hasChildNodes()) {
+        w.turnstile.render(turnstileRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
           callback: (token: string) => setTurnstileToken(token),
           theme: 'light',
@@ -94,10 +91,10 @@ export default function SmartForm({
         })
         clearInterval(interval)
       }
-    }, 200)
+    }, 300)
 
     return () => clearInterval(interval)
-  }, [step]) // Re-check when step changes
+  }, [step])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
