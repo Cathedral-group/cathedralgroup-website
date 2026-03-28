@@ -125,6 +125,9 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [selected, setSelected] = useState<Project | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [hidePresupuestados, setHidePresupuestados] = useState(false)
+  const [sortBy, setSortBy] = useState<string>('code')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [activeTab, setActiveTab] = useState('general')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Project>>({})
@@ -150,6 +153,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
 
   const filtered = useMemo(() => {
     let list = projects
+    if (hidePresupuestados) list = list.filter((p) => p.status !== 'presupuesto')
     if (statusFilter) list = list.filter((p) => (p.status || 'presupuesto') === statusFilter)
     if (search) {
       const q = search.toLowerCase()
@@ -160,8 +164,36 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
           clientMap[p.client_id || '']?.toLowerCase().includes(q)
       )
     }
+    // Sort
+    list = [...list].sort((a, b) => {
+      let va: string | number = ''
+      let vb: string | number = ''
+      if (sortBy === 'code') { va = a.code || ''; vb = b.code || '' }
+      else if (sortBy === 'name') { va = a.name || ''; vb = b.name || '' }
+      else if (sortBy === 'status') { va = a.status || ''; vb = b.status || '' }
+      else if (sortBy === 'type') { va = a.type || ''; vb = b.type || '' }
+      else if (sortBy === 'budget') { va = a.budget_estimated || 0; vb = b.budget_estimated || 0 }
+      else if (sortBy === 'start_date') { va = a.start_date || ''; vb = b.start_date || '' }
+      else if (sortBy === 'margin') {
+        va = financialMap[a.id]?.margin_pct || 0
+        vb = financialMap[b.id]?.margin_pct || 0
+      }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
     return list
-  }, [projects, statusFilter, search, clientMap])
+  }, [projects, statusFilter, search, clientMap, hidePresupuestados, sortBy, sortDir, financialMap])
+
+  function toggleSort(col: string) {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('asc') }
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortBy !== col) return <span className="text-neutral-300 ml-1">↕</span>
+    return <span className="text-primary ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+  }
 
   /* ───────── Helpers ───────── */
 
@@ -364,8 +396,8 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
         />
       </div>
 
-      {/* Status filters */}
-      <div className="flex gap-3 mb-6 flex-wrap">
+      {/* Status filters + toggle */}
+      <div className="flex gap-3 mb-6 flex-wrap items-center">
         <button
           onClick={() => setStatusFilter('')}
           className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
@@ -389,14 +421,78 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
             </button>
           )
         })}
+
+        <div className="w-px h-5 bg-neutral-200" />
+
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hidePresupuestados}
+            onChange={(e) => setHidePresupuestados(e.target.checked)}
+            className="accent-primary w-3.5 h-3.5"
+          />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+            Ocultar presupuestados
+          </span>
+        </label>
+
+        <span className="text-xs text-neutral-400 ml-auto">
+          {filtered.length} de {projects.length}
+        </span>
       </div>
 
-      {/* Table */}
-      <DataTable
-        columns={columns}
-        data={filtered as Record<string, unknown>[]}
-        onRowClick={(row) => openDetail(row as Project)}
-      />
+      {/* Table with sortable headers */}
+      <div className="bg-white border border-neutral-100 overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-neutral-100">
+              {[
+                { key: 'code', label: 'Código' },
+                { key: 'name', label: 'Nombre' },
+                { key: 'type', label: 'Tipo' },
+                { key: 'status', label: 'Estado' },
+                { key: 'budget', label: 'Presupuesto' },
+                { key: 'margin', label: 'Margen' },
+                { key: 'start_date', label: 'Inicio' },
+              ].map(({ key, label }) => (
+                <th
+                  key={key}
+                  onClick={() => toggleSort(key)}
+                  className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400 cursor-pointer hover:text-neutral-700 select-none"
+                >
+                  {label}<SortIcon col={key} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-50">
+            {filtered.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-neutral-400">Sin proyectos</td></tr>
+            ) : (
+              filtered.map((p) => {
+                const fin = financialMap[p.id]
+                return (
+                  <tr key={p.id} onClick={() => openDetail(p)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{p.code}</td>
+                    <td className="px-4 py-3 text-sm max-w-[200px] truncate">{p.name}</td>
+                    <td className="px-4 py-3">{p.type && <Badge value={p.type} styles={TYPE_STYLES} />}</td>
+                    <td className="px-4 py-3"><Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} /></td>
+                    <td className="px-4 py-3 text-sm tabular-nums">{currency(p.budget_estimated)}</td>
+                    <td className="px-4 py-3 text-sm tabular-nums">
+                      {fin?.margin_pct != null ? (
+                        <span className={marginColor(fin.margin_pct)}>{fin.margin_pct.toFixed(0)}%</span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {p.start_date ? new Date(p.start_date).toLocaleDateString('es-ES') : '—'}
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* Detail slide-out panel */}
       {selected && (
