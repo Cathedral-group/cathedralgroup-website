@@ -189,11 +189,24 @@ export default function QuoteEditor({
     setForm((prev) => {
       const items = [...prev.items]
       let item = { ...items[index], [field]: value }
-      // When quality_level changes and we have a base price, recalculate unit_price
-      if (field === 'quality_level' && item.base_unit_price != null) {
-        const coeff = qualityCoefficients.find((q) => q.level === value)?.coefficient ?? 1
-        item = { ...item, unit_price: Math.round(item.base_unit_price * coeff * 100) / 100 }
+
+      if (field === 'unit_price') {
+        // Keep base_unit_price in sync so quality changes can recalculate later
+        const currentLevel = items[index].quality_level ?? prev.quality_level
+        const currentCoeff = qualityCoefficients.find((q) => q.level === currentLevel)?.coefficient ?? 1
+        const numVal = Number(value)
+        item = { ...item, base_unit_price: currentCoeff !== 0 ? Math.round((numVal / currentCoeff) * 100) / 100 : numVal }
       }
+
+      if (field === 'quality_level' && typeof value === 'string') {
+        const oldLevel = items[index].quality_level ?? prev.quality_level
+        const oldCoeff = qualityCoefficients.find((q) => q.level === oldLevel)?.coefficient ?? 1
+        const newCoeff = qualityCoefficients.find((q) => q.level === value)?.coefficient ?? 1
+        // Use stored base price, or derive it from current price ÷ old coefficient
+        const base = items[index].base_unit_price ?? (oldCoeff !== 0 ? Math.round((items[index].unit_price / oldCoeff) * 100) / 100 : items[index].unit_price)
+        item = { ...item, unit_price: Math.round(base * newCoeff * 100) / 100, base_unit_price: base }
+      }
+
       item.total = calcItemTotal(item)
       items[index] = item
       const totals = calcTotals(items)
@@ -511,16 +524,29 @@ export default function QuoteEditor({
   /* ── Quality coefficient helpers ── */
   const currentQuality = qualityCoefficients.find((q) => q.level === form.quality_level) ?? qualityCoefficients[0]
 
-  /** When the global quality level changes, recalculate all catalog items and update row quality_level */
+  /** When the global VAT changes, apply it to all items */
+  const handleGlobalVatChange = useCallback((newVat: number) => {
+    setForm((prev) => {
+      const items = prev.items.map((item) => {
+        const updated = { ...item, vat_pct: newVat }
+        updated.total = calcItemTotal(updated)
+        return updated
+      })
+      const totals = calcTotals(items)
+      return { ...prev, items, ...totals }
+    })
+  }, [])
+
+  /** When the global quality level changes, recalculate all items and update row quality_level */
   const handleGlobalQualityChange = useCallback((newLevel: string) => {
     setForm((prev) => {
-      const coeff = qualityCoefficients.find((q) => q.level === newLevel)?.coefficient ?? 1
+      const newCoeff = qualityCoefficients.find((q) => q.level === newLevel)?.coefficient ?? 1
       const items = prev.items.map((item) => {
-        const updated = { ...item, quality_level: newLevel }
-        if (item.base_unit_price != null) {
-          updated.unit_price = Math.round(item.base_unit_price * coeff * 100) / 100
-          updated.total = calcItemTotal(updated)
-        }
+        const currentLevel = item.quality_level ?? prev.quality_level
+        const currentCoeff = qualityCoefficients.find((q) => q.level === currentLevel)?.coefficient ?? 1
+        const base = item.base_unit_price ?? (currentCoeff !== 0 ? Math.round((item.unit_price / currentCoeff) * 100) / 100 : item.unit_price)
+        const updated = { ...item, quality_level: newLevel, unit_price: Math.round(base * newCoeff * 100) / 100, base_unit_price: base }
+        updated.total = calcItemTotal(updated)
         return updated
       })
       const totals = calcTotals(items)
@@ -587,6 +613,16 @@ export default function QuoteEditor({
           {qualityCoefficients.map((q) => (
             <option key={q.level} value={q.level}>{q.label} ×{q.coefficient}</option>
           ))}
+        </select>
+        <select
+          value={form.items[0]?.vat_pct ?? 21}
+          onChange={(e) => handleGlobalVatChange(Number(e.target.value))}
+          className="text-[10px] font-bold uppercase tracking-widest border border-neutral-200 px-2 py-1 bg-white focus:ring-1 focus:ring-primary hidden sm:block"
+          title="IVA para todas las partidas"
+        >
+          <option value={0}>IVA 0%</option>
+          <option value={10}>IVA 10%</option>
+          <option value={21}>IVA 21%</option>
         </select>
         <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-amber-500' : saveStatus === 'saved' ? 'text-green-600' : 'text-transparent'}`}>
           {saveStatus === 'saving' ? '⏳ Guardando...' : '✓ Guardado'}
