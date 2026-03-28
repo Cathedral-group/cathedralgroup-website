@@ -15,7 +15,7 @@ interface Props {
   items: CatalogItem[]
   qualityCoefficient: number
   position: { top: number; left: number }
-  onSelect: (item: { description: string; unit: string; unit_price: number; base_unit_price: number }) => void
+  onSelect: (item: { description: string; unit: string; unit_price: number; base_unit_price: number; chapter_code: string; chapter_name: string }) => void
   onClose: () => void
 }
 
@@ -117,6 +117,8 @@ export default function CatalogDropdown({ items, qualityCoefficient, position, o
                     unit: it.unit,
                     unit_price: Math.round(it.unit_price * qualityCoefficient * 100) / 100,
                     base_unit_price: it.unit_price,
+                    chapter_code: it.chapter_code,
+                    chapter_name: it.chapter_name,
                   })
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-primary/5 border-b border-neutral-50 transition-colors"

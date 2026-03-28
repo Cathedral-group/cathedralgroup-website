@@ -15,6 +15,8 @@ interface QuoteItem {
   base_unit_price?: number        // catalog base price before quality coefficient
   quality_level?: string          // per-item quality override
   quality_coefficient_override?: number  // custom coefficient when quality_level === 'personalizado'
+  chapter_code?: string           // from catalog, used for sorting
+  chapter_name?: string           // from catalog, used for sorting
   vat_pct: number
   total: number
   certified_pct: number
@@ -102,6 +104,8 @@ function normalizeItem(item: Partial<QuoteItem>): QuoteItem {
     base_unit_price: item.base_unit_price,
     quality_level: item.quality_level,
     quality_coefficient_override: item.quality_coefficient_override,
+    chapter_code: item.chapter_code,
+    chapter_name: item.chapter_name,
     vat_pct: item.vat_pct ?? 21,
     total: item.total ?? 0,
     certified_pct: item.certified_pct ?? 0,
@@ -650,7 +654,19 @@ export default function QuoteEditor({
     })
   }, [qualityCoefficients])
 
-  const addItemsFromCatalog = useCallback((catalogItems: { description: string; unit: string; unit_price: number; base_unit_price: number }[]) => {
+  const sortItems = useCallback(() => {
+    setForm((prev) => {
+      const sorted = [...prev.items].sort((a, b) => {
+        const ca = a.chapter_code ?? 'ZZ'
+        const cb = b.chapter_code ?? 'ZZ'
+        if (ca !== cb) return ca.localeCompare(cb)
+        return (a.description ?? '').localeCompare(b.description ?? '')
+      })
+      return { ...prev, items: sorted }
+    })
+  }, [])
+
+  const addItemsFromCatalog = useCallback((catalogItems: { description: string; unit: string; unit_price: number; base_unit_price: number; chapter_code?: string; chapter_name?: string }[]) => {
     setForm((prev) => {
       const newItems = catalogItems.map((ci) => {
         const item = {
@@ -659,6 +675,8 @@ export default function QuoteEditor({
           unit: ci.unit,
           unit_price: ci.unit_price,
           base_unit_price: ci.base_unit_price,
+          chapter_code: ci.chapter_code,
+          chapter_name: ci.chapter_name,
           quality_level: prev.quality_level,
         }
         item.total = calcItemTotal(item)
@@ -987,7 +1005,7 @@ export default function QuoteEditor({
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mt-2">
+          <div className="flex items-center gap-4 mt-2 flex-wrap">
             <button
               onClick={addItem}
               className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-primary transition-colors"
@@ -1001,6 +1019,18 @@ export default function QuoteEditor({
             >
               + Desde catálogo
             </button>
+            {form.items.some((it) => it.chapter_code) && (
+              <>
+                <span className="text-neutral-200">|</span>
+                <button
+                  onClick={sortItems}
+                  className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-primary transition-colors"
+                  title="Ordenar partidas por gremio (capítulo de catálogo)"
+                >
+                  ↕ Ordenar partidas
+                </button>
+              </>
+            )}
           </div>
 
           {/* Totals footer */}
@@ -1253,6 +1283,8 @@ export default function QuoteEditor({
                 unit: ci.unit,
                 unit_price: ci.unit_price,
                 base_unit_price: ci.base_unit_price,
+                chapter_code: ci.chapter_code,
+                chapter_name: ci.chapter_name,
                 quality_level: rowQualityLevel,
               })
               setOpenCatalogForRow(null)
