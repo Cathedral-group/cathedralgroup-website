@@ -56,7 +56,8 @@ html.lenis, html.lenis body { height: auto; }
 .btn-cathedral-gold:hover { color: #fff; }
 
 /* WhatsApp Float */
-.whatsapp-float { position: fixed; bottom: 90px; right: 24px; width: 56px; height: 56px; background: #B4A898; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(180, 168, 152, 0.4); z-index: 9999; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+.whatsapp-float { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; background: #B4A898; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(180, 168, 152, 0.4); z-index: 9999; transition: all 0.3s ease; }
+.has-sticky-nav .whatsapp-float { bottom: 90px; }
 .whatsapp-float:hover { transform: scale(1.1); box-shadow: 0 6px 30px rgba(180, 168, 152, 0.6); }
 .whatsapp-float svg { width: 32px; height: 32px; fill: #1a1a1a; }
 

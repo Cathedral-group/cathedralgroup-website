@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { useT } from '@/lib/translations'
 
@@ -76,6 +76,12 @@ function formatPrice(n: number) {
 /* ── Component ── */
 export default function PresupuestoPage() {
   const t = useT('calculator')
+
+  /* Add class to body so WhatsApp button moves up */
+  useEffect(() => {
+    document.body.classList.add('has-sticky-nav')
+    return () => document.body.classList.remove('has-sticky-nav')
+  }, [])
 
   /* state */
   const [step, setStep] = useState(1)
