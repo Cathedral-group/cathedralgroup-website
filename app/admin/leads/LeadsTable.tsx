@@ -440,13 +440,18 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   onClick={async () => {
                     if (!confirm('Mover este lead a la papelera?')) return
                     setDeleting(true)
-                    await fetch('/api/admin/leads', {
+                    const res = await fetch('/api/admin/leads', {
                       method: 'DELETE',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ id: selectedLead.id }),
                     })
-                    setLeads(prev => prev.filter(l => l.id !== selectedLead.id))
-                    setSelectedLead(null)
+                    if (res.ok) {
+                      setLeads(prev => prev.filter(l => l.id !== selectedLead.id))
+                      setSelectedLead(null)
+                    } else {
+                      const { error } = await res.json()
+                      alert('Error al eliminar: ' + (error || res.status))
+                    }
                     setDeleting(false)
                   }}
                   disabled={deleting}
