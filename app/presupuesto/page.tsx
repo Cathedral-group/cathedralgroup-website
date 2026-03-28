@@ -192,10 +192,10 @@ export default function PresupuestoPage() {
   )
 
   const NavButtons = () => (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-neutral-200 px-6 py-4 flex items-center justify-between md:static md:bg-transparent md:border-t-neutral-100 md:px-0 md:py-0 md:mt-10 md:pt-6 md:border-t">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-neutral-300 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-6 py-4 flex items-center justify-between">
       <button
         onClick={goPrev}
-        className={`text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 hover:text-neutral-700 transition-colors ${
+        className={`text-xs font-bold uppercase tracking-[0.15em] text-neutral-500 hover:text-neutral-800 transition-colors ${
           step === 1 && !showResult ? 'invisible' : ''
         }`}
       >
@@ -204,10 +204,10 @@ export default function PresupuestoPage() {
       <button
         onClick={goNext}
         disabled={!canAdvance()}
-        className={`px-8 py-3 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-500 ${
+        className={`px-10 py-3.5 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-500 ${
           canAdvance()
-            ? 'bg-stone-dark text-white hover:bg-neutral-800 btn-cathedral'
-            : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+            ? 'bg-[#5A5550] text-white hover:bg-neutral-800'
+            : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
         }`}
       >
         {step === TOTAL_STEPS ? t('calculate') : t('next')} →
