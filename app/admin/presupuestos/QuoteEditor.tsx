@@ -735,8 +735,8 @@ export default function QuoteEditor({
             <input
               type="text"
               inputMode="decimal"
-              defaultValue={form.quality_coefficient_override ?? 1.25}
-              key={form.quality_level}
+              defaultValue={(form.quality_coefficient_override ?? 1.25).toString()}
+              key={`coeff-${form.quality_coefficient_override ?? 1.25}`}
               onBlur={(e) => {
                 const val = parseFloat(e.target.value.replace(',', '.')) || 1
                 handleGlobalQualityChange('personalizado', val)
@@ -1048,6 +1048,21 @@ export default function QuoteEditor({
                               <option value="lujo">Luj</option>
                               <option value="personalizado">Per</option>
                             </select>
+                            {(item.quality_level ?? form.quality_level) === 'personalizado' && (
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                defaultValue={(item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1.25).toString()}
+                                key={`itemcoeff-${idx}-${item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1.25}`}
+                                onBlur={(e) => {
+                                  const val = parseFloat(e.target.value.replace(',', '.')) || 1
+                                  updateItem(idx, 'quality_coefficient_override', val)
+                                }}
+                                className="bg-transparent border-0 focus:ring-0 p-0 text-[10px] w-10 tabular-nums text-center text-neutral-500"
+                                title="Coeficiente personalizado para esta partida"
+                                placeholder="×"
+                              />
+                            )}
                           </td>
                           {/* Precio unitario (compacto) */}
                           <td className="px-2 py-2">
