@@ -69,16 +69,22 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   }, [leads, filter, search])
 
   const updateStatus = async (id: string, newStatus: string) => {
-    const supabase = createClient()
-    await supabase.from('leads').update({ lead_status: newStatus }).eq('id', id)
+    await fetch('/api/admin/leads', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, lead_status: newStatus }),
+    })
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, lead_status: newStatus } : l)))
     if (selectedLead?.id === id) setSelectedLead({ ...selectedLead, lead_status: newStatus })
   }
 
   const saveNotes = async () => {
     if (!selectedLead) return
-    const supabase = createClient()
-    await supabase.from('leads').update({ notes: editingNotes }).eq('id', selectedLead.id)
+    await fetch('/api/admin/leads', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selectedLead.id, notes: editingNotes }),
+    })
     setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, notes: editingNotes } : l))
     setSelectedLead({ ...selectedLead, notes: editingNotes })
   }
@@ -343,8 +349,11 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   value={selectedLead.origen || ''}
                   onChange={async (e) => {
                     const val = e.target.value
-                    const supabase = createClient()
-                    await supabase.from('leads').update({ origen: val }).eq('id', selectedLead.id)
+                    await fetch('/api/admin/leads', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ id: selectedLead.id, origen: val }),
+                    })
                     setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, origen: val } : l))
                     setSelectedLead({ ...selectedLead, origen: val })
                   }}
@@ -424,8 +433,11 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   onClick={async () => {
                     if (!confirm('¿Eliminar este lead? Esta acción no se puede deshacer.')) return
                     setDeleting(true)
-                    const supabase = createClient()
-                    await supabase.from('leads').delete().eq('id', selectedLead.id)
+                    await fetch('/api/admin/leads', {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ id: selectedLead.id }),
+                    })
                     setLeads(prev => prev.filter(l => l.id !== selectedLead.id))
                     setSelectedLead(null)
                     setDeleting(false)
