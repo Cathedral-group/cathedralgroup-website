@@ -536,7 +536,7 @@ export default function QuoteEditor({
                 Duplicar
               </button>
               <button
-                onClick={() => window.open(`/api/admin/presupuesto-pdf/${savedIdRef.current}`, '_blank')}
+                onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
                 className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
               >
                 PDF
