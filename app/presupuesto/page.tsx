@@ -192,7 +192,7 @@ export default function PresupuestoPage() {
   )
 
   const NavButtons = () => (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-neutral-300 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-6 py-4 flex items-center justify-between">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-neutral-200 px-6 py-4 flex items-center justify-between">
       <button
         onClick={goPrev}
         className={`text-xs font-bold uppercase tracking-[0.15em] text-neutral-500 hover:text-neutral-800 transition-colors ${
