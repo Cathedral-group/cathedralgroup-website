@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+
+const MAX_ATTEMPTS = 5
+const LOCKOUT_MS = 15 * 60 * 1000 // 15 min lockout
 
 export default function LoginPage() {
   const router = useRouter()
@@ -10,24 +13,81 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [attempts, setAttempts] = useState(0)
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null)
+  const [countdown, setCountdown] = useState(0)
+
+  // Check if already authenticated
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) router.push('/admin')
+    })
+  }, [router])
+
+  // Restore lockout from sessionStorage
+  useEffect(() => {
+    const stored = sessionStorage.getItem('login_lockout')
+    if (stored) {
+      const until = parseInt(stored, 10)
+      if (until > Date.now()) {
+        setLockedUntil(until)
+        setAttempts(MAX_ATTEMPTS)
+      } else {
+        sessionStorage.removeItem('login_lockout')
+      }
+    }
+  }, [])
+
+  // Countdown timer
+  useEffect(() => {
+    if (!lockedUntil) return
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000))
+      setCountdown(remaining)
+      if (remaining <= 0) {
+        setLockedUntil(null)
+        setAttempts(0)
+        sessionStorage.removeItem('login_lockout')
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [lockedUntil])
+
+  const isLocked = lockedUntil !== null && lockedUntil > Date.now()
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault()
+    if (isLocked) return
+
     setLoading(true)
     setError('')
 
     const supabase = createClient()
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     })
 
     if (authError) {
-      setError('Credenciales incorrectas')
+      const newAttempts = attempts + 1
+      setAttempts(newAttempts)
+
+      if (newAttempts >= MAX_ATTEMPTS) {
+        const until = Date.now() + LOCKOUT_MS
+        setLockedUntil(until)
+        sessionStorage.setItem('login_lockout', until.toString())
+        setError(`Demasiados intentos. Bloqueado ${Math.ceil(LOCKOUT_MS / 60000)} minutos.`)
+      } else {
+        setError(`Credenciales incorrectas (${MAX_ATTEMPTS - newAttempts} intentos restantes)`)
+      }
       setLoading(false)
       return
     }
 
+    // Success — reset attempts
+    setAttempts(0)
+    sessionStorage.removeItem('login_lockout')
     router.push('/admin')
     router.refresh()
   }
@@ -50,8 +110,9 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm"
-              placeholder="admin@cathedralgroup.es"
+              disabled={isLocked}
+              autoComplete="email"
+              className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm disabled:opacity-50"
             />
           </div>
           <div>
@@ -63,20 +124,31 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm"
+              disabled={isLocked}
+              autoComplete="current-password"
+              className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm disabled:opacity-50"
             />
           </div>
 
           {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          {isLocked && countdown > 0 && (
+            <p className="text-neutral-500 text-xs text-center">
+              Desbloqueado en {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
+            </p>
+          )}
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-neutral-900 text-white py-4 text-sm font-medium uppercase tracking-widest hover:bg-primary transition-colors disabled:opacity-50"
+            disabled={loading || isLocked}
+            className="w-full bg-neutral-900 text-white py-4 text-sm font-medium uppercase tracking-widest hover:bg-[#5A5550] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? '...' : 'Acceder'}
+            {isLocked ? 'Bloqueado' : loading ? '...' : 'Acceder'}
           </button>
         </form>
+
+        <p className="text-[10px] text-neutral-300 text-center mt-8">
+          Acceso restringido a personal autorizado
+        </p>
       </div>
     </div>
   )
