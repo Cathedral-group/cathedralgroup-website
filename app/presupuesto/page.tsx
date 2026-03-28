@@ -192,7 +192,7 @@ export default function PresupuestoPage() {
   )
 
   const NavButtons = () => (
-    <div className="flex items-center justify-between mt-10 pt-6 border-t border-neutral-100">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-neutral-200 px-6 py-4 flex items-center justify-between md:static md:bg-transparent md:border-t-neutral-100 md:px-0 md:py-0 md:mt-10 md:pt-6 md:border-t">
       <button
         onClick={goPrev}
         className={`text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 hover:text-neutral-700 transition-colors ${
@@ -493,7 +493,7 @@ export default function PresupuestoPage() {
       </section>
 
       {/* Calculator */}
-      <section className="pb-24 bg-white">
+      <section className="pb-32 md:pb-24 bg-white">
         <div className="max-w-2xl mx-auto px-6">
           {!showResult && <ProgressBar />}
 
