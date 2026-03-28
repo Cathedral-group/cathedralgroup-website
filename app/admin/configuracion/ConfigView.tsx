@@ -25,7 +25,7 @@ export default function ConfigView({ initial }: { initial: QualityCoefficient[] 
   const handleSave = async (row: QualityCoefficient) => {
     setSaving(row.id)
     try {
-      const res = await fetch('/api/quality-coefficients', {
+      const res = await fetch('/api/admin/quality-coefficients', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
