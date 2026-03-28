@@ -535,6 +535,12 @@ export default function QuoteEditor({
               <button onClick={handleDuplicate} className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors">
                 Duplicar
               </button>
+              <button
+                onClick={() => window.open(`/api/presupuesto-pdf/${savedIdRef.current}`, '_blank')}
+                className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
+              >
+                PDF
+              </button>
               <button onClick={handleConvertToInvoice} className="hidden sm:block bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">
                 Convertir a factura
               </button>
