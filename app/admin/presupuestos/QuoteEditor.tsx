@@ -511,6 +511,23 @@ export default function QuoteEditor({
   /* ── Quality coefficient helpers ── */
   const currentQuality = qualityCoefficients.find((q) => q.level === form.quality_level) ?? qualityCoefficients[0]
 
+  /** When the global quality level changes, recalculate all catalog items and update row quality_level */
+  const handleGlobalQualityChange = useCallback((newLevel: string) => {
+    setForm((prev) => {
+      const coeff = qualityCoefficients.find((q) => q.level === newLevel)?.coefficient ?? 1
+      const items = prev.items.map((item) => {
+        const updated = { ...item, quality_level: newLevel }
+        if (item.base_unit_price != null) {
+          updated.unit_price = Math.round(item.base_unit_price * coeff * 100) / 100
+          updated.total = calcItemTotal(updated)
+        }
+        return updated
+      })
+      const totals = calcTotals(items)
+      return { ...prev, quality_level: newLevel, items, ...totals }
+    })
+  }, [qualityCoefficients])
+
   const addItemsFromCatalog = useCallback((catalogItems: { description: string; unit: string; unit_price: number; base_unit_price: number }[]) => {
     setForm((prev) => {
       const newItems = catalogItems.map((ci) => {
@@ -564,7 +581,7 @@ export default function QuoteEditor({
         <div className="w-px h-5 bg-neutral-200 hidden sm:block" />
         <select
           value={form.quality_level}
-          onChange={(e) => set('quality_level', e.target.value)}
+          onChange={(e) => handleGlobalQualityChange(e.target.value)}
           className="text-[10px] font-bold uppercase tracking-widest border border-neutral-200 px-2 py-1 bg-white focus:ring-1 focus:ring-primary hidden sm:block"
         >
           {qualityCoefficients.map((q) => (
