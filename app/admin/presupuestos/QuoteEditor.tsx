@@ -197,7 +197,7 @@ export default function QuoteEditor({
       const items = [...prev.items]
       let item = { ...items[index], [field]: value }
 
-      const itemOverride = (f: string) => items[index].quality_coefficient_override ?? prev.quality_coefficient_override ?? 1
+      const itemOverride = (f: string) => items[index].quality_coefficient_override ?? prev.quality_coefficient_override ?? 1.25
       const resolveItemCoeff = (level: string, overrideVal?: number) => {
         if (level === 'personalizado') return overrideVal ?? itemOverride(level)
         return qualityCoefficients.find((q) => q.level === level)?.coefficient ?? 1
@@ -213,8 +213,8 @@ export default function QuoteEditor({
       if (field === 'quality_level' && typeof value === 'string') {
         const oldLevel = items[index].quality_level ?? prev.quality_level
         const oldCoeff = resolveItemCoeff(oldLevel)
-        // When switching TO personalizado, inherit the global override or keep 1
-        const initOverride = value === 'personalizado' ? (items[index].quality_coefficient_override ?? prev.quality_coefficient_override ?? 1) : undefined
+        // When switching TO personalizado, inherit the global override or default to 1.25
+        const initOverride = value === 'personalizado' ? (items[index].quality_coefficient_override ?? prev.quality_coefficient_override ?? 1.25) : undefined
         const newCoeff = resolveItemCoeff(value, initOverride)
         const base = items[index].base_unit_price ?? (oldCoeff !== 0 ? Math.round((items[index].unit_price / oldCoeff) * 100) / 100 : items[index].unit_price)
         item = { ...item, unit_price: Math.round(base * newCoeff * 100) / 100, base_unit_price: base, quality_coefficient_override: initOverride }
@@ -600,13 +600,13 @@ export default function QuoteEditor({
 
   /** Resolve coefficient for a given quality level, considering the personalizado override */
   const resolveCoeff = useCallback((level: string, override: number | null): number => {
-    if (level === 'personalizado') return override ?? 1
+    if (level === 'personalizado') return override ?? 1.25
     return qualityCoefficients.find((q) => q.level === level)?.coefficient ?? 1
   }, [qualityCoefficients])
 
   /* ── Quality computed values ── */
   const currentQualityCoeff = form.quality_level === 'personalizado'
-    ? (form.quality_coefficient_override ?? 1)
+    ? (form.quality_coefficient_override ?? 1.25)
     : (qualityCoefficients.find((q) => q.level === form.quality_level)?.coefficient ?? 1)
   const currentQuality = form.quality_level === 'personalizado'
     ? { level: 'personalizado', coefficient: currentQualityCoeff, label: 'Personalizado' }
@@ -617,9 +617,9 @@ export default function QuoteEditor({
    *  also matches the previous global override). Individually-customized rows are left untouched. */
   const handleGlobalQualityChange = useCallback((newLevel: string, override?: number | null) => {
     setForm((prev) => {
-      const effectiveOverride = override !== undefined ? override : (newLevel === 'personalizado' ? prev.quality_coefficient_override : null)
-      const newCoeff = newLevel === 'personalizado' ? (effectiveOverride ?? 1) : (qualityCoefficients.find((q) => q.level === newLevel)?.coefficient ?? 1)
-      const prevCoeff = prev.quality_level === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === prev.quality_level)?.coefficient ?? 1)
+      const effectiveOverride = override !== undefined ? override : (newLevel === 'personalizado' ? (prev.quality_coefficient_override ?? 1.25) : null)
+      const newCoeff = newLevel === 'personalizado' ? (effectiveOverride ?? 1.25) : (qualityCoefficients.find((q) => q.level === newLevel)?.coefficient ?? 1)
+      const prevCoeff = prev.quality_level === 'personalizado' ? (prev.quality_coefficient_override ?? 1.25) : (qualityCoefficients.find((q) => q.level === prev.quality_level)?.coefficient ?? 1)
 
       const items = prev.items.map((item) => {
         // A row "follows global" if it has no explicit quality_level, or its quality matches
@@ -717,7 +717,7 @@ export default function QuoteEditor({
             <input
               type="text"
               inputMode="decimal"
-              defaultValue={form.quality_coefficient_override ?? 1}
+              defaultValue={form.quality_coefficient_override ?? 1.25}
               key={form.quality_level}
               onBlur={(e) => {
                 const val = parseFloat(e.target.value.replace(',', '.')) || 1
@@ -862,12 +862,17 @@ export default function QuoteEditor({
                     <tr key={idx}>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1 min-w-[140px] sm:min-w-[200px]">
-                          <input
-                            type="text"
+                          <textarea
                             value={item.description}
                             onChange={(e) => updateItem(idx, 'description', e.target.value)}
-                            className="bg-transparent border-0 focus:ring-0 p-0 text-sm flex-1"
+                            onInput={(e) => {
+                              const el = e.currentTarget
+                              el.style.height = 'auto'
+                              el.style.height = el.scrollHeight + 'px'
+                            }}
+                            className="bg-transparent border-0 focus:ring-0 p-0 text-sm flex-1 resize-none overflow-hidden leading-snug"
                             placeholder="Descripcion..."
+                            rows={1}
                           />
                           {catalogItems.length > 0 && (
                             <button
@@ -942,7 +947,7 @@ export default function QuoteEditor({
                             <input
                               type="text"
                               inputMode="decimal"
-                              defaultValue={item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1}
+                              defaultValue={item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1.25}
                               key={`coeff-${idx}-${item.quality_coefficient_override}`}
                               onBlur={(e) => {
                                 const val = parseFloat(e.target.value.replace(',', '.')) || 1
@@ -1046,7 +1051,7 @@ export default function QuoteEditor({
                           : ''
                       return (
                         <tr key={idx} className={rowColor}>
-                          <td className="px-2 py-1.5 max-w-[140px] truncate">{item.description || '--'}</td>
+                          <td className="px-2 py-1.5">{item.description || '--'}</td>
                           <td className="px-2 py-1.5 tabular-nums text-right">{formatEur(item.total)}</td>
                           <td className="px-2 py-1.5 tabular-nums text-right">{item.certified_pct}%</td>
                           <td className="px-2 py-1.5 tabular-nums text-right">{formatEur(certAmt)}</td>
@@ -1112,7 +1117,7 @@ export default function QuoteEditor({
                   const delta = draft - current
                   return (
                     <div key={idx} className="border border-neutral-100 p-3 rounded">
-                      <div className="text-sm font-medium mb-1 truncate">{item.description || `Partida ${idx + 1}`}</div>
+                      <div className="text-sm font-medium mb-1">{item.description || `Partida ${idx + 1}`}</div>
                       <div className="text-xs text-neutral-400 mb-2">
                         Total: {formatEur(item.total)} | Actual: {current}%
                         {delta > 0 && (
