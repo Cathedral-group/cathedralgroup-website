@@ -102,7 +102,14 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
       <div className="bg-white border border-neutral-100 overflow-x-auto">
         <table className="w-full">
           <thead><tr className="border-b border-neutral-100">
-            {['Nombre','Especialidad','Teléfono','NIF','Facturas','Pendiente'].map(h => <th key={h} className="text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">{h}</th>)}
+            {[
+              { label: 'Nombre', cls: '' },
+              { label: 'Especialidad', cls: 'hidden sm:table-cell' },
+              { label: 'Teléfono', cls: 'hidden sm:table-cell' },
+              { label: 'NIF', cls: 'hidden md:table-cell' },
+              { label: 'Facturas', cls: 'hidden sm:table-cell' },
+              { label: 'Pendiente', cls: '' },
+            ].map(h => <th key={h.label} className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${h.cls}`}>{h.label}</th>)}
           </tr></thead>
           <tbody className="divide-y divide-neutral-50">
             {filtered.length === 0 ? <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-neutral-400">Sin proveedores</td></tr> :
@@ -111,10 +118,10 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
               const sPend = sInv.filter(i => i.payment_status === 'pendiente').reduce((sum, i) => sum + (Number(i.amount_total) || 0), 0)
               return (<tr key={s.id} onClick={() => openDetail(s)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
                 <td className="px-4 py-3 text-sm font-medium">{s.name}</td>
-                <td className="px-4 py-3"><span className="text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">{s.specialty || '—'}</span></td>
-                <td className="px-4 py-3 text-sm">{s.phone || '—'}</td>
-                <td className="px-4 py-3 text-sm text-neutral-500">{s.nif || '—'}</td>
-                <td className="px-4 py-3 text-sm">{sInv.length}</td>
+                <td className="hidden sm:table-cell px-4 py-3"><span className="text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">{s.specialty || '—'}</span></td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm">{s.phone || '—'}</td>
+                <td className="hidden md:table-cell px-4 py-3 text-sm text-neutral-500">{s.nif || '—'}</td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm">{sInv.length}</td>
                 <td className="px-4 py-3 text-sm font-medium">{sPend > 0 ? <span className="text-amber-600">{formatEur(sPend)}</span> : '—'}</td>
               </tr>)
             })}
@@ -125,7 +132,7 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
       {form && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/20" onClick={close} />
-          <div className="relative w-full md:max-w-md bg-white h-full overflow-y-auto shadow-xl">
+          <div className="relative w-full sm:max-w-md bg-white h-full overflow-y-auto shadow-xl">
             <div className="sticky top-0 bg-white border-b border-neutral-100 p-6 flex justify-between items-center z-10">
               <h2 className="text-sm font-bold uppercase tracking-widest">{selected ? 'Editar' : 'Nuevo'} proveedor</h2>
               <button onClick={close} className="text-neutral-400 hover:text-neutral-600 text-xl">×</button>

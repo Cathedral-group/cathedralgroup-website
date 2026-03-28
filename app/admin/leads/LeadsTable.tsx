@@ -171,7 +171,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre, email, tipo, zona..."
-          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-80"
+          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-80"
         />
         <button
           onClick={() => setShowNewForm(true)}

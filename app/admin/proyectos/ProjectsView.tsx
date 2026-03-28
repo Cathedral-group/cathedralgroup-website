@@ -491,7 +491,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       {showNewForm && (
         <div className="bg-white border border-neutral-200 p-6 mb-6">
           <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4">Nuevo proyecto</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className={labelCls}>Código *</label>
               <input value={newForm.code} onChange={e => setNewForm({...newForm, code: e.target.value})} className={inputCls} placeholder="Ej: MAD-2026-001" />
@@ -706,7 +706,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               {/* ─── Tab: General ─── */}
               {activeTab === 'general' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Codigo" name="code" />
                     <Field label="Nombre" name="name" />
                   </div>
@@ -719,7 +719,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                     placeholder="Seleccionar cliente..."
                   />
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className={labelCls}>Tipo</label>
                       <select
@@ -751,12 +751,12 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   <Field label="Direccion" name="address" />
                   <Field label="Descripcion" name="description" type="textarea" />
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Presupuesto estimado" name="budget_estimated" type="number" />
                     <Field label="Precio de venta" name="sale_price" type="number" />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Field label="Fecha inicio" name="start_date" type="date" />
                     <Field label="Fin planificado" name="end_date_planned" type="date" />
                     <Field label="Fin real" name="end_date_real" type="date" />

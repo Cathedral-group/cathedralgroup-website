@@ -461,7 +461,7 @@ export default function QuoteEditor({
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={onClose}>
       <div
-        className="w-full max-w-2xl bg-white h-full overflow-y-auto p-8"
+        className="w-full sm:max-w-2xl bg-white h-full overflow-y-auto px-4 py-6 sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -491,7 +491,7 @@ export default function QuoteEditor({
         {/* 1. Identity */}
         <div className={sectionCls}>
           <p className={sectionTitle}>Datos basicos</p>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div>
               <label className={labelCls}>Numero</label>
               <input
@@ -516,7 +516,7 @@ export default function QuoteEditor({
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div>
               <label className={labelCls}>Cliente</label>
               <select
@@ -578,7 +578,7 @@ export default function QuoteEditor({
                           type="text"
                           value={item.description}
                           onChange={(e) => updateItem(idx, 'description', e.target.value)}
-                          className="bg-transparent border-0 focus:ring-0 p-0 text-sm w-full min-w-[180px]"
+                          className="bg-transparent border-0 focus:ring-0 p-0 text-sm w-full min-w-[120px] sm:min-w-[180px]"
                           placeholder="Descripcion..."
                         />
                       </td>

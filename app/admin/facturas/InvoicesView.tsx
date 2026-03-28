@@ -228,16 +228,25 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
           <table className="w-full">
             <thead>
               <tr className="border-b border-neutral-100">
-                {['N\u00ba', 'Tipo', 'Concepto', 'Base', 'IVA', 'Total', 'Fecha', 'Vencimiento', 'Estado', ''].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400"
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
+                {[
+                  { label: 'Nº', cls: '' },
+                  { label: 'Tipo', cls: '' },
+                  { label: 'Concepto', cls: 'hidden sm:table-cell' },
+                  { label: 'Base', cls: 'hidden md:table-cell' },
+                  { label: 'IVA', cls: 'hidden md:table-cell' },
+                  { label: 'Total', cls: '' },
+                  { label: 'Fecha', cls: 'hidden sm:table-cell' },
+                  { label: 'Vencimiento', cls: 'hidden sm:table-cell' },
+                  { label: 'Estado', cls: '' },
+                  { label: '', cls: '' },
+                ].map((h) => (
+                  <th
+                    key={h.label}
+                    className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${h.cls}`}
+                  >
+                    {h.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
@@ -256,12 +265,12 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                   >
                     <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{inv.number || '--'}</td>
                     <td className="px-4 py-3"><DirectionBadge dir={inv.direction} /></td>
-                    <td className="px-4 py-3 text-sm max-w-[200px] truncate">{inv.concept}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.amount_base)}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.vat_amount)}</td>
+                    <td className="hidden sm:table-cell px-4 py-3 text-sm max-w-[200px] truncate">{inv.concept}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.amount_base)}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.vat_amount)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-right font-semibold">{formatEur(inv.amount_total)}</td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">{formatDate(inv.issue_date)}</td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">{formatDate(inv.issue_date)}</td>
+                    <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">
                       <DueDate date={inv.due_date} status={inv.payment_status} />
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={inv.payment_status} /></td>

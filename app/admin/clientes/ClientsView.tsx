@@ -383,14 +383,14 @@ export default function ClientsView({ clients: initialClients, projects, invoice
   return (
     <>
       {/* Header + Search */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center gap-3 justify-between mb-6">
         <h1 className="text-xl font-medium uppercase tracking-wide">Clientes</h1>
         <input
           type="text"
           placeholder="Buscar cliente..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-64"
+          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-64"
         />
       </div>
 
@@ -466,17 +466,17 @@ export default function ClientsView({ clients: initialClients, projects, invoice
               {/* ─── Tab: Datos ─── */}
               {activeTab === 'datos' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Nombre" name="name" />
                     <Field label="Empresa" name="company_name" />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Email" name="email" type="email" />
                     <Field label="Telefono" name="phone" />
                   </div>
                   <Field label="Direccion" name="address" />
                   <Field label="NIF/CIF" name="nif_cif" />
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <SelectField label="Tipo" name="type" options={CLIENT_TYPES} />
                     <SelectField label="Contacto preferido" name="preferred_contact" options={PREFERRED_CONTACTS} />
                     <SelectField label="Origen" name="source" options={SOURCES} />

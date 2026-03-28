@@ -192,7 +192,7 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por numero o cliente..."
-          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-56"
+          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-56"
         />
 
         <span className="text-xs text-neutral-400 ml-auto">
@@ -206,14 +206,20 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
           <table className="w-full">
             <thead>
               <tr className="border-b border-neutral-100">
-                {['Numero', 'Cliente', 'Proyecto', 'Total', 'Certificado', 'Estado', 'Fecha'].map((h) => (
+                {[
+                  { label: 'Numero', cls: '' },
+                  { label: 'Cliente', cls: '' },
+                  { label: 'Proyecto', cls: 'hidden sm:table-cell' },
+                  { label: 'Total', cls: 'text-right' },
+                  { label: 'Certificado', cls: 'hidden md:table-cell' },
+                  { label: 'Estado', cls: '' },
+                  { label: 'Fecha', cls: 'hidden sm:table-cell' },
+                ].map((h) => (
                   <th
-                    key={h}
-                    className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${
-                      h === 'Total' ? 'text-right' : ''
-                    }`}
+                    key={h.label}
+                    className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${h.cls}`}
                   >
-                    {h}
+                    {h.label}
                   </th>
                 ))}
               </tr>
@@ -236,19 +242,19 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
                     <td className="px-4 py-3 text-sm max-w-[200px] truncate">
                       {q.client_id ? (clientMap[q.client_id] || '--') : '--'}
                     </td>
-                    <td className="px-4 py-3 text-sm max-w-[200px] truncate">
+                    <td className="hidden sm:table-cell px-4 py-3 text-sm max-w-[200px] truncate">
                       {q.project_id ? (projectMap[q.project_id] || '--') : '--'}
                     </td>
                     <td className="px-4 py-3 text-sm tabular-nums text-right font-semibold">
                       {formatEur(q.total)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="hidden md:table-cell px-4 py-3">
                       <CertProgressBar pct={calcWeightedCertPct(q.items || [])} />
                     </td>
                     <td className="px-4 py-3">
                       <QuoteStatusBadge status={q.status} />
                     </td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">
                       {formatDate(q.created_at)}
                     </td>
                   </tr>
