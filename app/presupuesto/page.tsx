@@ -301,7 +301,7 @@ export default function PresupuestoPage() {
         <input
           type="range"
           min={30}
-          max={500}
+          max={1000}
           step={5}
           value={sqm}
           onChange={e => setSqm(Number(e.target.value))}
@@ -314,17 +314,17 @@ export default function PresupuestoPage() {
         />
         <div className="flex justify-between text-xs text-neutral-400 mt-2">
           <span>30 m²</span>
-          <span>500 m²</span>
+          <span>1.000 m²</span>
         </div>
         {/* Direct input */}
         <div className="mt-6 flex items-center gap-3">
           <input
             type="number"
             min={30}
-            max={500}
+            max={1000}
             value={sqm}
             onChange={e => {
-              const v = Math.max(30, Math.min(500, Number(e.target.value) || 30))
+              const v = Math.max(30, Math.min(1000, Number(e.target.value) || 30))
               setSqm(v)
             }}
             className="w-24 px-3 py-2 text-sm border border-neutral-200 bg-white text-neutral-800 focus:border-primary focus:ring-0 outline-none transition-colors"
