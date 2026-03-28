@@ -1,6 +1,6 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import AdminCrudPage from '@/components/admin/AdminCrudPage'
+import ProjectsView from './ProjectsView'
 
 export default async function ProyectosPage() {
   const authClient = await createServerSupabaseClient()
@@ -9,30 +9,21 @@ export default async function ProyectosPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const { data } = await supabase
-    .from('projects')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const [projectsRes, clientsRes, financialsRes, invoicesRes, phasesRes] = await Promise.all([
+    supabase.from('projects').select('*').order('created_at', { ascending: false }),
+    supabase.from('clients').select('id, name').order('name'),
+    supabase.from('project_financials').select('*'),
+    supabase.from('invoices').select('id, numero, concepto, tipo, total, estado, proyecto_code'),
+    supabase.from('project_phases').select('*').order('start_date', { ascending: true }),
+  ])
 
   return (
-    <AdminCrudPage
-      title="Proyectos"
-      table="projects"
-      data={data || []}
-      columns={[
-        { key: 'code', label: 'Código' },
-        { key: 'name', label: 'Nombre' },
-        { key: 'type', label: 'Tipo' },
-        { key: 'status', label: 'Estado' },
-      ]}
-      fields={[
-        { name: 'code', label: 'Código', type: 'text', required: true },
-        { name: 'name', label: 'Nombre', type: 'text' },
-        { name: 'description', label: 'Descripción', type: 'textarea' },
-        { name: 'type', label: 'Tipo', type: 'select', options: ['reforma', 'interiorismo', 'cambio-uso', 'obra-nueva', 'promocion'] },
-        { name: 'status', label: 'Estado', type: 'select', options: ['presupuesto', 'en_curso', 'completado', 'cancelado'] },
-        { name: 'notes', label: 'Notas', type: 'textarea' },
-      ]}
+    <ProjectsView
+      projects={projectsRes.data || []}
+      clients={clientsRes.data || []}
+      financials={financialsRes.data || []}
+      invoices={invoicesRes.data || []}
+      phases={phasesRes.data || []}
     />
   )
 }
