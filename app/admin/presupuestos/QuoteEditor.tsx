@@ -670,14 +670,14 @@ export default function QuoteEditor({
           <div className="hidden sm:flex items-center gap-1">
             <span className="text-[10px] text-neutral-400 font-bold">×</span>
             <input
-              type="number"
-              value={form.quality_coefficient_override ?? 1}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value) || 1
+              type="text"
+              inputMode="decimal"
+              defaultValue={form.quality_coefficient_override ?? 1}
+              key={form.quality_level}
+              onBlur={(e) => {
+                const val = parseFloat(e.target.value.replace(',', '.')) || 1
                 handleGlobalQualityChange('personalizado', val)
               }}
-              step="0.05"
-              min="0.1"
               className="w-16 text-[10px] font-bold border border-neutral-200 px-2 py-1 bg-white focus:ring-1 focus:ring-primary text-center"
               title="Coeficiente personalizado"
             />
@@ -880,11 +880,14 @@ export default function QuoteEditor({
                           </select>
                           {(item.quality_level ?? form.quality_level) === 'personalizado' && (
                             <input
-                              type="number"
-                              value={item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1}
-                              onChange={(e) => updateItem(idx, 'quality_coefficient_override', parseFloat(e.target.value) || 1)}
-                              step="0.05"
-                              min="0.1"
+                              type="text"
+                              inputMode="decimal"
+                              defaultValue={item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1}
+                              key={`coeff-${idx}-${item.quality_coefficient_override}`}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value.replace(',', '.')) || 1
+                                updateItem(idx, 'quality_coefficient_override', val)
+                              }}
                               className="w-14 bg-transparent border-0 border-b border-purple-300 focus:ring-0 p-0 text-[10px] font-bold text-purple-600 text-center"
                               title="Coeficiente personalizado para esta partida"
                             />
