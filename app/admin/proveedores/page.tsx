@@ -1,6 +1,6 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import AdminCrudPage from '@/components/admin/AdminCrudPage'
+import SuppliersView from './SuppliersView'
 
 export default async function ProveedoresPage() {
   const authClient = await createServerSupabaseClient()
@@ -9,31 +9,15 @@ export default async function ProveedoresPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const { data } = await supabase
-    .from('suppliers')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const [suppliersRes, invoicesRes] = await Promise.all([
+    supabase.from('suppliers').select('*').order('created_at', { ascending: false }),
+    supabase.from('invoices').select('id, numero, number, concepto, concept, tipo, direction, total, amount_total, estado, payment_status, proyecto_code, supplier_nif, issue_date, payment_date'),
+  ])
 
   return (
-    <AdminCrudPage
-      title="Proveedores"
-      table="suppliers"
-      data={data || []}
-      columns={[
-        { key: 'name', label: 'Nombre' },
-        { key: 'category', label: 'Categoría' },
-        { key: 'phone', label: 'Teléfono' },
-        { key: 'rating', label: 'Valoración' },
-      ]}
-      fields={[
-        { name: 'name', label: 'Nombre', type: 'text', required: true },
-        { name: 'category', label: 'Categoría', type: 'select', options: ['electricidad', 'fontaneria', 'pintura', 'carpinteria', 'marmol', 'cristaleria', 'climatizacion', 'domotica', 'otro'] },
-        { name: 'phone', label: 'Teléfono', type: 'text' },
-        { name: 'email', label: 'Email', type: 'email' },
-        { name: 'cif', label: 'CIF', type: 'text' },
-        { name: 'rating', label: 'Valoración (1-5)', type: 'number' },
-        { name: 'notes', label: 'Notas', type: 'textarea' },
-      ]}
+    <SuppliersView
+      suppliers={suppliersRes.data || []}
+      invoices={invoicesRes.data || []}
     />
   )
 }

@@ -1,6 +1,6 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import AdminCrudPage from '@/components/admin/AdminCrudPage'
+import ClientsView from './ClientsView'
 
 export default async function ClientesPage() {
   const authClient = await createServerSupabaseClient()
@@ -9,30 +9,19 @@ export default async function ClientesPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const { data } = await supabase
-    .from('clients')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const [clientsRes, projectsRes, invoicesRes, communicationsRes] = await Promise.all([
+    supabase.from('clients').select('*').order('created_at', { ascending: false }),
+    supabase.from('projects').select('id, code, name, client_id, status'),
+    supabase.from('invoices').select('id, numero, number, concepto, concept, tipo, direction, total, amount_total, estado, payment_status, proyecto_code, issue_date'),
+    supabase.from('communications').select('*').eq('entity_type', 'client').order('date', { ascending: false }),
+  ])
 
   return (
-    <AdminCrudPage
-      title="Clientes"
-      table="clients"
-      data={data || []}
-      columns={[
-        { key: 'name', label: 'Nombre' },
-        { key: 'email', label: 'Email' },
-        { key: 'phone', label: 'Teléfono' },
-        { key: 'type', label: 'Tipo' },
-      ]}
-      fields={[
-        { name: 'name', label: 'Nombre', type: 'text', required: true },
-        { name: 'email', label: 'Email', type: 'email' },
-        { name: 'phone', label: 'Teléfono', type: 'text' },
-        { name: 'address', label: 'Dirección', type: 'text' },
-        { name: 'type', label: 'Tipo', type: 'select', options: ['particular', 'empresa', 'inversor'] },
-        { name: 'notes', label: 'Notas', type: 'textarea' },
-      ]}
+    <ClientsView
+      clients={clientsRes.data || []}
+      projects={projectsRes.data || []}
+      invoices={invoicesRes.data || []}
+      communications={communicationsRes.data || []}
     />
   )
 }

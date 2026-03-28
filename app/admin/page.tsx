@@ -1,6 +1,8 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import CashFlowBar from '@/components/admin/CashFlowBar'
+import QuickAddButton from '@/components/admin/QuickAddButton'
 
 function formatEUR(value: number | null | undefined): string {
   if (value == null || isNaN(value)) return '0,00 \u20ac'
@@ -127,7 +129,15 @@ async function getStats() {
     .gte('due_date', today.toISOString().split('T')[0])
     .lte('due_date', in30.toISOString().split('T')[0])
     .order('due_date', { ascending: true })
-    .limit(15)
+
+  // --- CashFlow 30 days (from facturasPorVencer) ---
+  const cashFlow30Income = (facturasPorVencer || [])
+    .filter((inv: { direction: string }) => inv.direction === 'emitida')
+    .reduce((sum: number, inv: { amount_total: number | null }) => sum + (Number(inv.amount_total) || 0), 0)
+
+  const cashFlow30Expenses = (facturasPorVencer || [])
+    .filter((inv: { direction: string }) => inv.direction === 'recibida')
+    .reduce((sum: number, inv: { amount_total: number | null }) => sum + (Number(inv.amount_total) || 0), 0)
 
   // --- Proyectos activos con rentabilidad ---
   const { data: projectFinancials } = await supabase
@@ -155,7 +165,9 @@ async function getStats() {
     totalPendientePago,
     countPendientePago,
     vat: vatData,
-    facturasPorVencer: facturasPorVencer || [],
+    facturasPorVencer: (facturasPorVencer || []).slice(0, 15),
+    cashFlow30Income,
+    cashFlow30Expenses,
     projectFinancials: projectFinancials || [],
     recentLeads: recentLeads || [],
   }
@@ -209,14 +221,17 @@ export default async function AdminDashboard() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
         <h1 className="text-xl font-medium uppercase tracking-wide">Dashboard</h1>
-        <p className="text-xs text-neutral-400 uppercase tracking-widest">
-          {new Date().toLocaleDateString('es-ES', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </p>
+        <div className="flex items-center gap-4">
+          <p className="text-xs text-neutral-400 uppercase tracking-widest">
+            {new Date().toLocaleDateString('es-ES', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
+          </p>
+          <QuickAddButton />
+        </div>
       </div>
 
       {/* ── KPI Cards ── */}
@@ -237,7 +252,7 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
-      {/* ── Two-column: IVA + Acciones r\u00e1pidas ── */}
+      {/* ── Two-column: IVA + Flujo de Caja ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
         {/* IVA Trimestral */}
         <div className="bg-white border border-neutral-100 rounded">
@@ -288,41 +303,15 @@ export default async function AdminDashboard() {
           </div>
         </div>
 
-        {/* Acciones r\u00e1pidas */}
+        {/* Flujo de Caja - pr\u00f3ximos 30 d\u00edas */}
         <div className="bg-white border border-neutral-100 rounded">
           <div className="p-5 border-b border-neutral-100">
             <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-              Acciones r&aacute;pidas
+              Flujo de Caja &mdash; pr&oacute;ximos 30 d&iacute;as
             </h2>
           </div>
-          <div className="p-5 flex flex-wrap gap-3">
-            <Link
-              href="/admin/invoices/new"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-neutral-800 transition-colors rounded"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Nueva factura
-            </Link>
-            <Link
-              href="/admin/clients/new"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-100 text-neutral-700 text-xs font-bold uppercase tracking-widest hover:bg-neutral-200 transition-colors rounded"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Nuevo cliente
-            </Link>
-            <Link
-              href="/admin/projects/new"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-100 text-neutral-700 text-xs font-bold uppercase tracking-widest hover:bg-neutral-200 transition-colors rounded"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Nuevo proyecto
-            </Link>
+          <div className="p-5">
+            <CashFlowBar income={stats.cashFlow30Income} expenses={stats.cashFlow30Expenses} />
           </div>
         </div>
       </div>
