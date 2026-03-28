@@ -861,19 +861,17 @@ export default function QuoteEditor({
                   {form.items.map((item, idx) => (
                     <tr key={idx}>
                       <td className="px-3 py-2">
-                        <div className="flex items-center gap-1 min-w-[140px] sm:min-w-[200px]">
-                          <textarea
-                            value={item.description}
-                            onChange={(e) => updateItem(idx, 'description', e.target.value)}
-                            onInput={(e) => {
-                              const el = e.currentTarget
-                              el.style.height = 'auto'
-                              el.style.height = el.scrollHeight + 'px'
-                            }}
-                            className="bg-transparent border-0 focus:ring-0 p-0 text-sm flex-1 resize-none overflow-hidden leading-snug"
-                            placeholder="Descripcion..."
-                            rows={1}
-                          />
+                        <div className="flex items-start gap-1 min-w-[140px] sm:min-w-[200px]">
+                          <div className="grid flex-1 text-sm leading-snug [&>textarea]:col-[1] [&>textarea]:row-[1] [&>span]:col-[1] [&>span]:row-[1]">
+                            <span className="invisible whitespace-pre-wrap break-words p-0 min-h-[1.375rem]" aria-hidden>{(item.description || ' ') + ' '}</span>
+                            <textarea
+                              value={item.description}
+                              onChange={(e) => updateItem(idx, 'description', e.target.value)}
+                              className="bg-transparent border-0 focus:ring-0 p-0 resize-none overflow-hidden w-full"
+                              placeholder="Descripcion..."
+                              rows={1}
+                            />
+                          </div>
                           {catalogItems.length > 0 && (
                             <button
                               type="button"
