@@ -125,7 +125,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [selected, setSelected] = useState<Project | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
-  const [hidePresupuestados, setHidePresupuestados] = useState(false)
+  const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(new Set())
   const [sortBy, setSortBy] = useState<string>('code')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [activeTab, setActiveTab] = useState('general')
@@ -153,7 +153,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
 
   const filtered = useMemo(() => {
     let list = projects
-    if (hidePresupuestados) list = list.filter((p) => p.status !== 'presupuesto')
+    if (hiddenStatuses.size > 0) list = list.filter((p) => !hiddenStatuses.has(p.status || 'presupuesto'))
     if (statusFilter) list = list.filter((p) => (p.status || 'presupuesto') === statusFilter)
     if (search) {
       const q = search.toLowerCase()
@@ -183,7 +183,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       return 0
     })
     return list
-  }, [projects, statusFilter, search, clientMap, hidePresupuestados, sortBy, sortDir, financialMap])
+  }, [projects, statusFilter, search, clientMap, hiddenStatuses, sortBy, sortDir, financialMap])
 
   function toggleSort(col: string) {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -424,17 +424,25 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
 
         <div className="w-px h-5 bg-neutral-200" />
 
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={hidePresupuestados}
-            onChange={(e) => setHidePresupuestados(e.target.checked)}
-            className="accent-primary w-3.5 h-3.5"
-          />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-            Ocultar presupuestados
-          </span>
-        </label>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Ocultar:</span>
+        {STATUSES.map((s) => (
+          <label key={`hide-${s}`} className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hiddenStatuses.has(s)}
+              onChange={(e) => {
+                const next = new Set(hiddenStatuses)
+                if (e.target.checked) next.add(s)
+                else next.delete(s)
+                setHiddenStatuses(next)
+              }}
+              className="accent-primary w-3 h-3"
+            />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+              {s.replace(/_/g, ' ')}
+            </span>
+          </label>
+        ))}
 
         <span className="text-xs text-neutral-400 ml-auto">
           {filtered.length} de {projects.length}
