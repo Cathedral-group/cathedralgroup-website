@@ -868,7 +868,7 @@ export default function QuoteEditor({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-100 bg-neutral-50">
-                    {['Descripcion', 'Cant.', 'Ud.', 'Precio ud.', 'Cal.', 'IVA %', 'Total', ''].map((h) => (
+                    {['% Cert.', '% Fact.', 'Descripcion', 'Cant.', 'Ud.', 'Precio ud.', 'Cal.', 'IVA %', 'Total', 'Benef.', ''].map((h) => (
                       <th key={h} className="text-left px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400 whitespace-nowrap">
                         {h}
                       </th>
@@ -877,177 +877,234 @@ export default function QuoteEditor({
                 </thead>
                 <tbody className="divide-y divide-neutral-50">
                   {(() => {
-                    // Pre-compute sequential chapter numbers and subtotals
+                    // Pre-compute sequential chapter numbers, totals and margins
                     const chapterOrder: string[] = []
-                    const chapterSubtotals: Record<string, number> = {}
+                    const chapterTotals: Record<string, number> = {}
+                    const chapterMargins: Record<string, number> = {}
                     form.items.forEach((it) => {
                       const code = it.chapter_code ?? ''
                       if (code && !chapterOrder.includes(code)) chapterOrder.push(code)
-                      if (code) chapterSubtotals[code] = (chapterSubtotals[code] || 0) + (it.total || 0)
+                      if (code) {
+                        chapterTotals[code] = (chapterTotals[code] || 0) + (it.total || 0)
+                        if (it.base_unit_price != null) {
+                          const m = (it.unit_price - it.base_unit_price) * it.quantity
+                          chapterMargins[code] = (chapterMargins[code] || 0) + m
+                        }
+                      }
                     })
                     const chapterSeq: Record<string, string> = {}
                     chapterOrder.forEach((code, i) => { chapterSeq[code] = String(i + 1).padStart(2, '0') })
 
                     return form.items.flatMap((item, idx) => {
-                    const prev = idx > 0 ? form.items[idx - 1] : null
-                    const next = idx < form.items.length - 1 ? form.items[idx + 1] : null
-                    const showChapterHeader = item.chapter_code && item.chapter_code !== prev?.chapter_code
-                    const showSubtotal = item.chapter_code && item.chapter_code !== next?.chapter_code
+                      const prev = idx > 0 ? form.items[idx - 1] : null
+                      const next = idx < form.items.length - 1 ? form.items[idx + 1] : null
+                      const showChapterHeader = item.chapter_code && item.chapter_code !== prev?.chapter_code
+                      const showSubtotal = item.chapter_code && item.chapter_code !== next?.chapter_code
 
-                    const headerRow = showChapterHeader ? (
-                      <tr key={`ch-${idx}`} className="bg-neutral-100 border-t-2 border-neutral-200">
-                        <td colSpan={8} className="px-3 py-2">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
-                            {chapterSeq[item.chapter_code!]} — {item.chapter_name}
-                          </span>
-                        </td>
-                      </tr>
-                    ) : null
+                      // Margin for this item
+                      const itemMargin = item.base_unit_price != null
+                        ? (item.unit_price - item.base_unit_price) * item.quantity
+                        : null
+                      const itemMarginPct = itemMargin != null && item.unit_price > 0
+                        ? (itemMargin / (item.unit_price * item.quantity)) * 100
+                        : null
 
-                    const subtotalRow = showSubtotal ? (
-                      <tr key={`sub-${idx}`} className="bg-neutral-50 border-t border-neutral-200">
-                        <td colSpan={6} className="px-3 py-1.5 text-right">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                      const headerRow = showChapterHeader ? (
+                        <tr key={`ch-${idx}`} className="bg-neutral-100 border-t-2 border-neutral-200">
+                          <td colSpan={11} className="px-3 py-2">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                              {chapterSeq[item.chapter_code!]} — {item.chapter_name}
+                            </span>
+                          </td>
+                        </tr>
+                      ) : null
+
+                      const chMarg = item.chapter_code ? chapterMargins[item.chapter_code] : null
+                      const chTotal = item.chapter_code ? chapterTotals[item.chapter_code] : 0
+                      const chMargPct = chMarg != null && chTotal > 0 ? (chMarg / chTotal) * 100 : null
+
+                      const subtotalRow = showSubtotal ? (
+                        <tr key={`sub-${idx}`} className="bg-neutral-50 border-t border-neutral-200 text-[10px] font-bold">
+                          <td colSpan={2} />
+                          <td colSpan={6} className="px-3 py-1.5 text-right text-neutral-400 uppercase tracking-widest">
                             Subtotal {item.chapter_name}
-                          </span>
-                        </td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-xs font-bold text-neutral-600 whitespace-nowrap">
-                          {formatEur(chapterSubtotals[item.chapter_code!])}
-                        </td>
-                        <td />
-                      </tr>
-                    ) : null
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-neutral-600 whitespace-nowrap">
+                            {formatEur(chTotal)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
+                            {chMarg != null ? (
+                              <span className={chMarg >= 0 ? 'text-green-600' : 'text-red-500'}>
+                                {formatEur(chMarg)}{chMargPct != null ? ` (${chMargPct.toFixed(0)}%)` : ''}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td />
+                        </tr>
+                      ) : null
 
-                    const itemRow = (
-                    <tr key={idx}>
-                      <td className="px-3 py-2">
-                        <div className="flex items-start gap-1 min-w-[140px] sm:min-w-[200px]">
-                          <div className="grid flex-1 text-sm leading-snug [&>textarea]:col-[1] [&>textarea]:row-[1] [&>span]:col-[1] [&>span]:row-[1]">
-                            <span className="invisible whitespace-pre-wrap break-words p-0 min-h-[1.375rem]" aria-hidden>{(item.description || ' ') + ' '}</span>
-                            <textarea
-                              value={item.description}
-                              onChange={(e) => updateItem(idx, 'description', e.target.value)}
-                              className="bg-transparent border-0 focus:ring-0 p-0 resize-none overflow-hidden w-full"
-                              placeholder="Descripcion..."
-                              rows={1}
-                            />
-                          </div>
-                          {catalogItems.length > 0 && (
-                            <button
-                              type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                if (openCatalogForRow === idx) {
-                                  setOpenCatalogForRow(null)
-                                } else {
-                                  const rect = e.currentTarget.getBoundingClientRect()
-                                  setCatalogDropdownPos({ top: rect.bottom, left: rect.right - 480 })
-                                  setOpenCatalogForRow(idx)
-                                }
-                              }}
-                              className={`flex-none text-sm transition-colors px-0.5 leading-none ${openCatalogForRow === idx ? 'text-primary' : 'text-neutral-300 hover:text-primary'}`}
-                              title="Buscar en catálogo"
-                            >
-                              ☰
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(idx, 'quantity', Number(e.target.value) || 0)}
-                          className="bg-transparent border-0 focus:ring-0 p-0 text-sm w-16 tabular-nums"
-                          min="0"
-                          step="0.01"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={item.unit}
-                          onChange={(e) => updateItem(idx, 'unit', e.target.value)}
-                          className="bg-transparent border-0 focus:ring-0 p-0 text-sm"
-                        >
-                          <option value="ud">ud</option>
-                          <option value="m2">m&sup2;</option>
-                          <option value="ml">ml</option>
-                          <option value="pa">pa</option>
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <MoneyInput
-                          value={item.unit_price}
-                          onChange={(v) => updateItem(idx, 'unit_price', v)}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={item.quality_level ?? form.quality_level}
-                            onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
-                            className={`bg-transparent border-0 focus:ring-0 p-0 text-[10px] font-bold uppercase tracking-wide ${
-                              (item.quality_level ?? form.quality_level) === 'lujo'
-                                ? 'text-amber-600'
-                                : (item.quality_level ?? form.quality_level) === 'premium'
-                                ? 'text-blue-600'
-                                : (item.quality_level ?? form.quality_level) === 'personalizado'
-                                ? 'text-purple-600'
-                                : 'text-neutral-500'
-                            }`}
-                          >
-                            {qualityCoefficients.map((q) => (
-                              <option key={q.level} value={q.level}>{q.label}</option>
-                            ))}
-                            <option value="personalizado">Pers.</option>
-                          </select>
-                          {(item.quality_level ?? form.quality_level) === 'personalizado' && (
+                      const itemRow = (
+                        <tr key={idx}>
+                          {/* % Cert */}
+                          <td className="px-2 py-2">
                             <input
-                              type="text"
-                              inputMode="decimal"
-                              defaultValue={item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1.25}
-                              key={`coeff-${idx}-${item.quality_coefficient_override}`}
-                              onBlur={(e) => {
-                                const val = parseFloat(e.target.value.replace(',', '.')) || 1
-                                updateItem(idx, 'quality_coefficient_override', val)
-                              }}
-                              className="w-14 bg-transparent border-0 border-b border-purple-300 focus:ring-0 p-0 text-[10px] font-bold text-purple-600 text-center"
-                              title="Coeficiente personalizado para esta partida"
+                              type="number"
+                              value={item.certified_pct}
+                              onChange={(e) => updateItem(idx, 'certified_pct', Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs w-10 tabular-nums text-center"
+                              min="0" max="100" step="1"
+                              title="% certificado"
                             />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={item.vat_pct}
-                          onChange={(e) => updateItem(idx, 'vat_pct', Number(e.target.value))}
-                          className="bg-transparent border-0 focus:ring-0 p-0 text-sm"
-                        >
-                          <option value={0}>0%</option>
-                          <option value={10}>10%</option>
-                          <option value={21}>21%</option>
-                        </select>
-                      </td>
-                      <td className="px-3 py-2 text-sm tabular-nums text-right whitespace-nowrap font-medium">
-                        {formatEur(item.total)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          onClick={() => removeItem(idx)}
-                          className="text-neutral-300 hover:text-red-500 transition-colors text-lg leading-none"
-                          title="Eliminar partida"
-                        >
-                          &times;
-                        </button>
-                      </td>
-                    </tr>
-                    )
-                    const rows = []
-                    if (headerRow) rows.push(headerRow)
-                    rows.push(itemRow)
-                    if (subtotalRow) rows.push(subtotalRow)
-                    return rows
-                  })
+                          </td>
+                          {/* % Fact */}
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              value={item.invoiced_pct}
+                              onChange={(e) => updateItem(idx, 'invoiced_pct', Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs w-10 tabular-nums text-center"
+                              min="0" max="100" step="1"
+                              title="% facturado"
+                            />
+                          </td>
+                          {/* Description */}
+                          <td className="px-3 py-2 border-l border-neutral-100">
+                            <div className="flex items-start gap-1 min-w-[140px] sm:min-w-[200px]">
+                              <div className="grid flex-1 text-sm leading-snug [&>textarea]:col-[1] [&>textarea]:row-[1] [&>span]:col-[1] [&>span]:row-[1]">
+                                <span className="invisible whitespace-pre-wrap break-words p-0 min-h-[1.375rem]" aria-hidden>{(item.description || ' ') + ' '}</span>
+                                <textarea
+                                  value={item.description}
+                                  onChange={(e) => updateItem(idx, 'description', e.target.value)}
+                                  className="bg-transparent border-0 focus:ring-0 p-0 resize-none overflow-hidden w-full"
+                                  placeholder="Descripcion..."
+                                  rows={1}
+                                />
+                              </div>
+                              {catalogItems.length > 0 && (
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    if (openCatalogForRow === idx) {
+                                      setOpenCatalogForRow(null)
+                                    } else {
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      setCatalogDropdownPos({ top: rect.bottom, left: rect.right - 480 })
+                                      setOpenCatalogForRow(idx)
+                                    }
+                                  }}
+                                  className={`flex-none text-sm transition-colors px-0.5 leading-none ${openCatalogForRow === idx ? 'text-primary' : 'text-neutral-300 hover:text-primary'}`}
+                                  title="Buscar en catálogo"
+                                >
+                                  ☰
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => updateItem(idx, 'quantity', Number(e.target.value) || 0)}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-sm w-16 tabular-nums"
+                              min="0"
+                              step="0.01"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={item.unit}
+                              onChange={(e) => updateItem(idx, 'unit', e.target.value)}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-sm"
+                            >
+                              <option value="ud">ud</option>
+                              <option value="m2">m&sup2;</option>
+                              <option value="ml">ml</option>
+                              <option value="pa">pa</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <MoneyInput
+                              value={item.unit_price}
+                              onChange={(v) => updateItem(idx, 'unit_price', v)}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={item.quality_level ?? form.quality_level}
+                                onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
+                                className={`bg-transparent border-0 focus:ring-0 p-0 text-[10px] font-bold uppercase tracking-wide ${
+                                  (item.quality_level ?? form.quality_level) === 'lujo'
+                                    ? 'text-amber-600'
+                                    : (item.quality_level ?? form.quality_level) === 'premium'
+                                    ? 'text-blue-600'
+                                    : (item.quality_level ?? form.quality_level) === 'personalizado'
+                                    ? 'text-purple-600'
+                                    : 'text-neutral-500'
+                                }`}
+                              >
+                                {qualityCoefficients.map((q) => (
+                                  <option key={q.level} value={q.level}>{q.label}</option>
+                                ))}
+                                <option value="personalizado">Pers.</option>
+                              </select>
+                              {(item.quality_level ?? form.quality_level) === 'personalizado' && (
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  defaultValue={item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1.25}
+                                  key={`coeff-${idx}-${item.quality_coefficient_override}`}
+                                  onBlur={(e) => {
+                                    const val = parseFloat(e.target.value.replace(',', '.')) || 1
+                                    updateItem(idx, 'quality_coefficient_override', val)
+                                  }}
+                                  className="w-14 bg-transparent border-0 border-b border-purple-300 focus:ring-0 p-0 text-[10px] font-bold text-purple-600 text-center"
+                                  title="Coeficiente personalizado para esta partida"
+                                />
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={item.vat_pct}
+                              onChange={(e) => updateItem(idx, 'vat_pct', Number(e.target.value))}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-sm"
+                            >
+                              <option value={0}>0%</option>
+                              <option value={10}>10%</option>
+                              <option value={21}>21%</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2 text-sm tabular-nums text-right whitespace-nowrap font-medium border-l border-neutral-100">
+                            {formatEur(item.total)}
+                          </td>
+                          {/* Beneficio */}
+                          <td className="px-3 py-2 text-right whitespace-nowrap">
+                            {itemMargin != null ? (
+                              <span className={`text-xs font-medium ${itemMargin >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                <span className="block tabular-nums">{formatEur(itemMargin)}</span>
+                                {itemMarginPct != null && <span className="block text-[10px] opacity-70">{itemMarginPct.toFixed(0)}%</span>}
+                              </span>
+                            ) : <span className="text-neutral-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => removeItem(idx)}
+                              className="text-neutral-300 hover:text-red-500 transition-colors text-lg leading-none"
+                              title="Eliminar partida"
+                            >
+                              &times;
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                      const rows = []
+                      if (headerRow) rows.push(headerRow)
+                      rows.push(itemRow)
+                      if (subtotalRow) rows.push(subtotalRow)
+                      return rows
+                    })
                   })()}
                 </tbody>
               </table>
@@ -1083,92 +1140,53 @@ export default function QuoteEditor({
           </div>
 
           {/* Totals footer */}
-          <div className="bg-neutral-50 p-4 mt-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-neutral-500">Subtotal</span>
-              <span className="tabular-nums">{formatEur(form.subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-neutral-500">IVA</span>
-              <span className="tabular-nums">{formatEur(form.vat_total)}</span>
-            </div>
-            <div className="flex justify-between text-base font-bold border-t border-neutral-200 pt-2">
-              <span>Total</span>
-              <span className="tabular-nums">{formatEur(form.total)}</span>
-            </div>
-          </div>
+          {(() => {
+            const totalMargin = form.items.reduce((sum, it) => {
+              if (it.base_unit_price != null) return sum + (it.unit_price - it.base_unit_price) * it.quantity
+              return sum
+            }, 0)
+            const hasMargin = form.items.some((it) => it.base_unit_price != null)
+            const marginPct = form.subtotal > 0 ? (totalMargin / form.subtotal) * 100 : 0
+            return (
+              <div className="bg-neutral-50 p-4 mt-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-neutral-500">Subtotal</span>
+                  <span className="tabular-nums">{formatEur(form.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-neutral-500">IVA</span>
+                  <span className="tabular-nums">{formatEur(form.vat_total)}</span>
+                </div>
+                <div className="flex justify-between text-base font-bold border-t border-neutral-200 pt-2">
+                  <span>Total</span>
+                  <span className="tabular-nums">{formatEur(form.total)}</span>
+                </div>
+                {hasMargin && (
+                  <div className="flex justify-between text-sm border-t border-neutral-100 pt-2">
+                    <span className="text-neutral-500">Beneficio estimado</span>
+                    <span className={`tabular-nums font-medium ${totalMargin >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {formatEur(totalMargin)} <span className="text-xs opacity-70">({marginPct.toFixed(1)}%)</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
-        {/* 2b. Certification Status */}
+        {/* 2b. Certification actions */}
         {savedIdRef.current && form.items.some((it) => it.total > 0) && (
           <div className={sectionCls}>
-            <p className={sectionTitle}>Estado de Certificacion</p>
-            <div className="border border-neutral-100 overflow-hidden mb-3">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-neutral-100 bg-neutral-50">
-                      {['Descripcion', 'Total', '% Cert.', 'Cert. \u20AC', '% Fact.', 'Fact. \u20AC', 'Pendiente \u20AC'].map((h) => (
-                        <th key={h} className="text-left px-2 py-2 text-[9px] font-bold uppercase tracking-widest text-neutral-400 whitespace-nowrap">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-50">
-                    {form.items.map((item, idx) => {
-                      const certAmt = Math.round(item.total * (item.certified_pct / 100) * 100) / 100
-                      const invAmt = Math.round(item.total * (item.invoiced_pct / 100) * 100) / 100
-                      const pending = Math.round((certAmt - invAmt) * 100) / 100
-                      const rowColor =
-                        item.invoiced_pct >= 100
-                          ? 'bg-green-50'
-                          : item.certified_pct > item.invoiced_pct
-                          ? 'bg-amber-50'
-                          : ''
-                      return (
-                        <tr key={idx} className={rowColor}>
-                          <td className="px-2 py-1.5">{item.description || '--'}</td>
-                          <td className="px-2 py-1.5 tabular-nums text-right">{formatEur(item.total)}</td>
-                          <td className="px-2 py-1.5 tabular-nums text-right">{item.certified_pct}%</td>
-                          <td className="px-2 py-1.5 tabular-nums text-right">{formatEur(certAmt)}</td>
-                          <td className="px-2 py-1.5 tabular-nums text-right">{item.invoiced_pct}%</td>
-                          <td className="px-2 py-1.5 tabular-nums text-right">{formatEur(invAmt)}</td>
-                          <td className="px-2 py-1.5 tabular-nums text-right font-medium">{formatEur(pending)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-neutral-200 bg-neutral-50 font-bold text-xs">
-                      <td className="px-2 py-2">TOTAL</td>
-                      <td className="px-2 py-2 tabular-nums text-right">{formatEur(certSummary.totalBudget)}</td>
-                      <td className="px-2 py-2 tabular-nums text-right">
-                        {certSummary.totalBudget > 0
-                          ? Math.round((certSummary.totalCertified / certSummary.totalBudget) * 100)
-                          : 0}%
-                      </td>
-                      <td className="px-2 py-2 tabular-nums text-right">{formatEur(certSummary.totalCertified)}</td>
-                      <td className="px-2 py-2 tabular-nums text-right">
-                        {certSummary.totalBudget > 0
-                          ? Math.round((certSummary.totalInvoiced / certSummary.totalBudget) * 100)
-                          : 0}%
-                      </td>
-                      <td className="px-2 py-2 tabular-nums text-right">{formatEur(certSummary.totalInvoiced)}</td>
-                      <td className="px-2 py-2 tabular-nums text-right">{formatEur(certSummary.totalPending)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-
+            <p className={sectionTitle}>Certificacion</p>
             <div className="flex gap-2">
               <button
                 onClick={openCertModal}
                 className="border border-neutral-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
               >
-                Certificar
+                Actualizar certificaciones en bloque
               </button>
+            </div>
+            <div className="flex gap-2 mt-2">
               {hasPendingInvoice && (
                 <button
                   onClick={handleGenerateCertInvoice}
