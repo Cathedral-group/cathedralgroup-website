@@ -29,6 +29,22 @@ interface Lead {
 
 const STATUSES = ['nuevo', 'contactado', 'presupuestado', 'aceptado', 'rechazado', 'completado']
 
+const ORIGENES = [
+  'Web (cathedralgroup.es)',
+  'WhatsApp',
+  'Instagram',
+  'LinkedIn',
+  'Pinterest',
+  'Google Ads',
+  'Google Business',
+  'Referido / Boca a boca',
+  'Llamada telefónica',
+  'Email directo',
+  'Evento / Feria',
+  'Idealista / Portal inmobiliario',
+  'Otro',
+]
+
 export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const [leads, setLeads] = useState(initialLeads)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
@@ -38,6 +54,8 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const [converting, setConverting] = useState(false)
   const [converted, setConverted] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showNewForm, setShowNewForm] = useState(false)
+  const [newLead, setNewLead] = useState({ nombre: '', email: '', phone: '', tipo_proyecto: '', zona: '', origen: 'Referido / Boca a boca', mensaje: '' })
 
   const filteredLeads = useMemo(() => {
     let result = filter ? leads.filter((l) => (l.lead_status || 'nuevo') === filter) : leads
@@ -110,8 +128,8 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
 
   return (
     <>
-      {/* Search */}
-      <div className="mb-4">
+      {/* Search + New lead button */}
+      <div className="flex items-center gap-4 mb-4 flex-wrap">
         <input
           type="text"
           value={search}
@@ -119,7 +137,92 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
           placeholder="Buscar por nombre, email, tipo, zona..."
           className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-80"
         />
+        <button
+          onClick={() => setShowNewForm(true)}
+          className="bg-neutral-900 text-white px-5 py-2 text-xs font-bold uppercase tracking-widest hover:bg-[#5A5550] transition-colors ml-auto"
+        >
+          + Nuevo lead
+        </button>
       </div>
+
+      {/* New lead form */}
+      {showNewForm && (
+        <div className="bg-white border border-neutral-200 p-6 mb-6">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4">Nuevo lead manual</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">Nombre *</label>
+              <input value={newLead.nombre} onChange={e => setNewLead({...newLead, nombre: e.target.value})} className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">Email</label>
+              <input type="email" value={newLead.email} onChange={e => setNewLead({...newLead, email: e.target.value})} className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">Teléfono</label>
+              <input value={newLead.phone} onChange={e => setNewLead({...newLead, phone: e.target.value})} className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">Tipo proyecto</label>
+              <select value={newLead.tipo_proyecto} onChange={e => setNewLead({...newLead, tipo_proyecto: e.target.value})} className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm">
+                <option value="">Seleccionar</option>
+                <option value="Reforma integral">Reforma integral</option>
+                <option value="Reforma parcial">Reforma parcial</option>
+                <option value="Interiorismo">Interiorismo</option>
+                <option value="Cambio de uso">Cambio de uso</option>
+                <option value="Obra nueva">Obra nueva</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">Zona</label>
+              <input value={newLead.zona} onChange={e => setNewLead({...newLead, zona: e.target.value})} className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm" placeholder="Ej: Salamanca" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">Origen *</label>
+              <select value={newLead.origen} onChange={e => setNewLead({...newLead, origen: e.target.value})} className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm">
+                {ORIGENES.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="mb-4">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-1">Notas</label>
+            <textarea value={newLead.mensaje} onChange={e => setNewLead({...newLead, mensaje: e.target.value})} rows={2} className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm" />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={async () => {
+                if (!newLead.nombre) return
+                const supabase = createClient()
+                const { data } = await supabase.from('leads').insert({
+                  nombre: newLead.nombre,
+                  email: newLead.email || null,
+                  phone: newLead.phone || null,
+                  tipo_proyecto: newLead.tipo_proyecto || null,
+                  zona: newLead.zona || null,
+                  origen: newLead.origen,
+                  mensaje: newLead.mensaje || null,
+                  lead_status: 'nuevo',
+                }).select().single()
+                if (data) {
+                  setLeads(prev => [data as Lead, ...prev])
+                  setShowNewForm(false)
+                  setNewLead({ nombre: '', email: '', phone: '', tipo_proyecto: '', zona: '', origen: 'Referido / Boca a boca', mensaje: '' })
+                }
+              }}
+              className="bg-[#5A5550] text-white px-6 py-2 text-xs font-bold uppercase tracking-widest hover:bg-neutral-700 transition-colors"
+            >
+              Guardar lead
+            </button>
+            <button
+              onClick={() => setShowNewForm(false)}
+              className="text-neutral-500 hover:text-neutral-700 text-xs font-bold uppercase tracking-widest"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Status Filters */}
       <div className="flex gap-3 mb-6 flex-wrap">
@@ -233,12 +336,27 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   <p className="text-sm bg-neutral-50 p-3">{selectedLead.mensaje}</p>
                 </div>
               )}
-              {selectedLead.origen && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Origen</p>
-                  <p className="text-sm">{selectedLead.origen} {selectedLead.source_page ? `(${selectedLead.source_page})` : ''}</p>
-                </div>
-              )}
+              {/* Editable origen */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Origen</p>
+                <select
+                  value={selectedLead.origen || ''}
+                  onChange={async (e) => {
+                    const val = e.target.value
+                    const supabase = createClient()
+                    await supabase.from('leads').update({ origen: val }).eq('id', selectedLead.id)
+                    setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, origen: val } : l))
+                    setSelectedLead({ ...selectedLead, origen: val })
+                  }}
+                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+                >
+                  <option value="">Sin origen</option>
+                  {ORIGENES.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                {selectedLead.source_page && (
+                  <p className="text-[10px] text-neutral-400 mt-1">Página: {selectedLead.source_page}</p>
+                )}
+              </div>
 
               {/* Editable notes */}
               <div className="pt-4 border-t border-neutral-100">
