@@ -44,8 +44,8 @@ export default function Hero() {
 
         {/* CTA */}
         <a
-          href="#proyectos"
-          className="inline-block bg-white text-neutral-900 px-10 py-5 text-sm font-medium uppercase tracking-widest hover:bg-primary hover:text-white transition-all duration-500"
+          href="/proyectos"
+          className="inline-block bg-white text-neutral-900 px-10 py-5 text-sm font-medium uppercase tracking-widest hover:bg-[#5A5550] hover:text-white transition-all duration-500"
         >
           {t('cta')}
         </a>
