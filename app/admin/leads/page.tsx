@@ -1,11 +1,13 @@
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import LeadsTable from './LeadsTable'
 
 export default async function LeadsPage() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const authClient = await createServerSupabaseClient()
+  const { data: { user } } = await authClient.auth.getUser()
   if (!user) redirect('/admin/login')
+
+  const supabase = createAdminSupabaseClient()
 
   const { data: leads } = await supabase
     .from('leads')

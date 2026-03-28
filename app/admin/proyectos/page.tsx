@@ -1,11 +1,13 @@
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import AdminCrudPage from '@/components/admin/AdminCrudPage'
 
 export default async function ProyectosPage() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const authClient = await createServerSupabaseClient()
+  const { data: { user } } = await authClient.auth.getUser()
   if (!user) redirect('/admin/login')
+
+  const supabase = createAdminSupabaseClient()
 
   const { data } = await supabase
     .from('projects')
