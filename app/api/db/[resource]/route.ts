@@ -263,23 +263,55 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
 
   const division = divisionFor(projectType)
   const qualityLabels: Record<string, string> = { estandar: 'Estándar', premium: 'Premium', lujo: 'Lujo' }
-  const items: { description: string; quantity: number; unit: string; unit_price: number; vat_pct: number; total: number }[] = Array.isArray(quote.items) ? quote.items : []
+  const items: { description: string; quantity: number; unit: string; unit_price: number; vat_pct: number; total: number; chapter_code?: string; chapter_name?: string }[] = Array.isArray(quote.items) ? quote.items : []
 
-  const itemRows = items.filter((it) => it.description).map((it, i) => `
-    <tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
+  // Build sequential chapter numbering
+  const chapterOrder: string[] = []
+  const chapterTotals: Record<string, number> = {}
+  items.filter((it) => it.description).forEach((it) => {
+    const code = it.chapter_code ?? ''
+    if (code && !chapterOrder.includes(code)) chapterOrder.push(code)
+    if (code) chapterTotals[code] = (chapterTotals[code] || 0) + (it.total || 0)
+  })
+  const chapterSeq: Record<string, string> = {}
+  chapterOrder.forEach((code, i) => { chapterSeq[code] = String(i + 1).padStart(2, '0') })
+
+  const filtered = items.filter((it) => it.description)
+  let rowIdx = 0
+  const itemRows = filtered.flatMap((it, i) => {
+    const prev = i > 0 ? filtered[i - 1] : null
+    const next = i < filtered.length - 1 ? filtered[i + 1] : null
+    const showHeader = it.chapter_code && it.chapter_code !== prev?.chapter_code
+    const showSubtotal = it.chapter_code && it.chapter_code !== next?.chapter_code
+    const rows: string[] = []
+    if (showHeader) {
+      rows.push(`<tr class="chapter-header"><td colspan="6" class="chapter-title">${chapterSeq[it.chapter_code!]} — ${it.chapter_name ?? it.chapter_code}</td></tr>`)
+    }
+    rows.push(`<tr class="${rowIdx++ % 2 === 0 ? 'row-even' : 'row-odd'}">
       <td class="td-desc">${it.description}</td>
       <td class="td-num">${it.quantity}</td>
       <td class="td-center">${it.unit}</td>
       <td class="td-num">${fmtEur(it.unit_price)}</td>
       <td class="td-center">${it.vat_pct}%</td>
       <td class="td-num bold">${fmtEur(it.total)}</td>
-    </tr>`).join('')
+    </tr>`)
+    if (showSubtotal) {
+      const chTotal = chapterTotals[it.chapter_code!] ?? 0
+      rows.push(`<tr class="chapter-subtotal"><td colspan="4" class="subtotal-label">Subtotal ${it.chapter_name ?? it.chapter_code}</td><td colspan="2" class="td-num subtotal-amount">${fmtEur(chTotal)}</td></tr>`)
+    }
+    return rows
+  })
+  const itemRowsHtml = itemRows.join('')
 
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Presupuesto ${quote.number} — Cathedral Group</title>
 <style>${PDF_COMMON_CSS}
 .quality-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:2px 7px;border-radius:3px}
 .quality-estandar{background:#f0eeec;color:#6b5e52}.quality-premium{background:#dbeafe;color:#1d4ed8}.quality-lujo{background:#fef3c7;color:#92400e}
+.chapter-header td{background:#f5f3f0;padding:8px 8px 6px;font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6b5e52;border-top:2px solid #e5e1dc}
+.chapter-subtotal td{background:#faf9f8;border-top:1px solid #e5e1dc;padding:5px 8px}
+.subtotal-label{font-size:9px;font-weight:600;letter-spacing:.10em;text-transform:uppercase;color:#999}
+.subtotal-amount{font-size:11px;font-weight:700;color:#1a1a1a}
 </style></head><body>
 <div class="print-bar"><span>Presupuesto ${quote.number} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
 <div class="page">
@@ -309,7 +341,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
       <th>Descripción</th><th class="th-num">Cant.</th><th class="th-center">Ud.</th>
       <th class="th-num">Precio ud.</th><th class="th-center">IVA</th><th class="th-num">Total</th>
     </tr></thead>
-    <tbody>${itemRows || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:16px">Sin partidas</td></tr>'}</tbody>
+    <tbody>${itemRowsHtml || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:16px">Sin partidas</td></tr>'}</tbody>
   </table>
   <div class="totals"><table class="totals-table"><tbody>
     <tr><td class="label-cell">Base imponible</td><td class="amount-cell">${fmtEur(quote.subtotal ?? 0)}</td></tr>

@@ -874,6 +874,7 @@ export default function QuoteEditor({
                       {h:'Descripcion', cls:'px-3 py-2'},
                       {h:'Cant.', cls:'px-2 py-2'},
                       {h:'Ud.', cls:'px-2 py-2'},
+                      {h:'Cal.', cls:'px-1 py-2 w-14'},
                       {h:'Precio', cls:'px-2 py-2'},
                       {h:'Total', cls:'px-2 py-2'},
                       {h:'Benef.', cls:'px-2 py-2'},
@@ -921,7 +922,7 @@ export default function QuoteEditor({
 
                       const headerRow = showChapterHeader ? (
                         <tr key={`ch-${idx}`} className="bg-neutral-100 border-t-2 border-neutral-200">
-                          <td colSpan={9} className="px-3 py-2">
+                          <td colSpan={10} className="px-3 py-2">
                             <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
                               {chapterSeq[item.chapter_code!]} — {item.chapter_name}
                             </span>
@@ -936,7 +937,7 @@ export default function QuoteEditor({
                       const subtotalRow = showSubtotal ? (
                         <tr key={`sub-${idx}`} className="bg-neutral-50 border-t border-neutral-200 text-[10px] font-bold">
                           <td colSpan={2} />
-                          <td colSpan={4} className="px-3 py-1.5 text-right text-neutral-400 uppercase tracking-widest">
+                          <td colSpan={5} className="px-3 py-1.5 text-right text-neutral-400 uppercase tracking-widest">
                             Subtotal {item.chapter_name}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-neutral-600 whitespace-nowrap">
@@ -1033,6 +1034,19 @@ export default function QuoteEditor({
                               <option value="m2">m²</option>
                               <option value="ml">ml</option>
                               <option value="pa">pa</option>
+                            </select>
+                          </td>
+                          {/* Calidad por partida */}
+                          <td className="px-1 py-2">
+                            <select
+                              value={item.quality_level ?? form.quality_level}
+                              onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs"
+                            >
+                              <option value="estandar">Std</option>
+                              <option value="premium">Prm</option>
+                              <option value="lujo">Luj</option>
+                              <option value="personalizado">Per</option>
                             </select>
                           </td>
                           {/* Precio unitario (compacto) */}
