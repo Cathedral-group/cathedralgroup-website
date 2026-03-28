@@ -46,6 +46,8 @@ export const metadata: Metadata = {
   },
 }
 
+import LayoutSwitch from '@/components/layout/LayoutSwitch'
+
 export default function RootLayout({
   children,
 }: {
@@ -58,15 +60,8 @@ export default function RootLayout({
         {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`}
       </Script>
       <body className="font-display text-neutral-900 antialiased">
-        <Header />
-        <main className="pt-20">
-          {children}
-        </main>
-        <Footer />
-        <WhatsAppFloat />
+        <LayoutSwitch>{children}</LayoutSwitch>
         <LocaleInit />
-        <SmoothScroll />
-        <ScrollAnimations />
       </body>
     </html>
   )
