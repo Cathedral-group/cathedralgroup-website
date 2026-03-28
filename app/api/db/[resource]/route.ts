@@ -21,12 +21,45 @@ function tableFor(resource: string): string | null {
     quotes: 'quotes',
     'project-phases': 'project_phases',
     communications: 'communications',
+    catalog: 'quote_items_catalog',
+    'quality-coefficients': 'quality_coefficients',
     papelera: 'papelera', // handled separately
   }
   return map[resource] ?? null
 }
 
 type Ctx = { params: Promise<{ resource: string }> }
+
+export async function GET(_request: NextRequest, ctx: Ctx) {
+  const user = await authCheck()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const { resource } = await ctx.params
+  const table = tableFor(resource)
+  if (!table || table === 'papelera') return NextResponse.json({ error: 'Ruta no válida' }, { status: 404 })
+
+  const supabase = createAdminSupabaseClient()
+
+  if (resource === 'catalog') {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('active', true)
+      .order('chapter_code')
+      .order('subcategory')
+      .order('description')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data })
+  }
+
+  if (resource === 'quality-coefficients') {
+    const { data, error } = await supabase.from(table).select('*').order('coefficient')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data })
+  }
+
+  return NextResponse.json({ error: 'Recurso no soporta GET' }, { status: 405 })
+}
 
 export async function POST(request: NextRequest, ctx: Ctx) {
   const user = await authCheck()
@@ -68,7 +101,10 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
   const supabase = createAdminSupabaseClient()
-  const { data, error } = await supabase.from(table).update(updates).eq('id', id).select().single()
+  const payload = resource === 'quality-coefficients'
+    ? { ...updates, updated_at: new Date().toISOString() }
+    : updates
+  const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, data })

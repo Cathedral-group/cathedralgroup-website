@@ -30,7 +30,7 @@ export default function CatalogModal({ qualityCoefficient, qualityLabel, onAdd, 
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch('/api/admin/catalog')
+    fetch('/api/db/catalog')
       .then((r) => r.json())
       .then((d) => { setItems(d.data || []); setLoading(false) })
       .catch(() => setLoading(false))

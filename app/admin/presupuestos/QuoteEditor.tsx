@@ -270,7 +270,7 @@ export default function QuoteEditor({
 
   /* ── Load quality coefficients ── */
   useEffect(() => {
-    fetch('/api/admin/quality-coefficients')
+    fetch('/api/db/quality-coefficients')
       .then((r) => r.json())
       .then((d) => { if (d.data?.length) setQualityCoefficients(d.data) })
       .catch(() => {})
