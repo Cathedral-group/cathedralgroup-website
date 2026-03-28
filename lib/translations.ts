@@ -37,7 +37,7 @@ const es = {
     description: 'Holding inmobiliario en Madrid, especializado en arquitectura de lujo, inversión estratégica y desarrollo de proyectos residenciales exclusivos.',
     divisions: 'Divisiones', contact: 'Contacto', follow: 'Síguenos',
     legal: 'Aviso Legal', privacy: 'Privacidad', cookies: 'Cookies',
-    rights: 'Cathedral House Investment S.L. Todos los derechos reservados.',
+    rights: 'Todos los derechos reservados.',
   },
   excellence: {
     label: 'Excelencia y Rigor',
@@ -159,7 +159,7 @@ const en = {
     description: 'Real estate holding in Madrid, specialising in luxury architecture, strategic investment and exclusive residential project development.',
     divisions: 'Divisions', contact: 'Contact', follow: 'Follow Us',
     legal: 'Legal Notice', privacy: 'Privacy', cookies: 'Cookies',
-    rights: 'Cathedral House Investment S.L. All rights reserved.',
+    rights: 'All rights reserved.',
   },
   excellence: {
     label: 'Excellence and Rigour',
