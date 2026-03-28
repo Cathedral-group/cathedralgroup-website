@@ -567,16 +567,36 @@ export default function QuoteEditor({
     ? { level: 'personalizado', coefficient: currentQualityCoeff, label: 'Personalizado' }
     : (qualityCoefficients.find((q) => q.level === form.quality_level) ?? qualityCoefficients[0])
 
-  /** When the global quality level changes, recalculate all items and update row quality_level */
+  /** When the global quality level changes, only update rows that are still following the global
+   *  (i.e. their quality_level matches the previous global, and if personalizado, their coefficient
+   *  also matches the previous global override). Individually-customized rows are left untouched. */
   const handleGlobalQualityChange = useCallback((newLevel: string, override?: number | null) => {
     setForm((prev) => {
       const effectiveOverride = override !== undefined ? override : (newLevel === 'personalizado' ? prev.quality_coefficient_override : null)
       const newCoeff = newLevel === 'personalizado' ? (effectiveOverride ?? 1) : (qualityCoefficients.find((q) => q.level === newLevel)?.coefficient ?? 1)
+      const prevCoeff = prev.quality_level === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === prev.quality_level)?.coefficient ?? 1)
+
       const items = prev.items.map((item) => {
-        const currentLevel = item.quality_level ?? prev.quality_level
-        const currentCoeff = currentLevel === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === currentLevel)?.coefficient ?? 1)
-        const base = item.base_unit_price ?? (currentCoeff !== 0 ? Math.round((item.unit_price / currentCoeff) * 100) / 100 : item.unit_price)
-        const updated = { ...item, quality_level: newLevel, unit_price: Math.round(base * newCoeff * 100) / 100, base_unit_price: base }
+        // A row "follows global" if it has no explicit quality_level, or its quality matches
+        // the previous global level. For personalizado, the coefficient must also match.
+        const rowLevel = item.quality_level
+        const rowCoeffOverride = item.quality_coefficient_override
+        const followsGlobal =
+          (rowLevel == null || rowLevel === prev.quality_level) &&
+          (prev.quality_level !== 'personalizado' ||
+            rowCoeffOverride == null ||
+            rowCoeffOverride === prev.quality_coefficient_override)
+
+        if (!followsGlobal) return item  // individually customized — skip
+
+        const base = item.base_unit_price ?? (prevCoeff !== 0 ? Math.round((item.unit_price / prevCoeff) * 100) / 100 : item.unit_price)
+        const updated = {
+          ...item,
+          quality_level: newLevel,
+          unit_price: Math.round(base * newCoeff * 100) / 100,
+          base_unit_price: base,
+          quality_coefficient_override: newLevel === 'personalizado' && effectiveOverride != null ? effectiveOverride : undefined,
+        }
         updated.total = calcItemTotal(updated)
         return updated
       })
