@@ -166,6 +166,7 @@ export default function QuoteEditor({
   })
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [qualityCoefficients, setQualityCoefficients] = useState<{level: string; coefficient: number; label: string}[]>([
@@ -306,9 +307,11 @@ export default function QuoteEditor({
         if (json.data) {
           onSaved(json.data as Quote, false)
           setSaveStatus('saved')
+          setSaveError(null)
         } else {
           console.error('Quote save error:', json.error)
           setSaveStatus('error')
+          setSaveError(json.error ?? 'Error desconocido')
         }
       } else {
         // INSERT
@@ -324,9 +327,11 @@ export default function QuoteEditor({
           setForm((prev) => ({ ...prev, id: saved.id }))
           onSaved(saved, true)
           setSaveStatus('saved')
+          setSaveError(null)
         } else {
           console.error('Quote insert error:', json.error)
           setSaveStatus('error')
+          setSaveError(json.error ?? 'Error desconocido')
         }
       }
     }, 2000)
@@ -739,7 +744,7 @@ export default function QuoteEditor({
           saveStatus === 'error' ? 'text-red-500' :
           'text-transparent'
         }`}>
-          {saveStatus === 'saving' ? '⏳ Guardando...' : saveStatus === 'saved' ? '✓ Guardado' : saveStatus === 'error' ? '✗ Error al guardar' : '✓ Guardado'}
+          {saveStatus === 'saving' ? '⏳ Guardando...' : saveStatus === 'saved' ? '✓ Guardado' : saveStatus === 'error' ? `✗ Error: ${saveError}` : '✓ Guardado'}
         </span>
         <div className="ml-auto flex items-center gap-2">
           {savedIdRef.current && (
