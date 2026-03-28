@@ -1,90 +1,594 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+
+function formatEUR(value: number | null | undefined): string {
+  if (value == null || isNaN(value)) return '0,00 \u20ac'
+  return new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+  }).format(value)
+}
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '\u2014'
+  return new Date(dateStr).toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
+function daysUntil(dateStr: string): number {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const target = new Date(dateStr)
+  target.setHours(0, 0, 0, 0)
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function dueDateColor(days: number): string {
+  if (days < 7) return 'text-red-600'
+  if (days <= 15) return 'text-amber-600'
+  return 'text-green-600'
+}
+
+function dueDateBg(days: number): string {
+  if (days < 7) return 'bg-red-50'
+  if (days <= 15) return 'bg-amber-50'
+  return 'bg-green-50'
+}
+
+function marginColor(margin: number | null | undefined): string {
+  if (margin == null || isNaN(margin)) return 'text-neutral-400'
+  if (margin >= 20) return 'text-green-600'
+  if (margin >= 10) return 'text-amber-600'
+  return 'text-red-600'
+}
 
 async function getStats() {
-  try {
-    const authClient = await createServerSupabaseClient()
-    const { data: { user } } = await authClient.auth.getUser()
-    if (!user) redirect('/admin/login')
+  const supabase = createAdminSupabaseClient()
 
-    const supabase = createAdminSupabaseClient()
+  // --- KPI: Facturaci\u00f3n total (emitidas) ---
+  const { data: emitidas } = await supabase
+    .from('invoices')
+    .select('amount_total')
+    .eq('direction', 'emitida')
 
-    const { count: totalLeads } = await supabase
-      .from('leads')
-      .select('*', { count: 'exact', head: true })
+  const facturacionTotal = (emitidas || []).reduce(
+    (sum, inv) => sum + (Number(inv.amount_total) || 0),
+    0
+  )
 
-    const { count: newLeads } = await supabase
-      .from('leads')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+  // --- KPI: Gastos totales (recibidas) ---
+  const { data: recibidas } = await supabase
+    .from('invoices')
+    .select('amount_total')
+    .eq('direction', 'recibida')
 
-    const { data: recentLeads } = await supabase
-      .from('leads')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5)
+  const gastosTotal = (recibidas || []).reduce(
+    (sum, inv) => sum + (Number(inv.amount_total) || 0),
+    0
+  )
 
-    return { totalLeads: totalLeads || 0, newLeads: newLeads || 0, recentLeads: recentLeads || [] }
-  } catch {
-    return { totalLeads: 0, newLeads: 0, recentLeads: [] }
+  const margenBruto = facturacionTotal - gastosTotal
+
+  // --- KPI: Proyectos activos ---
+  const { count: proyectosActivos } = await supabase
+    .from('projects')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'en_curso')
+
+  // --- KPI: Facturas pendientes de cobro (emitidas + pendiente) ---
+  const { data: pendientesCobro } = await supabase
+    .from('invoices')
+    .select('amount_total')
+    .eq('direction', 'emitida')
+    .eq('payment_status', 'pendiente')
+
+  const totalPendienteCobro = (pendientesCobro || []).reduce(
+    (sum, inv) => sum + (Number(inv.amount_total) || 0),
+    0
+  )
+  const countPendienteCobro = pendientesCobro?.length || 0
+
+  // --- KPI: Facturas pendientes de pago (recibidas + pendiente) ---
+  const { data: pendientesPago } = await supabase
+    .from('invoices')
+    .select('amount_total')
+    .eq('direction', 'recibida')
+    .eq('payment_status', 'pendiente')
+
+  const totalPendientePago = (pendientesPago || []).reduce(
+    (sum, inv) => sum + (Number(inv.amount_total) || 0),
+    0
+  )
+  const countPendientePago = pendientesPago?.length || 0
+
+  // --- IVA trimestral (Q1 2026) ---
+  const { data: vatData } = await supabase
+    .from('vat_quarterly')
+    .select('*')
+    .eq('year', 2026)
+    .eq('quarter', 1)
+    .maybeSingle()
+
+  // --- Facturas por vencer (pr\u00f3ximos 30 d\u00edas) ---
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const in30 = new Date(today)
+  in30.setDate(in30.getDate() + 30)
+
+  const { data: facturasPorVencer } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, concept, amount_total, due_date, direction')
+    .eq('payment_status', 'pendiente')
+    .gte('due_date', today.toISOString().split('T')[0])
+    .lte('due_date', in30.toISOString().split('T')[0])
+    .order('due_date', { ascending: true })
+    .limit(15)
+
+  // --- Proyectos activos con rentabilidad ---
+  const { data: projectFinancials } = await supabase
+    .from('project_financials')
+    .select('code, name, budget_estimated, sale_price, income_base, expense_base, gross_margin, status')
+    .eq('status', 'en_curso')
+    .order('code', { ascending: true })
+
+  // --- Leads recientes (7 d\u00edas) ---
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentLeads } = await supabase
+    .from('leads')
+    .select('id, nombre, email, tipo_proyecto, zona, created_at')
+    .gte('created_at', sevenDaysAgo)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  return {
+    facturacionTotal,
+    gastosTotal,
+    margenBruto,
+    proyectosActivos: proyectosActivos || 0,
+    totalPendienteCobro,
+    countPendienteCobro,
+    totalPendientePago,
+    countPendientePago,
+    vat: vatData,
+    facturasPorVencer: facturasPorVencer || [],
+    projectFinancials: projectFinancials || [],
+    recentLeads: recentLeads || [],
   }
 }
 
 export default async function AdminDashboard() {
-  const { totalLeads, newLeads, recentLeads } = await getStats()
+  // Auth check
+  const authClient = await createServerSupabaseClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) redirect('/admin/login')
 
-  const stats = [
-    { label: 'Leads totales', value: totalLeads, color: 'text-neutral-900' },
-    { label: 'Nuevos (7 días)', value: newLeads, color: 'text-primary' },
+  // Data
+  const stats = await getStats()
+
+  const kpis = [
+    {
+      label: 'Facturaci\u00f3n total',
+      value: formatEUR(stats.facturacionTotal),
+      color: 'text-neutral-900',
+    },
+    {
+      label: 'Gastos totales',
+      value: formatEUR(stats.gastosTotal),
+      color: 'text-neutral-900',
+    },
+    {
+      label: 'Margen bruto',
+      value: formatEUR(stats.margenBruto),
+      color: stats.margenBruto >= 0 ? 'text-green-600' : 'text-red-600',
+    },
+    {
+      label: 'Proyectos activos',
+      value: String(stats.proyectosActivos),
+      color: 'text-neutral-900',
+    },
+    {
+      label: 'Pendiente de cobro',
+      value: formatEUR(stats.totalPendienteCobro),
+      sub: `${stats.countPendienteCobro} facturas`,
+      color: 'text-amber-600',
+    },
+    {
+      label: 'Pendiente de pago',
+      value: formatEUR(stats.totalPendientePago),
+      sub: `${stats.countPendientePago} facturas`,
+      color: 'text-amber-600',
+    },
   ]
 
   return (
     <div>
-      <h1 className="text-xl font-medium uppercase tracking-wide mb-8">Dashboard</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
+        <h1 className="text-xl font-medium uppercase tracking-wide">Dashboard</h1>
+        <p className="text-xs text-neutral-400 uppercase tracking-widest">
+          {new Date().toLocaleDateString('es-ES', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
+        </p>
+      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        {stats.map(({ label, value, color }) => (
-          <div key={label} className="bg-white p-6 border border-neutral-100">
-            <p className={`text-2xl font-bold ${color}`}>{value}</p>
-            <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mt-1">{label}</p>
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-10">
+        {kpis.map(({ label, value, color, sub }) => (
+          <div
+            key={label}
+            className="bg-white p-5 border border-neutral-100 rounded"
+          >
+            <p className={`text-xl font-bold ${color} leading-tight`}>{value}</p>
+            {sub && (
+              <p className="text-[11px] text-neutral-400 mt-0.5">{sub}</p>
+            )}
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mt-2">
+              {label}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* Recent Leads */}
-      <div className="bg-white border border-neutral-100">
-        <div className="p-6 border-b border-neutral-100">
-          <div className="flex justify-between items-center">
-            <h2 className="text-sm font-bold uppercase tracking-widest">Leads recientes</h2>
-            <a href="/admin/leads" className="text-xs text-primary font-bold uppercase tracking-widest hover:underline">
-              Ver todos
-            </a>
+      {/* ── Two-column: IVA + Acciones r\u00e1pidas ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+        {/* IVA Trimestral */}
+        <div className="bg-white border border-neutral-100 rounded">
+          <div className="p-5 border-b border-neutral-100">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+              IVA &mdash; Q1 2026
+            </h2>
           </div>
-        </div>
-
-        <div className="divide-y divide-neutral-50">
-          {recentLeads.length === 0 ? (
-            <div className="p-6 text-center text-sm text-neutral-400">
-              No hay leads todavía
-            </div>
-          ) : (
-            recentLeads.map((lead: Record<string, string>) => (
-              <div key={lead.id} className="px-6 py-4 flex items-center justify-between">
+          <div className="p-5">
+            {stats.vat ? (
+              <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-sm font-medium">{lead.nombre}</p>
-                  <p className="text-xs text-neutral-500">{lead.email}</p>
+                  <p className="text-lg font-bold text-neutral-900">
+                    {formatEUR(stats.vat.vat_repercutido)}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
+                    Repercutido
+                  </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-neutral-500">{lead.tipo_proyecto || '—'}</p>
-                  <p className="text-[10px] text-neutral-400">
-                    {new Date(lead.created_at).toLocaleDateString('es-ES')}
+                <div>
+                  <p className="text-lg font-bold text-neutral-900">
+                    {formatEUR(stats.vat.vat_soportado)}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
+                    Soportado
+                  </p>
+                </div>
+                <div>
+                  <p
+                    className={`text-lg font-bold ${
+                      (stats.vat.cuota_a_ingresar ?? 0) >= 0
+                        ? 'text-red-600'
+                        : 'text-green-600'
+                    }`}
+                  >
+                    {formatEUR(stats.vat.cuota_a_ingresar)}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
+                    Cuota a ingresar
                   </p>
                 </div>
               </div>
-            ))
-          )}
+            ) : (
+              <p className="text-sm text-neutral-400 text-center py-4">
+                Sin datos de IVA para este trimestre
+              </p>
+            )}
+          </div>
         </div>
+
+        {/* Acciones r\u00e1pidas */}
+        <div className="bg-white border border-neutral-100 rounded">
+          <div className="p-5 border-b border-neutral-100">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+              Acciones r&aacute;pidas
+            </h2>
+          </div>
+          <div className="p-5 flex flex-wrap gap-3">
+            <Link
+              href="/admin/invoices/new"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-neutral-800 transition-colors rounded"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nueva factura
+            </Link>
+            <Link
+              href="/admin/clients/new"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-100 text-neutral-700 text-xs font-bold uppercase tracking-widest hover:bg-neutral-200 transition-colors rounded"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo cliente
+            </Link>
+            <Link
+              href="/admin/projects/new"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-100 text-neutral-700 text-xs font-bold uppercase tracking-widest hover:bg-neutral-200 transition-colors rounded"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo proyecto
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Facturas por vencer ── */}
+      <div className="bg-white border border-neutral-100 rounded mb-10">
+        <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+            Facturas por vencer &mdash; pr&oacute;ximos 30 d&iacute;as
+          </h2>
+          <Link
+            href="/admin/invoices"
+            className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest hover:text-neutral-600 transition-colors"
+          >
+            Ver todas
+          </Link>
+        </div>
+        {stats.facturasPorVencer.length === 0 ? (
+          <div className="p-8 text-center text-sm text-neutral-400">
+            No hay facturas pr&oacute;ximas a vencer
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                  <th className="text-left px-5 py-3">N&uacute;mero</th>
+                  <th className="text-left px-5 py-3">Concepto</th>
+                  <th className="text-left px-5 py-3">Tipo</th>
+                  <th className="text-right px-5 py-3">Importe</th>
+                  <th className="text-right px-5 py-3">Vencimiento</th>
+                  <th className="text-right px-5 py-3">D&iacute;as</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.facturasPorVencer.map(
+                  (
+                    inv: {
+                      id: string
+                      invoice_number: string | null
+                      concept: string | null
+                      amount_total: number | null
+                      due_date: string
+                      direction: string
+                    },
+                    i: number
+                  ) => {
+                    const days = daysUntil(inv.due_date)
+                    return (
+                      <tr
+                        key={inv.id}
+                        className={i % 2 === 1 ? 'bg-neutral-50' : ''}
+                      >
+                        <td className="px-5 py-3 font-medium">
+                          {inv.invoice_number || '\u2014'}
+                        </td>
+                        <td className="px-5 py-3 text-neutral-600 max-w-[250px] truncate">
+                          {inv.concept || '\u2014'}
+                        </td>
+                        <td className="px-5 py-3">
+                          <span
+                            className={`inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${
+                              inv.direction === 'emitida'
+                                ? 'bg-blue-50 text-blue-600'
+                                : 'bg-orange-50 text-orange-600'
+                            }`}
+                          >
+                            {inv.direction === 'emitida' ? 'Cobro' : 'Pago'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right font-medium">
+                          {formatEUR(inv.amount_total)}
+                        </td>
+                        <td className="px-5 py-3 text-right text-neutral-500">
+                          {formatDate(inv.due_date)}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <span
+                            className={`inline-block text-xs font-bold px-2 py-0.5 rounded ${dueDateBg(days)} ${dueDateColor(days)}`}
+                          >
+                            {days}d
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  }
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Proyectos activos con rentabilidad ── */}
+      <div className="bg-white border border-neutral-100 rounded mb-10">
+        <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+            Proyectos activos &mdash; rentabilidad
+          </h2>
+          <Link
+            href="/admin/projects"
+            className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest hover:text-neutral-600 transition-colors"
+          >
+            Ver todos
+          </Link>
+        </div>
+        {stats.projectFinancials.length === 0 ? (
+          <div className="p-8 text-center text-sm text-neutral-400">
+            No hay proyectos en curso
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                  <th className="text-left px-5 py-3">C&oacute;digo</th>
+                  <th className="text-left px-5 py-3">Nombre</th>
+                  <th className="text-right px-5 py-3">Presupuesto</th>
+                  <th className="text-right px-5 py-3">Facturado</th>
+                  <th className="text-right px-5 py-3">Gastado</th>
+                  <th className="text-right px-5 py-3">Margen</th>
+                  <th className="text-right px-5 py-3">Margen %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.projectFinancials.map(
+                  (
+                    p: {
+                      code: string | null
+                      name: string | null
+                      budget_estimated: number | null
+                      sale_price: number | null
+                      income_base: number | null
+                      expense_base: number | null
+                      gross_margin: number | null
+                      status: string
+                    },
+                    i: number
+                  ) => {
+                    const incomeBase = Number(p.income_base) || 0
+                    const marginPct =
+                      incomeBase > 0
+                        ? ((Number(p.gross_margin) || 0) / incomeBase) * 100
+                        : 0
+                    return (
+                      <tr
+                        key={p.code || i}
+                        className={i % 2 === 1 ? 'bg-neutral-50' : ''}
+                      >
+                        <td className="px-5 py-3 font-medium font-mono text-xs">
+                          {p.code || '\u2014'}
+                        </td>
+                        <td className="px-5 py-3 text-neutral-700 max-w-[200px] truncate">
+                          {p.name || '\u2014'}
+                        </td>
+                        <td className="px-5 py-3 text-right text-neutral-500">
+                          {formatEUR(p.budget_estimated ?? p.sale_price)}
+                        </td>
+                        <td className="px-5 py-3 text-right font-medium">
+                          {formatEUR(p.income_base)}
+                        </td>
+                        <td className="px-5 py-3 text-right text-neutral-500">
+                          {formatEUR(p.expense_base)}
+                        </td>
+                        <td className="px-5 py-3 text-right font-medium">
+                          <span
+                            className={
+                              (Number(p.gross_margin) || 0) >= 0
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            }
+                          >
+                            {formatEUR(p.gross_margin)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <span
+                            className={`inline-block text-xs font-bold px-2 py-0.5 rounded ${marginColor(marginPct)} ${
+                              marginPct >= 20
+                                ? 'bg-green-50'
+                                : marginPct >= 10
+                                  ? 'bg-amber-50'
+                                  : 'bg-red-50'
+                            }`}
+                          >
+                            {marginPct.toFixed(1)}%
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  }
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Leads recientes ── */}
+      <div className="bg-white border border-neutral-100 rounded">
+        <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+            Leads recientes &mdash; &uacute;ltimos 7 d&iacute;as
+          </h2>
+          <Link
+            href="/admin/leads"
+            className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest hover:text-neutral-600 transition-colors"
+          >
+            Ver todos
+          </Link>
+        </div>
+        {stats.recentLeads.length === 0 ? (
+          <div className="p-8 text-center text-sm text-neutral-400">
+            No hay leads en los &uacute;ltimos 7 d&iacute;as
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                  <th className="text-left px-5 py-3">Nombre</th>
+                  <th className="text-left px-5 py-3">Email</th>
+                  <th className="text-left px-5 py-3">Tipo proyecto</th>
+                  <th className="text-left px-5 py-3">Zona</th>
+                  <th className="text-right px-5 py-3">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.recentLeads.map(
+                  (
+                    lead: {
+                      id: string
+                      nombre: string | null
+                      email: string | null
+                      tipo_proyecto: string | null
+                      zona: string | null
+                      created_at: string
+                    },
+                    i: number
+                  ) => (
+                    <tr
+                      key={lead.id}
+                      className={i % 2 === 1 ? 'bg-neutral-50' : ''}
+                    >
+                      <td className="px-5 py-3 font-medium">
+                        {lead.nombre || '\u2014'}
+                      </td>
+                      <td className="px-5 py-3 text-neutral-500">
+                        {lead.email || '\u2014'}
+                      </td>
+                      <td className="px-5 py-3 text-neutral-600">
+                        {lead.tipo_proyecto || '\u2014'}
+                      </td>
+                      <td className="px-5 py-3 text-neutral-600">
+                        {lead.zona || '\u2014'}
+                      </td>
+                      <td className="px-5 py-3 text-right text-neutral-400">
+                        {formatDate(lead.created_at)}
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
