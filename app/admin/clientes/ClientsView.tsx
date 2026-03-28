@@ -395,7 +395,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       {selected && (
         <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={closeDetail}>
           <div
-            className="w-full max-w-xl bg-white h-full overflow-y-auto p-8"
+            className="w-full md:max-w-xl bg-white h-full overflow-y-auto p-4 md:p-8"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
