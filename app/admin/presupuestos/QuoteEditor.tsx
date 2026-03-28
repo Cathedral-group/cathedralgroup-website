@@ -12,8 +12,9 @@ interface QuoteItem {
   quantity: number
   unit: string
   unit_price: number
-  base_unit_price?: number  // catalog base price before quality coefficient
-  quality_level?: string    // per-item quality override
+  base_unit_price?: number        // catalog base price before quality coefficient
+  quality_level?: string          // per-item quality override
+  quality_coefficient_override?: number  // custom coefficient when quality_level === 'personalizado'
   vat_pct: number
   total: number
   certified_pct: number
@@ -100,6 +101,7 @@ function normalizeItem(item: Partial<QuoteItem>): QuoteItem {
     unit_price: item.unit_price ?? 0,
     base_unit_price: item.base_unit_price,
     quality_level: item.quality_level,
+    quality_coefficient_override: item.quality_coefficient_override,
     vat_pct: item.vat_pct ?? 21,
     total: item.total ?? 0,
     certified_pct: item.certified_pct ?? 0,
@@ -192,19 +194,34 @@ export default function QuoteEditor({
       const items = [...prev.items]
       let item = { ...items[index], [field]: value }
 
+      const itemOverride = (f: string) => items[index].quality_coefficient_override ?? prev.quality_coefficient_override ?? 1
+      const resolveItemCoeff = (level: string, overrideVal?: number) => {
+        if (level === 'personalizado') return overrideVal ?? itemOverride(level)
+        return qualityCoefficients.find((q) => q.level === level)?.coefficient ?? 1
+      }
+
       if (field === 'unit_price') {
         const currentLevel = items[index].quality_level ?? prev.quality_level
-        const currentCoeff = currentLevel === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === currentLevel)?.coefficient ?? 1)
+        const currentCoeff = resolveItemCoeff(currentLevel)
         const numVal = Number(value)
         item = { ...item, base_unit_price: currentCoeff !== 0 ? Math.round((numVal / currentCoeff) * 100) / 100 : numVal }
       }
 
       if (field === 'quality_level' && typeof value === 'string') {
         const oldLevel = items[index].quality_level ?? prev.quality_level
-        const oldCoeff = oldLevel === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === oldLevel)?.coefficient ?? 1)
-        const newCoeff = value === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === value)?.coefficient ?? 1)
+        const oldCoeff = resolveItemCoeff(oldLevel)
+        // When switching TO personalizado, inherit the global override or keep 1
+        const initOverride = value === 'personalizado' ? (items[index].quality_coefficient_override ?? prev.quality_coefficient_override ?? 1) : undefined
+        const newCoeff = resolveItemCoeff(value, initOverride)
         const base = items[index].base_unit_price ?? (oldCoeff !== 0 ? Math.round((items[index].unit_price / oldCoeff) * 100) / 100 : items[index].unit_price)
-        item = { ...item, unit_price: Math.round(base * newCoeff * 100) / 100, base_unit_price: base }
+        item = { ...item, unit_price: Math.round(base * newCoeff * 100) / 100, base_unit_price: base, quality_coefficient_override: initOverride }
+      }
+
+      if (field === 'quality_coefficient_override') {
+        // User typed a custom coefficient for this row — recalculate price from base
+        const newCoeff = Number(value) || 1
+        const base = items[index].base_unit_price ?? items[index].unit_price
+        item = { ...item, base_unit_price: base, unit_price: Math.round(base * newCoeff * 100) / 100 }
       }
 
       item.total = calcItemTotal(item)
@@ -822,23 +839,37 @@ export default function QuoteEditor({
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <select
-                          value={item.quality_level ?? form.quality_level}
-                          onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
-                          className={`bg-transparent border-0 focus:ring-0 p-0 text-[10px] font-bold uppercase tracking-wide ${
-                            (item.quality_level ?? form.quality_level) === 'lujo'
-                              ? 'text-amber-600'
-                              : (item.quality_level ?? form.quality_level) === 'premium'
-                              ? 'text-blue-600'
-                              : 'text-neutral-500'
-                          }`}
-                          title={item.base_unit_price != null ? 'Cambiar calidad recalcula el precio' : 'Nivel de calidad'}
-                        >
-                          {qualityCoefficients.map((q) => (
-                            <option key={q.level} value={q.level}>{q.label}</option>
-                          ))}
-                          <option value="personalizado">Pers.</option>
-                        </select>
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={item.quality_level ?? form.quality_level}
+                            onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
+                            className={`bg-transparent border-0 focus:ring-0 p-0 text-[10px] font-bold uppercase tracking-wide ${
+                              (item.quality_level ?? form.quality_level) === 'lujo'
+                                ? 'text-amber-600'
+                                : (item.quality_level ?? form.quality_level) === 'premium'
+                                ? 'text-blue-600'
+                                : (item.quality_level ?? form.quality_level) === 'personalizado'
+                                ? 'text-purple-600'
+                                : 'text-neutral-500'
+                            }`}
+                          >
+                            {qualityCoefficients.map((q) => (
+                              <option key={q.level} value={q.level}>{q.label}</option>
+                            ))}
+                            <option value="personalizado">Pers.</option>
+                          </select>
+                          {(item.quality_level ?? form.quality_level) === 'personalizado' && (
+                            <input
+                              type="number"
+                              value={item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1}
+                              onChange={(e) => updateItem(idx, 'quality_coefficient_override', parseFloat(e.target.value) || 1)}
+                              step="0.05"
+                              min="0.1"
+                              className="w-14 bg-transparent border-0 border-b border-purple-300 focus:ring-0 p-0 text-[10px] font-bold text-purple-600 text-center"
+                              title="Coeficiente personalizado para esta partida"
+                            />
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
                         <select
