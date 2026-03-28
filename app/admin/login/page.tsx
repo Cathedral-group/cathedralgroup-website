@@ -122,7 +122,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
-      <div className="w-full max-w-sm px-6">
+      <div className="w-full bg-white p-8 shadow-sm max-w-sm mx-auto mt-20">
         <div className="text-center mb-10">
           <h1 className="text-xl font-medium uppercase tracking-wide mb-2">Admin</h1>
           <p className="text-sm text-neutral-500">Cathedral Group</p>
@@ -142,7 +142,7 @@ export default function LoginPage() {
                   required
                   disabled={isLocked}
                   autoComplete="email"
-                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm disabled:opacity-50"
+                  className="w-full bg-neutral-50 border border-neutral-200 text-neutral-900 focus:ring-1 focus:ring-primary p-4 text-sm disabled:opacity-50"
                 />
               </div>
               <div>
@@ -156,7 +156,7 @@ export default function LoginPage() {
                   required
                   disabled={isLocked}
                   autoComplete="current-password"
-                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm disabled:opacity-50"
+                  className="w-full bg-neutral-50 border border-neutral-200 text-neutral-900 focus:ring-1 focus:ring-primary p-4 text-sm disabled:opacity-50"
                 />
               </div>
 
@@ -170,7 +170,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || isLocked}
-                className="w-full bg-neutral-900 text-white py-4 text-sm font-medium uppercase tracking-widest hover:bg-[#5A5550] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-[#5A5550] text-white py-3 font-bold uppercase tracking-widest hover:bg-neutral-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLocked ? 'Bloqueado' : loading ? '...' : 'Acceder'}
               </button>
@@ -178,7 +178,7 @@ export default function LoginPage() {
 
             <button
               onClick={() => { setShowReset(true); setError(''); setSuccess('') }}
-              className="w-full text-center mt-4 text-xs text-neutral-400 hover:text-primary transition-colors"
+              className="w-full text-center mt-4 text-xs text-primary hover:underline transition-colors"
             >
               ¿Has olvidado tu contraseña?
             </button>
@@ -199,7 +199,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm"
+                  className="w-full bg-neutral-50 border border-neutral-200 text-neutral-900 focus:ring-1 focus:ring-primary p-4 text-sm"
                 />
               </div>
 
@@ -209,7 +209,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-neutral-900 text-white py-4 text-sm font-medium uppercase tracking-widest hover:bg-[#5A5550] transition-colors disabled:opacity-50"
+                className="w-full bg-[#5A5550] text-white py-3 font-bold uppercase tracking-widest hover:bg-neutral-700 transition-colors disabled:opacity-50"
               >
                 {loading ? '...' : 'Enviar enlace'}
               </button>
@@ -217,7 +217,7 @@ export default function LoginPage() {
 
             <button
               onClick={() => { setShowReset(false); setError(''); setSuccess('') }}
-              className="w-full text-center mt-4 text-xs text-neutral-400 hover:text-primary transition-colors"
+              className="w-full text-center mt-4 text-xs text-primary hover:underline transition-colors"
             >
               ← Volver al login
             </button>

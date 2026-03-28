@@ -83,7 +83,7 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-neutral-100 flex flex-col md:flex-row justify-between gap-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-          <p>&copy; Cathedral House Investment S.L. {t('rights')}</p>
+          <p>&copy; {new Date().getFullYear()} Cathedral House Investment S.L. — {t('rights')}</p>
           <div className="flex gap-6">
             <a href="/legal" className="hover:text-primary premium-transition">{t('legal')}</a>
             <a href="/legal" className="hover:text-primary premium-transition">{t('privacy')}</a>

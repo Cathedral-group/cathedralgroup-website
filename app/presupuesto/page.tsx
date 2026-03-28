@@ -201,7 +201,7 @@ export default function PresupuestoPage() {
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-neutral-200 px-6 py-4 flex items-center justify-between">
       <button
         onClick={goPrev}
-        className={`text-xs font-bold uppercase tracking-[0.15em] text-neutral-500 hover:text-neutral-800 transition-colors ${
+        className={`px-6 py-3 text-xs font-bold uppercase tracking-[0.15em] bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-100 transition-all duration-300 ${
           step === 1 && !showResult ? 'invisible' : ''
         }`}
       >

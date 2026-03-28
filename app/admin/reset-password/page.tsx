@@ -75,7 +75,7 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
-      <div className="w-full max-w-sm px-6">
+      <div className="w-full bg-white p-8 shadow-sm max-w-sm mx-auto mt-20">
         <div className="text-center mb-10">
           <h1 className="text-xl font-medium uppercase tracking-wide mb-2">Nueva contraseña</h1>
           <p className="text-sm text-neutral-500">Elige tu nueva contraseña</p>
@@ -93,7 +93,7 @@ export default function ResetPasswordPage() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm"
+              className="w-full bg-neutral-50 border border-neutral-200 text-neutral-900 focus:ring-1 focus:ring-primary p-4 text-sm"
               placeholder="Mínimo 8 caracteres"
             />
           </div>
@@ -107,7 +107,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               autoComplete="new-password"
-              className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-4 text-sm"
+              className="w-full bg-neutral-50 border border-neutral-200 text-neutral-900 focus:ring-1 focus:ring-primary p-4 text-sm"
             />
           </div>
 
@@ -116,7 +116,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-neutral-900 text-white py-4 text-sm font-medium uppercase tracking-widest hover:bg-[#5A5550] transition-colors disabled:opacity-50"
+            className="w-full bg-[#5A5550] text-white py-3 font-bold uppercase tracking-widest hover:bg-neutral-700 transition-colors disabled:opacity-50"
           >
             {loading ? '...' : 'Guardar contraseña'}
           </button>

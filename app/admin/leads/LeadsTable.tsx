@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import DataTable from '@/components/admin/DataTable'
 import StatusBadge from '@/components/admin/StatusBadge'
 import { createClient } from '@/lib/supabase'
@@ -19,6 +19,10 @@ interface Lead {
   assigned_to?: string
   notes?: string
   origen?: string
+  source_page?: string
+  zona?: string
+  metros_cuadrados?: number
+  presupuesto_rango?: string
   created_at: string
   [key: string]: unknown
 }
@@ -29,23 +33,68 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const [leads, setLeads] = useState(initialLeads)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [filter, setFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const [editingNotes, setEditingNotes] = useState('')
+  const [converting, setConverting] = useState(false)
+  const [converted, setConverted] = useState(false)
 
-  const filteredLeads = filter
-    ? leads.filter((l) => l.lead_status === filter)
-    : leads
+  const filteredLeads = useMemo(() => {
+    let result = filter ? leads.filter((l) => (l.lead_status || 'nuevo') === filter) : leads
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter(l =>
+        `${l.nombre} ${l.email} ${l.tipo_proyecto ?? ''} ${l.mensaje ?? ''} ${l.zona ?? ''}`.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [leads, filter, search])
 
-  const updateStatus = async (id: string, estado: string) => {
+  const updateStatus = async (id: string, newStatus: string) => {
     const supabase = createClient()
-    await supabase.from('leads').update({ lead_status: estado }).eq('id', id)
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, estado } : l)))
-    if (selectedLead?.id === id) setSelectedLead({ ...selectedLead, estado })
+    await supabase.from('leads').update({ lead_status: newStatus }).eq('id', id)
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, lead_status: newStatus } : l)))
+    if (selectedLead?.id === id) setSelectedLead({ ...selectedLead, lead_status: newStatus })
+  }
+
+  const saveNotes = async () => {
+    if (!selectedLead) return
+    const supabase = createClient()
+    await supabase.from('leads').update({ notes: editingNotes }).eq('id', selectedLead.id)
+    setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, notes: editingNotes } : l))
+    setSelectedLead({ ...selectedLead, notes: editingNotes })
+  }
+
+  const convertToClient = async () => {
+    if (!selectedLead) return
+    setConverting(true)
+    const supabase = createClient()
+    const { data: client } = await supabase.from('clients').insert({
+      name: selectedLead.nombre,
+      email: selectedLead.email,
+      phone: selectedLead.phone || null,
+      source: 'web',
+      lead_id: selectedLead.id,
+      type: 'particular',
+    }).select().single()
+
+    if (client) {
+      await updateStatus(selectedLead.id, 'aceptado')
+      setConverted(true)
+    }
+    setConverting(false)
+  }
+
+  const openDetail = (lead: Lead) => {
+    setSelectedLead(lead)
+    setEditingNotes(lead.notes || '')
+    setConverted(false)
   }
 
   const columns = [
     { key: 'nombre', label: 'Nombre' },
     { key: 'email', label: 'Email' },
     { key: 'tipo_proyecto', label: 'Tipo' },
-    { key: 'budget_estimate', label: 'Presupuesto' },
+    { key: 'zona', label: 'Zona' },
     {
       key: 'lead_status',
       label: 'Estado',
@@ -60,7 +109,18 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
 
   return (
     <>
-      {/* Filters */}
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre, email, tipo, zona..."
+          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-80"
+        />
+      </div>
+
+      {/* Status Filters */}
       <div className="flex gap-3 mb-6 flex-wrap">
         <button
           onClick={() => setFilter('')}
@@ -85,48 +145,73 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
             </button>
           )
         })}
+        <span className="text-xs text-neutral-400 ml-auto self-center">
+          {filteredLeads.length} resultados
+        </span>
       </div>
 
       <DataTable
         columns={columns}
         data={filteredLeads as Record<string, unknown>[]}
-        onRowClick={(row) => setSelectedLead(row as Lead)}
+        onRowClick={(row) => openDetail(row as Lead)}
       />
 
       {/* Detail panel */}
       {selectedLead && (
         <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={() => setSelectedLead(null)}>
           <div
-            className="w-full max-w-md bg-white h-full overflow-y-auto p-8"
+            className="w-full max-w-md bg-white h-full overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-start mb-8">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-neutral-100 p-6 flex justify-between items-start z-10">
               <div>
                 <h2 className="text-lg font-medium">{selectedLead.nombre}</h2>
                 <p className="text-sm text-neutral-500">{selectedLead.email}</p>
+                {selectedLead.phone && (
+                  <div className="flex items-center gap-3 mt-2">
+                    <p className="text-sm">{selectedLead.phone}</p>
+                    <a
+                      href={`https://wa.me/${selectedLead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Hola, le contactamos desde Cathedral Group respecto a su consulta.')}`}
+                      target="_blank"
+                      rel="noopener"
+                      className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-green-600 hover:text-green-800 bg-green-50 px-2 py-1 rounded"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                      WhatsApp
+                    </a>
+                  </div>
+                )}
               </div>
-              <button onClick={() => setSelectedLead(null)} className="text-neutral-400 hover:text-neutral-900">
-                ✕
-              </button>
+              <button onClick={() => setSelectedLead(null)} className="text-neutral-400 hover:text-neutral-900 text-xl">×</button>
             </div>
 
-            <div className="space-y-4">
-              {selectedLead.phone && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Teléfono</p>
-                  <p className="text-sm">{selectedLead.phone}</p>
-                </div>
-              )}
+            <div className="p-6 space-y-4">
+              {/* Key info */}
               {selectedLead.tipo_proyecto && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Tipo proyecto</p>
                   <p className="text-sm">{selectedLead.tipo_proyecto}</p>
                 </div>
               )}
-              {selectedLead.budget_estimate && (
+              {selectedLead.zona && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Zona</p>
+                  <p className="text-sm">{selectedLead.zona}</p>
+                </div>
+              )}
+              {selectedLead.metros_cuadrados && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Superficie</p>
+                  <p className="text-sm">{selectedLead.metros_cuadrados} m²</p>
+                </div>
+              )}
+              {selectedLead.presupuesto_rango && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Presupuesto</p>
-                  <p className="text-sm">{selectedLead.budget_estimate}</p>
+                  <p className="text-sm">{selectedLead.presupuesto_rango}</p>
                 </div>
               )}
               {selectedLead.lead_score != null && (
@@ -150,15 +235,23 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
               {selectedLead.origen && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Origen</p>
-                  <p className="text-sm">{selectedLead.origen}</p>
+                  <p className="text-sm">{selectedLead.origen} {selectedLead.source_page ? `(${selectedLead.source_page})` : ''}</p>
                 </div>
               )}
-              {selectedLead.notes && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Notas</p>
-                  <p className="text-sm">{selectedLead.notes}</p>
-                </div>
-              )}
+
+              {/* Editable notes */}
+              <div className="pt-4 border-t border-neutral-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">Notas internas</p>
+                <textarea
+                  value={editingNotes}
+                  onChange={(e) => setEditingNotes(e.target.value)}
+                  onBlur={saveNotes}
+                  rows={3}
+                  placeholder="Añadir notas sobre este lead..."
+                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-3 text-sm"
+                />
+                <p className="text-[10px] text-neutral-300 mt-1">Se guarda automáticamente</p>
+              </div>
 
               {/* Status changer */}
               <div className="pt-4 border-t border-neutral-100">
@@ -168,10 +261,10 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                     <button
                       key={s}
                       onClick={() => updateStatus(selectedLead.id, s)}
-                      className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 border transition-colors ${
+                      className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
                         (selectedLead.lead_status || 'nuevo') === s
-                          ? 'bg-primary text-white border-primary'
-                          : 'border-neutral-200 hover:border-primary'
+                          ? 'bg-neutral-900 text-white'
+                          : 'bg-white border border-neutral-200 text-neutral-500 hover:border-primary'
                       }`}
                     >
                       {s}
@@ -179,6 +272,32 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   ))}
                 </div>
               </div>
+
+              {/* Convert to client */}
+              {selectedLead.lead_status !== 'aceptado' && selectedLead.lead_status !== 'completado' && !converted && (
+                <div className="pt-4 border-t border-neutral-100">
+                  <button
+                    onClick={convertToClient}
+                    disabled={converting}
+                    className="w-full bg-green-600 text-white py-3 text-sm font-bold uppercase tracking-widest hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {converting ? '...' : 'Convertir a cliente'}
+                  </button>
+                  <p className="text-[10px] text-neutral-400 mt-2 text-center">
+                    Crea un nuevo cliente con los datos de este lead
+                  </p>
+                </div>
+              )}
+              {converted && (
+                <div className="pt-4 border-t border-neutral-100">
+                  <div className="bg-green-50 p-4 text-center">
+                    <p className="text-sm font-medium text-green-700">Cliente creado correctamente</p>
+                    <a href="/admin/clientes" className="text-xs text-green-600 hover:underline mt-1 inline-block">
+                      Ver en clientes →
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
