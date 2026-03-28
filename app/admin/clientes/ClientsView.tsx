@@ -197,29 +197,45 @@ export default function ClientsView({ clients: initialClients, projects, invoice
     setSaving(true)
     const { id, created_at, ...rest } = editForm as Client
     void id; void created_at
-    const res = await fetch('/api/db/clients', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selected.id, ...rest }),
-    })
-    const { error } = await res.json()
-    if (!error) {
+    try {
+      const res = await fetch('/api/db/clients', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id, ...rest }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
       const updated = { ...selected, ...rest }
       setClients((prev) => prev.map((c) => (c.id === selected.id ? updated : c)))
       setSelected(updated)
+    } catch (err) {
+      console.error('saveClient:', err)
+      alert('Error al guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function deleteClient() {
     if (!selected || !confirm('Mover este cliente a la papelera?')) return
-    await fetch('/api/db/clients', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selected.id }),
-    })
-    setClients((prev) => prev.filter((c) => c.id !== selected.id))
-    closeDetail()
+    try {
+      const res = await fetch('/api/db/clients', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setClients((prev) => prev.filter((c) => c.id !== selected.id))
+      closeDetail()
+    } catch (err) {
+      console.error('deleteClient:', err)
+      alert('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    }
   }
 
   async function addCommunication() {
@@ -232,17 +248,27 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       type: commForm.type,
       summary: commForm.summary.trim(),
     }
-    const res = await fetch('/api/db/communications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const { data } = await res.json()
-    if (data) {
-      setComms((prev) => [data as Communication, ...prev])
-      setCommForm({ type: 'llamada', summary: '', date: new Date().toISOString().slice(0, 10) })
+    try {
+      const res = await fetch('/api/db/communications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      const { data } = await res.json()
+      if (data) {
+        setComms((prev) => [data as Communication, ...prev])
+        setCommForm({ type: 'llamada', summary: '', date: new Date().toISOString().slice(0, 10) })
+      }
+    } catch (err) {
+      console.error('addCommunication:', err)
+      alert('Error al añadir comunicación: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSavingComm(false)
     }
-    setSavingComm(false)
   }
 
   /* ───────── Field helper ───────── */

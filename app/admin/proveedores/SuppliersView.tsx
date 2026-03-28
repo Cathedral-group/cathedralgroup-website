@@ -31,36 +31,62 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
   const close = () => { setForm(null); setSelected(null) }
 
   const handleSave = async () => {
-    if (!form?.name) return; setSaving(true)
+    if (!form?.name) return
+    setSaving(true)
     const payload = { ...form }; delete payload.id
-    if (selected?.id) {
-      const res = await fetch('/api/db/suppliers', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selected.id, ...payload }),
-      })
-      const { data: u } = await res.json()
-      if (u) setData(p => p.map(r => r.id === selected.id ? u as Supplier : r))
-    } else {
-      const res = await fetch('/api/db/suppliers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const { data: c } = await res.json()
-      if (c) setData(p => [c as Supplier, ...p])
+    try {
+      if (selected?.id) {
+        const res = await fetch('/api/db/suppliers', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selected.id, ...payload }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || `Error ${res.status}`)
+        }
+        const { data: u } = await res.json()
+        setData(p => p.map(r => r.id === selected.id ? (u ?? { ...selected, ...payload }) as Supplier : r))
+      } else {
+        const res = await fetch('/api/db/suppliers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || `Error ${res.status}`)
+        }
+        const { data: c } = await res.json()
+        if (c) setData(p => [c as Supplier, ...p])
+      }
+      close()
+    } catch (err) {
+      console.error('handleSave:', err)
+      alert('Error al guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSaving(false)
     }
-    setSaving(false); close()
   }
 
   const handleDelete = async () => {
     if (!selected?.id || !confirm('Mover a la papelera?')) return
-    await fetch('/api/db/suppliers', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selected.id }),
-    })
-    setData(p => p.filter(r => r.id !== selected.id)); close()
+    try {
+      const res = await fetch('/api/db/suppliers', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setData(p => p.filter(r => r.id !== selected.id))
+      close()
+    } catch (err) {
+      console.error('handleDelete:', err)
+      alert('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    }
   }
 
   const lbl = 'text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-2'

@@ -68,48 +68,75 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   }, [leads, filter, search])
 
   const updateStatus = async (id: string, newStatus: string) => {
-    await fetch('/api/db/leads', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, lead_status: newStatus }),
-    })
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, lead_status: newStatus } : l)))
-    if (selectedLead?.id === id) setSelectedLead({ ...selectedLead, lead_status: newStatus })
+    try {
+      const res = await fetch('/api/db/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, lead_status: newStatus }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, lead_status: newStatus } : l)))
+      if (selectedLead?.id === id) setSelectedLead({ ...selectedLead, lead_status: newStatus })
+    } catch (err) {
+      console.error('updateStatus:', err)
+      alert('Error al cambiar estado: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    }
   }
 
   const saveNotes = async () => {
     if (!selectedLead) return
-    await fetch('/api/db/leads', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selectedLead.id, notes: editingNotes }),
-    })
-    setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, notes: editingNotes } : l))
-    setSelectedLead({ ...selectedLead, notes: editingNotes })
+    try {
+      const res = await fetch('/api/db/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedLead.id, notes: editingNotes }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, notes: editingNotes } : l))
+      setSelectedLead({ ...selectedLead, notes: editingNotes })
+    } catch (err) {
+      console.error('saveNotes:', err)
+      alert('Error al guardar notas: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    }
   }
 
   const convertToClient = async () => {
     if (!selectedLead) return
     setConverting(true)
-    const res = await fetch('/api/db/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: selectedLead.nombre,
-        email: selectedLead.email,
-        phone: selectedLead.phone || null,
-        source: 'web',
-        lead_id: selectedLead.id,
-        type: 'particular',
-      }),
-    })
-    const { data: client } = await res.json()
-
-    if (client) {
-      await updateStatus(selectedLead.id, 'aceptado')
-      setConverted(true)
+    try {
+      const res = await fetch('/api/db/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: selectedLead.nombre,
+          email: selectedLead.email,
+          phone: selectedLead.phone || null,
+          source: 'web',
+          lead_id: selectedLead.id,
+          type: 'particular',
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      const { data: client } = await res.json()
+      if (client) {
+        await updateStatus(selectedLead.id, 'aceptado')
+        setConverted(true)
+      }
+    } catch (err) {
+      console.error('convertToClient:', err)
+      alert('Error al convertir a cliente: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setConverting(false)
     }
-    setConverting(false)
   }
 
   const openDetail = (lead: Lead) => {

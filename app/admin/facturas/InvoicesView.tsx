@@ -145,14 +145,24 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const markAsPaid = async (inv: Invoice, e: React.MouseEvent) => {
     e.stopPropagation()
     const today = new Date().toISOString().slice(0, 10)
-    const res = await fetch('/api/db/invoices', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: inv.id, payment_status: 'pagada', payment_date: today }),
-    })
-    const { data: updated } = await res.json()
-    if (updated) {
-      setData((prev) => prev.map((r) => r.id === inv.id ? (updated as Invoice) : r))
+    try {
+      const res = await fetch('/api/db/invoices', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inv.id, payment_status: 'pagada', payment_date: today }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      const { data: updated } = await res.json()
+      setData((prev) => prev.map((r) => r.id === inv.id
+        ? (updated ?? { ...r, payment_status: 'pagada', payment_date: today }) as Invoice
+        : r
+      ))
+    } catch (err) {
+      console.error('markAsPaid:', err)
+      alert('Error al marcar como pagada: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     }
   }
 

@@ -111,36 +111,60 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
       if (payload[k] === '') payload[k] = null
     }
 
-    if (isEdit) {
-      const res = await fetch('/api/db/invoices', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: invoice!.id!, ...payload }),
-      })
-      const { data } = await res.json()
-      if (data) onSaved(data as Invoice, false)
-    } else {
-      const res = await fetch('/api/db/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const { data } = await res.json()
-      if (data) onSaved(data as Invoice, true)
+    try {
+      if (isEdit) {
+        const res = await fetch('/api/db/invoices', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: invoice!.id!, ...payload }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || `Error ${res.status}`)
+        }
+        const { data } = await res.json()
+        onSaved((data ?? { ...form, id: invoice!.id! }) as Invoice, false)
+      } else {
+        const res = await fetch('/api/db/invoices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || `Error ${res.status}`)
+        }
+        const { data } = await res.json()
+        if (data) onSaved(data as Invoice, true)
+      }
+    } catch (err) {
+      console.error('handleSave:', err)
+      alert('Error al guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   const handleDelete = async () => {
     if (!isEdit) return
     setSaving(true)
-    await fetch('/api/db/invoices', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: invoice!.id! }),
-    })
-    onDeleted(invoice!.id!)
-    setSaving(false)
+    try {
+      const res = await fetch('/api/db/invoices', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: invoice!.id! }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      onDeleted(invoice!.id!)
+    } catch (err) {
+      console.error('handleDelete:', err)
+      alert('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDuplicate = () => {

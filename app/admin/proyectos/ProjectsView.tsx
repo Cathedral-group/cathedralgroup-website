@@ -130,6 +130,9 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [activeTab, setActiveTab] = useState('general')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Project>>({})
+  const [showNewForm, setShowNewForm] = useState(false)
+  const [newForm, setNewForm] = useState({ code: '', name: '', type: '', status: 'presupuesto', client_id: '' })
+  const [savingNew, setSavingNew] = useState(false)
 
   // Phase inline form
   const [showPhaseForm, setShowPhaseForm] = useState(false)
@@ -216,67 +219,133 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     setSaving(true)
     const { id, created_at, ...rest } = editForm as Project
     void id; void created_at
-    const res = await fetch('/api/db/projects', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selected.id, ...rest }),
-    })
-    const { error } = await res.json()
-    if (!error) {
+    try {
+      const res = await fetch('/api/db/projects', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id, ...rest }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
       const updated = { ...selected, ...rest }
       setProjects((prev) => prev.map((p) => (p.id === selected.id ? updated : p)))
       setSelected(updated)
+    } catch (err) {
+      console.error('saveProject:', err)
+      alert('Error al guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function deleteProject() {
     if (!selected || !confirm('Mover este proyecto a la papelera?')) return
-    await fetch('/api/db/projects', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selected.id }),
-    })
-    setProjects((prev) => prev.filter((p) => p.id !== selected.id))
-    closeDetail()
+    try {
+      const res = await fetch('/api/db/projects', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setProjects((prev) => prev.filter((p) => p.id !== selected.id))
+      closeDetail()
+    } catch (err) {
+      console.error('deleteProject:', err)
+      alert('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    }
   }
 
   // Phases CRUD
   async function savePhase() {
     if (!selected) return
-    if (editingPhaseId) {
-      const res = await fetch('/api/db/project-phases', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingPhaseId, ...phaseForm }),
-      })
-      const { error } = await res.json()
-      if (!error) {
+    try {
+      if (editingPhaseId) {
+        const res = await fetch('/api/db/project-phases', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingPhaseId, ...phaseForm }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || `Error ${res.status}`)
+        }
         setAllPhases((prev) => prev.map((ph) => (ph.id === editingPhaseId ? { ...ph, ...phaseForm } : ph)))
+      } else {
+        const res = await fetch('/api/db/project-phases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...phaseForm, project_id: selected.id }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || `Error ${res.status}`)
+        }
+        const { data } = await res.json()
+        if (data) setAllPhases((prev) => [...prev, data as Phase])
       }
-    } else {
-      const res = await fetch('/api/db/project-phases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...phaseForm, project_id: selected.id }),
-      })
-      const { data } = await res.json()
-      if (data) {
-        setAllPhases((prev) => [...prev, data as Phase])
-      }
+      setShowPhaseForm(false)
+      setEditingPhaseId(null)
+      setPhaseForm({ name: '', status: 'pendiente', start_date: '', end_date: '' })
+    } catch (err) {
+      console.error('savePhase:', err)
+      alert('Error al guardar fase: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     }
-    setShowPhaseForm(false)
-    setEditingPhaseId(null)
-    setPhaseForm({ name: '', status: 'pendiente', start_date: '', end_date: '' })
   }
 
   async function deletePhase(phaseId: string) {
-    await fetch('/api/db/project-phases', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: phaseId }),
-    })
-    setAllPhases((prev) => prev.filter((ph) => ph.id !== phaseId))
+    try {
+      const res = await fetch('/api/db/project-phases', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: phaseId }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setAllPhases((prev) => prev.filter((ph) => ph.id !== phaseId))
+    } catch (err) {
+      console.error('deletePhase:', err)
+      alert('Error al eliminar fase: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    }
+  }
+
+  async function createProject() {
+    if (!newForm.code || !newForm.name) return
+    setSavingNew(true)
+    try {
+      const res = await fetch('/api/db/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: newForm.code,
+          name: newForm.name,
+          type: newForm.type || null,
+          status: newForm.status,
+          client_id: newForm.client_id || null,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      const { data } = await res.json()
+      if (data) {
+        setProjects(prev => [data as Project, ...prev])
+        setShowNewForm(false)
+        setNewForm({ code: '', name: '', type: '', status: 'presupuesto', client_id: '' })
+      }
+    } catch (err) {
+      console.error('createProject:', err)
+      alert('Error al crear proyecto: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSavingNew(false)
+    }
   }
 
   function startEditPhase(phase: Phase) {
@@ -399,16 +468,73 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   return (
     <>
       {/* Header + Search */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-4">
         <h1 className="text-xl font-medium">Proyectos</h1>
-        <input
-          type="text"
-          placeholder="Buscar proyecto..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-64"
-        />
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            placeholder="Buscar proyecto..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-56"
+          />
+          <button
+            onClick={() => setShowNewForm(true)}
+            className="bg-neutral-900 text-white px-5 py-2 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors whitespace-nowrap"
+          >
+            + Nuevo
+          </button>
+        </div>
       </div>
+
+      {/* New project inline form */}
+      {showNewForm && (
+        <div className="bg-white border border-neutral-200 p-6 mb-6">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4">Nuevo proyecto</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className={labelCls}>Código *</label>
+              <input value={newForm.code} onChange={e => setNewForm({...newForm, code: e.target.value})} className={inputCls} placeholder="Ej: MAD-2026-001" />
+            </div>
+            <div>
+              <label className={labelCls}>Nombre *</label>
+              <input value={newForm.name} onChange={e => setNewForm({...newForm, name: e.target.value})} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Tipo</label>
+              <select value={newForm.type} onChange={e => setNewForm({...newForm, type: e.target.value})} className={inputCls}>
+                <option value="">Seleccionar</option>
+                {TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Estado</label>
+              <select value={newForm.status} onChange={e => setNewForm({...newForm, status: e.target.value})} className={inputCls}>
+                {STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Cliente</label>
+              <select value={newForm.client_id} onChange={e => setNewForm({...newForm, client_id: e.target.value})} className={inputCls}>
+                <option value="">Sin cliente</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={createProject}
+              disabled={savingNew || !newForm.code || !newForm.name}
+              className="bg-neutral-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors disabled:opacity-50"
+            >
+              {savingNew ? '...' : 'Crear proyecto'}
+            </button>
+            <button onClick={() => setShowNewForm(false)} className="text-neutral-500 hover:text-neutral-700 text-xs font-bold uppercase tracking-widest">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Status filters + toggle */}
       <div className="flex gap-3 mb-6 flex-wrap items-center">
