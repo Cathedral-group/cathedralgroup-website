@@ -868,8 +868,20 @@ export default function QuoteEditor({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-100 bg-neutral-50">
-                    {['% Cert.', '% Fact.', 'Descripcion', 'Cant.', 'Ud.', 'Precio ud.', 'Cal.', 'IVA %', 'Total', 'Benef.', ''].map((h) => (
-                      <th key={h} className="text-left px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400 whitespace-nowrap">
+                    {[
+                      {h:'Cert%', cls:'px-2 py-2 w-10'},
+                      {h:'Fact%', cls:'px-2 py-2 w-10'},
+                      {h:'Descripcion', cls:'px-3 py-2'},
+                      {h:'Cant.', cls:'px-3 py-2'},
+                      {h:'Ud.', cls:'px-2 py-2'},
+                      {h:'Precio', cls:'px-3 py-2'},
+                      {h:'Cal.', cls:'px-2 py-2 w-16'},
+                      {h:'IVA', cls:'px-2 py-2'},
+                      {h:'Total', cls:'px-3 py-2'},
+                      {h:'Benef.', cls:'px-3 py-2'},
+                      {h:'', cls:'px-2 py-2'},
+                    ].map(({h, cls}) => (
+                      <th key={h} className={`text-left text-[10px] font-bold uppercase tracking-widest text-neutral-400 whitespace-nowrap ${cls}`}>
                         {h}
                       </th>
                     ))}
@@ -946,23 +958,23 @@ export default function QuoteEditor({
                       const itemRow = (
                         <tr key={idx}>
                           {/* % Cert */}
-                          <td className="px-2 py-2">
+                          <td className="px-1 py-2 w-10">
                             <input
                               type="number"
                               value={item.certified_pct}
                               onChange={(e) => updateItem(idx, 'certified_pct', Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs w-10 tabular-nums text-center"
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs w-9 tabular-nums text-center"
                               min="0" max="100" step="1"
                               title="% certificado"
                             />
                           </td>
                           {/* % Fact */}
-                          <td className="px-2 py-2">
+                          <td className="px-1 py-2 w-10">
                             <input
                               type="number"
                               value={item.invoiced_pct}
                               onChange={(e) => updateItem(idx, 'invoiced_pct', Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs w-10 tabular-nums text-center"
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs w-9 tabular-nums text-center"
                               min="0" max="100" step="1"
                               title="% facturado"
                             />
@@ -1029,7 +1041,7 @@ export default function QuoteEditor({
                               onChange={(v) => updateItem(idx, 'unit_price', v)}
                             />
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2 w-16">
                             <div className="flex items-center gap-1">
                               <select
                                 value={item.quality_level ?? form.quality_level}
@@ -1045,7 +1057,9 @@ export default function QuoteEditor({
                                 }`}
                               >
                                 {qualityCoefficients.map((q) => (
-                                  <option key={q.level} value={q.level}>{q.label}</option>
+                                  <option key={q.level} value={q.level}>
+                                    {q.level === 'estandar' ? 'Est.' : q.level === 'premium' ? 'Prem.' : q.label}
+                                  </option>
                                 ))}
                                 <option value="personalizado">Pers.</option>
                               </select>
