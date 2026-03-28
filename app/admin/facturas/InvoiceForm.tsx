@@ -422,8 +422,8 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
               >
                 <option value="">Sin categoria</option>
                 <option value="material">Material</option>
-                <option value="mano_obra">Mano de obra</option>
-                <option value="subcontrata">Subcontrata</option>
+                <option value="mano_de_obra">Mano de obra</option>
+                <option value="subcontratas">Subcontratas</option>
                 <option value="alquiler">Alquiler</option>
                 <option value="servicios">Servicios</option>
                 <option value="otros">Otros</option>

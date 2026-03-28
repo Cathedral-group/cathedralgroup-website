@@ -85,11 +85,12 @@ const CATEGORY_LABELS: Record<string, string> = {
   material: 'Material',
   mano_de_obra: 'Mano de obra',
   subcontratas: 'Subcontratas',
+  alquiler: 'Alquiler',
   servicios: 'Servicios',
   otros: 'Otros',
 }
 
-const CATEGORY_ORDER = ['material', 'mano_de_obra', 'subcontratas', 'servicios', 'otros']
+const CATEGORY_ORDER = ['material', 'mano_de_obra', 'subcontratas', 'alquiler', 'servicios', 'otros']
 
 // ─── P&L Tab ───
 function PnLTab({ invoices }: { invoices: Invoice[] }) {
