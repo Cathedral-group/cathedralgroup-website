@@ -171,7 +171,7 @@ export default function PresupuestoPage() {
         <div key={i} className="flex items-center gap-2 flex-1">
           <div
             className={`h-1 flex-1 transition-all duration-500 ${
-              i < step ? 'bg-primary' : 'bg-neutral-200'
+              i < step ? 'bg-primary' : 'bg-neutral-300'
             }`}
           />
         </div>
