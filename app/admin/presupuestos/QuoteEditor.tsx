@@ -876,18 +876,48 @@ export default function QuoteEditor({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-50">
-                  {form.items.flatMap((item, idx) => {
+                  {(() => {
+                    // Pre-compute sequential chapter numbers and subtotals
+                    const chapterOrder: string[] = []
+                    const chapterSubtotals: Record<string, number> = {}
+                    form.items.forEach((it) => {
+                      const code = it.chapter_code ?? ''
+                      if (code && !chapterOrder.includes(code)) chapterOrder.push(code)
+                      if (code) chapterSubtotals[code] = (chapterSubtotals[code] || 0) + (it.total || 0)
+                    })
+                    const chapterSeq: Record<string, string> = {}
+                    chapterOrder.forEach((code, i) => { chapterSeq[code] = String(i + 1).padStart(2, '0') })
+
+                    return form.items.flatMap((item, idx) => {
                     const prev = idx > 0 ? form.items[idx - 1] : null
+                    const next = idx < form.items.length - 1 ? form.items[idx + 1] : null
                     const showChapterHeader = item.chapter_code && item.chapter_code !== prev?.chapter_code
+                    const showSubtotal = item.chapter_code && item.chapter_code !== next?.chapter_code
+
                     const headerRow = showChapterHeader ? (
-                      <tr key={`ch-${idx}`} className="bg-neutral-100 border-t border-neutral-200">
-                        <td colSpan={8} className="px-3 py-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                            {item.chapter_code} — {item.chapter_name}
+                      <tr key={`ch-${idx}`} className="bg-neutral-100 border-t-2 border-neutral-200">
+                        <td colSpan={8} className="px-3 py-2">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                            {chapterSeq[item.chapter_code!]} — {item.chapter_name}
                           </span>
                         </td>
                       </tr>
                     ) : null
+
+                    const subtotalRow = showSubtotal ? (
+                      <tr key={`sub-${idx}`} className="bg-neutral-50 border-t border-neutral-200">
+                        <td colSpan={6} className="px-3 py-1.5 text-right">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                            Subtotal {item.chapter_name}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-xs font-bold text-neutral-600 whitespace-nowrap">
+                          {formatEur(chapterSubtotals[item.chapter_code!])}
+                        </td>
+                        <td />
+                      </tr>
+                    ) : null
+
                     const itemRow = (
                     <tr key={idx}>
                       <td className="px-3 py-2">
@@ -1012,8 +1042,13 @@ export default function QuoteEditor({
                       </td>
                     </tr>
                     )
-                    return headerRow ? [headerRow, itemRow] : [itemRow]
-                  })}
+                    const rows = []
+                    if (headerRow) rows.push(headerRow)
+                    rows.push(itemRow)
+                    if (subtotalRow) rows.push(subtotalRow)
+                    return rows
+                  })
+                  })()}
                 </tbody>
               </table>
             </div>
