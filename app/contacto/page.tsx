@@ -37,6 +37,10 @@ export default function ContactoPage() {
       {/* SmartForm — reduced top padding to flow naturally */}
       <section className="pb-16 bg-white">
         <div className="max-w-3xl mx-auto px-6">
+          <div className="text-center mb-8">
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-2">Solicitud de presupuesto</p>
+            <p className="text-sm text-neutral-500">Complete el formulario y nos pondremos en contacto a la mayor brevedad.</p>
+          </div>
           <SmartForm source="contacto" />
         </div>
       </section>
