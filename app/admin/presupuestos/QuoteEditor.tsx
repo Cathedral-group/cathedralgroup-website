@@ -876,26 +876,31 @@ export default function QuoteEditor({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-50">
-                  {form.items.map((item, idx) => (
+                  {form.items.flatMap((item, idx) => {
+                    const prev = idx > 0 ? form.items[idx - 1] : null
+                    const showChapterHeader = item.chapter_code && item.chapter_code !== prev?.chapter_code
+                    const headerRow = showChapterHeader ? (
+                      <tr key={`ch-${idx}`} className="bg-neutral-100 border-t border-neutral-200">
+                        <td colSpan={8} className="px-3 py-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                            {item.chapter_code} — {item.chapter_name}
+                          </span>
+                        </td>
+                      </tr>
+                    ) : null
+                    const itemRow = (
                     <tr key={idx}>
                       <td className="px-3 py-2">
                         <div className="flex items-start gap-1 min-w-[140px] sm:min-w-[200px]">
-                          <div className="flex-1 min-w-0">
-                            <div className="grid text-sm leading-snug [&>textarea]:col-[1] [&>textarea]:row-[1] [&>span]:col-[1] [&>span]:row-[1]">
-                              <span className="invisible whitespace-pre-wrap break-words p-0 min-h-[1.375rem]" aria-hidden>{(item.description || ' ') + ' '}</span>
-                              <textarea
-                                value={item.description}
-                                onChange={(e) => updateItem(idx, 'description', e.target.value)}
-                                className="bg-transparent border-0 focus:ring-0 p-0 resize-none overflow-hidden w-full"
-                                placeholder="Descripcion..."
-                                rows={1}
-                              />
-                            </div>
-                            {item.chapter_name && (
-                              <span className="inline-block text-[9px] font-bold uppercase tracking-widest text-neutral-400 mt-0.5">
-                                {item.chapter_name}
-                              </span>
-                            )}
+                          <div className="grid flex-1 text-sm leading-snug [&>textarea]:col-[1] [&>textarea]:row-[1] [&>span]:col-[1] [&>span]:row-[1]">
+                            <span className="invisible whitespace-pre-wrap break-words p-0 min-h-[1.375rem]" aria-hidden>{(item.description || ' ') + ' '}</span>
+                            <textarea
+                              value={item.description}
+                              onChange={(e) => updateItem(idx, 'description', e.target.value)}
+                              className="bg-transparent border-0 focus:ring-0 p-0 resize-none overflow-hidden w-full"
+                              placeholder="Descripcion..."
+                              rows={1}
+                            />
                           </div>
                           {catalogItems.length > 0 && (
                             <button
@@ -1006,7 +1011,9 @@ export default function QuoteEditor({
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    )
+                    return headerRow ? [headerRow, itemRow] : [itemRow]
+                  })}
                 </tbody>
               </table>
             </div>
