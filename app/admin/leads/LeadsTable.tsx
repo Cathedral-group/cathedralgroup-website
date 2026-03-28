@@ -68,7 +68,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   }, [leads, filter, search])
 
   const updateStatus = async (id: string, newStatus: string) => {
-    await fetch('/api/admin/leads', {
+    await fetch('/api/db/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, lead_status: newStatus }),
@@ -79,7 +79,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
 
   const saveNotes = async () => {
     if (!selectedLead) return
-    await fetch('/api/admin/leads', {
+    await fetch('/api/db/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selectedLead.id, notes: editingNotes }),
@@ -91,7 +91,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const convertToClient = async () => {
     if (!selectedLead) return
     setConverting(true)
-    const res = await fetch('/api/admin/clients', {
+    const res = await fetch('/api/db/clients', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -202,7 +202,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
             <button
               onClick={async () => {
                 if (!newLead.nombre) return
-                const res = await fetch('/api/admin/leads', {
+                const res = await fetch('/api/db/leads', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -356,7 +356,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   value={selectedLead.origen || ''}
                   onChange={async (e) => {
                     const val = e.target.value
-                    await fetch('/api/admin/leads', {
+                    await fetch('/api/db/leads', {
                       method: 'PATCH',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ id: selectedLead.id, origen: val }),
@@ -440,7 +440,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   onClick={async () => {
                     if (!confirm('Mover este lead a la papelera?')) return
                     setDeleting(true)
-                    const res = await fetch('/api/admin/leads', {
+                    const res = await fetch('/api/db/leads', {
                       method: 'DELETE',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ id: selectedLead.id }),

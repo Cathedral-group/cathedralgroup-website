@@ -49,7 +49,7 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
 
   const handleRestore = async (item: TrashedItem) => {
     setRestoring(item.id)
-    const res = await fetch('/api/admin/papelera', {
+    const res = await fetch('/api/db/papelera', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: item.id, table: item._table }),
@@ -63,7 +63,7 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
   const handlePermanentDelete = async (item: TrashedItem) => {
     if (!confirm('Eliminar permanentemente? Esta accion no se puede deshacer.')) return
     setDeleting(item.id)
-    const res = await fetch('/api/admin/papelera', {
+    const res = await fetch('/api/db/papelera', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: item.id, table: item._table }),

@@ -112,7 +112,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
     }
 
     if (isEdit) {
-      const res = await fetch('/api/admin/invoices', {
+      const res = await fetch('/api/db/invoices', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: invoice!.id!, ...payload }),
@@ -120,7 +120,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
       const { data } = await res.json()
       if (data) onSaved(data as Invoice, false)
     } else {
-      const res = await fetch('/api/admin/invoices', {
+      const res = await fetch('/api/db/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -134,7 +134,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
   const handleDelete = async () => {
     if (!isEdit) return
     setSaving(true)
-    await fetch('/api/admin/invoices', {
+    await fetch('/api/db/invoices', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: invoice!.id! }),

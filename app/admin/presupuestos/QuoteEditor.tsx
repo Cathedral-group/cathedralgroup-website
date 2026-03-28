@@ -215,7 +215,7 @@ export default function QuoteEditor({
 
       if (savedIdRef.current) {
         // UPDATE
-        const res = await fetch('/api/admin/quotes', {
+        const res = await fetch('/api/db/quotes', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: savedIdRef.current, ...payload }),
@@ -230,7 +230,7 @@ export default function QuoteEditor({
         }
       } else {
         // INSERT
-        const res = await fetch('/api/admin/quotes', {
+        const res = await fetch('/api/db/quotes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -302,7 +302,7 @@ export default function QuoteEditor({
       notes: `Generada desde presupuesto ${form.number}`,
     }
 
-    const res = await fetch('/api/admin/invoices', {
+    const res = await fetch('/api/db/invoices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(invoicePayload),
@@ -311,7 +311,7 @@ export default function QuoteEditor({
     if (inv) {
       // Update quote status to accepted
       if (savedIdRef.current) {
-        await fetch('/api/admin/quotes', {
+        await fetch('/api/db/quotes', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: savedIdRef.current, status: 'aceptado' }),
@@ -324,7 +324,7 @@ export default function QuoteEditor({
   /* ── Delete ── */
   const handleDelete = async () => {
     if (!savedIdRef.current) return
-    await fetch('/api/admin/quotes', {
+    await fetch('/api/db/quotes', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: savedIdRef.current }),
@@ -410,7 +410,7 @@ export default function QuoteEditor({
       notes: `Generada por certificacion del presupuesto ${form.number}`,
     }
 
-    const res = await fetch('/api/admin/invoices', {
+    const res = await fetch('/api/db/invoices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(invoicePayload),
@@ -428,7 +428,7 @@ export default function QuoteEditor({
         ...totals,
         updated_at: new Date().toISOString(),
       }
-      await fetch('/api/admin/quotes', {
+      await fetch('/api/db/quotes', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: savedIdRef.current!, ...updatePayload }),

@@ -34,7 +34,7 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
     if (!form?.name) return; setSaving(true)
     const payload = { ...form }; delete payload.id
     if (selected?.id) {
-      const res = await fetch('/api/admin/suppliers', {
+      const res = await fetch('/api/db/suppliers', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selected.id, ...payload }),
@@ -42,7 +42,7 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
       const { data: u } = await res.json()
       if (u) setData(p => p.map(r => r.id === selected.id ? u as Supplier : r))
     } else {
-      const res = await fetch('/api/admin/suppliers', {
+      const res = await fetch('/api/db/suppliers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -55,7 +55,7 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
 
   const handleDelete = async () => {
     if (!selected?.id || !confirm('Mover a la papelera?')) return
-    await fetch('/api/admin/suppliers', {
+    await fetch('/api/db/suppliers', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selected.id }),

@@ -145,7 +145,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const markAsPaid = async (inv: Invoice, e: React.MouseEvent) => {
     e.stopPropagation()
     const today = new Date().toISOString().slice(0, 10)
-    const res = await fetch('/api/admin/invoices', {
+    const res = await fetch('/api/db/invoices', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: inv.id, payment_status: 'pagada', payment_date: today }),

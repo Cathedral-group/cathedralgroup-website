@@ -197,7 +197,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
     setSaving(true)
     const { id, created_at, ...rest } = editForm as Client
     void id; void created_at
-    const res = await fetch('/api/admin/clients', {
+    const res = await fetch('/api/db/clients', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selected.id, ...rest }),
@@ -213,7 +213,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
 
   async function deleteClient() {
     if (!selected || !confirm('Mover este cliente a la papelera?')) return
-    await fetch('/api/admin/clients', {
+    await fetch('/api/db/clients', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selected.id }),
@@ -232,7 +232,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       type: commForm.type,
       summary: commForm.summary.trim(),
     }
-    const res = await fetch('/api/admin/communications', {
+    const res = await fetch('/api/db/communications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

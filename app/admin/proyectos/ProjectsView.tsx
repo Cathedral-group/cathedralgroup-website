@@ -216,7 +216,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     setSaving(true)
     const { id, created_at, ...rest } = editForm as Project
     void id; void created_at
-    const res = await fetch('/api/admin/projects', {
+    const res = await fetch('/api/db/projects', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selected.id, ...rest }),
@@ -232,7 +232,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
 
   async function deleteProject() {
     if (!selected || !confirm('Mover este proyecto a la papelera?')) return
-    await fetch('/api/admin/projects', {
+    await fetch('/api/db/projects', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selected.id }),
@@ -245,7 +245,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   async function savePhase() {
     if (!selected) return
     if (editingPhaseId) {
-      const res = await fetch('/api/admin/project-phases', {
+      const res = await fetch('/api/db/project-phases', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: editingPhaseId, ...phaseForm }),
@@ -255,7 +255,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
         setAllPhases((prev) => prev.map((ph) => (ph.id === editingPhaseId ? { ...ph, ...phaseForm } : ph)))
       }
     } else {
-      const res = await fetch('/api/admin/project-phases', {
+      const res = await fetch('/api/db/project-phases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...phaseForm, project_id: selected.id }),
@@ -271,7 +271,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   }
 
   async function deletePhase(phaseId: string) {
-    await fetch('/api/admin/project-phases', {
+    await fetch('/api/db/project-phases', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: phaseId }),
@@ -545,7 +545,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   <button
                     key={s}
                     onClick={async () => {
-                      await fetch('/api/admin/projects', {
+                      await fetch('/api/db/projects', {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: selected.id, status: s }),
