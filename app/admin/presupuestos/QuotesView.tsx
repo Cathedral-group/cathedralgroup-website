@@ -28,6 +28,8 @@ interface QuoteItem {
   unit_price: number
   vat_pct: number
   total: number
+  certified_pct: number
+  invoiced_pct: number
 }
 
 interface Client {
@@ -63,6 +65,25 @@ const STATUS_STYLES: Record<string, string> = {
   enviado: 'bg-blue-100 text-blue-700',
   aceptado: 'bg-green-100 text-green-700',
   rechazado: 'bg-red-100 text-red-700',
+}
+
+function calcWeightedCertPct(items: QuoteItem[]): number {
+  const totalSum = items.reduce((s, it) => s + (it.total || 0), 0)
+  if (totalSum === 0) return 0
+  const certSum = items.reduce((s, it) => s + ((it.certified_pct ?? 0) / 100) * (it.total || 0), 0)
+  return Math.round((certSum / totalSum) * 100)
+}
+
+function CertProgressBar({ pct }: { pct: number }) {
+  const color = pct >= 100 ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-neutral-200'
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-12 h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+      <span className="text-[10px] tabular-nums text-neutral-400">{pct}%</span>
+    </div>
+  )
 }
 
 function QuoteStatusBadge({ status }: { status: string }) {
@@ -185,7 +206,7 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
           <table className="w-full">
             <thead>
               <tr className="border-b border-neutral-100">
-                {['Numero', 'Cliente', 'Proyecto', 'Total', 'Estado', 'Fecha'].map((h) => (
+                {['Numero', 'Cliente', 'Proyecto', 'Total', 'Certificado', 'Estado', 'Fecha'].map((h) => (
                   <th
                     key={h}
                     className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${
@@ -200,7 +221,7 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
             <tbody className="divide-y divide-neutral-50">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-neutral-400">
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-neutral-400">
                     Sin presupuestos
                   </td>
                 </tr>
@@ -220,6 +241,9 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
                     </td>
                     <td className="px-4 py-3 text-sm tabular-nums text-right font-semibold">
                       {formatEur(q.total)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <CertProgressBar pct={calcWeightedCertPct(q.items || [])} />
                     </td>
                     <td className="px-4 py-3">
                       <QuoteStatusBadge status={q.status} />
