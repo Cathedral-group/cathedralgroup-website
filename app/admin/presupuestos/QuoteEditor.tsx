@@ -174,9 +174,11 @@ export default function QuoteEditor({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [qualityCoefficients, setQualityCoefficients] = useState<{level: string; coefficient: number; label: string}[]>([
-    { level: 'estandar', coefficient: 1.0, label: 'Estándar' },
-    { level: 'premium', coefficient: 2.0, label: 'Premium' },
-    { level: 'lujo', coefficient: 3.0, label: 'Lujo' },
+    { level: 'basico',    coefficient: 1.20, label: 'Básico'    },
+    { level: 'estandar',  coefficient: 1.25, label: 'Estándar'  },
+    { level: 'premium',   coefficient: 1.30, label: 'Premium'   },
+    { level: 'lujo',      coefficient: 1.40, label: 'Lujo'      },
+    { level: 'alto_lujo', coefficient: 1.50, label: 'Alto Lujo' },
   ])
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
   const [openCatalogForRow, setOpenCatalogForRow] = useState<number | null>(null)
@@ -1043,9 +1045,11 @@ export default function QuoteEditor({
                               onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
                               className="bg-transparent border-0 focus:ring-0 p-0 text-xs"
                             >
+                              <option value="basico">Bás</option>
                               <option value="estandar">Std</option>
                               <option value="premium">Prm</option>
                               <option value="lujo">Luj</option>
+                              <option value="alto_lujo">ALj</option>
                               <option value="personalizado">Per</option>
                             </select>
                             {(item.quality_level ?? form.quality_level) === 'personalizado' && (
