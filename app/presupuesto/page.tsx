@@ -206,7 +206,7 @@ export default function PresupuestoPage() {
         disabled={!canAdvance()}
         className={`px-10 py-3.5 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-500 ${
           canAdvance()
-            ? 'bg-[#5A5550] text-white hover:bg-neutral-800'
+            ? 'bg-[#5A5550] text-white hover:bg-[#4A4540]'
             : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
         }`}
       >
@@ -443,14 +443,14 @@ export default function PresupuestoPage() {
         </p>
 
         {/* CTA */}
-        <div className="border border-neutral-200 bg-neutral-50 p-8 text-center">
+        <div className="border border-primary/30 bg-[#F5F0EB] p-8 text-center">
           <h3 className="text-lg font-light uppercase tracking-wide text-neutral-800 mb-2">
             {t('ctaTitle')}
           </h3>
-          <p className="text-sm text-neutral-500 mb-6">{t('ctaSubtitle')}</p>
+          <p className="text-sm text-neutral-600 mb-6">{t('ctaSubtitle')}</p>
           <Link
             href="/contacto"
-            className="inline-block px-10 py-3.5 bg-stone-dark text-white text-xs font-bold uppercase tracking-[0.15em] btn-cathedral hover:bg-neutral-800 transition-all duration-500"
+            className="inline-block px-10 py-3.5 border border-neutral-800 text-neutral-800 text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] transition-all duration-500"
           >
             {t('ctaButton')}
           </Link>
