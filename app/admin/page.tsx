@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import CashFlowBar from '@/components/admin/CashFlowBar'
 import QuickAddButton from '@/components/admin/QuickAddButton'
+import DashboardCharts from './DashboardCharts'
 
 function formatEUR(value: number | null | undefined): string {
   if (value == null || isNaN(value)) return '0,00 \u20ac'
@@ -155,6 +156,58 @@ async function getStats() {
     .order('created_at', { ascending: false })
     .limit(10)
 
+  // --- Chart data: All invoices for monthly breakdown ---
+  const { data: allInvoices } = await supabase
+    .from('invoices')
+    .select('amount_total, direction, issue_date, payment_status, due_date')
+
+  const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+  const now = new Date()
+  const monthlyMap: Record<string, { ingresos: number; gastos: number }> = {}
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    monthlyMap[key] = { ingresos: 0, gastos: 0 }
+  }
+  for (const inv of allInvoices || []) {
+    if (!inv.issue_date) continue
+    const key = inv.issue_date.substring(0, 7)
+    if (monthlyMap[key]) {
+      const amount = Number(inv.amount_total) || 0
+      if (inv.direction === 'emitida') monthlyMap[key].ingresos += amount
+      else monthlyMap[key].gastos += amount
+    }
+  }
+  const monthlyData = Object.entries(monthlyMap).map(([key, vals]) => {
+    const [, m] = key.split('-')
+    const margen = vals.ingresos > 0 ? ((vals.ingresos - vals.gastos) / vals.ingresos) * 100 : 0
+    return { month: MONTHS_ES[parseInt(m, 10) - 1], ...vals, margen: Math.round(margen * 10) / 10 }
+  })
+
+  // --- Chart data: Invoice status ---
+  const statusCounts: Record<string, number> = { pagada: 0, pendiente: 0, vencida: 0 }
+  for (const inv of allInvoices || []) {
+    const s = inv.payment_status || 'pendiente'
+    if (s === 'pagada') statusCounts.pagada++
+    else if (inv.due_date && new Date(inv.due_date) < now) statusCounts.vencida++
+    else statusCounts.pendiente++
+  }
+  const invoiceStatus = [
+    { name: 'Pagada', value: statusCounts.pagada, color: '#22c55e' },
+    { name: 'Pendiente', value: statusCounts.pendiente, color: '#f59e0b' },
+    { name: 'Vencida', value: statusCounts.vencida, color: '#ef4444' },
+  ].filter(s => s.value > 0)
+
+  // --- Chart data: Lead sources ---
+  const { data: allLeads } = await supabase.from('leads').select('origen')
+  const sourceMap: Record<string, number> = {}
+  for (const lead of allLeads || []) {
+    const src = lead.origen || 'Directo'
+    sourceMap[src] = (sourceMap[src] || 0) + 1
+  }
+  const leadSources = Object.entries(sourceMap).map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+
   return {
     facturacionTotal,
     gastosTotal,
@@ -170,6 +223,9 @@ async function getStats() {
     cashFlow30Expenses,
     projectFinancials: projectFinancials || [],
     recentLeads: recentLeads || [],
+    monthlyData,
+    invoiceStatus,
+    leadSources,
   }
 }
 
@@ -251,6 +307,13 @@ export default async function AdminDashboard() {
           </div>
         ))}
       </div>
+
+      {/* ── Charts ── */}
+      <DashboardCharts
+        monthlyData={stats.monthlyData}
+        invoiceStatus={stats.invoiceStatus}
+        leadSources={stats.leadSources}
+      />
 
       {/* ── Two-column: IVA + Flujo de Caja ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
