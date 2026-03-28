@@ -130,7 +130,7 @@ async function getStats() {
 
   const { data: facturasPorVencer } = await supabase
     .from('invoices')
-    .select('id, invoice_number, concept, amount_total, due_date, direction')
+    .select('id, number, concept, amount_total, due_date, direction')
     .eq('payment_status', 'pendiente')
     .is('deleted_at', null)
     .gte('due_date', today.toISOString().split('T')[0])
@@ -431,7 +431,7 @@ export default async function AdminDashboard() {
                   (
                     inv: {
                       id: string
-                      invoice_number: string | null
+                      number: string | null
                       concept: string | null
                       amount_total: number | null
                       due_date: string
@@ -446,7 +446,7 @@ export default async function AdminDashboard() {
                         className={i % 2 === 1 ? 'bg-neutral-50' : ''}
                       >
                         <td className="px-5 py-3 font-medium">
-                          {inv.invoice_number || '\u2014'}
+                          {inv.number || '\u2014'}
                         </td>
                         <td className="px-5 py-3 text-neutral-600 max-w-[250px] truncate">
                           {inv.concept || '\u2014'}

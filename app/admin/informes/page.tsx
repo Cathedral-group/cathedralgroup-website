@@ -4,11 +4,11 @@ import ReportsView from './ReportsView'
 
 interface Invoice {
   id: string
-  invoice_number: string | null
+  number: string | null
   direction: 'emitida' | 'recibida'
   amount_base: number | null
   amount_total: number | null
-  amount_vat: number | null
+  vat_amount: number | null
   categoria_gasto: string | null
   issue_date: string | null
   due_date: string | null
@@ -35,7 +35,7 @@ export default async function InformesPage() {
 
   const { data: invoices } = await supabase
     .from('invoices')
-    .select('id, invoice_number, direction, amount_base, amount_total, amount_vat, categoria_gasto, issue_date, due_date, payment_date, payment_status')
+    .select('id, number, direction, amount_base, amount_total, vat_amount, categoria_gasto, issue_date, due_date, payment_date, payment_status')
     .is('deleted_at', null)
     .order('issue_date', { ascending: false })
 

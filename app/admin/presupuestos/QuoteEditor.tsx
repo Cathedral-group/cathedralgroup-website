@@ -165,7 +165,7 @@ export default function QuoteEditor({
     }
   })
 
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [qualityCoefficients, setQualityCoefficients] = useState<{level: string; coefficient: number; label: string}[]>([
@@ -182,6 +182,8 @@ export default function QuoteEditor({
   const savedIdRef = useRef<string | undefined>(quote?.id)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFirstRender = useRef(true)
+  const formRef = useRef(form)
+  const hasPendingRef = useRef(false)
 
   /* ── Field setter ── */
   const set = useCallback(<K extends keyof Quote>(key: K, val: Quote[K]) => {
@@ -258,6 +260,9 @@ export default function QuoteEditor({
     })
   }, [])
 
+  /* ── Keep formRef current ── */
+  useEffect(() => { formRef.current = form }, [form])
+
   /* ── Auto-save with 2s debounce ── */
   useEffect(() => {
     if (isFirstRender.current) {
@@ -265,9 +270,11 @@ export default function QuoteEditor({
       return
     }
 
+    hasPendingRef.current = true
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
     debounceRef.current = setTimeout(async () => {
+      hasPendingRef.current = false
       setSaveStatus('saving')
 
       const payload: Record<string, unknown> = {
@@ -295,13 +302,13 @@ export default function QuoteEditor({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: savedIdRef.current, ...payload }),
         })
-        const { data } = await res.json()
-        if (data) {
-          const saved = data as Quote
-          onSaved(saved, false)
+        const json = await res.json()
+        if (json.data) {
+          onSaved(json.data as Quote, false)
           setSaveStatus('saved')
         } else {
-          setSaveStatus('idle')
+          console.error('Quote save error:', json.error)
+          setSaveStatus('error')
         }
       } else {
         // INSERT
@@ -310,15 +317,16 @@ export default function QuoteEditor({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
-        const { data } = await res.json()
-        if (data) {
-          const saved = data as Quote
+        const json = await res.json()
+        if (json.data) {
+          const saved = json.data as Quote
           savedIdRef.current = saved.id
           setForm((prev) => ({ ...prev, id: saved.id }))
           onSaved(saved, true)
           setSaveStatus('saved')
         } else {
-          setSaveStatus('idle')
+          console.error('Quote insert error:', json.error)
+          setSaveStatus('error')
         }
       }
     }, 2000)
@@ -333,6 +341,38 @@ export default function QuoteEditor({
     form.valid_until, form.items, form.notes, form.conditions,
     form.subtotal, form.vat_total, form.total,
   ])
+
+  /* ── Save immediately on unmount if there are pending changes ── */
+  useEffect(() => {
+    return () => {
+      if (hasPendingRef.current && savedIdRef.current) {
+        const f = formRef.current
+        const payload = {
+          number: f.number,
+          client_id: f.client_id || null,
+          project_id: f.project_id || null,
+          status: f.status,
+          quality_level: f.quality_level,
+          quality_coefficient_override: f.quality_coefficient_override ?? null,
+          valid_until: f.valid_until || null,
+          items: f.items,
+          subtotal: f.subtotal,
+          vat_total: f.vat_total,
+          total: f.total,
+          notes: f.notes || null,
+          conditions: f.conditions || null,
+          created_by: f.created_by,
+          updated_at: new Date().toISOString(),
+        }
+        fetch('/api/db/quotes', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: savedIdRef.current, ...payload }),
+          keepalive: true,
+        }).catch(() => {})
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Load quality coefficients + catalog ── */
   useEffect(() => {
@@ -693,8 +733,13 @@ export default function QuoteEditor({
           <option value={10}>IVA 10%</option>
           <option value={21}>IVA 21%</option>
         </select>
-        <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-amber-500' : saveStatus === 'saved' ? 'text-green-600' : 'text-transparent'}`}>
-          {saveStatus === 'saving' ? '⏳ Guardando...' : '✓ Guardado'}
+        <span className={`text-xs font-medium ${
+          saveStatus === 'saving' ? 'text-amber-500' :
+          saveStatus === 'saved' ? 'text-green-600' :
+          saveStatus === 'error' ? 'text-red-500' :
+          'text-transparent'
+        }`}>
+          {saveStatus === 'saving' ? '⏳ Guardando...' : saveStatus === 'saved' ? '✓ Guardado' : saveStatus === 'error' ? '✗ Error al guardar' : '✓ Guardado'}
         </span>
         <div className="ml-auto flex items-center gap-2">
           {savedIdRef.current && (
@@ -705,11 +750,21 @@ export default function QuoteEditor({
               <button
                 onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
                 className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
+                title="Generar PDF del presupuesto"
               >
-                PDF
+                PDF Presupuesto
               </button>
+              {form.items.some((it) => (it.certified_pct ?? 0) > 0) && (
+                <button
+                  onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}&type=certificacion`, '_blank')}
+                  className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-green-600 hover:border-green-400 hover:bg-green-50 transition-colors"
+                  title="Generar PDF de certificación parcial"
+                >
+                  PDF Certificación
+                </button>
+              )}
               <button onClick={handleConvertToInvoice} className="hidden sm:block bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">
-                Convertir a factura
+                → Factura
               </button>
               {confirmDelete ? (
                 <button onClick={handleDelete} className="bg-red-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-colors">
@@ -1143,8 +1198,22 @@ export default function QuoteEditor({
             <button onClick={handleDuplicate} className="border border-neutral-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors">
               Duplicar
             </button>
+            <button
+              onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
+              className="border border-neutral-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
+            >
+              PDF Presupuesto
+            </button>
+            {form.items.some((it) => (it.certified_pct ?? 0) > 0) && (
+              <button
+                onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}&type=certificacion`, '_blank')}
+                className="border border-green-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-green-600 hover:border-green-400 transition-colors"
+              >
+                PDF Certificación
+              </button>
+            )}
             <button onClick={handleConvertToInvoice} className="bg-blue-600 text-white px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">
-              Convertir a factura
+              → Factura
             </button>
           </div>
         )}

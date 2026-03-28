@@ -6,11 +6,11 @@ import PeriodSelector from '@/components/admin/PeriodSelector'
 
 interface Invoice {
   id: string
-  invoice_number: string | null
+  number: string | null
   direction: 'emitida' | 'recibida'
   amount_base: number | null
   amount_total: number | null
-  amount_vat: number | null
+  vat_amount: number | null
   categoria_gasto: string | null
   issue_date: string | null
   due_date: string | null
