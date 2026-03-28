@@ -36,6 +36,7 @@ export default async function InformesPage() {
   const { data: invoices } = await supabase
     .from('invoices')
     .select('id, invoice_number, direction, amount_base, amount_total, amount_vat, categoria_gasto, issue_date, due_date, payment_date, payment_status')
+    .is('deleted_at', null)
     .order('issue_date', { ascending: false })
 
   const { data: vatData } = await supabase

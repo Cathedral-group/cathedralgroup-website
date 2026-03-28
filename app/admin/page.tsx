@@ -58,6 +58,7 @@ async function getStats() {
     .from('invoices')
     .select('amount_total')
     .eq('direction', 'emitida')
+    .is('deleted_at', null)
 
   const facturacionTotal = (emitidas || []).reduce(
     (sum, inv) => sum + (Number(inv.amount_total) || 0),
@@ -69,6 +70,7 @@ async function getStats() {
     .from('invoices')
     .select('amount_total')
     .eq('direction', 'recibida')
+    .is('deleted_at', null)
 
   const gastosTotal = (recibidas || []).reduce(
     (sum, inv) => sum + (Number(inv.amount_total) || 0),
@@ -82,6 +84,7 @@ async function getStats() {
     .from('projects')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'en_curso')
+    .is('deleted_at', null)
 
   // --- KPI: Facturas pendientes de cobro (emitidas + pendiente) ---
   const { data: pendientesCobro } = await supabase
@@ -89,6 +92,7 @@ async function getStats() {
     .select('amount_total')
     .eq('direction', 'emitida')
     .eq('payment_status', 'pendiente')
+    .is('deleted_at', null)
 
   const totalPendienteCobro = (pendientesCobro || []).reduce(
     (sum, inv) => sum + (Number(inv.amount_total) || 0),
@@ -102,6 +106,7 @@ async function getStats() {
     .select('amount_total')
     .eq('direction', 'recibida')
     .eq('payment_status', 'pendiente')
+    .is('deleted_at', null)
 
   const totalPendientePago = (pendientesPago || []).reduce(
     (sum, inv) => sum + (Number(inv.amount_total) || 0),
@@ -127,6 +132,7 @@ async function getStats() {
     .from('invoices')
     .select('id, invoice_number, concept, amount_total, due_date, direction')
     .eq('payment_status', 'pendiente')
+    .is('deleted_at', null)
     .gte('due_date', today.toISOString().split('T')[0])
     .lte('due_date', in30.toISOString().split('T')[0])
     .order('due_date', { ascending: true })
@@ -152,6 +158,7 @@ async function getStats() {
   const { data: recentLeads } = await supabase
     .from('leads')
     .select('id, nombre, email, tipo_proyecto, zona, created_at')
+    .is('deleted_at', null)
     .gte('created_at', sevenDaysAgo)
     .order('created_at', { ascending: false })
     .limit(10)
@@ -160,6 +167,7 @@ async function getStats() {
   const { data: allInvoices } = await supabase
     .from('invoices')
     .select('amount_total, direction, issue_date, payment_status, due_date')
+    .is('deleted_at', null)
 
   const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
   const now = new Date()
@@ -199,7 +207,7 @@ async function getStats() {
   ].filter(s => s.value > 0)
 
   // --- Chart data: Lead sources ---
-  const { data: allLeads } = await supabase.from('leads').select('origen')
+  const { data: allLeads } = await supabase.from('leads').select('origen').is('deleted_at', null)
   const sourceMap: Record<string, number> = {}
   for (const lead of allLeads || []) {
     const src = lead.origen || 'Directo'
@@ -240,36 +248,42 @@ export default async function AdminDashboard() {
 
   const kpis = [
     {
-      label: 'Facturaci\u00f3n total',
+      label: 'Facturación total',
       value: formatEUR(stats.facturacionTotal),
       color: 'text-neutral-900',
+      href: '/admin/facturas',
     },
     {
       label: 'Gastos totales',
       value: formatEUR(stats.gastosTotal),
       color: 'text-neutral-900',
+      href: '/admin/facturas',
     },
     {
       label: 'Margen bruto',
       value: formatEUR(stats.margenBruto),
       color: stats.margenBruto >= 0 ? 'text-green-600' : 'text-red-600',
+      href: '/admin/informes',
     },
     {
       label: 'Proyectos activos',
       value: String(stats.proyectosActivos),
       color: 'text-neutral-900',
+      href: '/admin/proyectos',
     },
     {
       label: 'Pendiente de cobro',
       value: formatEUR(stats.totalPendienteCobro),
       sub: `${stats.countPendienteCobro} facturas`,
       color: 'text-amber-600',
+      href: '/admin/facturas',
     },
     {
       label: 'Pendiente de pago',
       value: formatEUR(stats.totalPendientePago),
       sub: `${stats.countPendientePago} facturas`,
       color: 'text-amber-600',
+      href: '/admin/facturas',
     },
   ]
 
@@ -290,21 +304,22 @@ export default async function AdminDashboard() {
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
+      {/* ── KPI Cards (clickable) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-10">
-        {kpis.map(({ label, value, color, sub }) => (
-          <div
+        {kpis.map(({ label, value, color, sub, href }) => (
+          <Link
             key={label}
-            className="bg-white p-5 border border-neutral-100 rounded"
+            href={href}
+            className="bg-white p-5 border border-neutral-100 rounded hover:border-primary hover:shadow-sm transition-all group"
           >
             <p className={`text-xl font-bold ${color} leading-tight`}>{value}</p>
             {sub && (
               <p className="text-[11px] text-neutral-400 mt-0.5">{sub}</p>
             )}
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mt-2">
-              {label}
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mt-2 group-hover:text-primary transition-colors">
+              {label} →
             </p>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -318,11 +333,12 @@ export default async function AdminDashboard() {
       {/* ── Two-column: IVA + Flujo de Caja ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
         {/* IVA Trimestral */}
-        <div className="bg-white border border-neutral-100 rounded">
-          <div className="p-5 border-b border-neutral-100">
+        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
+          <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
             <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
               IVA &mdash; Q1 2026
             </h2>
+            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
           </div>
           <div className="p-5">
             {stats.vat ? (
@@ -364,19 +380,20 @@ export default async function AdminDashboard() {
               </p>
             )}
           </div>
-        </div>
+        </Link>
 
-        {/* Flujo de Caja - pr\u00f3ximos 30 d\u00edas */}
-        <div className="bg-white border border-neutral-100 rounded">
-          <div className="p-5 border-b border-neutral-100">
+        {/* Flujo de Caja - próximos 30 días */}
+        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
+          <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
             <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-              Flujo de Caja &mdash; pr&oacute;ximos 30 d&iacute;as
+              Flujo de Caja &mdash; próximos 30 días
             </h2>
+            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
           </div>
           <div className="p-5">
             <CashFlowBar income={stats.cashFlow30Income} expenses={stats.cashFlow30Expenses} />
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* ── Facturas por vencer ── */}
@@ -386,7 +403,7 @@ export default async function AdminDashboard() {
             Facturas por vencer &mdash; pr&oacute;ximos 30 d&iacute;as
           </h2>
           <Link
-            href="/admin/invoices"
+            href="/admin/facturas"
             className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest hover:text-neutral-600 transition-colors"
           >
             Ver todas
@@ -475,7 +492,7 @@ export default async function AdminDashboard() {
             Proyectos activos &mdash; rentabilidad
           </h2>
           <Link
-            href="/admin/projects"
+            href="/admin/proyectos"
             className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest hover:text-neutral-600 transition-colors"
           >
             Ver todos

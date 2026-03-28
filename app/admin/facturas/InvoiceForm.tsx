@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase'
 import MoneyInput from '@/components/admin/MoneyInput'
 import LinkedSelect from '@/components/admin/LinkedSelect'
 
@@ -103,7 +102,6 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
 
   const handleSave = async () => {
     setSaving(true)
-    const supabase = createClient()
 
     const payload: Record<string, unknown> = { ...form }
     delete payload.id
@@ -114,19 +112,20 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
     }
 
     if (isEdit) {
-      const { data } = await supabase
-        .from('invoices')
-        .update(payload)
-        .eq('id', invoice!.id!)
-        .select()
-        .single()
+      const res = await fetch('/api/admin/invoices', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: invoice!.id!, ...payload }),
+      })
+      const { data } = await res.json()
       if (data) onSaved(data as Invoice, false)
     } else {
-      const { data } = await supabase
-        .from('invoices')
-        .insert(payload)
-        .select()
-        .single()
+      const res = await fetch('/api/admin/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const { data } = await res.json()
       if (data) onSaved(data as Invoice, true)
     }
     setSaving(false)
@@ -135,8 +134,11 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
   const handleDelete = async () => {
     if (!isEdit) return
     setSaving(true)
-    const supabase = createClient()
-    await supabase.from('invoices').delete().eq('id', invoice!.id!)
+    await fetch('/api/admin/invoices', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: invoice!.id! }),
+    })
     onDeleted(invoice!.id!)
     setSaving(false)
   }

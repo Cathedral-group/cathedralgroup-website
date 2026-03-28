@@ -12,6 +12,7 @@ export default async function LeadsPage() {
   const { data: leads } = await supabase
     .from('leads')
     .select('*')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   return (

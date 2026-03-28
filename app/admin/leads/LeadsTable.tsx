@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react'
 import DataTable from '@/components/admin/DataTable'
 import StatusBadge from '@/components/admin/StatusBadge'
-import { createClient } from '@/lib/supabase'
 
 interface Lead {
   id: string
@@ -92,15 +91,19 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const convertToClient = async () => {
     if (!selectedLead) return
     setConverting(true)
-    const supabase = createClient()
-    const { data: client } = await supabase.from('clients').insert({
-      name: selectedLead.nombre,
-      email: selectedLead.email,
-      phone: selectedLead.phone || null,
-      source: 'web',
-      lead_id: selectedLead.id,
-      type: 'particular',
-    }).select().single()
+    const res = await fetch('/api/admin/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: selectedLead.nombre,
+        email: selectedLead.email,
+        phone: selectedLead.phone || null,
+        source: 'web',
+        lead_id: selectedLead.id,
+        type: 'particular',
+      }),
+    })
+    const { data: client } = await res.json()
 
     if (client) {
       await updateStatus(selectedLead.id, 'aceptado')
@@ -199,17 +202,21 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
             <button
               onClick={async () => {
                 if (!newLead.nombre) return
-                const supabase = createClient()
-                const { data } = await supabase.from('leads').insert({
-                  nombre: newLead.nombre,
-                  email: newLead.email || null,
-                  phone: newLead.phone || null,
-                  tipo_proyecto: newLead.tipo_proyecto || null,
-                  zona: newLead.zona || null,
-                  origen: newLead.origen,
-                  mensaje: newLead.mensaje || null,
-                  lead_status: 'nuevo',
-                }).select().single()
+                const res = await fetch('/api/admin/leads', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    nombre: newLead.nombre,
+                    email: newLead.email || null,
+                    phone: newLead.phone || null,
+                    tipo_proyecto: newLead.tipo_proyecto || null,
+                    zona: newLead.zona || null,
+                    origen: newLead.origen,
+                    mensaje: newLead.mensaje || null,
+                    lead_status: 'nuevo',
+                  }),
+                })
+                const { data } = await res.json()
                 if (data) {
                   setLeads(prev => [data as Lead, ...prev])
                   setShowNewForm(false)
@@ -431,7 +438,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
               <div className="pt-4 border-t border-neutral-100">
                 <button
                   onClick={async () => {
-                    if (!confirm('¿Eliminar este lead? Esta acción no se puede deshacer.')) return
+                    if (!confirm('Mover este lead a la papelera?')) return
                     setDeleting(true)
                     await fetch('/api/admin/leads', {
                       method: 'DELETE',

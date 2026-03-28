@@ -10,9 +10,9 @@ export default async function PresupuestosPage() {
   const supabase = createAdminSupabaseClient()
 
   const [quotesRes, clientsRes, projectsRes] = await Promise.all([
-    supabase.from('quotes').select('*').order('created_at', { ascending: false }),
-    supabase.from('clients').select('id, name'),
-    supabase.from('projects').select('id, code, name'),
+    supabase.from('quotes').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
+    supabase.from('clients').select('id, name').is('deleted_at', null),
+    supabase.from('projects').select('id, code, name').is('deleted_at', null),
   ])
 
   // Handle case where quotes table doesn't exist yet

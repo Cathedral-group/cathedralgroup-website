@@ -10,9 +10,9 @@ export default async function ClientesPage() {
   const supabase = createAdminSupabaseClient()
 
   const [clientsRes, projectsRes, invoicesRes, communicationsRes] = await Promise.all([
-    supabase.from('clients').select('*').order('created_at', { ascending: false }),
-    supabase.from('projects').select('id, code, name, client_id, status'),
-    supabase.from('invoices').select('id, numero, number, concepto, concept, tipo, direction, total, amount_total, estado, payment_status, proyecto_code, issue_date'),
+    supabase.from('clients').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
+    supabase.from('projects').select('id, code, name, client_id, status').is('deleted_at', null),
+    supabase.from('invoices').select('id, numero, number, concepto, concept, tipo, direction, total, amount_total, estado, payment_status, proyecto_code, issue_date').is('deleted_at', null),
     supabase.from('communications').select('*').eq('entity_type', 'client').order('date', { ascending: false }),
   ])
 

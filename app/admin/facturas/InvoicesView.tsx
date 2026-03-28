@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { createClient } from '@/lib/supabase'
 import InvoiceForm from './InvoiceForm'
 
 interface Invoice {
@@ -145,14 +144,13 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
 
   const markAsPaid = async (inv: Invoice, e: React.MouseEvent) => {
     e.stopPropagation()
-    const supabase = createClient()
     const today = new Date().toISOString().slice(0, 10)
-    const { data: updated } = await supabase
-      .from('invoices')
-      .update({ payment_status: 'pagada', payment_date: today })
-      .eq('id', inv.id!)
-      .select()
-      .single()
+    const res = await fetch('/api/admin/invoices', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: inv.id, payment_status: 'pagada', payment_date: today }),
+    })
+    const { data: updated } = await res.json()
     if (updated) {
       setData((prev) => prev.map((r) => r.id === inv.id ? (updated as Invoice) : r))
     }

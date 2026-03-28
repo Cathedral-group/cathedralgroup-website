@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react'
 import DataTable from '@/components/admin/DataTable'
 import TabPanel from '@/components/admin/TabPanel'
-import { createClient } from '@/lib/supabase'
 
 /* ───────── Types ───────── */
 
@@ -196,10 +195,14 @@ export default function ClientsView({ clients: initialClients, projects, invoice
   async function saveClient() {
     if (!selected) return
     setSaving(true)
-    const supabase = createClient()
     const { id, created_at, ...rest } = editForm as Client
     void id; void created_at
-    const { error } = await supabase.from('clients').update(rest).eq('id', selected.id)
+    const res = await fetch('/api/admin/clients', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selected.id, ...rest }),
+    })
+    const { error } = await res.json()
     if (!error) {
       const updated = { ...selected, ...rest }
       setClients((prev) => prev.map((c) => (c.id === selected.id ? updated : c)))
@@ -209,9 +212,12 @@ export default function ClientsView({ clients: initialClients, projects, invoice
   }
 
   async function deleteClient() {
-    if (!selected || !confirm('Eliminar este cliente?')) return
-    const supabase = createClient()
-    await supabase.from('clients').delete().eq('id', selected.id)
+    if (!selected || !confirm('Mover este cliente a la papelera?')) return
+    await fetch('/api/admin/clients', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selected.id }),
+    })
     setClients((prev) => prev.filter((c) => c.id !== selected.id))
     closeDetail()
   }
@@ -219,7 +225,6 @@ export default function ClientsView({ clients: initialClients, projects, invoice
   async function addCommunication() {
     if (!selected || !commForm.summary.trim()) return
     setSavingComm(true)
-    const supabase = createClient()
     const payload = {
       entity_type: 'client',
       entity_id: selected.id,
@@ -227,8 +232,13 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       type: commForm.type,
       summary: commForm.summary.trim(),
     }
-    const { data, error } = await supabase.from('communications').insert(payload).select().single()
-    if (!error && data) {
+    const res = await fetch('/api/admin/communications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const { data } = await res.json()
+    if (data) {
       setComms((prev) => [data as Communication, ...prev])
       setCommForm({ type: 'llamada', summary: '', date: new Date().toISOString().slice(0, 10) })
     }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { createClient } from '@/lib/supabase'
 import TabPanel from '@/components/admin/TabPanel'
 
 interface Supplier { id?: string; name: string; nif?: string; email?: string; phone?: string; specialty?: string; address?: string; contact_person?: string; bank_account?: string; payment_terms?: string; active?: boolean; iban?: string; notes?: string; [k: string]: unknown }
@@ -33,15 +32,34 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
 
   const handleSave = async () => {
     if (!form?.name) return; setSaving(true)
-    const supabase = createClient(); const payload = { ...form }; delete payload.id
-    if (selected?.id) { const { data: u } = await supabase.from('suppliers').update(payload).eq('id', selected.id).select().single(); if (u) setData(p => p.map(r => r.id === selected.id ? u as Supplier : r)) }
-    else { const { data: c } = await supabase.from('suppliers').insert(payload).select().single(); if (c) setData(p => [c as Supplier, ...p]) }
+    const payload = { ...form }; delete payload.id
+    if (selected?.id) {
+      const res = await fetch('/api/admin/suppliers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id, ...payload }),
+      })
+      const { data: u } = await res.json()
+      if (u) setData(p => p.map(r => r.id === selected.id ? u as Supplier : r))
+    } else {
+      const res = await fetch('/api/admin/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const { data: c } = await res.json()
+      if (c) setData(p => [c as Supplier, ...p])
+    }
     setSaving(false); close()
   }
 
   const handleDelete = async () => {
-    if (!selected?.id || !confirm('¿Eliminar?')) return
-    await createClient().from('suppliers').delete().eq('id', selected.id)
+    if (!selected?.id || !confirm('Mover a la papelera?')) return
+    await fetch('/api/admin/suppliers', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selected.id }),
+    })
     setData(p => p.filter(r => r.id !== selected.id)); close()
   }
 

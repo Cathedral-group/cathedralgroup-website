@@ -5,7 +5,6 @@ import DataTable from '@/components/admin/DataTable'
 import TabPanel from '@/components/admin/TabPanel'
 import ProgressBar from '@/components/admin/ProgressBar'
 import LinkedSelect from '@/components/admin/LinkedSelect'
-import { createClient } from '@/lib/supabase'
 
 /* ───────── Types ───────── */
 
@@ -215,10 +214,14 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   async function saveProject() {
     if (!selected) return
     setSaving(true)
-    const supabase = createClient()
     const { id, created_at, ...rest } = editForm as Project
     void id; void created_at
-    const { error } = await supabase.from('projects').update(rest).eq('id', selected.id)
+    const res = await fetch('/api/admin/projects', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selected.id, ...rest }),
+    })
+    const { error } = await res.json()
     if (!error) {
       const updated = { ...selected, ...rest }
       setProjects((prev) => prev.map((p) => (p.id === selected.id ? updated : p)))
@@ -228,9 +231,12 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   }
 
   async function deleteProject() {
-    if (!selected || !confirm('Eliminar este proyecto?')) return
-    const supabase = createClient()
-    await supabase.from('projects').delete().eq('id', selected.id)
+    if (!selected || !confirm('Mover este proyecto a la papelera?')) return
+    await fetch('/api/admin/projects', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selected.id }),
+    })
     setProjects((prev) => prev.filter((p) => p.id !== selected.id))
     closeDetail()
   }
@@ -238,19 +244,24 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   // Phases CRUD
   async function savePhase() {
     if (!selected) return
-    const supabase = createClient()
     if (editingPhaseId) {
-      const { error } = await supabase.from('project_phases').update(phaseForm).eq('id', editingPhaseId)
+      const res = await fetch('/api/admin/project-phases', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingPhaseId, ...phaseForm }),
+      })
+      const { error } = await res.json()
       if (!error) {
         setAllPhases((prev) => prev.map((ph) => (ph.id === editingPhaseId ? { ...ph, ...phaseForm } : ph)))
       }
     } else {
-      const { data, error } = await supabase
-        .from('project_phases')
-        .insert({ ...phaseForm, project_id: selected.id })
-        .select()
-        .single()
-      if (!error && data) {
+      const res = await fetch('/api/admin/project-phases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...phaseForm, project_id: selected.id }),
+      })
+      const { data } = await res.json()
+      if (data) {
         setAllPhases((prev) => [...prev, data as Phase])
       }
     }
@@ -260,8 +271,11 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   }
 
   async function deletePhase(phaseId: string) {
-    const supabase = createClient()
-    await supabase.from('project_phases').delete().eq('id', phaseId)
+    await fetch('/api/admin/project-phases', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: phaseId }),
+    })
     setAllPhases((prev) => prev.filter((ph) => ph.id !== phaseId))
   }
 
@@ -531,8 +545,11 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   <button
                     key={s}
                     onClick={async () => {
-                      const supabase = createClient()
-                      await supabase.from('projects').update({ status: s }).eq('id', selected.id)
+                      await fetch('/api/admin/projects', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: selected.id, status: s }),
+                      })
                       setProjects(prev => prev.map(p => p.id === selected.id ? { ...p, status: s } : p))
                       setSelected({ ...selected, status: s })
                       setEditForm({ ...editForm, status: s })

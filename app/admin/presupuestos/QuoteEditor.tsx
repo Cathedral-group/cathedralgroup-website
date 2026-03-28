@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { createClient } from '@/lib/supabase'
 import MoneyInput from '@/components/admin/MoneyInput'
 
 /* ─── Types ────────────────────────────────────────────────── */
@@ -197,7 +196,6 @@ export default function QuoteEditor({
 
     debounceRef.current = setTimeout(async () => {
       setSaveStatus('saving')
-      const supabase = createClient()
 
       const payload: Record<string, unknown> = {
         number: form.number,
@@ -217,12 +215,12 @@ export default function QuoteEditor({
 
       if (savedIdRef.current) {
         // UPDATE
-        const { data } = await supabase
-          .from('quotes')
-          .update(payload)
-          .eq('id', savedIdRef.current)
-          .select()
-          .single()
+        const res = await fetch('/api/admin/quotes', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: savedIdRef.current, ...payload }),
+        })
+        const { data } = await res.json()
         if (data) {
           const saved = data as Quote
           onSaved(saved, false)
@@ -232,11 +230,12 @@ export default function QuoteEditor({
         }
       } else {
         // INSERT
-        const { data } = await supabase
-          .from('quotes')
-          .insert(payload)
-          .select()
-          .single()
+        const res = await fetch('/api/admin/quotes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const { data } = await res.json()
         if (data) {
           const saved = data as Quote
           savedIdRef.current = saved.id
@@ -278,7 +277,6 @@ export default function QuoteEditor({
 
   /* ── Convert to invoice ── */
   const handleConvertToInvoice = async () => {
-    const supabase = createClient()
     const concept = form.items.map((it) => it.description).filter(Boolean).join(', ') || 'Presupuesto ' + form.number
     const invoicePayload = {
       direction: 'emitida',
@@ -304,11 +302,20 @@ export default function QuoteEditor({
       notes: `Generada desde presupuesto ${form.number}`,
     }
 
-    const { data: inv } = await supabase.from('invoices').insert(invoicePayload).select().single()
+    const res = await fetch('/api/admin/invoices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(invoicePayload),
+    })
+    const { data: inv } = await res.json()
     if (inv) {
       // Update quote status to accepted
       if (savedIdRef.current) {
-        await supabase.from('quotes').update({ status: 'aceptado' }).eq('id', savedIdRef.current)
+        await fetch('/api/admin/quotes', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: savedIdRef.current, status: 'aceptado' }),
+        })
       }
       window.location.href = '/admin/facturas'
     }
@@ -317,8 +324,11 @@ export default function QuoteEditor({
   /* ── Delete ── */
   const handleDelete = async () => {
     if (!savedIdRef.current) return
-    const supabase = createClient()
-    await supabase.from('quotes').delete().eq('id', savedIdRef.current)
+    await fetch('/api/admin/quotes', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: savedIdRef.current }),
+    })
     onDeleted(savedIdRef.current)
   }
 
@@ -348,7 +358,6 @@ export default function QuoteEditor({
   const handleGenerateCertInvoice = async () => {
     if (!savedIdRef.current || !hasPendingInvoice) return
     setGeneratingInvoice(true)
-    const supabase = createClient()
 
     // Build line-by-line descriptions
     const lines: string[] = []
@@ -401,7 +410,12 @@ export default function QuoteEditor({
       notes: `Generada por certificacion del presupuesto ${form.number}`,
     }
 
-    const { data: inv } = await supabase.from('invoices').insert(invoicePayload).select().single()
+    const res = await fetch('/api/admin/invoices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(invoicePayload),
+    })
+    const { data: inv } = await res.json()
     if (inv) {
       // Update invoiced_pct to match certified_pct
       const updatedItems = form.items.map((item) => ({
@@ -414,7 +428,11 @@ export default function QuoteEditor({
         ...totals,
         updated_at: new Date().toISOString(),
       }
-      await supabase.from('quotes').update(updatePayload).eq('id', savedIdRef.current!)
+      await fetch('/api/admin/quotes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: savedIdRef.current!, ...updatePayload }),
+      })
       window.location.href = '/admin/facturas'
     }
     setGeneratingInvoice(false)

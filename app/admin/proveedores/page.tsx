@@ -10,8 +10,8 @@ export default async function ProveedoresPage() {
   const supabase = createAdminSupabaseClient()
 
   const [suppliersRes, invoicesRes] = await Promise.all([
-    supabase.from('suppliers').select('*').order('created_at', { ascending: false }),
-    supabase.from('invoices').select('id, numero, number, concepto, concept, tipo, direction, total, amount_total, estado, payment_status, proyecto_code, supplier_nif, issue_date, payment_date'),
+    supabase.from('suppliers').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
+    supabase.from('invoices').select('id, numero, number, concepto, concept, tipo, direction, total, amount_total, estado, payment_status, proyecto_code, supplier_nif, issue_date, payment_date').is('deleted_at', null),
   ])
 
   return (
