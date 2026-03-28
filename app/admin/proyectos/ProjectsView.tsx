@@ -498,7 +498,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       {selected && (
         <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={closeDetail}>
           <div
-            className="w-full max-w-xl bg-white h-full overflow-y-auto p-8"
+            className="w-full max-w-xl bg-white h-full overflow-y-auto p-4 md:p-8"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -513,6 +513,32 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               <button onClick={closeDetail} className="text-neutral-400 hover:text-neutral-900 text-lg">
                 ✕
               </button>
+            </div>
+
+            {/* Quick status change */}
+            <div className="mb-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">Estado</p>
+              <div className="flex flex-wrap gap-2">
+                {STATUSES.map((s) => (
+                  <button
+                    key={s}
+                    onClick={async () => {
+                      const supabase = createClient()
+                      await supabase.from('projects').update({ status: s }).eq('id', selected.id)
+                      setProjects(prev => prev.map(p => p.id === selected.id ? { ...p, status: s } : p))
+                      setSelected({ ...selected, status: s })
+                      setEditForm({ ...editForm, status: s })
+                    }}
+                    className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+                      (selected.status || 'presupuesto') === s
+                        ? 'bg-neutral-900 text-white'
+                        : 'bg-white border border-neutral-200 text-neutral-500 hover:border-primary'
+                    }`}
+                  >
+                    {s.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Tabs */}

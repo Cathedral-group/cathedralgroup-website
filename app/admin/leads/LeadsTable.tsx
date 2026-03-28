@@ -37,6 +37,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const [editingNotes, setEditingNotes] = useState('')
   const [converting, setConverting] = useState(false)
   const [converted, setConverted] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const filteredLeads = useMemo(() => {
     let result = filter ? leads.filter((l) => (l.lead_status || 'nuevo') === filter) : leads
@@ -298,6 +299,25 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   </div>
                 </div>
               )}
+
+              {/* Delete lead */}
+              <div className="pt-4 border-t border-neutral-100">
+                <button
+                  onClick={async () => {
+                    if (!confirm('¿Eliminar este lead? Esta acción no se puede deshacer.')) return
+                    setDeleting(true)
+                    const supabase = createClient()
+                    await supabase.from('leads').delete().eq('id', selectedLead.id)
+                    setLeads(prev => prev.filter(l => l.id !== selectedLead.id))
+                    setSelectedLead(null)
+                    setDeleting(false)
+                  }}
+                  disabled={deleting}
+                  className="w-full text-red-500 hover:text-red-700 hover:bg-red-50 py-2 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
+                >
+                  {deleting ? '...' : 'Eliminar lead'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
