@@ -12,6 +12,8 @@ interface QuoteItem {
   quantity: number
   unit: string
   unit_price: number
+  base_unit_price?: number  // catalog base price before quality coefficient
+  quality_level?: string    // per-item quality override
   vat_pct: number
   total: number
   certified_pct: number
@@ -95,6 +97,8 @@ function normalizeItem(item: Partial<QuoteItem>): QuoteItem {
     quantity: item.quantity ?? 1,
     unit: item.unit ?? 'ud',
     unit_price: item.unit_price ?? 0,
+    base_unit_price: item.base_unit_price,
+    quality_level: item.quality_level,
     vat_pct: item.vat_pct ?? 21,
     total: item.total ?? 0,
     certified_pct: item.certified_pct ?? 0,
@@ -184,17 +188,23 @@ export default function QuoteEditor({
   const updateItem = useCallback((index: number, field: keyof QuoteItem, value: string | number) => {
     setForm((prev) => {
       const items = [...prev.items]
-      const item = { ...items[index], [field]: value }
+      let item = { ...items[index], [field]: value }
+      // When quality_level changes and we have a base price, recalculate unit_price
+      if (field === 'quality_level' && item.base_unit_price != null) {
+        const coeff = qualityCoefficients.find((q) => q.level === value)?.coefficient ?? 1
+        item = { ...item, unit_price: Math.round(item.base_unit_price * coeff * 100) / 100 }
+      }
       item.total = calcItemTotal(item)
       items[index] = item
       const totals = calcTotals(items)
       return { ...prev, items, ...totals }
     })
-  }, [])
+  }, [qualityCoefficients])
 
   const addItem = useCallback(() => {
     setForm((prev) => {
-      const items = [...prev.items, emptyItem()]
+      const item = { ...emptyItem(), quality_level: prev.quality_level }
+      const items = [...prev.items, item]
       return { ...prev, items }
     })
   }, [])
@@ -501,10 +511,17 @@ export default function QuoteEditor({
   /* ── Quality coefficient helpers ── */
   const currentQuality = qualityCoefficients.find((q) => q.level === form.quality_level) ?? qualityCoefficients[0]
 
-  const addItemsFromCatalog = useCallback((catalogItems: { description: string; unit: string; unit_price: number }[]) => {
+  const addItemsFromCatalog = useCallback((catalogItems: { description: string; unit: string; unit_price: number; base_unit_price: number }[]) => {
     setForm((prev) => {
       const newItems = catalogItems.map((ci) => {
-        const item = { ...emptyItem(), description: ci.description, unit: ci.unit, unit_price: ci.unit_price }
+        const item = {
+          ...emptyItem(),
+          description: ci.description,
+          unit: ci.unit,
+          unit_price: ci.unit_price,
+          base_unit_price: ci.base_unit_price,
+          quality_level: prev.quality_level,
+        }
         item.total = calcItemTotal(item)
         return item
       })
@@ -651,7 +668,7 @@ export default function QuoteEditor({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-100 bg-neutral-50">
-                    {['Descripcion', 'Cant.', 'Ud.', 'Precio ud.', 'IVA %', 'Total', ''].map((h) => (
+                    {['Descripcion', 'Cant.', 'Ud.', 'Precio ud.', 'Cal.', 'IVA %', 'Total', ''].map((h) => (
                       <th key={h} className="text-left px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400 whitespace-nowrap">
                         {h}
                       </th>
@@ -718,6 +735,24 @@ export default function QuoteEditor({
                           value={item.unit_price}
                           onChange={(v) => updateItem(idx, 'unit_price', v)}
                         />
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={item.quality_level ?? form.quality_level}
+                          onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
+                          className={`bg-transparent border-0 focus:ring-0 p-0 text-[10px] font-bold uppercase tracking-wide ${
+                            (item.quality_level ?? form.quality_level) === 'lujo'
+                              ? 'text-amber-600'
+                              : (item.quality_level ?? form.quality_level) === 'premium'
+                              ? 'text-blue-600'
+                              : 'text-neutral-500'
+                          }`}
+                          title={item.base_unit_price != null ? 'Cambiar calidad recalcula el precio' : 'Nivel de calidad'}
+                        >
+                          {qualityCoefficients.map((q) => (
+                            <option key={q.level} value={q.level}>{q.label}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-2">
                         <select
@@ -987,22 +1022,28 @@ export default function QuoteEditor({
       )}
 
       {/* Inline catalog dropdown (per-row) */}
-      {openCatalogForRow !== null && (
-        <CatalogDropdown
-          items={catalogItems}
-          qualityCoefficient={currentQuality?.coefficient ?? 1}
-          position={catalogDropdownPos}
-          onSelect={(ci) => {
-            updateItemMulti(openCatalogForRow, {
-              description: ci.description,
-              unit: ci.unit,
-              unit_price: ci.unit_price,
-            })
-            setOpenCatalogForRow(null)
-          }}
-          onClose={() => setOpenCatalogForRow(null)}
-        />
-      )}
+      {openCatalogForRow !== null && (() => {
+        const rowQualityLevel = form.items[openCatalogForRow]?.quality_level ?? form.quality_level
+        const rowCoeff = qualityCoefficients.find((q) => q.level === rowQualityLevel)?.coefficient ?? (currentQuality?.coefficient ?? 1)
+        return (
+          <CatalogDropdown
+            items={catalogItems}
+            qualityCoefficient={rowCoeff}
+            position={catalogDropdownPos}
+            onSelect={(ci) => {
+              updateItemMulti(openCatalogForRow, {
+                description: ci.description,
+                unit: ci.unit,
+                unit_price: ci.unit_price,
+                base_unit_price: ci.base_unit_price,
+                quality_level: rowQualityLevel,
+              })
+              setOpenCatalogForRow(null)
+            }}
+            onClose={() => setOpenCatalogForRow(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

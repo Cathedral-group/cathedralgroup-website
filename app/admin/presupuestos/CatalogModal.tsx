@@ -17,7 +17,7 @@ interface CatalogItem {
 interface CatalogModalProps {
   qualityCoefficient: number
   qualityLabel: string
-  onAdd: (items: { description: string; unit: string; unit_price: number }[]) => void
+  onAdd: (items: { description: string; unit: string; unit_price: number; base_unit_price: number }[]) => void
   onClose: () => void
 }
 
@@ -78,6 +78,7 @@ export default function CatalogModal({ qualityCoefficient, qualityLabel, onAdd, 
         description: it.description,
         unit: it.unit,
         unit_price: Math.round(it.unit_price * qualityCoefficient * 100) / 100,
+        base_unit_price: it.unit_price,
       }))
     onAdd(toAdd)
   }
