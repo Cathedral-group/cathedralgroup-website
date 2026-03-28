@@ -45,7 +45,7 @@ export default function Zones() {
       {/* Google Maps Embed — full width */}
       <div className="h-96 relative overflow-hidden" style={{ filter: 'grayscale(100%) opacity(0.7)' }}>
         <iframe
-          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d97200!2d-3.72!3d40.45!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xd4228e23705d39f%3A0x9a90c2e9e63b2ed9!2sPaseo%20de%20la%20Castellana%2C%2040%2C%2028046%20Madrid!5e0!3m2!1ses!2ses!4v1"
+          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d48800!2d-3.72!3d40.44!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xd4228e23705d39f%3A0xa6835401e4cd4c25!2sPaseo%20de%20la%20Castellana%2C%2040%2C%2028046%20Madrid%2C%20Spain!5e0!3m2!1ses!2ses!4v1711574400000"
           width="100%"
           height="100%"
           style={{ border: 0 }}
