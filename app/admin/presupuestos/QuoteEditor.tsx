@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import MoneyInput from '@/components/admin/MoneyInput'
+import CatalogModal from './CatalogModal'
 
 /* ─── Types ────────────────────────────────────────────────── */
 
@@ -22,6 +23,7 @@ interface Quote {
   client_id: string | null
   project_id: string | null
   status: string
+  quality_level: string
   valid_until: string | null
   items: QuoteItem[]
   subtotal: number
@@ -131,6 +133,7 @@ export default function QuoteEditor({
       client_id: null,
       project_id: null,
       status: 'borrador',
+      quality_level: 'estandar',
       valid_until: plus30(),
       items: [emptyItem()],
       subtotal: 0,
@@ -146,6 +149,12 @@ export default function QuoteEditor({
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [catalogOpen, setCatalogOpen] = useState(false)
+  const [qualityCoefficients, setQualityCoefficients] = useState<{level: string; coefficient: number; label: string}[]>([
+    { level: 'estandar', coefficient: 1.0, label: 'Estándar' },
+    { level: 'premium', coefficient: 2.0, label: 'Premium' },
+    { level: 'lujo', coefficient: 3.0, label: 'Lujo' },
+  ])
   const [certModalOpen, setCertModalOpen] = useState(false)
   const [certDraft, setCertDraft] = useState<number[]>([])
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
@@ -202,6 +211,7 @@ export default function QuoteEditor({
         client_id: form.client_id || null,
         project_id: form.project_id || null,
         status: form.status,
+        quality_level: form.quality_level,
         valid_until: form.valid_until || null,
         items: form.items,
         subtotal: form.subtotal,
@@ -253,10 +263,18 @@ export default function QuoteEditor({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    form.number, form.client_id, form.project_id, form.status,
+    form.number, form.client_id, form.project_id, form.status, form.quality_level,
     form.valid_until, form.items, form.notes, form.conditions,
     form.subtotal, form.vat_total, form.total,
   ])
+
+  /* ── Load quality coefficients ── */
+  useEffect(() => {
+    fetch('/api/quality-coefficients')
+      .then((r) => r.json())
+      .then((d) => { if (d.data?.length) setQualityCoefficients(d.data) })
+      .catch(() => {})
+  }, [])
 
   /* ── Duplicate ── */
   const handleDuplicate = () => {
@@ -452,6 +470,23 @@ export default function QuoteEditor({
     { totalBudget: 0, totalCertified: 0, totalInvoiced: 0, totalPending: 0 },
   )
 
+  /* ── Quality coefficient helpers ── */
+  const currentQuality = qualityCoefficients.find((q) => q.level === form.quality_level) ?? qualityCoefficients[0]
+
+  const addItemsFromCatalog = useCallback((catalogItems: { description: string; unit: string; unit_price: number }[]) => {
+    setForm((prev) => {
+      const newItems = catalogItems.map((ci) => {
+        const item = { ...emptyItem(), description: ci.description, unit: ci.unit, unit_price: ci.unit_price }
+        item.total = calcItemTotal(item)
+        return item
+      })
+      const items = [...prev.items.filter((it) => it.description || it.unit_price > 0), ...newItems]
+      const totals = calcTotals(items)
+      return { ...prev, items, ...totals }
+    })
+    setCatalogOpen(false)
+  }, [])
+
   /* ── Style helpers ── */
   const labelCls = 'text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-2'
   const inputCls = 'w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-3 text-sm'
@@ -480,6 +515,16 @@ export default function QuoteEditor({
           <option value="enviado">Enviado</option>
           <option value="aceptado">Aceptado</option>
           <option value="rechazado">Rechazado</option>
+        </select>
+        <div className="w-px h-5 bg-neutral-200 hidden sm:block" />
+        <select
+          value={form.quality_level}
+          onChange={(e) => set('quality_level', e.target.value)}
+          className="text-[10px] font-bold uppercase tracking-widest border border-neutral-200 px-2 py-1 bg-white focus:ring-1 focus:ring-primary hidden sm:block"
+        >
+          {qualityCoefficients.map((q) => (
+            <option key={q.level} value={q.level}>{q.label} ×{q.coefficient}</option>
+          ))}
         </select>
         <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-amber-500' : saveStatus === 'saved' ? 'text-green-600' : 'text-transparent'}`}>
           {saveStatus === 'saving' ? '⏳ Guardando...' : '✓ Guardado'}
@@ -658,7 +703,7 @@ export default function QuoteEditor({
             </button>
             <span className="text-neutral-200">|</span>
             <button
-              onClick={() => alert('Catálogo de partidas — próximamente')}
+              onClick={() => setCatalogOpen(true)}
               className="text-xs font-bold uppercase tracking-widest text-primary/60 hover:text-primary transition-colors"
             >
               + Desde catálogo
@@ -875,6 +920,16 @@ export default function QuoteEditor({
         )}
         </div>{/* end max-w-5xl */}
       </div>{/* end scrollable */}
+
+      {/* Catalog modal */}
+      {catalogOpen && currentQuality && (
+        <CatalogModal
+          qualityCoefficient={currentQuality.coefficient}
+          qualityLabel={currentQuality.label}
+          onAdd={addItemsFromCatalog}
+          onClose={() => setCatalogOpen(false)}
+        />
+      )}
     </div>
   )
 }

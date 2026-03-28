@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { label: 'Presupuestos', href: '/admin/presupuestos', icon: '📋' },
   { label: 'Informes', href: '/admin/informes', icon: '📈' },
   { label: 'Papelera', href: '/admin/papelera', icon: '🗑️' },
+  { label: 'Configuración', href: '/admin/configuracion', icon: '⚙️' },
 ]
 
 interface AdminSidebarProps {
