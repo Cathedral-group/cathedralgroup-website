@@ -459,39 +459,63 @@ export default function QuoteEditor({
   const sectionTitle = 'text-[11px] font-bold uppercase tracking-widest text-neutral-300 mb-3'
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={onClose}>
-      <div
-        className="w-full sm:max-w-2xl bg-white h-full overflow-y-auto px-4 py-6 sm:p-8"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h2 className="text-lg font-medium">
-              {isEdit ? 'Editar presupuesto' : 'Nuevo presupuesto'}
-            </h2>
-            <span
-              className={`mt-1 inline-block text-xs font-medium ${
-                saveStatus === 'saving'
-                  ? 'text-amber-500'
-                  : saveStatus === 'saved'
-                  ? 'text-green-600'
-                  : 'text-neutral-300'
-              }`}
-            >
-              {saveStatus === 'saving' && '\u23F3 Guardando...'}
-              {saveStatus === 'saved' && '\u2713 Guardado'}
-            </span>
-          </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-900 text-lg">
-            &#x2715;
-          </button>
+    <div className="fixed inset-0 bg-white z-50 flex flex-col overflow-hidden">
+      {/* ── Top bar ── */}
+      <div className="flex-none border-b border-neutral-100 bg-white px-4 sm:px-8 py-3 flex items-center gap-4">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-900 transition-colors"
+        >
+          <span className="text-base leading-none">&#8592;</span>
+          <span className="hidden sm:inline">Presupuestos</span>
+        </button>
+        <div className="w-px h-5 bg-neutral-200" />
+        <span className="text-sm font-mono text-neutral-600">{form.number || '—'}</span>
+        <select
+          value={form.status}
+          onChange={(e) => set('status', e.target.value)}
+          className="text-[10px] font-bold uppercase tracking-widest border border-neutral-200 px-2 py-1 bg-white focus:ring-1 focus:ring-primary"
+        >
+          <option value="borrador">Borrador</option>
+          <option value="enviado">Enviado</option>
+          <option value="aceptado">Aceptado</option>
+          <option value="rechazado">Rechazado</option>
+        </select>
+        <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-amber-500' : saveStatus === 'saved' ? 'text-green-600' : 'text-transparent'}`}>
+          {saveStatus === 'saving' ? '⏳ Guardando...' : '✓ Guardado'}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {savedIdRef.current && (
+            <>
+              <button onClick={handleDuplicate} className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors">
+                Duplicar
+              </button>
+              <button onClick={handleConvertToInvoice} className="hidden sm:block bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">
+                Convertir a factura
+              </button>
+              {confirmDelete ? (
+                <button onClick={handleDelete} className="bg-red-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-colors">
+                  Confirmar
+                </button>
+              ) : (
+                <button onClick={() => setConfirmDelete(true)} className="border border-red-200 text-red-500 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50 transition-colors">
+                  Eliminar
+                </button>
+              )}
+            </>
+          )}
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-900 text-xl leading-none ml-1">&#x2715;</button>
         </div>
+      </div>
+
+      {/* ── Scrollable content ── */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8">
 
         {/* 1. Identity */}
         <div className={sectionCls}>
           <p className={sectionTitle}>Datos basicos</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             <div>
               <label className={labelCls}>Numero</label>
               <input
@@ -502,21 +526,6 @@ export default function QuoteEditor({
                 placeholder="P-2026-001"
               />
             </div>
-            <div>
-              <label className={labelCls}>Estado</label>
-              <select
-                value={form.status}
-                onChange={(e) => set('status', e.target.value)}
-                className={inputCls}
-              >
-                <option value="borrador">Borrador</option>
-                <option value="enviado">Enviado</option>
-                <option value="aceptado">Aceptado</option>
-                <option value="rechazado">Rechazado</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div>
               <label className={labelCls}>Cliente</label>
               <select
@@ -544,7 +553,7 @@ export default function QuoteEditor({
               </select>
             </div>
           </div>
-          <div>
+          <div className="max-w-xs">
             <label className={labelCls}>Valido hasta</label>
             <input
               type="date"
@@ -640,12 +649,21 @@ export default function QuoteEditor({
             </div>
           </div>
 
-          <button
-            onClick={addItem}
-            className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-primary transition-colors"
-          >
-            + Anadir partida
-          </button>
+          <div className="flex items-center gap-4 mt-2">
+            <button
+              onClick={addItem}
+              className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-primary transition-colors"
+            >
+              + Añadir partida
+            </button>
+            <span className="text-neutral-200">|</span>
+            <button
+              onClick={() => alert('Catálogo de partidas — próximamente')}
+              className="text-xs font-bold uppercase tracking-widest text-primary/60 hover:text-primary transition-colors"
+            >
+              + Desde catálogo
+            </button>
+          </div>
 
           {/* Totals footer */}
           <div className="bg-neutral-50 p-4 mt-4 space-y-2">
@@ -844,44 +862,19 @@ export default function QuoteEditor({
           />
         </div>
 
-        {/* 4. Actions */}
-        <div className="space-y-3 pt-4 border-t border-neutral-100">
-          {savedIdRef.current && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleDuplicate}
-                  className="border border-neutral-200 py-2.5 text-xs font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
-                >
-                  Duplicar presupuesto
-                </button>
-                <button
-                  onClick={handleConvertToInvoice}
-                  className="bg-blue-600 text-white py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors"
-                >
-                  Convertir a factura
-                </button>
-              </div>
-
-              {confirmDelete ? (
-                <button
-                  onClick={handleDelete}
-                  className="w-full bg-red-600 text-white py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-colors"
-                >
-                  Confirmar eliminar
-                </button>
-              ) : (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="w-full border border-red-200 text-red-500 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-red-50 transition-colors"
-                >
-                  Eliminar
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+        {/* Actions on mobile (top bar ones are hidden sm:hidden) */}
+        {savedIdRef.current && (
+          <div className="flex flex-wrap gap-2 pt-4 border-t border-neutral-100 sm:hidden">
+            <button onClick={handleDuplicate} className="border border-neutral-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors">
+              Duplicar
+            </button>
+            <button onClick={handleConvertToInvoice} className="bg-blue-600 text-white px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">
+              Convertir a factura
+            </button>
+          </div>
+        )}
+        </div>{/* end max-w-5xl */}
+      </div>{/* end scrollable */}
     </div>
   )
 }
