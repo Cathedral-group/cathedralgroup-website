@@ -27,6 +27,7 @@ interface Quote {
   project_id: string | null
   status: string
   quality_level: string
+  quality_coefficient_override: number | null
   valid_until: string | null
   items: QuoteItem[]
   subtotal: number
@@ -148,6 +149,7 @@ export default function QuoteEditor({
       project_id: null,
       status: 'borrador',
       quality_level: 'estandar',
+      quality_coefficient_override: null,
       valid_until: plus30(),
       items: [emptyItem()],
       subtotal: 0,
@@ -191,18 +193,16 @@ export default function QuoteEditor({
       let item = { ...items[index], [field]: value }
 
       if (field === 'unit_price') {
-        // Keep base_unit_price in sync so quality changes can recalculate later
         const currentLevel = items[index].quality_level ?? prev.quality_level
-        const currentCoeff = qualityCoefficients.find((q) => q.level === currentLevel)?.coefficient ?? 1
+        const currentCoeff = currentLevel === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === currentLevel)?.coefficient ?? 1)
         const numVal = Number(value)
         item = { ...item, base_unit_price: currentCoeff !== 0 ? Math.round((numVal / currentCoeff) * 100) / 100 : numVal }
       }
 
       if (field === 'quality_level' && typeof value === 'string') {
         const oldLevel = items[index].quality_level ?? prev.quality_level
-        const oldCoeff = qualityCoefficients.find((q) => q.level === oldLevel)?.coefficient ?? 1
-        const newCoeff = qualityCoefficients.find((q) => q.level === value)?.coefficient ?? 1
-        // Use stored base price, or derive it from current price ÷ old coefficient
+        const oldCoeff = oldLevel === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === oldLevel)?.coefficient ?? 1)
+        const newCoeff = value === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === value)?.coefficient ?? 1)
         const base = items[index].base_unit_price ?? (oldCoeff !== 0 ? Math.round((items[index].unit_price / oldCoeff) * 100) / 100 : items[index].unit_price)
         item = { ...item, unit_price: Math.round(base * newCoeff * 100) / 100, base_unit_price: base }
       }
@@ -259,6 +259,7 @@ export default function QuoteEditor({
         project_id: form.project_id || null,
         status: form.status,
         quality_level: form.quality_level,
+        quality_coefficient_override: form.quality_coefficient_override ?? null,
         valid_until: form.valid_until || null,
         items: form.items,
         subtotal: form.subtotal,
@@ -311,6 +312,7 @@ export default function QuoteEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     form.number, form.client_id, form.project_id, form.status, form.quality_level,
+    form.quality_coefficient_override,
     form.valid_until, form.items, form.notes, form.conditions,
     form.subtotal, form.vat_total, form.total,
   ])
@@ -521,9 +523,6 @@ export default function QuoteEditor({
     { totalBudget: 0, totalCertified: 0, totalInvoiced: 0, totalPending: 0 },
   )
 
-  /* ── Quality coefficient helpers ── */
-  const currentQuality = qualityCoefficients.find((q) => q.level === form.quality_level) ?? qualityCoefficients[0]
-
   /** When the global VAT changes, apply it to all items */
   const handleGlobalVatChange = useCallback((newVat: number) => {
     setForm((prev) => {
@@ -537,20 +536,35 @@ export default function QuoteEditor({
     })
   }, [])
 
+  /** Resolve coefficient for a given quality level, considering the personalizado override */
+  const resolveCoeff = useCallback((level: string, override: number | null): number => {
+    if (level === 'personalizado') return override ?? 1
+    return qualityCoefficients.find((q) => q.level === level)?.coefficient ?? 1
+  }, [qualityCoefficients])
+
+  /* ── Quality computed values ── */
+  const currentQualityCoeff = form.quality_level === 'personalizado'
+    ? (form.quality_coefficient_override ?? 1)
+    : (qualityCoefficients.find((q) => q.level === form.quality_level)?.coefficient ?? 1)
+  const currentQuality = form.quality_level === 'personalizado'
+    ? { level: 'personalizado', coefficient: currentQualityCoeff, label: 'Personalizado' }
+    : (qualityCoefficients.find((q) => q.level === form.quality_level) ?? qualityCoefficients[0])
+
   /** When the global quality level changes, recalculate all items and update row quality_level */
-  const handleGlobalQualityChange = useCallback((newLevel: string) => {
+  const handleGlobalQualityChange = useCallback((newLevel: string, override?: number | null) => {
     setForm((prev) => {
-      const newCoeff = qualityCoefficients.find((q) => q.level === newLevel)?.coefficient ?? 1
+      const effectiveOverride = override !== undefined ? override : (newLevel === 'personalizado' ? prev.quality_coefficient_override : null)
+      const newCoeff = newLevel === 'personalizado' ? (effectiveOverride ?? 1) : (qualityCoefficients.find((q) => q.level === newLevel)?.coefficient ?? 1)
       const items = prev.items.map((item) => {
         const currentLevel = item.quality_level ?? prev.quality_level
-        const currentCoeff = qualityCoefficients.find((q) => q.level === currentLevel)?.coefficient ?? 1
+        const currentCoeff = currentLevel === 'personalizado' ? (prev.quality_coefficient_override ?? 1) : (qualityCoefficients.find((q) => q.level === currentLevel)?.coefficient ?? 1)
         const base = item.base_unit_price ?? (currentCoeff !== 0 ? Math.round((item.unit_price / currentCoeff) * 100) / 100 : item.unit_price)
         const updated = { ...item, quality_level: newLevel, unit_price: Math.round(base * newCoeff * 100) / 100, base_unit_price: base }
         updated.total = calcItemTotal(updated)
         return updated
       })
       const totals = calcTotals(items)
-      return { ...prev, quality_level: newLevel, items, ...totals }
+      return { ...prev, quality_level: newLevel, quality_coefficient_override: effectiveOverride ?? null, items, ...totals }
     })
   }, [qualityCoefficients])
 
@@ -613,7 +627,25 @@ export default function QuoteEditor({
           {qualityCoefficients.map((q) => (
             <option key={q.level} value={q.level}>{q.label} ×{q.coefficient}</option>
           ))}
+          <option value="personalizado">Personalizado</option>
         </select>
+        {form.quality_level === 'personalizado' && (
+          <div className="hidden sm:flex items-center gap-1">
+            <span className="text-[10px] text-neutral-400 font-bold">×</span>
+            <input
+              type="number"
+              value={form.quality_coefficient_override ?? 1}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 1
+                handleGlobalQualityChange('personalizado', val)
+              }}
+              step="0.05"
+              min="0.1"
+              className="w-16 text-[10px] font-bold border border-neutral-200 px-2 py-1 bg-white focus:ring-1 focus:ring-primary text-center"
+              title="Coeficiente personalizado"
+            />
+          </div>
+        )}
         <select
           value={form.items[0]?.vat_pct ?? 21}
           onChange={(e) => handleGlobalVatChange(Number(e.target.value))}
@@ -805,6 +837,7 @@ export default function QuoteEditor({
                           {qualityCoefficients.map((q) => (
                             <option key={q.level} value={q.level}>{q.label}</option>
                           ))}
+                          <option value="personalizado">Pers.</option>
                         </select>
                       </td>
                       <td className="px-3 py-2">
@@ -1077,7 +1110,7 @@ export default function QuoteEditor({
       {/* Inline catalog dropdown (per-row) */}
       {openCatalogForRow !== null && (() => {
         const rowQualityLevel = form.items[openCatalogForRow]?.quality_level ?? form.quality_level
-        const rowCoeff = qualityCoefficients.find((q) => q.level === rowQualityLevel)?.coefficient ?? (currentQuality?.coefficient ?? 1)
+        const rowCoeff = resolveCoeff(rowQualityLevel, form.quality_coefficient_override)
         return (
           <CatalogDropdown
             items={catalogItems}

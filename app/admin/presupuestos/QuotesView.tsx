@@ -10,6 +10,7 @@ interface Quote {
   project_id: string | null
   status: string
   quality_level: string
+  quality_coefficient_override: number | null
   valid_until: string | null
   items: QuoteItem[]
   subtotal: number
