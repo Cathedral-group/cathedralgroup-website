@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: 'Clientes', href: '/admin/clientes', icon: '👤' },
   { label: 'Proveedores', href: '/admin/proveedores', icon: '🔧' },
   { label: 'Facturas', href: '/admin/facturas', icon: '📄' },
+  { label: 'Presupuestos', href: '/admin/presupuestos', icon: '📋' },
   { label: 'Informes', href: '/admin/informes', icon: '📈' },
 ]
 
