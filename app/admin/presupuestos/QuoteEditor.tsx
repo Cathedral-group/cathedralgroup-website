@@ -869,16 +869,14 @@ export default function QuoteEditor({
                 <thead>
                   <tr className="border-b border-neutral-100 bg-neutral-50">
                     {[
-                      {h:'Cert%', cls:'px-2 py-2 w-10'},
-                      {h:'Fact%', cls:'px-2 py-2 w-10'},
+                      {h:'Cert%', cls:'px-1 py-2 w-10'},
+                      {h:'Fact%', cls:'px-1 py-2 w-10'},
                       {h:'Descripcion', cls:'px-3 py-2'},
-                      {h:'Cant.', cls:'px-3 py-2'},
+                      {h:'Cant.', cls:'px-2 py-2'},
                       {h:'Ud.', cls:'px-2 py-2'},
-                      {h:'Precio', cls:'px-3 py-2'},
-                      {h:'Cal.', cls:'px-2 py-2 w-16'},
-                      {h:'IVA', cls:'px-2 py-2'},
-                      {h:'Total', cls:'px-3 py-2'},
-                      {h:'Benef.', cls:'px-3 py-2'},
+                      {h:'Precio', cls:'px-2 py-2'},
+                      {h:'Total', cls:'px-2 py-2'},
+                      {h:'Benef.', cls:'px-2 py-2'},
                       {h:'', cls:'px-2 py-2'},
                     ].map(({h, cls}) => (
                       <th key={h} className={`text-left text-[10px] font-bold uppercase tracking-widest text-neutral-400 whitespace-nowrap ${cls}`}>
@@ -923,7 +921,7 @@ export default function QuoteEditor({
 
                       const headerRow = showChapterHeader ? (
                         <tr key={`ch-${idx}`} className="bg-neutral-100 border-t-2 border-neutral-200">
-                          <td colSpan={11} className="px-3 py-2">
+                          <td colSpan={9} className="px-3 py-2">
                             <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
                               {chapterSeq[item.chapter_code!]} — {item.chapter_name}
                             </span>
@@ -938,13 +936,13 @@ export default function QuoteEditor({
                       const subtotalRow = showSubtotal ? (
                         <tr key={`sub-${idx}`} className="bg-neutral-50 border-t border-neutral-200 text-[10px] font-bold">
                           <td colSpan={2} />
-                          <td colSpan={6} className="px-3 py-1.5 text-right text-neutral-400 uppercase tracking-widest">
+                          <td colSpan={4} className="px-3 py-1.5 text-right text-neutral-400 uppercase tracking-widest">
                             Subtotal {item.chapter_name}
                           </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-neutral-600 whitespace-nowrap">
+                          <td className="px-2 py-1.5 text-right tabular-nums text-neutral-600 whitespace-nowrap">
                             {formatEur(chTotal)}
                           </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
+                          <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap">
                             {chMarg != null ? (
                               <span className={chMarg >= 0 ? 'text-green-600' : 'text-red-500'}>
                                 {formatEur(chMarg)}{chMargPct != null ? ` (${chMargPct.toFixed(0)}%)` : ''}
@@ -981,7 +979,7 @@ export default function QuoteEditor({
                           </td>
                           {/* Description */}
                           <td className="px-3 py-2 border-l border-neutral-100">
-                            <div className="flex items-start gap-1 min-w-[140px] sm:min-w-[200px]">
+                            <div className="flex items-start gap-1 min-w-[120px]">
                               <div className="grid flex-1 text-sm leading-snug [&>textarea]:col-[1] [&>textarea]:row-[1] [&>span]:col-[1] [&>span]:row-[1]">
                                 <span className="invisible whitespace-pre-wrap break-words p-0 min-h-[1.375rem]" aria-hidden>{(item.description || ' ') + ' '}</span>
                                 <textarea
@@ -1013,88 +1011,52 @@ export default function QuoteEditor({
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-2">
+                          {/* Cantidad */}
+                          <td className="px-2 py-2">
                             <input
                               type="number"
                               value={item.quantity}
                               onChange={(e) => updateItem(idx, 'quantity', Number(e.target.value) || 0)}
-                              className="bg-transparent border-0 focus:ring-0 p-0 text-sm w-16 tabular-nums"
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-sm w-12 tabular-nums"
                               min="0"
                               step="0.01"
                             />
                           </td>
-                          <td className="px-3 py-2">
+                          {/* Unidad */}
+                          <td className="px-2 py-2">
                             <select
                               value={item.unit}
                               onChange={(e) => updateItem(idx, 'unit', e.target.value)}
                               className="bg-transparent border-0 focus:ring-0 p-0 text-sm"
                             >
                               <option value="ud">ud</option>
-                              <option value="m2">m&sup2;</option>
+                              <option value="m2">m²</option>
                               <option value="ml">ml</option>
                               <option value="pa">pa</option>
                             </select>
                           </td>
-                          <td className="px-3 py-2">
-                            <MoneyInput
-                              value={item.unit_price}
-                              onChange={(v) => updateItem(idx, 'unit_price', v)}
+                          {/* Precio unitario (compacto) */}
+                          <td className="px-2 py-2">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              defaultValue={item.unit_price.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                              key={`price-${idx}-${item.unit_price}`}
+                              onFocus={(e) => { e.target.value = item.unit_price ? String(item.unit_price) : '' }}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value.replace(',', '.')) || 0
+                                updateItem(idx, 'unit_price', val)
+                                e.target.value = val.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+                              }}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-sm w-20 tabular-nums text-right"
                             />
                           </td>
-                          <td className="px-2 py-2 w-16">
-                            <div className="flex items-center gap-1">
-                              <select
-                                value={item.quality_level ?? form.quality_level}
-                                onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
-                                className={`bg-transparent border-0 focus:ring-0 p-0 text-[10px] font-bold uppercase tracking-wide ${
-                                  (item.quality_level ?? form.quality_level) === 'lujo'
-                                    ? 'text-amber-600'
-                                    : (item.quality_level ?? form.quality_level) === 'premium'
-                                    ? 'text-blue-600'
-                                    : (item.quality_level ?? form.quality_level) === 'personalizado'
-                                    ? 'text-purple-600'
-                                    : 'text-neutral-500'
-                                }`}
-                              >
-                                {qualityCoefficients.map((q) => (
-                                  <option key={q.level} value={q.level}>
-                                    {q.level === 'estandar' ? 'Est.' : q.level === 'premium' ? 'Prem.' : q.label}
-                                  </option>
-                                ))}
-                                <option value="personalizado">Pers.</option>
-                              </select>
-                              {(item.quality_level ?? form.quality_level) === 'personalizado' && (
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  defaultValue={item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1.25}
-                                  key={`coeff-${idx}-${item.quality_coefficient_override}`}
-                                  onBlur={(e) => {
-                                    const val = parseFloat(e.target.value.replace(',', '.')) || 1
-                                    updateItem(idx, 'quality_coefficient_override', val)
-                                  }}
-                                  className="w-14 bg-transparent border-0 border-b border-purple-300 focus:ring-0 p-0 text-[10px] font-bold text-purple-600 text-center"
-                                  title="Coeficiente personalizado para esta partida"
-                                />
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <select
-                              value={item.vat_pct}
-                              onChange={(e) => updateItem(idx, 'vat_pct', Number(e.target.value))}
-                              className="bg-transparent border-0 focus:ring-0 p-0 text-sm"
-                            >
-                              <option value={0}>0%</option>
-                              <option value={10}>10%</option>
-                              <option value={21}>21%</option>
-                            </select>
-                          </td>
-                          <td className="px-3 py-2 text-sm tabular-nums text-right whitespace-nowrap font-medium border-l border-neutral-100">
+                          {/* Total */}
+                          <td className="px-2 py-2 text-sm tabular-nums text-right whitespace-nowrap font-medium">
                             {formatEur(item.total)}
                           </td>
                           {/* Beneficio */}
-                          <td className="px-3 py-2 text-right whitespace-nowrap">
+                          <td className="px-2 py-2 text-right whitespace-nowrap">
                             {itemMargin != null ? (
                               <span className={`text-xs font-medium ${itemMargin >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                                 <span className="block tabular-nums">{formatEur(itemMargin)}</span>
@@ -1102,7 +1064,7 @@ export default function QuoteEditor({
                               </span>
                             ) : <span className="text-neutral-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2">
                             <button
                               onClick={() => removeItem(idx)}
                               className="text-neutral-300 hover:text-red-500 transition-colors text-lg leading-none"
