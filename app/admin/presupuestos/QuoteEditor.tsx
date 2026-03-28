@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import MoneyInput from '@/components/admin/MoneyInput'
 import CatalogModal from './CatalogModal'
+import CatalogDropdown from './CatalogDropdown'
 
 /* ─── Types ────────────────────────────────────────────────── */
 
@@ -45,6 +46,15 @@ interface Project {
   id: string
   code: string
   name: string
+}
+
+interface CatalogItem {
+  id: string
+  chapter_code: string
+  chapter_name: string
+  description: string
+  unit: string
+  unit_price: number
 }
 
 interface QuoteEditorProps {
@@ -155,6 +165,9 @@ export default function QuoteEditor({
     { level: 'premium', coefficient: 2.0, label: 'Premium' },
     { level: 'lujo', coefficient: 3.0, label: 'Lujo' },
   ])
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
+  const [openCatalogForRow, setOpenCatalogForRow] = useState<number | null>(null)
+  const [catalogDropdownPos, setCatalogDropdownPos] = useState({ top: 0, left: 0 })
   const [certModalOpen, setCertModalOpen] = useState(false)
   const [certDraft, setCertDraft] = useState<number[]>([])
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
@@ -189,6 +202,17 @@ export default function QuoteEditor({
   const removeItem = useCallback((index: number) => {
     setForm((prev) => {
       const items = prev.items.filter((_, i) => i !== index)
+      const totals = calcTotals(items)
+      return { ...prev, items, ...totals }
+    })
+  }, [])
+
+  const updateItemMulti = useCallback((index: number, updates: Partial<QuoteItem>) => {
+    setForm((prev) => {
+      const items = [...prev.items]
+      const item = { ...items[index], ...updates }
+      item.total = calcItemTotal(item)
+      items[index] = item
       const totals = calcTotals(items)
       return { ...prev, items, ...totals }
     })
@@ -268,11 +292,15 @@ export default function QuoteEditor({
     form.subtotal, form.vat_total, form.total,
   ])
 
-  /* ── Load quality coefficients ── */
+  /* ── Load quality coefficients + catalog ── */
   useEffect(() => {
     fetch('/api/db/quality-coefficients')
       .then((r) => r.json())
       .then((d) => { if (d.data?.length) setQualityCoefficients(d.data) })
+      .catch(() => {})
+    fetch('/api/db/catalog')
+      .then((r) => r.json())
+      .then((d) => { if (d.data?.length) setCatalogItems(d.data) })
       .catch(() => {})
   }, [])
 
@@ -634,13 +662,34 @@ export default function QuoteEditor({
                   {form.items.map((item, idx) => (
                     <tr key={idx}>
                       <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => updateItem(idx, 'description', e.target.value)}
-                          className="bg-transparent border-0 focus:ring-0 p-0 text-sm w-full min-w-[120px] sm:min-w-[180px]"
-                          placeholder="Descripcion..."
-                        />
+                        <div className="flex items-center gap-1 min-w-[140px] sm:min-w-[200px]">
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => updateItem(idx, 'description', e.target.value)}
+                            className="bg-transparent border-0 focus:ring-0 p-0 text-sm flex-1"
+                            placeholder="Descripcion..."
+                          />
+                          {catalogItems.length > 0 && (
+                            <button
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                if (openCatalogForRow === idx) {
+                                  setOpenCatalogForRow(null)
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  setCatalogDropdownPos({ top: rect.bottom, left: rect.right - 480 })
+                                  setOpenCatalogForRow(idx)
+                                }
+                              }}
+                              className={`flex-none text-sm transition-colors px-0.5 leading-none ${openCatalogForRow === idx ? 'text-primary' : 'text-neutral-300 hover:text-primary'}`}
+                              title="Buscar en catálogo"
+                            >
+                              ☰
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -927,13 +976,31 @@ export default function QuoteEditor({
         </div>{/* end max-w-5xl */}
       </div>{/* end scrollable */}
 
-      {/* Catalog modal */}
+      {/* Catalog modal (multi-select) */}
       {catalogOpen && currentQuality && (
         <CatalogModal
           qualityCoefficient={currentQuality.coefficient}
           qualityLabel={currentQuality.label}
           onAdd={addItemsFromCatalog}
           onClose={() => setCatalogOpen(false)}
+        />
+      )}
+
+      {/* Inline catalog dropdown (per-row) */}
+      {openCatalogForRow !== null && (
+        <CatalogDropdown
+          items={catalogItems}
+          qualityCoefficient={currentQuality?.coefficient ?? 1}
+          position={catalogDropdownPos}
+          onSelect={(ci) => {
+            updateItemMulti(openCatalogForRow, {
+              description: ci.description,
+              unit: ci.unit,
+              unit_price: ci.unit_price,
+            })
+            setOpenCatalogForRow(null)
+          }}
+          onClose={() => setOpenCatalogForRow(null)}
         />
       )}
     </div>
