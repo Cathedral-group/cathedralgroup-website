@@ -74,13 +74,36 @@ function ReviewBadge({ status }: { status: string }) {
 export default function RevisionView({ initialData, projects, suppliers }: RevisionViewProps) {
   const [items, setItems] = useState<ReviewItem[]>(initialData)
   const [selected, setSelected] = useState<ReviewItem | null>(null)
-  const [filter, setFilter] = useState<'pendiente' | 'todos'>('pendiente')
+  const [category, setCategory] = useState<string>('todos_pendientes')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<ReviewItem>>({})
 
-  const filtered = filter === 'pendiente'
-    ? items.filter(i => i.review_status === 'pendiente')
-    : items
+  // Categorize items by problem type
+  const categorize = (item: ReviewItem) => {
+    if (item.duplicate_reason) return 'duplicados'
+    if (item.ai_confidence !== null && item.ai_confidence < 0.5) return 'no_legibles'
+    if (item.doc_type === 'otro') return 'sin_clasificar'
+    if (!item.supplier_nif && !item.number) return 'datos_incompletos'
+    if (item.needs_review) return 'baja_confianza'
+    return 'otros'
+  }
+
+  const pending = items.filter(i => i.review_status === 'pendiente')
+  const counts = {
+    todos_pendientes: pending.length,
+    duplicados: pending.filter(i => categorize(i) === 'duplicados').length,
+    no_legibles: pending.filter(i => categorize(i) === 'no_legibles').length,
+    sin_clasificar: pending.filter(i => categorize(i) === 'sin_clasificar').length,
+    datos_incompletos: pending.filter(i => categorize(i) === 'datos_incompletos').length,
+    baja_confianza: pending.filter(i => categorize(i) === 'baja_confianza').length,
+    resueltos: items.filter(i => i.review_status !== 'pendiente').length,
+  }
+
+  const filtered = category === 'resueltos'
+    ? items.filter(i => i.review_status !== 'pendiente')
+    : category === 'todos_pendientes'
+      ? pending
+      : pending.filter(i => categorize(i) === category)
 
   const openItem = (item: ReviewItem) => {
     setSelected(item)
@@ -123,29 +146,41 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
     }
   }
 
-  const pendingCount = items.filter(i => i.review_status === 'pendiente').length
+  const categories: { key: string; label: string; icon: string; color: string }[] = [
+    { key: 'todos_pendientes', label: 'Todos pendientes', icon: '', color: 'bg-amber-100 text-amber-700' },
+    { key: 'duplicados', label: 'Duplicados', icon: '', color: 'bg-red-100 text-red-700' },
+    { key: 'no_legibles', label: 'No legibles', icon: '', color: 'bg-orange-100 text-orange-700' },
+    { key: 'sin_clasificar', label: 'Sin clasificar', icon: '', color: 'bg-purple-100 text-purple-700' },
+    { key: 'datos_incompletos', label: 'Datos incompletos', icon: '', color: 'bg-blue-100 text-blue-700' },
+    { key: 'baja_confianza', label: 'Baja confianza', icon: '', color: 'bg-yellow-100 text-yellow-700' },
+    { key: 'resueltos', label: 'Resueltos', icon: '', color: 'bg-green-100 text-green-700' },
+  ]
 
   return (
     <div className="p-4 md:p-6 max-w-7xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-800">Revision de Documentos</h1>
-          <p className="text-sm text-neutral-500 mt-1">{pendingCount} documentos pendientes de revision</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setFilter('pendiente')}
-            className={`px-3 py-1.5 rounded text-sm font-medium ${filter === 'pendiente' ? 'bg-amber-100 text-amber-700' : 'bg-neutral-100 text-neutral-600'}`}
-          >
-            Pendientes ({pendingCount})
-          </button>
-          <button
-            onClick={() => setFilter('todos')}
-            className={`px-3 py-1.5 rounded text-sm font-medium ${filter === 'todos' ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-600'}`}
-          >
-            Todos ({items.length})
-          </button>
-        </div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-neutral-800">Revision de Documentos</h1>
+        <p className="text-sm text-neutral-500 mt-1">{counts.todos_pendientes} documentos pendientes de revision</p>
+      </div>
+
+      {/* Category chips */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {categories.map(cat => {
+          const count = counts[cat.key as keyof typeof counts] || 0
+          if (count === 0 && cat.key !== 'todos_pendientes' && cat.key !== 'resueltos') return null
+          const isActive = category === cat.key
+          return (
+            <button
+              key={cat.key}
+              onClick={() => setCategory(cat.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                isActive ? cat.color + ' ring-2 ring-offset-1 ring-neutral-300' : 'bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
+              }`}
+            >
+              {cat.label} ({count})
+            </button>
+          )
+        })}
       </div>
 
       {/* Table */}
@@ -183,8 +218,24 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
                   <td className="p-3 text-right font-mono text-xs">{formatEur(item.amount_total)}</td>
                   <td className="p-3 text-center"><ConfidenceBadge confidence={item.ai_confidence} /></td>
                   <td className="p-3 text-center"><ReviewBadge status={item.review_status} /></td>
-                  <td className="p-3 text-xs text-neutral-500 max-w-[150px] truncate">
-                    {item.duplicate_reason || (item.needs_review ? 'Baja confianza' : item.doc_type === 'otro' ? 'Sin clasificar' : '--')}
+                  <td className="p-3">
+                    {(() => {
+                      const cat = categorize(item)
+                      const catMap: Record<string, { label: string; cls: string }> = {
+                        duplicados: { label: 'Duplicado', cls: 'bg-red-100 text-red-700' },
+                        no_legibles: { label: 'No legible', cls: 'bg-orange-100 text-orange-700' },
+                        sin_clasificar: { label: 'Sin clasificar', cls: 'bg-purple-100 text-purple-700' },
+                        datos_incompletos: { label: 'Datos incompletos', cls: 'bg-blue-100 text-blue-700' },
+                        baja_confianza: { label: 'Baja confianza', cls: 'bg-yellow-100 text-yellow-700' },
+                        otros: { label: 'Otro', cls: 'bg-neutral-100 text-neutral-500' },
+                      }
+                      const info = catMap[cat] || catMap.otros
+                      return (
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${info.cls}`}>
+                          {info.label}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="p-3 text-xs">{formatDate(item.created_at)}</td>
                 </tr>
