@@ -1398,7 +1398,7 @@ export default function QuoteEditor({
           <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center" onClick={() => setCertModalOpen(false)}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-4">Certificar partidas</h3>
-              <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-3 max-h-[55dvh] overflow-y-auto">
                 {form.items.map((item, idx) => {
                   const current = item.certified_pct
                   const draft = certDraft[idx] ?? current
