@@ -76,7 +76,7 @@ interface QuoteEditorProps {
 /* ─── Helpers ──────────────────────────────────────────────── */
 
 const DEFAULT_CONDITIONS =
-  'Presupuesto valido durante 30 dias naturales desde la fecha de emision. Los precios incluyen materiales y mano de obra salvo indicacion contraria. No incluye licencias ni tasas municipales.'
+  'Presupuesto valido durante 30 dias naturales desde la fecha de emision. Los precios incluyen materiales y mano de obra salvo indicacion contraria. Los precios indicados incluyen IVA. No incluye licencias ni tasas municipales.'
 
 function generateNumber(): string {
   const year = new Date().getFullYear()
