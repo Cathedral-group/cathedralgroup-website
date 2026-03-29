@@ -72,18 +72,27 @@ export default function LoginPage() {
     return () => clearInterval(interval)
   }, [lockedUntil])
 
-  // Render Turnstile widget once script is loaded
+  // Render Turnstile widget — poll for window.turnstile instead of relying on onReady
   useEffect(() => {
-    if (!turnstileReady || !turnstileRef.current || showReset) return
-    if (widgetIdRef.current) return
-    widgetIdRef.current = window.turnstile!.render(turnstileRef.current, {
-      sitekey: TURNSTILE_SITE_KEY,
-      theme: 'light',
-      callback: (token: string) => setTurnstileToken(token),
-      'expired-callback': () => setTurnstileToken(null),
-      'error-callback': () => setTurnstileToken(null),
-    })
-  }, [turnstileReady, showReset])
+    if (showReset || widgetIdRef.current) return
+    const tryRender = () => {
+      if (!turnstileRef.current || widgetIdRef.current) return
+      if (typeof window !== 'undefined' && window.turnstile) {
+        widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          theme: 'light',
+          callback: (token: string) => setTurnstileToken(token),
+          'expired-callback': () => setTurnstileToken(null),
+          'error-callback': () => setTurnstileToken(null),
+        })
+        setTurnstileReady(true)
+        clearInterval(poll)
+      }
+    }
+    const poll = setInterval(tryRender, 200)
+    tryRender() // try immediately too
+    return () => clearInterval(poll)
+  }, [showReset])
 
   // Reset widget when switching back to login form
   useEffect(() => {
@@ -225,7 +234,12 @@ export default function LoginPage() {
 
               {/* Cloudflare Turnstile — bot protection */}
               {!isLocked && (
-                <div ref={turnstileRef} className="flex justify-center" />
+                <div className="flex flex-col items-center gap-1">
+                  <div ref={turnstileRef} />
+                  {!turnstileToken && !turnstileReady && (
+                    <p className="text-[10px] text-neutral-400">Cargando verificación de seguridad...</p>
+                  )}
+                </div>
               )}
 
               {error && <p className="text-red-600 text-sm text-center">{error}</p>}
