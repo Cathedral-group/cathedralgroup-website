@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import MoneyInput from '@/components/admin/MoneyInput'
 import CatalogModal from './CatalogModal'
 import CatalogDropdown from './CatalogDropdown'
+import SendDocumentModal from '@/components/admin/SendDocumentModal'
 
 /* ─── Types ────────────────────────────────────────────────── */
 
@@ -53,6 +54,8 @@ interface Quote {
   updated_at: string
   certifications: CertPhase[]
   portal_token?: string
+  sent_at?: string | null
+  sent_channel?: string | null
 }
 
 interface Client {
@@ -234,6 +237,21 @@ export default function QuoteEditor({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [sendModalOpen, setSendModalOpen] = useState(false)
+  const [sentAt, setSentAt] = useState<string | null>(form.sent_at ?? null)
+  const [sentChannel, setSentChannel] = useState<string | null>(form.sent_channel ?? null)
+  const [clientContact, setClientContact] = useState<{ email?: string; phone?: string; name?: string } | null>(null)
+
+  async function openSendModal() {
+    if (form.client_id && !clientContact) {
+      const res = await fetch(`/api/db/clients?id=${form.client_id}`)
+      if (res.ok) {
+        const { data } = await res.json()
+        if (data) setClientContact({ email: data.email, phone: data.phone, name: data.name || data.company_name })
+      }
+    }
+    setSendModalOpen(true)
+  }
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [qualityCoefficients, setQualityCoefficients] = useState<{level: string; coefficient: number; label: string}[]>([
     { level: 'basico',    coefficient: 1.20, label: 'Básico'    },
@@ -927,6 +945,12 @@ export default function QuoteEditor({
           {savedIdRef.current && (
             <>
               <button
+                onClick={openSendModal}
+                className="hidden sm:block border border-neutral-800 bg-neutral-900 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-primary transition-colors relative"
+              >
+                {sentAt ? '✓ Enviado' : 'Enviar'}
+              </button>
+              <button
                 onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
                 className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
                 title="Generar PDF del presupuesto"
@@ -1526,6 +1550,12 @@ export default function QuoteEditor({
         {savedIdRef.current && (
           <div className="flex flex-wrap gap-2 pt-4 border-t border-neutral-100 sm:hidden">
             <button
+              onClick={openSendModal}
+              className="bg-neutral-900 text-white px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary transition-colors"
+            >
+              {sentAt ? '✓ Enviado' : 'Enviar'}
+            </button>
+            <button
               onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
               className="border border-neutral-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
             >
@@ -1546,6 +1576,23 @@ export default function QuoteEditor({
         )}
         </div>{/* end max-w-5xl */}
       </div>{/* end scrollable */}
+
+      {/* Send document modal */}
+      {sendModalOpen && savedIdRef.current && (
+        <SendDocumentModal
+          docType="quote"
+          docId={savedIdRef.current}
+          docNumber={form.number}
+          clientName={clientContact?.name}
+          clientEmail={clientContact?.email}
+          clientPhone={clientContact?.phone}
+          portalUrl={form.portal_token ? `https://cathedralgroup.es/portal/${form.portal_token}` : null}
+          sentAt={sentAt}
+          sentChannel={sentChannel}
+          onClose={() => setSendModalOpen(false)}
+          onSent={(at, ch) => { setSentAt(at); setSentChannel(ch); setForm(prev => ({ ...prev, status: 'enviado', sent_at: at, sent_channel: ch })) }}
+        />
+      )}
 
       {/* Catalog modal (multi-select) */}
       {catalogOpen && currentQuality && (

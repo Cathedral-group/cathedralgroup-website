@@ -677,6 +677,14 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     return NextResponse.json({ data })
   }
 
+  // Single-record fetch by id (for any table)
+  const id = request.nextUrl.searchParams.get('id')
+  if (id) {
+    const { data, error } = await supabase.from(table).select('*').eq('id', id).single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+    return NextResponse.json({ data })
+  }
+
   return NextResponse.json({ error: 'Recurso no soporta GET' }, { status: 405 })
 }
 

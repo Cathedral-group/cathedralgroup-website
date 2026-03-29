@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import MoneyInput from '@/components/admin/MoneyInput'
 import LinkedSelect from '@/components/admin/LinkedSelect'
+import SendDocumentModal from '@/components/admin/SendDocumentModal'
 
 interface Invoice {
   id?: string
@@ -27,6 +28,8 @@ interface Invoice {
   es_rectificativa: boolean
   numero_factura_original: string | null
   notes: string | null
+  sent_at?: string | null
+  sent_channel?: string | null
 }
 
 interface InvoiceFormProps {
@@ -77,6 +80,36 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
   const [form, setForm] = useState<Invoice>(invoice ?? { ...DEFAULTS })
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [sendModalOpen, setSendModalOpen] = useState(false)
+  const [sentAt, setSentAt] = useState<string | null>(invoice?.sent_at ?? null)
+  const [sentChannel, setSentChannel] = useState<string | null>(invoice?.sent_channel ?? null)
+  const [clientContact, setClientContact] = useState<{ name?: string; email?: string; phone?: string } | null>(null)
+
+  async function openSendModal() {
+    // Try to get client contact from project → client chain
+    if (form.proyecto_code && !clientContact) {
+      try {
+        const projRes = await fetch(`/api/db/projects?id=${encodeURIComponent(form.proyecto_code)}`)
+        if (projRes.ok) {
+          const projData = await projRes.json()
+          const project = Array.isArray(projData.data) ? projData.data[0] : projData.data
+          if (project?.client_id) {
+            const clientRes = await fetch(`/api/db/clients?id=${encodeURIComponent(project.client_id)}`)
+            if (clientRes.ok) {
+              const clientData = await clientRes.json()
+              const client = Array.isArray(clientData.data) ? clientData.data[0] : clientData.data
+              if (client) {
+                setClientContact({ name: client.name, email: client.email, phone: client.phone })
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('openSendModal fetch error:', e)
+      }
+    }
+    setSendModalOpen(true)
+  }
 
   const set = useCallback(<K extends keyof Invoice>(key: K, val: Invoice[K]) => {
     setForm((prev) => ({ ...prev, [key]: val }))
@@ -485,6 +518,17 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
               Ver PDF
             </button>
           )}
+
+          {isEdit && form.direction === 'emitida' && (
+            <button
+              onClick={openSendModal}
+              className="w-full bg-neutral-900 text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors flex items-center justify-center gap-2"
+            >
+              <span>✉</span>
+              {sentAt ? 'Reenviar' : 'Enviar factura'}
+              {sentAt && <span className="text-[10px] font-normal opacity-60 ml-1">· Enviado</span>}
+            </button>
+          )}
         </div>
 
         {/* Danger zone */}
@@ -522,5 +566,20 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
         )}
       </div>
     </div>
+
+    {sendModalOpen && isEdit && (
+      <SendDocumentModal
+        docType="invoice"
+        docId={invoice!.id!}
+        docNumber={form.number}
+        clientName={clientContact?.name}
+        clientEmail={clientContact?.email}
+        clientPhone={clientContact?.phone}
+        sentAt={sentAt}
+        sentChannel={sentChannel}
+        onClose={() => setSendModalOpen(false)}
+        onSent={(at, ch) => { setSentAt(at); setSentChannel(ch) }}
+      />
+    )}
   )
 }
