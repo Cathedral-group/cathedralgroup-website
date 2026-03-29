@@ -103,6 +103,8 @@ const DEFAULT_CONDITIONS = `CONDICIONES GENERALES
 
 7. En caso de cancelación una vez aceptado el presupuesto, se facturarán los trabajos ya ejecutados y los materiales adquiridos o comprometidos hasta esa fecha.
 
+8. El presupuesto no incluye licencias, permisos ni tasas municipales, salvo indicación expresa.
+
 PROYECTO Y SEGUIMIENTO DE OBRA
 
 Una vez aceptado el presupuesto, nuestro equipo elaborará los planos técnicos necesarios y realizará las mediciones definitivas en obra. Durante la ejecución, nuestros técnicos supervisarán el avance periódicamente para garantizar la calidad y resolver cualquier incidencia con rapidez.
