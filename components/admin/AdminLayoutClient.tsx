@@ -9,7 +9,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   const toggleSidebar = () => setSidebarOpen((prev) => !prev)
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen">
       <AdminSidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
 
       {/* Mobile top bar with hamburger */}
