@@ -98,7 +98,15 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:11px;color:#1a1a1a;backg
 .logo{height:28px;width:auto;flex-none}
 .company-name{font-size:14px;font-weight:300;letter-spacing:.16em;text-transform:uppercase;color:#1a1a1a}
 .company-detail{font-size:9px;color:#6b5e52;margin-top:6px;letter-spacing:.06em;font-weight:500}
+.company-address{font-size:9px;color:#6b5e52;margin-top:1px;letter-spacing:.04em}
 .company-web{font-size:8px;color:#bbb;margin-top:2px;letter-spacing:.04em}
+.bank-section{margin-top:24px;padding:16px 18px;background:#f5f2ee;border-left:3px solid #B4A898}
+.bank-section .section-title{margin-bottom:10px}
+.bank-row{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid #e8e4e0}
+.bank-row:last-of-type{border-bottom:none}
+.bank-name{font-size:10px;font-weight:600;color:#1a1a1a}
+.bank-iban{font-size:10px;font-family:monospace;color:#3a3a3a;letter-spacing:.04em}
+.bank-beneficiary{font-size:9px;color:#6b5e52;margin-top:8px;font-style:italic}
 .doc-block{text-align:right}
 .doc-type{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#B4A898;margin-bottom:4px}
 .doc-number{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
@@ -216,8 +224,9 @@ td.pending-positive{color:#16a34a}
         <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
       </div>
-      <div class="company-detail">CIF B19761915</div>
-      <div class="company-web">Cathedral House Investment SL · cathedralgroup.es</div>
+      <div class="company-detail">Cathedral House Investment S.L. · CIF B19761915</div>
+      <div class="company-address">Pº Castellana 40, 8º · 28046 Madrid</div>
+      <div class="company-web">cathedralgroup.es · administracion@cathedralgroup.es</div>
     </div>
     <div class="doc-block">
       <div class="doc-type">${certNumber ? `Certificación ${certNumber}` : 'Certificación Parcial'}</div>
@@ -261,7 +270,7 @@ td.pending-positive{color:#16a34a}
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
-    <span class="footer-meta">CIF B19761915 · cathedralgroup.es · administracion@cathedralgroup.es</span>
+    <span class="footer-meta">Pº Castellana 40, 8º · 28046 Madrid · CIF B19761915</span>
   </div>
 </div></body></html>`
 
@@ -365,8 +374,9 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
         <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
       </div>
-      <div class="company-detail">CIF B19761915</div>
-      <div class="company-web">Cathedral House Investment SL · cathedralgroup.es</div>
+      <div class="company-detail">Cathedral House Investment S.L. · CIF B19761915</div>
+      <div class="company-address">Pº Castellana 40, 8º · 28046 Madrid</div>
+      <div class="company-web">cathedralgroup.es · administracion@cathedralgroup.es</div>
     </div>
     <div class="doc-block">
       <div class="doc-type">${isEmitida ? docTypeLabel : `${docTypeLabel} recibida`}</div>
@@ -408,6 +418,18 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
       <tr class="total-row"><td class="label-cell">Total</td><td class="amount-cell">${fmtEur(total)}</td></tr>
     </tbody></table></div>
     ${inv.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${inv.notes.replace(/\n/g, '<br>')}</p></div></div>` : ''}
+    ${isEmitida ? `<div class="bank-section">
+      <p class="section-title">Datos de pago</p>
+      <div class="bank-row">
+        <span class="bank-name">Banco Sabadell</span>
+        <span class="bank-iban">ES90 0081 1539 8900 0169 3570</span>
+      </div>
+      <div class="bank-row">
+        <span class="bank-name">Eurocaja Rural</span>
+        <span class="bank-iban">ES44 3081 0453 9250 0066 1445</span>
+      </div>
+      <p class="bank-beneficiary">Beneficiario: Cathedral House Investment S.L.</p>
+    </div>` : ''}
     ${invQrDataUrl ? `<div class="qr-section">
       <img src="${invQrDataUrl}" class="qr-img" alt="QR Área de cliente" />
       <div>
@@ -419,7 +441,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
-    <span class="footer-meta">CIF B19761915 · cathedralgroup.es · administracion@cathedralgroup.es</span>
+    <span class="footer-meta">Pº Castellana 40, 8º · 28046 Madrid · CIF B19761915</span>
   </div>
 </div></body></html>`
 
@@ -519,8 +541,9 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
         <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
       </div>
-      <div class="company-detail">CIF B19761915</div>
-      <div class="company-web">Cathedral House Investment SL · cathedralgroup.es</div>
+      <div class="company-detail">Cathedral House Investment S.L. · CIF B19761915</div>
+      <div class="company-address">Pº Castellana 40, 8º · 28046 Madrid</div>
+      <div class="company-web">cathedralgroup.es · administracion@cathedralgroup.es</div>
     </div>
     <div class="doc-block">
       <div class="doc-type">Presupuesto</div>
@@ -561,7 +584,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
-    <span class="footer-meta">CIF B19761915 · cathedralgroup.es · administracion@cathedralgroup.es</span>
+    <span class="footer-meta">Pº Castellana 40, 8º · 28046 Madrid · CIF B19761915</span>
   </div>
 </div></body></html>`
 
