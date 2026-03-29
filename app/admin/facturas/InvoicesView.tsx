@@ -123,6 +123,29 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
     setFormOpen(true)
   }
 
+  const exportCSV = () => {
+    const headers = ['Número','Tipo','Dirección','Concepto','Base','IVA%','IVA','IRPF%','IRPF','Total','Emisión','Vencimiento','Fecha pago','Estado pago','Método pago','Proyecto','Proveedor NIF','Categoría gasto','Rectificativa','Factura original','Notas']
+    const rows = filtered.map((inv) => [
+      inv.number, inv.doc_type, inv.direction, inv.concept,
+      inv.amount_base ?? '', inv.vat_pct ?? '', inv.vat_amount ?? '',
+      inv.irpf_rate ?? '', inv.irpf_amount ?? '', inv.amount_total ?? '',
+      inv.issue_date, inv.due_date ?? '', inv.payment_date ?? '',
+      inv.payment_status, inv.payment_method ?? '', inv.proyecto_code ?? '',
+      inv.supplier_nif ?? '', inv.categoria_gasto ?? '',
+      inv.es_rectificativa ? 'Sí' : 'No', inv.numero_factura_original ?? '', inv.notes ?? '',
+    ])
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `facturas-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const openEdit = (inv: Invoice) => {
     setEditingInvoice(inv)
     setFormOpen(true)
@@ -176,12 +199,20 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-medium uppercase tracking-wide">Facturas</h1>
-        <button
-          onClick={openNew}
-          className="bg-neutral-900 text-white px-6 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors"
-        >
-          + Nueva factura
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={exportCSV}
+            className="border border-neutral-200 text-neutral-500 px-4 py-2.5 text-xs font-bold uppercase tracking-widest hover:border-neutral-400 transition-colors"
+          >
+            ↓ CSV
+          </button>
+          <button
+            onClick={openNew}
+            className="bg-neutral-900 text-white px-6 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors"
+          >
+            + Nueva factura
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

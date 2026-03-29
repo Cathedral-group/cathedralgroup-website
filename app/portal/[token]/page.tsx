@@ -38,6 +38,13 @@ export default async function PortalPage({ params }: Params) {
 
   if (!quote) notFound()
 
+  // Track client view (fire-and-forget, don't block render)
+  supabase
+    .from('quotes')
+    .update({ portal_viewed_at: new Date().toISOString() })
+    .eq('portal_token', token)
+    .then(() => {})
+
   let clientName = ''
   if (quote.client_id) {
     const { data: c } = await supabase

@@ -56,6 +56,7 @@ interface Quote {
   portal_token?: string
   sent_at?: string | null
   sent_channel?: string | null
+  portal_viewed_at?: string | null
 }
 
 interface Client {
@@ -968,6 +969,14 @@ export default function QuoteEditor({
                 >
                   🔗 Portal
                 </button>
+              )}
+              {form.portal_viewed_at && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-green-600 bg-green-50 border border-green-200"
+                  title={`Visto por el cliente el ${new Date(form.portal_viewed_at).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+                >
+                  👁 Visto
+                </span>
               )}
               {form.items.some((it) => (it.certified_pct ?? 0) > 0) && (
                 <>

@@ -51,7 +51,7 @@ export default function SendDocumentModal({
     ? `${greeting} Le enviamos el ${docLabel.toLowerCase()} ${docNumber}. Puede consultarlo aquí: ${portalUrl}\n\nCualquier consulta, estamos a su disposición.\nCathedral Group`
     : `${greeting} Le enviamos el ${docLabel.toLowerCase()} ${docNumber}.\n\nCualquier consulta, estamos a su disposición.\nCathedral Group`
 
-  const mailtoHref = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
+  const mailtoHref = `mailto:${encodeURIComponent(email)}?cc=${encodeURIComponent('administracion@cathedralgroup.es')}&subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
   const rawPhone = phone.replace(/\s+/g, '').replace(/^00/, '+').replace(/^\+34/, '34').replace(/^\+/, '')
   const waHref = `https://wa.me/${rawPhone}?text=${encodeURIComponent(waMessage)}`
 
