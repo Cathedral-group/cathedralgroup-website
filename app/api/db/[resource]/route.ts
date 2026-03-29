@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
+import QRCode from 'qrcode'
 
 async function authCheck() {
   const authClient = await createServerSupabaseClient()
@@ -274,6 +275,13 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   const qualityLabels: Record<string, string> = { estandar: 'Estándar', premium: 'Premium', lujo: 'Lujo' }
   const items: { description: string; quantity: number; unit: string; unit_price: number; vat_pct: number; total: number; chapter_code?: string; chapter_name?: string; notes?: string }[] = Array.isArray(quote.items) ? quote.items : []
 
+  // QR code for client portal
+  const portalToken = quote.portal_token as string | undefined
+  const portalUrl = portalToken ? `https://cathedralgroup.es/portal/${portalToken}` : null
+  const qrDataUrl = portalUrl
+    ? await QRCode.toDataURL(portalUrl, { width: 96, margin: 1, color: { dark: '#6b5e52', light: '#ffffff' } })
+    : null
+
   // Build sequential chapter numbering
   const chapterOrder: string[] = []
   const chapterTotals: Record<string, number> = {}
@@ -326,6 +334,11 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
 .chapter-subtotal td{background:#fff;border-top:2px solid #B4A898;border-bottom:none;padding:8px 10px}
 .subtotal-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#B4A898}
 .subtotal-amount{font-size:12px;font-weight:700;color:#1a1a1a}
+.qr-section{display:flex;align-items:center;gap:14px;margin-top:28px;padding:14px 16px;border:1px solid #e8e4e0;border-radius:4px;background:#faf9f8}
+.qr-img{width:72px;height:72px;flex-shrink:0;display:block}
+.qr-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6b5e52;margin-bottom:3px}
+.qr-hint{font-size:9px;color:#9b8f84;margin-bottom:4px}
+.qr-url{font-size:8px;color:#B4A898;word-break:break-all}
 </style></head><body>
 <div class="print-bar"><span>Presupuesto ${quote.number} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
 <div class="page">
@@ -367,6 +380,14 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
       ${quote.notes ? `<div class="notes-block"><p class="section-title">Notas</p><p>${quote.notes.replace(/\n/g, '<br>')}</p></div>` : ''}
       ${quote.conditions ? `<div class="notes-block"><p class="section-title">Condiciones</p><p>${quote.conditions.replace(/\n/g, '<br>')}</p></div>` : ''}
     </div>` : ''}
+    ${qrDataUrl ? `<div class="qr-section">
+      <img src="${qrDataUrl}" class="qr-img" alt="QR Área de cliente" />
+      <div>
+        <p class="qr-label">Área de cliente</p>
+        <p class="qr-hint">Escanea para ver y descargar tus documentos en cualquier momento</p>
+        <p class="qr-url">${portalUrl}</p>
+      </div>
+    </div>` : ''}
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
@@ -378,15 +399,26 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
 }
 
 export async function GET(request: NextRequest, ctx: Ctx) {
-  const user = await authCheck()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-
   const { resource } = await ctx.params
-  const supabase = createAdminSupabaseClient()
 
+  // presupuesto-pdf: session auth OR portal_token (public access)
   if (resource === 'presupuesto-pdf') {
     const id = request.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+
+    const portalToken = request.nextUrl.searchParams.get('portal_token')
+    if (portalToken) {
+      // Verify token matches this quote (no session required)
+      const supabase = createAdminSupabaseClient()
+      const { data: q } = await supabase.from('quotes').select('portal_token').eq('id', id).single()
+      if (!q || q.portal_token !== portalToken) {
+        return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+      }
+    } else {
+      const user = await authCheck()
+      if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
     const type = request.nextUrl.searchParams.get('type')
     if (type === 'certificacion') {
       const certParam = request.nextUrl.searchParams.get('cert')
@@ -395,6 +427,11 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     }
     return buildQuotePdf(id)
   }
+
+  const user = await authCheck()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const supabase = createAdminSupabaseClient()
 
   const table = tableFor(resource)
   if (!table || table === 'papelera') return NextResponse.json({ error: 'Ruta no válida' }, { status: 404 })

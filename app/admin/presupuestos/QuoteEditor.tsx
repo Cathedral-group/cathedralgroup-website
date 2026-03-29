@@ -52,6 +52,7 @@ interface Quote {
   created_at: string
   updated_at: string
   certifications: CertPhase[]
+  portal_token?: string
 }
 
 interface Client {
@@ -904,6 +905,18 @@ export default function QuoteEditor({
               >
                 PDF Presupuesto
               </button>
+              {form.portal_token && (
+                <button
+                  onClick={() => {
+                    const url = `${window.location.origin}/portal/${form.portal_token}`
+                    navigator.clipboard.writeText(url).then(() => alert('Enlace copiado al portapapeles'))
+                  }}
+                  className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-[#B4A898] hover:text-[#9b8f84] transition-colors"
+                  title={`Enlace área cliente: /portal/${form.portal_token}`}
+                >
+                  🔗 Portal
+                </button>
+              )}
               {form.items.some((it) => (it.certified_pct ?? 0) > 0) && (
                 <>
                   <button

@@ -10,8 +10,9 @@ import ScrollAnimations from '@/components/animations/ScrollAnimations'
 export default function LayoutSwitch({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isAdmin = pathname.startsWith('/admin')
+  const isPortal = pathname.startsWith('/portal')
 
-  if (isAdmin) {
+  if (isAdmin || isPortal) {
     return <>{children}</>
   }
 
