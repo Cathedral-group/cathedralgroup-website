@@ -129,6 +129,7 @@ td.bold{font-weight:600}
 .footer{background:#f5f2ee;padding:14px 56px;display:flex;justify-content:space-between;align-items:center;margin-top:auto}
 .footer-brand{font-size:9px;font-weight:300;letter-spacing:.12em;text-transform:uppercase;color:#6b5e52}
 .footer-meta{font-size:9px;color:#999;letter-spacing:.04em}
+.vat-note{font-size:9px;color:#9b8f84;margin-top:16px;font-style:italic}
 .print-bar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:10px 24px;display:flex;align-items:center;justify-content:space-between;z-index:100}
 .print-bar span{font-size:11px;font-weight:600;letter-spacing:.06em}
 .btn-print{background:#B4A898;color:#fff;border:0;padding:7px 18px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
@@ -153,6 +154,13 @@ async function buildCertificationPdf(id: string, certNumber?: number): Promise<N
   }
 
   const division = divisionFor(projectType)
+
+  // QR code for client portal (same token as the quote)
+  const certPortalToken = quote.portal_token as string | undefined
+  const certPortalUrl = certPortalToken ? `https://cathedralgroup.es/portal/${certPortalToken}` : null
+  const certQrDataUrl = certPortalUrl
+    ? await QRCode.toDataURL(certPortalUrl, { width: 96, margin: 1, color: { dark: '#6b5e52', light: '#ffffff' } })
+    : null
 
   let items: { description: string; total: number; certified_pct: number; invoiced_pct: number }[]
   if (certNumber) {
@@ -194,6 +202,11 @@ td.pending-positive{color:#16a34a}
 .progress-bar-fill{height:8px;border-radius:4px;background:#22c55e}
 .progress-label{font-size:11px;color:#555;margin-bottom:6px}
 .total-row .amount-cell{color:#16a34a !important}
+.qr-section{display:flex;align-items:center;gap:14px;margin-top:28px;padding:14px 16px;border:1px solid #e8e4e0;border-radius:4px;background:#faf9f8}
+.qr-img{width:72px;height:72px;flex-shrink:0;display:block}
+.qr-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6b5e52;margin-bottom:3px}
+.qr-hint{font-size:9px;color:#9b8f84;margin-bottom:4px}
+.qr-url{font-size:8px;color:#B4A898;word-break:break-all}
 </style></head><body>
 <div class="print-bar"><span>Certificación ${certNumber ?? ''} — ${quote.number} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
 <div class="page">
@@ -236,6 +249,15 @@ td.pending-positive{color:#16a34a}
       <tr><td class="label-cell">Total facturado</td><td class="amount-cell">${fmtEur(Math.round(totalInvoiced * 100) / 100)}</td></tr>
       <tr class="total-row"><td class="label-cell">Pendiente de facturar</td><td class="amount-cell">${fmtEur(totalPending)}</td></tr>
     </tbody></table></div>
+    <p class="vat-note">* Los importes indicados no incluyen IVA.</p>
+    ${certQrDataUrl ? `<div class="qr-section">
+      <img src="${certQrDataUrl}" class="qr-img" alt="QR Área de cliente" />
+      <div>
+        <p class="qr-label">Área de cliente</p>
+        <p class="qr-hint">Escanea para ver y descargar tus documentos en cualquier momento</p>
+        <p class="qr-url">${certPortalUrl}</p>
+      </div>
+    </div>` : ''}
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
@@ -254,14 +276,27 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
   // Try to get client info via project
   let client: ClientData | null = null
   let projectType: string | null = null
+  let projectId: string | null = null
   if (inv.proyecto_code) {
-    const { data: proj } = await supabase.from('projects').select('type, client_id').eq('code', inv.proyecto_code).single()
+    const { data: proj } = await supabase.from('projects').select('id, type, client_id').eq('code', inv.proyecto_code).single()
     if (proj) {
       projectType = proj.type ?? null
+      projectId = proj.id ?? null
       if (proj.client_id) {
         const { data: c } = await supabase.from('clients').select('name,nif_cif,email,phone,address,company_name').eq('id', proj.client_id).single()
         if (c) client = c as ClientData
       }
+    }
+  }
+
+  // QR code via project's quote portal_token
+  let invQrDataUrl: string | null = null
+  let invPortalUrl: string | null = null
+  if (projectId) {
+    const { data: q } = await supabase.from('quotes').select('portal_token').eq('project_id', projectId).not('portal_token', 'is', null).order('created_at', { ascending: false }).limit(1).single()
+    if (q?.portal_token) {
+      invPortalUrl = `https://cathedralgroup.es/portal/${q.portal_token}`
+      invQrDataUrl = await QRCode.toDataURL(invPortalUrl, { width: 96, margin: 1, color: { dark: '#6b5e52', light: '#ffffff' } })
     }
   }
 
@@ -316,6 +351,11 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
 <style>${PDF_COMMON_CSS}
 .status-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:3px;color:#fff;margin-top:6px}
 .concept-row td{font-size:13px;font-weight:500;color:#1a1a1a;padding:16px 10px}
+.qr-section{display:flex;align-items:center;gap:14px;margin-top:28px;padding:14px 16px;border:1px solid #e8e4e0;border-radius:4px;background:#faf9f8}
+.qr-img{width:72px;height:72px;flex-shrink:0;display:block}
+.qr-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6b5e52;margin-bottom:3px}
+.qr-hint{font-size:9px;color:#9b8f84;margin-bottom:4px}
+.qr-url{font-size:8px;color:#B4A898;word-break:break-all}
 </style></head><body>
 <div class="print-bar"><span>${docTypeLabel} ${inv.invoice_number ?? ''} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
 <div class="page">
@@ -362,12 +402,18 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
       </tbody>
     </table>
     <div class="totals"><table class="totals-table"><tbody>
-      <tr><td class="label-cell">Base imponible</td><td class="amount-cell">${fmtEur(base)}</td></tr>
-      <tr><td class="label-cell">IVA (${vatPct}%)</td><td class="amount-cell">${fmtEur(vatAmt)}</td></tr>
-      ${irpfRate > 0 ? `<tr><td class="label-cell">IRPF (${irpfRate}%)</td><td class="amount-cell" style="color:#dc2626">−${fmtEur(irpfAmt)}</td></tr>` : ''}
-      <tr class="total-row"><td class="label-cell">Total</td><td class="amount-cell">${fmtEur(total)}</td></tr>
+      <tr class="total-row"><td class="label-cell">Total</td><td class="amount-cell">${fmtEur(base)}</td></tr>
     </tbody></table></div>
+    <p class="vat-note">* Los importes indicados no incluyen IVA.</p>
     ${inv.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${inv.notes.replace(/\n/g, '<br>')}</p></div></div>` : ''}
+    ${invQrDataUrl ? `<div class="qr-section">
+      <img src="${invQrDataUrl}" class="qr-img" alt="QR Área de cliente" />
+      <div>
+        <p class="qr-label">Área de cliente</p>
+        <p class="qr-hint">Escanea para ver y descargar tus documentos en cualquier momento</p>
+        <p class="qr-url">${invPortalUrl}</p>
+      </div>
+    </div>` : ''}
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
@@ -431,19 +477,18 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
     const showSubtotal = !!(it.chapter_code && nextWithChapter?.chapter_code !== it.chapter_code)
     const rows: string[] = []
     if (showHeader) {
-      rows.push(`<tr class="chapter-header"><td colspan="6">${chapterSeq[it.chapter_code!]} — ${it.chapter_name ?? it.chapter_code}</td></tr>`)
+      rows.push(`<tr class="chapter-header"><td colspan="5">${chapterSeq[it.chapter_code!]} — ${it.chapter_name ?? it.chapter_code}</td></tr>`)
     }
     rows.push(`<tr>
       <td class="td-desc">${it.description}${it.notes ? `<br><span style="font-size:8px;color:#9b8f84;font-style:italic">${it.notes}</span>` : ''}</td>
       <td class="td-num">${it.quantity}</td>
       <td class="td-center">${it.unit}</td>
       <td class="td-num">${fmtEur(it.unit_price)}</td>
-      <td class="td-center">${it.vat_pct}%</td>
       <td class="td-num bold">${fmtEur(it.total)}</td>
     </tr>`)
     if (showSubtotal) {
       const chTotal = chapterTotals[it.chapter_code!] ?? 0
-      rows.push(`<tr class="chapter-subtotal"><td colspan="5" class="subtotal-label">Subtotal</td><td class="td-num subtotal-amount">${fmtEur(chTotal)}</td></tr>`)
+      rows.push(`<tr class="chapter-subtotal"><td colspan="4" class="subtotal-label">Subtotal</td><td class="td-num subtotal-amount">${fmtEur(chTotal)}</td></tr>`)
     }
     return rows
   })
@@ -491,15 +536,14 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
     <table>
       <thead><tr>
         <th>Descripción</th><th class="th-num">Cant.</th><th class="th-center">Ud.</th>
-        <th class="th-num">Precio ud.</th><th class="th-center">IVA</th><th class="th-num">Total</th>
+        <th class="th-num">Precio ud.</th><th class="th-num">Total</th>
       </tr></thead>
-      <tbody>${itemRowsHtml || '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:16px">Sin partidas</td></tr>'}</tbody>
+      <tbody>${itemRowsHtml || '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:16px">Sin partidas</td></tr>'}</tbody>
     </table>
     <div class="totals"><table class="totals-table"><tbody>
-      <tr><td class="label-cell">Base imponible</td><td class="amount-cell">${fmtEur(quote.subtotal ?? 0)}</td></tr>
-      <tr><td class="label-cell">IVA</td><td class="amount-cell">${fmtEur(quote.vat_total ?? 0)}</td></tr>
-      <tr class="total-row"><td class="label-cell">Total presupuesto</td><td class="amount-cell">${fmtEur(quote.total ?? 0)}</td></tr>
+      <tr class="total-row"><td class="label-cell">Total presupuesto</td><td class="amount-cell">${fmtEur(quote.subtotal ?? 0)}</td></tr>
     </tbody></table></div>
+    <p class="vat-note">* Los importes indicados en este presupuesto no incluyen IVA.</p>
     ${(quote.notes || quote.conditions) ? `<div class="notes-grid">
       ${quote.notes ? `<div class="notes-block"><p class="section-title">Notas</p><p>${quote.notes.replace(/\n/g, '<br>')}</p></div>` : ''}
       ${quote.conditions ? `<div class="notes-block"><p class="section-title">Condiciones</p><p>${quote.conditions.replace(/\n/g, '<br>')}</p></div>` : ''}
