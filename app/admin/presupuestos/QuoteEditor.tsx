@@ -684,9 +684,17 @@ export default function QuoteEditor({
         item.total = calcItemTotal(item)
         return item
       })
-      const items = [...prev.items.filter((it) => it.description || it.unit_price > 0), ...newItems]
-      const totals = calcTotals(items)
-      return { ...prev, items, ...totals }
+      const combined = [...prev.items.filter((it) => it.description || it.unit_price > 0), ...newItems]
+      const chapterOrd: string[] = []
+      combined.forEach((it) => { if (it.chapter_code && !chapterOrd.includes(it.chapter_code)) chapterOrd.push(it.chapter_code) })
+      const sorted = [...combined].sort((a, b) => {
+        const ai = a.chapter_code ? chapterOrd.indexOf(a.chapter_code) : Infinity
+        const bi = b.chapter_code ? chapterOrd.indexOf(b.chapter_code) : Infinity
+        if (ai !== bi) return ai - bi
+        return combined.indexOf(a) - combined.indexOf(b)
+      })
+      const totals = calcTotals(sorted)
+      return { ...prev, items: sorted, ...totals }
     })
     setCatalogOpen(false)
   }, [])
@@ -729,7 +737,6 @@ export default function QuoteEditor({
           {qualityCoefficients.map((q) => (
             <option key={q.level} value={q.level}>{q.label} ×{q.coefficient}</option>
           ))}
-          <option value="personalizado">Personalizado</option>
         </select>
         {form.quality_level === 'personalizado' && (
           <div className="hidden sm:flex items-center gap-1">

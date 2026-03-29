@@ -271,7 +271,12 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   const chapterSeq: Record<string, string> = {}
   chapterOrder.forEach((code, i) => { chapterSeq[code] = String(i + 1).padStart(2, '0') })
 
-  const filtered = items.filter((it) => it.description)
+  // Sort items: group by chapter_code preserving first-appearance order; no-chapter items last
+  const filtered = items.filter((it) => it.description).sort((a, b) => {
+    const ai = a.chapter_code ? chapterOrder.indexOf(a.chapter_code) : Infinity
+    const bi = b.chapter_code ? chapterOrder.indexOf(b.chapter_code) : Infinity
+    return ai - bi
+  })
   let lastChapterCode: string | undefined = undefined
   const itemRows = filtered.flatMap((it, i) => {
     const showHeader = !!(it.chapter_code && it.chapter_code !== lastChapterCode)
@@ -329,7 +334,6 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
       <div class="meta-block"><label>Fecha de emisión</label><div class="value">${fmtDate(quote.created_at)}</div></div>
       <div class="meta-block"><label>Válido hasta</label><div class="value">${fmtDate(quote.valid_until)}</div></div>
       ${projectCode ? `<div class="meta-block"><label>Proyecto</label><div class="value">${projectCode}</div></div>` : ''}
-      ${quote.quality_level ? `<div class="meta-block"><label>Nivel de calidad</label><div class="value"><span class="quality-badge quality-${quote.quality_level}">${qualityLabels[quote.quality_level] ?? quote.quality_level}</span></div></div>` : ''}
     </div>
     <p class="section-title">Partidas del presupuesto</p>
     <table>
