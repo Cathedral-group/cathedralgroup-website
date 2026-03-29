@@ -219,6 +219,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
   const sectionTitle = 'text-[11px] font-bold uppercase tracking-widest text-neutral-300 mb-3'
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={onClose}>
       <div
         className="w-full md:max-w-lg bg-white h-full overflow-y-auto p-4 md:p-8"
@@ -581,5 +582,6 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
         onSent={(at, ch) => { setSentAt(at); setSentChannel(ch) }}
       />
     )}
+    </>
   )
 }
