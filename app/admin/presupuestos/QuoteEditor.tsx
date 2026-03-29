@@ -447,23 +447,6 @@ export default function QuoteEditor({
       .catch(() => {})
   }, [])
 
-  /* ── Duplicate ── */
-  const handleDuplicate = () => {
-    savedIdRef.current = undefined
-    isFirstRender.current = true
-    setForm((prev) => ({
-      ...prev,
-      id: undefined,
-      number: generateNumber(),
-      status: 'borrador',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }))
-    setSaveStatus('idle')
-    // Allow the next change to trigger auto-save
-    setTimeout(() => { isFirstRender.current = false }, 100)
-  }
-
   /* ── Convert to invoice ── */
   const handleConvertToInvoice = async () => {
     const concept = form.items.map((it) => it.description).filter(Boolean).join(', ') || 'Presupuesto ' + form.number
@@ -931,9 +914,6 @@ export default function QuoteEditor({
         <div className="ml-auto flex items-center gap-2">
           {savedIdRef.current && (
             <>
-              <button onClick={handleDuplicate} className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors">
-                Duplicar
-              </button>
               <button
                 onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
                 className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
@@ -1533,9 +1513,6 @@ export default function QuoteEditor({
         {/* Actions on mobile (top bar ones are hidden sm:hidden) */}
         {savedIdRef.current && (
           <div className="flex flex-wrap gap-2 pt-4 border-t border-neutral-100 sm:hidden">
-            <button onClick={handleDuplicate} className="border border-neutral-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors">
-              Duplicar
-            </button>
             <button
               onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
               className="border border-neutral-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
