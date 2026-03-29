@@ -20,7 +20,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-dvh bg-neutral-50">
+    <div className="bg-neutral-50">
       {isAuthenticated ? (
         <AdminLayoutClient>{children}</AdminLayoutClient>
       ) : (

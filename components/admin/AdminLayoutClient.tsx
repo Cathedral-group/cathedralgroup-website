@@ -1,15 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AdminSidebar from './AdminSidebar'
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Set bg on html+body so the neutral-50 covers the full scrollable area (including horizontal overflow)
+  useEffect(() => {
+    const prev = document.body.style.backgroundColor
+    document.documentElement.style.backgroundColor = '#fafafa'
+    document.body.style.backgroundColor = '#fafafa'
+    return () => {
+      document.documentElement.style.backgroundColor = ''
+      document.body.style.backgroundColor = prev
+    }
+  }, [])
+
   const toggleSidebar = () => setSidebarOpen((prev) => !prev)
 
   return (
-    <div className="flex min-h-screen">
+    <>
       <AdminSidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
 
       {/* Mobile top bar with hamburger */}
@@ -32,9 +43,9 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
       </div>
 
       {/* Main content */}
-      <main className="flex-1 p-4 pt-18 md:p-8 md:pt-8 md:ml-64">
+      <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-8 md:ml-64">
         {children}
       </main>
-    </div>
+    </>
   )
 }
