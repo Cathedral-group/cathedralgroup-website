@@ -109,7 +109,7 @@ export default function LoginPage() {
     setSuccess('')
 
     // Validate Turnstile server-side before attempting auth
-    const verifyRes = await fetch('/api/auth/verify-turnstile', {
+    const verifyRes = await fetch('/api/verify-turnstile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: turnstileToken }),
