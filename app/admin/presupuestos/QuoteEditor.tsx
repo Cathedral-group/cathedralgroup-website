@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import MoneyInput from '@/components/admin/MoneyInput'
 import CatalogModal from './CatalogModal'
 import CatalogDropdown from './CatalogDropdown'
@@ -604,6 +604,13 @@ export default function QuoteEditor({
     })
   }, [])
 
+  /** Unique chapters from loaded catalog items, for chapter selector */
+  const catalogChapters = useMemo(() => {
+    const seen = new Map<string, string>()
+    catalogItems.forEach((ci) => { if (ci.chapter_code) seen.set(ci.chapter_code, ci.chapter_name) })
+    return Array.from(seen.entries()).map(([code, name]) => ({ code, name })).sort((a, b) => a.code.localeCompare(b.code))
+  }, [catalogItems])
+
   /** Resolve coefficient for a given quality level, considering the personalizado override */
   const resolveCoeff = useCallback((level: string, override: number | null): number => {
     if (level === 'personalizado') return override ?? 1.25
@@ -884,6 +891,7 @@ export default function QuoteEditor({
                       {h:'Cant.', cls:'px-2 py-2'},
                       {h:'Ud.', cls:'px-2 py-2'},
                       {h:'Cal.', cls:'px-1 py-2 w-14'},
+                      {h:'Gremio', cls:'px-1 py-2 w-28'},
                       {h:'Precio', cls:'px-2 py-2'},
                       {h:'Total', cls:'px-2 py-2'},
                       {h:'Benef.', cls:'px-2 py-2'},
@@ -915,11 +923,20 @@ export default function QuoteEditor({
                     const chapterSeq: Record<string, string> = {}
                     chapterOrder.forEach((code, i) => { chapterSeq[code] = String(i + 1).padStart(2, '0') })
 
-                    return form.items.flatMap((item, idx) => {
-                      const prev = idx > 0 ? form.items[idx - 1] : null
-                      const next = idx < form.items.length - 1 ? form.items[idx + 1] : null
-                      const showChapterHeader = item.chapter_code && item.chapter_code !== prev?.chapter_code
-                      const showSubtotal = item.chapter_code && item.chapter_code !== next?.chapter_code
+                    // Sort items for display: group by chapter (preserving first-appearance order), no-chapter last
+                    const displayItems = [...form.items.map((item, originalIdx) => ({ item, originalIdx }))]
+                      .sort((a, b) => {
+                        const ai = a.item.chapter_code ? chapterOrder.indexOf(a.item.chapter_code) : Infinity
+                        const bi = b.item.chapter_code ? chapterOrder.indexOf(b.item.chapter_code) : Infinity
+                        if (ai !== bi) return ai - bi
+                        return a.originalIdx - b.originalIdx
+                      })
+                    let editorLastChapter: string | undefined = undefined
+                    return displayItems.flatMap(({ item, originalIdx: idx }, di) => {
+                      const showChapterHeader = !!(item.chapter_code && item.chapter_code !== editorLastChapter)
+                      if (item.chapter_code) editorLastChapter = item.chapter_code
+                      const nextWithCh = displayItems.slice(di + 1).find((x) => x.item.chapter_code)
+                      const showSubtotal = !!(item.chapter_code && nextWithCh?.item.chapter_code !== item.chapter_code)
 
                       // Margin for this item
                       const itemMargin = item.base_unit_price != null
@@ -931,7 +948,7 @@ export default function QuoteEditor({
 
                       const headerRow = showChapterHeader ? (
                         <tr key={`ch-${idx}`} className="bg-neutral-100 border-t-2 border-neutral-200">
-                          <td colSpan={10} className="px-3 py-2">
+                          <td colSpan={11} className="px-3 py-2">
                             <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
                               {chapterSeq[item.chapter_code!]} — {item.chapter_name}
                             </span>
@@ -1074,6 +1091,23 @@ export default function QuoteEditor({
                                 placeholder="×"
                               />
                             )}
+                          </td>
+                          {/* Gremio (capítulo) */}
+                          <td className="px-1 py-2">
+                            <select
+                              value={item.chapter_code ?? ''}
+                              onChange={(e) => {
+                                const ch = catalogChapters.find((c) => c.code === e.target.value)
+                                updateItemMulti(idx, { chapter_code: ch?.code, chapter_name: ch?.name })
+                              }}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-[10px] w-28 truncate"
+                              title={item.chapter_name ?? 'Sin gremio'}
+                            >
+                              <option value="">—</option>
+                              {catalogChapters.map((ch) => (
+                                <option key={ch.code} value={ch.code}>{ch.name}</option>
+                              ))}
+                            </select>
                           </td>
                           {/* Precio unitario (compacto) */}
                           <td className="px-2 py-2">
@@ -1370,6 +1404,7 @@ export default function QuoteEditor({
                 chapter_name: ci.chapter_name,
                 quality_level: rowQualityLevel,
               })
+              sortItems()
               setOpenCatalogForRow(null)
             }}
             onClose={() => setOpenCatalogForRow(null)}

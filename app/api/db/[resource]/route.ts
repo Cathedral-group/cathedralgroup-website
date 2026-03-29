@@ -232,7 +232,7 @@ ${divisionCss}
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
-    <span class="footer-meta">CIF B19761915 · cathedralgroup.es · info@cathedralgroup.es</span>
+    <span class="footer-meta">CIF B19761915 · cathedralgroup.es · administracion@cathedralgroup.es</span>
   </div>
 </div></body></html>`
 
@@ -355,7 +355,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
-    <span class="footer-meta">CIF B19761915 · cathedralgroup.es · info@cathedralgroup.es</span>
+    <span class="footer-meta">CIF B19761915 · cathedralgroup.es · administracion@cathedralgroup.es</span>
   </div>
 </div></body></html>`
 
