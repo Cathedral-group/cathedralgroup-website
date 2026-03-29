@@ -90,7 +90,7 @@ function buildClientBlock(client: ClientData | null): string {
 
 const PDF_COMMON_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{font-family:'Inter',system-ui,sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding-top:48px}
 .page{max-width:860px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
 .header{background:#f5f2ee;padding:26px 56px;display:flex;justify-content:space-between;align-items:center}
