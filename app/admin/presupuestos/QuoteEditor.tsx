@@ -87,8 +87,42 @@ interface QuoteEditorProps {
 
 /* ─── Helpers ──────────────────────────────────────────────── */
 
-const DEFAULT_CONDITIONS =
-  'Presupuesto valido durante 30 dias naturales desde la fecha de emision. Los precios incluyen materiales y mano de obra salvo indicacion contraria. Los precios indicados incluyen IVA. No incluye licencias ni tasas municipales.'
+const DEFAULT_CONDITIONS = `CONDICIONES GENERALES
+
+1. Cualquier trabajo no recogido en esta oferta se presupuestará por separado antes de su ejecución.
+
+2. Los importes se basan en mediciones estimadas. El importe final se ajustará según las unidades realmente ejecutadas, certificadas al cierre de obra.
+
+3. El presupuesto incluye materiales y proyecto técnico. Los medios auxiliares no están incluidos salvo indicación expresa. Si la obra requiere medios auxiliares específicos (andamios, grúas, maquinaria especial, etc.), el cliente deberá comunicarlo con antelación para su valoración.
+
+4. Contamos con seguro de responsabilidad civil que cubre los trabajos realizados.
+
+5. Ofrecemos una garantía posventa de 12 meses desde la finalización de los trabajos.
+
+6. Esta oferta tiene una validez de 30 días desde su fecha de emisión.
+
+7. En caso de cancelación una vez aceptado el presupuesto, se facturarán los trabajos ya ejecutados y los materiales adquiridos o comprometidos hasta esa fecha.
+
+PROYECTO Y SEGUIMIENTO DE OBRA
+
+Una vez aceptado el presupuesto, nuestro equipo elaborará los planos técnicos necesarios y realizará las mediciones definitivas en obra. Durante la ejecución, nuestros técnicos supervisarán el avance periódicamente para garantizar la calidad y resolver cualquier incidencia con rapidez.
+
+Si la obra se paralizara más de 30 días por causas ajenas a nuestra empresa, nos reservamos el derecho a revisar precios y condiciones antes de reanudar los trabajos.
+
+CONDICIONES DE PAGO
+
+- 40 % a la aceptación del presupuesto, mediante transferencia bancaria.
+- 60 % restante mediante certificaciones mensuales según el avance de obra.
+
+El retraso en los pagos devengará intereses de demora del 2 % mensual desde la fecha de vencimiento. La empresa no responderá de daños indirectos o consecuenciales derivados de la ejecución de los trabajos.
+
+JURISDICCIÓN
+
+Para cualquier controversia derivada de este presupuesto, las partes se someten a los juzgados y tribunales de Madrid.
+
+PROTECCIÓN DE DATOS
+
+Los datos facilitados serán tratados conforme al Reglamento (UE) 2016/679 (RGPD), únicamente para la gestión de esta relación comercial. Puede ejercer sus derechos dirigiéndose a administracion@cathedralgroup.es.`
 
 function generateNumber(): string {
   const year = new Date().getFullYear()
