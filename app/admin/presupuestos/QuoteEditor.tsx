@@ -540,6 +540,35 @@ export default function QuoteEditor({
     if (inv) window.location.href = '/admin/facturas'
   }
 
+  /* ── Reopen a closed certification phase ── */
+  const handleReopenCertification = async (phase: CertPhase) => {
+    if (!savedIdRef.current) return
+    const certs = form.certifications ?? []
+    const laterCerts = certs.filter((c) => c.number > phase.number)
+    const msg = laterCerts.length > 0
+      ? `¿Reabrir Certificación ${phase.number}? Las certificaciones posteriores (${laterCerts.map((c) => `Cert. ${c.number}`).join(', ')}) también se eliminarán.`
+      : `¿Reabrir Certificación ${phase.number}? Podrás volver a modificarla y cerrarla.`
+    if (!confirm(msg)) return
+
+    // Keep only certifications before this one
+    const updatedCerts = certs.filter((c) => c.number < phase.number)
+
+    // Restore items' certified_pct from the snapshot of this phase
+    const snapMap = new Map(phase.items.map((it) => [it.description, it]))
+    const restoredItems = form.items.map((it) => {
+      const snap = snapMap.get(it.description)
+      return snap ? { ...it, certified_pct: snap.certified_pct, invoiced_pct: snap.invoiced_pct } : it
+    })
+    const totals = calcTotals(restoredItems)
+
+    await fetch('/api/db/quotes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: savedIdRef.current, certifications: updatedCerts, items: restoredItems, ...totals }),
+    })
+    setForm((prev) => ({ ...prev, certifications: updatedCerts, items: restoredItems, ...totals }))
+  }
+
   /* ── Delete ── */
   const handleDelete = async () => {
     if (!savedIdRef.current) return
@@ -1407,6 +1436,13 @@ export default function QuoteEditor({
                       </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleReopenCertification(phase)}
+                        className="border border-amber-300 text-amber-700 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-amber-50 transition-colors"
+                        title="Reabrir esta certificación para modificarla"
+                      >
+                        Reabrir
+                      </button>
                       {savedIdRef.current && (
                         <button
                           onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}&type=certificacion&cert=${phase.number}`, '_blank')}
