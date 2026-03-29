@@ -1006,7 +1006,7 @@ export default function QuoteEditor({
                   <tr className="border-b border-neutral-100 bg-neutral-50">
                     {[
                       {h:'Cert%', cls:'px-1 py-2 w-16'},
-                      {h:'Fact%', cls:'px-1 py-2 w-10 text-neutral-300'},
+                      {h:'F.ant%', cls:'px-1 py-2 w-10 text-neutral-300'},
                       {h:'Descripcion', cls:'px-3 py-2'},
                       {h:'Cant.', cls:'px-2 py-2'},
                       {h:'Ud.', cls:'px-2 py-2'},
@@ -1115,8 +1115,8 @@ export default function QuoteEditor({
                               />
                             </div>
                           </td>
-                          {/* % Fact — read-only, auto-set when invoice is generated */}
-                          <td className="px-1 py-2 w-10 text-center" title="% facturado (se actualiza al generar factura)">
+                          {/* % Fact anterior — read-only, auto-set when invoice is generated */}
+                          <td className="px-1 py-2 w-10 text-center" title="% facturado en la certificación anterior">
                             <span className="text-[10px] tabular-nums text-neutral-300 select-none">
                               {item.invoiced_pct > 0 ? `${item.invoiced_pct}%` : '—'}
                             </span>
