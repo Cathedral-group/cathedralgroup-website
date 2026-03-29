@@ -111,7 +111,7 @@ export default function AdminCrudPage({ title, table, data: initialData, columns
       {showForm && (
         <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={() => setShowForm(false)}>
           <div
-            className="w-full max-w-md bg-white h-full overflow-y-auto p-8"
+            className="w-full max-w-md bg-white h-full overflow-y-auto p-8 pb-[env(safe-area-inset-bottom)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-8">

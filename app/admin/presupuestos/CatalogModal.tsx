@@ -88,9 +88,9 @@ export default function CatalogModal({ qualityCoefficient, qualityLabel, onAdd, 
   const formatEur = (v: number) => v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-stretch" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 z-[60] flex flex-col items-stretch" onClick={onClose}>
       <div
-        className="relative bg-white w-full max-w-4xl mx-auto my-4 sm:my-8 rounded-lg shadow-2xl flex flex-col overflow-hidden"
+        className="relative bg-white w-full max-w-4xl mx-auto my-0 sm:my-4 md:my-8 rounded-lg shadow-2xl flex flex-col overflow-hidden flex-1"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -112,7 +112,7 @@ export default function CatalogModal({ qualityCoefficient, qualityLabel, onAdd, 
         <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Chapter sidebar */}
           {!search && (
-            <div className="w-44 flex-none border-r border-neutral-100 overflow-y-auto bg-neutral-50">
+            <div className="w-28 sm:w-44 flex-none border-r border-neutral-100 overflow-y-auto bg-neutral-50">
               <button
                 onClick={() => { setSelectedChapter(null); setSelectedSubcat(null) }}
                 className={`w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors ${!selectedChapter ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}

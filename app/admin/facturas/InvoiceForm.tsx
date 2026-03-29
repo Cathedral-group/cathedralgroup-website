@@ -222,7 +222,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
     <>
     <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={onClose}>
       <div
-        className="w-full md:max-w-lg bg-white h-full overflow-y-auto p-4 md:p-8"
+        className="w-full md:max-w-lg bg-white h-full overflow-y-auto p-4 md:p-8 pb-[env(safe-area-inset-bottom)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

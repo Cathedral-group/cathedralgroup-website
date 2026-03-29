@@ -304,7 +304,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
       {selectedLead && (
         <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={() => setSelectedLead(null)}>
           <div
-            className="w-full md:max-w-md bg-white h-full overflow-y-auto"
+            className="w-full md:max-w-md bg-white h-full overflow-y-auto pb-[env(safe-area-inset-bottom)]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

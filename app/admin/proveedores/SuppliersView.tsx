@@ -132,7 +132,7 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
       {form && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/20" onClick={close} />
-          <div className="relative w-full sm:max-w-md bg-white h-full overflow-y-auto shadow-xl">
+          <div className="relative w-full sm:max-w-md bg-white h-full overflow-y-auto shadow-xl pb-[env(safe-area-inset-bottom)]">
             <div className="sticky top-0 bg-white border-b border-neutral-100 p-6 flex justify-between items-center z-10">
               <h2 className="text-sm font-bold uppercase tracking-widest">{selected ? 'Editar' : 'Nuevo'} proveedor</h2>
               <button onClick={close} className="text-neutral-400 hover:text-neutral-600 text-xl">×</button>
