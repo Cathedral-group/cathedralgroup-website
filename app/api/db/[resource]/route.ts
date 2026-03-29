@@ -625,6 +625,27 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     return buildQuotePdf(id)
   }
 
+  // next-number: returns next consecutive document number for a series
+  if (resource === 'next-number') {
+    const user = await authCheck()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const type = request.nextUrl.searchParams.get('type') // quote | invoice | certification
+    const year = new Date().getFullYear()
+    const supabase = createAdminSupabaseClient()
+    const prefix = type === 'quote' ? 'P' : type === 'invoice' ? 'F' : 'C'
+    const pattern = `${prefix}-${year}-%`
+    const table = type === 'invoice' ? 'invoices' : 'quotes'
+    const { data } = await supabase.from(table).select('number').like('number', pattern).order('number', { ascending: false }).limit(1)
+    let nextNum = 1
+    if (data && data.length > 0) {
+      const parts = (data[0].number as string).split('-')
+      const last = parseInt(parts[2] || '0', 10)
+      if (!isNaN(last)) nextNum = last + 1
+    }
+    const number = `${prefix}-${year}-${String(nextNum).padStart(3, '0')}`
+    return NextResponse.json({ number })
+  }
+
   // factura-pdf: admin session required
   if (resource === 'factura-pdf') {
     const user = await authCheck()

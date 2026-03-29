@@ -82,6 +82,19 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
     setForm((prev) => ({ ...prev, [key]: val }))
   }, [])
 
+  // Auto-fetch consecutive number when creating a new emitida invoice
+  useEffect(() => {
+    if (isEdit) return
+    if (form.direction === 'emitida') {
+      fetch('/api/db/next-number?type=invoice')
+        .then((r) => r.json())
+        .then((d) => { if (d.number) setForm((prev) => ({ ...prev, number: d.number })) })
+        .catch(() => {})
+    } else {
+      setForm((prev) => ({ ...prev, number: '' }))
+    }
+  }, [form.direction]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-calculate amounts
   useEffect(() => {
     const base = form.amount_base ?? 0

@@ -128,8 +128,7 @@ Los datos facilitados serán tratados conforme al Reglamento (UE) 2016/679 (RGPD
 
 function generateNumber(): string {
   const year = new Date().getFullYear()
-  const seq = String(Math.floor(Math.random() * 900) + 100)
-  return `P-${year}-${seq}`
+  return `P-${year}-...` // placeholder until API responds
 }
 
 function plus30(): string {
@@ -218,6 +217,19 @@ export default function QuoteEditor({
       certifications: [],
     }
   })
+
+  // Fetch consecutive number for new quotes
+  useEffect(() => {
+    if (!isEdit) {
+      fetch('/api/db/next-number?type=quote')
+        .then((r) => r.json())
+        .then((d) => { if (d.number) setForm((prev) => ({ ...prev, number: d.number })) })
+        .catch(() => {
+          const year = new Date().getFullYear()
+          setForm((prev) => ({ ...prev, number: `P-${year}-001` }))
+        })
+    }
+  }, [isEdit])
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
