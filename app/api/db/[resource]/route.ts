@@ -402,9 +402,11 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
       </tbody>
     </table>
     <div class="totals"><table class="totals-table"><tbody>
-      <tr class="total-row"><td class="label-cell">Total</td><td class="amount-cell">${fmtEur(base)}</td></tr>
+      <tr><td class="label-cell">Base imponible</td><td class="amount-cell">${fmtEur(base)}</td></tr>
+      <tr><td class="label-cell">IVA (${vatPct}%)</td><td class="amount-cell">${fmtEur(vatAmt)}</td></tr>
+      ${irpfRate > 0 ? `<tr><td class="label-cell">IRPF (${irpfRate}%)</td><td class="amount-cell" style="color:#dc2626">−${fmtEur(irpfAmt)}</td></tr>` : ''}
+      <tr class="total-row"><td class="label-cell">Total</td><td class="amount-cell">${fmtEur(total)}</td></tr>
     </tbody></table></div>
-    <p class="vat-note">* Los importes indicados no incluyen IVA.</p>
     ${inv.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${inv.notes.replace(/\n/g, '<br>')}</p></div></div>` : ''}
     ${invQrDataUrl ? `<div class="qr-section">
       <img src="${invQrDataUrl}" class="qr-img" alt="QR Área de cliente" />
