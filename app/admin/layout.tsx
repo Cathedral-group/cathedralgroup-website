@@ -19,10 +19,6 @@ export default async function AdminLayout({
     isAuthenticated = false
   }
 
-  // If not authenticated and not on login page, redirect to login
-  // Note: login page is a direct child, layout wraps it too
-  // We'll handle this with a client-side check in the sidebar
-
   return (
     <div className="min-h-screen bg-neutral-50">
       {isAuthenticated ? (
