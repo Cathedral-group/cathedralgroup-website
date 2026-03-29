@@ -17,6 +17,7 @@ interface QuoteItem {
   quality_coefficient_override?: number  // custom coefficient when quality_level === 'personalizado'
   chapter_code?: string           // from catalog, used for sorting
   chapter_name?: string           // from catalog, used for sorting
+  notes?: string                  // per-item observation or clarification
   vat_pct: number
   total: number
   certified_pct: number
@@ -116,6 +117,7 @@ function normalizeItem(item: Partial<QuoteItem>): QuoteItem {
     quality_coefficient_override: item.quality_coefficient_override,
     chapter_code: item.chapter_code,
     chapter_name: item.chapter_name,
+    notes: item.notes,
     vat_pct: item.vat_pct ?? 21,
     total: item.total ?? 0,
     certified_pct: item.certified_pct ?? 0,
@@ -1008,7 +1010,7 @@ export default function QuoteEditor({
                       {h:'Descripcion', cls:'px-3 py-2'},
                       {h:'Cant.', cls:'px-2 py-2'},
                       {h:'Ud.', cls:'px-2 py-2'},
-                      {h:'Gremio', cls:'px-1 py-2 w-28'},
+                      {h:'Obs.', cls:'px-1 py-2'},
                       {h:'Precio', cls:'px-2 py-2'},
                       {h:'Total', cls:'px-2 py-2'},
                       {h:'Benef.', cls:'px-2 py-2'},
@@ -1100,26 +1102,32 @@ export default function QuoteEditor({
                       const itemRow = (
                         <tr key={idx}>
                           {/* % Cert */}
-                          <td className="px-1 py-2 w-10">
-                            <input
-                              type="number"
-                              value={item.certified_pct}
-                              onChange={(e) => updateItem(idx, 'certified_pct', Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs w-9 tabular-nums text-center"
-                              min="0" max="100" step="1"
-                              title="% certificado"
-                            />
+                          <td className="px-1 py-2 w-16">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-[10px] tabular-nums font-semibold text-neutral-600">{item.certified_pct}%</span>
+                              <input
+                                type="range"
+                                value={item.certified_pct}
+                                onChange={(e) => updateItem(idx, 'certified_pct', Number(e.target.value))}
+                                className="w-12 accent-primary h-1.5 cursor-pointer"
+                                min="0" max="100" step="5"
+                                title="% certificado"
+                              />
+                            </div>
                           </td>
                           {/* % Fact */}
-                          <td className="px-1 py-2 w-10">
-                            <input
-                              type="number"
-                              value={item.invoiced_pct}
-                              onChange={(e) => updateItem(idx, 'invoiced_pct', Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs w-9 tabular-nums text-center"
-                              min="0" max="100" step="1"
-                              title="% facturado"
-                            />
+                          <td className="px-1 py-2 w-16">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-[10px] tabular-nums font-semibold text-neutral-600">{item.invoiced_pct}%</span>
+                              <input
+                                type="range"
+                                value={item.invoiced_pct}
+                                onChange={(e) => updateItem(idx, 'invoiced_pct', Number(e.target.value))}
+                                className="w-12 accent-primary h-1.5 cursor-pointer"
+                                min="0" max="100" step="5"
+                                title="% facturado"
+                              />
+                            </div>
                           </td>
                           {/* Description */}
                           <td className="px-3 py-2 border-l border-neutral-100">
@@ -1179,22 +1187,16 @@ export default function QuoteEditor({
                               <option value="pa">pa</option>
                             </select>
                           </td>
-                          {/* Gremio (capítulo) */}
+                          {/* Observaciones por partida */}
                           <td className="px-1 py-2">
-                            <select
-                              value={item.chapter_code ?? ''}
-                              onChange={(e) => {
-                                const ch = catalogChapters.find((c) => c.code === e.target.value)
-                                updateItemMulti(idx, { chapter_code: ch?.code, chapter_name: ch?.name })
-                              }}
-                              className="bg-transparent border-0 focus:ring-0 p-0 text-[10px] w-28 truncate"
-                              title={item.chapter_name ?? 'Sin gremio'}
-                            >
-                              <option value="">—</option>
-                              {catalogChapters.map((ch) => (
-                                <option key={ch.code} value={ch.code}>{ch.name}</option>
-                              ))}
-                            </select>
+                            <input
+                              type="text"
+                              value={item.notes ?? ''}
+                              onChange={(e) => updateItem(idx, 'notes' as keyof QuoteItem, e.target.value)}
+                              className="bg-transparent border-0 focus:ring-0 p-0 text-[10px] text-neutral-400 w-full min-w-[100px]"
+                              placeholder="Obs..."
+                              title="Observación o aclaración para esta partida"
+                            />
                           </td>
                           {/* Precio unitario (compacto) */}
                           <td className="px-2 py-2">

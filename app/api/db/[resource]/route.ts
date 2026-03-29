@@ -272,7 +272,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
 
   const division = divisionFor(projectType)
   const qualityLabels: Record<string, string> = { estandar: 'Estándar', premium: 'Premium', lujo: 'Lujo' }
-  const items: { description: string; quantity: number; unit: string; unit_price: number; vat_pct: number; total: number; chapter_code?: string; chapter_name?: string }[] = Array.isArray(quote.items) ? quote.items : []
+  const items: { description: string; quantity: number; unit: string; unit_price: number; vat_pct: number; total: number; chapter_code?: string; chapter_name?: string; notes?: string }[] = Array.isArray(quote.items) ? quote.items : []
 
   // Build sequential chapter numbering
   const chapterOrder: string[] = []
@@ -302,7 +302,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
       rows.push(`<tr class="chapter-header"><td colspan="6">${chapterSeq[it.chapter_code!]} — ${it.chapter_name ?? it.chapter_code}</td></tr>`)
     }
     rows.push(`<tr>
-      <td class="td-desc">${it.description}</td>
+      <td class="td-desc">${it.description}${it.notes ? `<br><span style="font-size:8px;color:#9b8f84;font-style:italic">${it.notes}</span>` : ''}</td>
       <td class="td-num">${it.quantity}</td>
       <td class="td-center">${it.unit}</td>
       <td class="td-num">${fmtEur(it.unit_price)}</td>
