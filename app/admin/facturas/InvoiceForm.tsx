@@ -472,9 +472,14 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
               Ver PDF
             </button>
           )}
-          {isEdit && (
-            <div className="flex gap-3">
-              {confirmDelete ? (
+        </div>
+
+        {/* Danger zone */}
+        {isEdit && (
+          <div className="mt-8 pt-6 border-t border-red-100">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-red-300 mb-3">Zona de peligro</p>
+            {confirmDelete ? (
+              <div className="flex gap-2">
                 <button
                   onClick={handleDelete}
                   disabled={saving}
@@ -482,17 +487,23 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
                 >
                   Confirmar eliminar
                 </button>
-              ) : (
                 <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="flex-1 border border-red-200 text-red-500 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-red-50 transition-colors"
+                  onClick={() => setConfirmDelete(false)}
+                  className="flex-1 border border-neutral-200 py-2.5 text-xs font-bold uppercase tracking-widest text-neutral-400 hover:border-neutral-400 transition-colors"
                 >
-                  Eliminar
+                  Cancelar
                 </button>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="w-full border border-red-200 text-red-400 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-red-50 transition-colors"
+              >
+                Eliminar factura
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
