@@ -134,6 +134,9 @@ td.bold{font-weight:600}
 .total-row .amount-cell{font-size:13px;font-weight:700;color:#1a1a1a}
 .notes-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px}
 .notes-block p{font-size:8.5px;color:#777;line-height:1.7;white-space:pre-wrap}
+.conditions-page{page-break-before:always;break-before:page;padding:32px 56px 48px;margin-top:48px;border-top:2px solid #e8e4e0}
+.conditions-page .section-title{margin-bottom:16px}
+@media print{.conditions-page{margin-top:0;border-top:none;padding:48px 56px}}
 .footer{background:#f5f2ee;padding:14px 56px;display:flex;justify-content:space-between;align-items:center;margin-top:auto}
 .footer-brand{font-size:9px;font-weight:300;letter-spacing:.12em;text-transform:uppercase;color:#6b5e52}
 .footer-meta{font-size:9px;color:#999;letter-spacing:.04em}
@@ -569,10 +572,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
       <tr class="total-row"><td class="label-cell">Total presupuesto</td><td class="amount-cell">${fmtEur(quote.subtotal ?? 0)}</td></tr>
     </tbody></table></div>
     <p class="vat-note">* Los importes indicados en este presupuesto no incluyen IVA.</p>
-    ${(quote.notes || quote.conditions) ? `<div class="notes-grid">
-      ${quote.notes ? `<div class="notes-block"><p class="section-title">Notas</p><p>${quote.notes.replace(/\n/g, '<br>')}</p></div>` : ''}
-      ${quote.conditions ? `<div class="notes-block"><p class="section-title">Condiciones</p><p>${quote.conditions.replace(/\n/g, '<br>')}</p></div>` : ''}
-    </div>` : ''}
+    ${quote.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${quote.notes.replace(/\n/g, '<br>')}</p></div></div>` : ''}
     ${qrDataUrl ? `<div class="qr-section">
       <img src="${qrDataUrl}" class="qr-img" alt="QR Área de cliente" />
       <div>
@@ -582,6 +582,10 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
       </div>
     </div>` : ''}
   </div>
+  ${quote.conditions ? `<div class="conditions-page">
+    <p class="section-title">Condiciones generales</p>
+    <p class="notes-block" style="font-size:8.5px;color:#777;line-height:1.7;white-space:pre-wrap">${quote.conditions.replace(/\n/g, '<br>')}</p>
+  </div>` : ''}
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
     <span class="footer-meta">Pº Castellana 40, 8º · 28046 Madrid · CIF B19761915</span>
