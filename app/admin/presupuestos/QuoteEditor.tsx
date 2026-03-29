@@ -1005,8 +1005,8 @@ export default function QuoteEditor({
                 <thead>
                   <tr className="border-b border-neutral-100 bg-neutral-50">
                     {[
-                      {h:'Cert%', cls:'px-1 py-2 w-10'},
-                      {h:'Fact%', cls:'px-1 py-2 w-10'},
+                      {h:'Cert%', cls:'px-1 py-2 w-16'},
+                      {h:'Fact%', cls:'px-1 py-2 w-10 text-neutral-300'},
                       {h:'Descripcion', cls:'px-3 py-2'},
                       {h:'Cant.', cls:'px-2 py-2'},
                       {h:'Ud.', cls:'px-2 py-2'},
@@ -1115,19 +1115,11 @@ export default function QuoteEditor({
                               />
                             </div>
                           </td>
-                          {/* % Fact */}
-                          <td className="px-1 py-2 w-16">
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className="text-[10px] tabular-nums font-semibold text-neutral-600">{item.invoiced_pct}%</span>
-                              <input
-                                type="range"
-                                value={item.invoiced_pct}
-                                onChange={(e) => updateItem(idx, 'invoiced_pct', Number(e.target.value))}
-                                className="w-12 accent-primary h-1.5 cursor-pointer"
-                                min="0" max="100" step="5"
-                                title="% facturado"
-                              />
-                            </div>
+                          {/* % Fact — read-only, auto-set when invoice is generated */}
+                          <td className="px-1 py-2 w-10 text-center" title="% facturado (se actualiza al generar factura)">
+                            <span className="text-[10px] tabular-nums text-neutral-300 select-none">
+                              {item.invoiced_pct > 0 ? `${item.invoiced_pct}%` : '—'}
+                            </span>
                           </td>
                           {/* Description */}
                           <td className="px-3 py-2 border-l border-neutral-100">
