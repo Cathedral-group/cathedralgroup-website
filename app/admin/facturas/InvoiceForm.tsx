@@ -167,18 +167,6 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
     }
   }
 
-  const handleDuplicate = () => {
-    setForm((prev) => ({
-      ...prev,
-      id: undefined,
-      number: '',
-      issue_date: todayStr(),
-      due_date: plus30(),
-      payment_date: null,
-      payment_status: 'pendiente',
-    }))
-  }
-
   const labelCls = 'text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-2'
   const inputCls = 'w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-3 text-sm'
   const sectionCls = 'mb-6'
@@ -486,12 +474,6 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
           )}
           {isEdit && (
             <div className="flex gap-3">
-              <button
-                onClick={handleDuplicate}
-                className="flex-1 border border-neutral-200 py-2.5 text-xs font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
-              >
-                Duplicar
-              </button>
               {confirmDelete ? (
                 <button
                   onClick={handleDelete}
