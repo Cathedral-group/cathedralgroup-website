@@ -105,6 +105,7 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
         </div>
       ) : (
         <div className="bg-white border border-neutral-100 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-neutral-100">
@@ -146,6 +147,7 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>
