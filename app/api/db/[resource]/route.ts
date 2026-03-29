@@ -115,7 +115,7 @@ th.th-num,td.td-num{text-align:right}th.th-center,td.td-center{text-align:center
 td{padding:8px 10px;font-size:11px;color:#2a2a2a;vertical-align:top;border-bottom:1px solid #f0ede9}
 td.td-desc{word-wrap:break-word;overflow-wrap:break-word;white-space:normal}
 td.bold{font-weight:600}
-.row-even{background:#fff}.row-odd{background:#faf9f8}
+.row-even,.row-odd{background:#fff}
 .totals{display:flex;justify-content:flex-end;margin-bottom:28px}.totals-table{width:260px}
 .totals-table td{padding:5px 10px;border-bottom:none}.totals-table .label-cell{font-size:11px;color:#666}
 .totals-table .amount-cell{text-align:right;font-size:11px;font-variant-numeric:tabular-nums}
@@ -272,17 +272,17 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   chapterOrder.forEach((code, i) => { chapterSeq[code] = String(i + 1).padStart(2, '0') })
 
   const filtered = items.filter((it) => it.description)
-  let rowIdx = 0
+  let lastChapterCode: string | undefined = undefined
   const itemRows = filtered.flatMap((it, i) => {
-    const prev = i > 0 ? filtered[i - 1] : null
-    const next = i < filtered.length - 1 ? filtered[i + 1] : null
-    const showHeader = it.chapter_code && it.chapter_code !== prev?.chapter_code
-    const showSubtotal = it.chapter_code && it.chapter_code !== next?.chapter_code
+    const showHeader = !!(it.chapter_code && it.chapter_code !== lastChapterCode)
+    if (it.chapter_code) lastChapterCode = it.chapter_code
+    const nextWithChapter = filtered.slice(i + 1).find((x) => x.chapter_code)
+    const showSubtotal = !!(it.chapter_code && nextWithChapter?.chapter_code !== it.chapter_code)
     const rows: string[] = []
     if (showHeader) {
-      rows.push(`<tr class="chapter-header"><td colspan="6" class="chapter-title">${chapterSeq[it.chapter_code!]} — ${it.chapter_name ?? it.chapter_code}</td></tr>`)
+      rows.push(`<tr class="chapter-header"><td colspan="6">${chapterSeq[it.chapter_code!]} — ${it.chapter_name ?? it.chapter_code}</td></tr>`)
     }
-    rows.push(`<tr class="${rowIdx++ % 2 === 0 ? 'row-even' : 'row-odd'}">
+    rows.push(`<tr>
       <td class="td-desc">${it.description}</td>
       <td class="td-num">${it.quantity}</td>
       <td class="td-center">${it.unit}</td>
@@ -292,7 +292,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
     </tr>`)
     if (showSubtotal) {
       const chTotal = chapterTotals[it.chapter_code!] ?? 0
-      rows.push(`<tr class="chapter-subtotal"><td colspan="4" class="subtotal-label">Subtotal ${it.chapter_name ?? it.chapter_code}</td><td colspan="2" class="td-num subtotal-amount">${fmtEur(chTotal)}</td></tr>`)
+      rows.push(`<tr class="chapter-subtotal"><td colspan="5" class="subtotal-label">Subtotal</td><td class="td-num subtotal-amount">${fmtEur(chTotal)}</td></tr>`)
     }
     return rows
   })
@@ -303,10 +303,10 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
 <style>${PDF_COMMON_CSS}
 .quality-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:2px 7px;border-radius:3px}
 .quality-estandar{background:#f0eeec;color:#6b5e52}.quality-premium{background:#dbeafe;color:#1d4ed8}.quality-lujo{background:#fef3c7;color:#92400e}
-.chapter-header td{background:#f5f3f0;padding:8px 8px 6px;font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6b5e52;border-top:2px solid #e5e1dc}
-.chapter-subtotal td{background:#faf9f8;border-top:1px solid #e5e1dc;padding:5px 8px}
-.subtotal-label{font-size:9px;font-weight:600;letter-spacing:.10em;text-transform:uppercase;color:#999}
-.subtotal-amount{font-size:11px;font-weight:700;color:#1a1a1a}
+.chapter-header td{background:#f5f2ee;padding:10px 10px 8px;font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#6b5e52;border-top:1px solid #ddd9d4;border-bottom:none}
+.chapter-subtotal td{background:#fff;border-top:2px solid #B4A898;border-bottom:none;padding:8px 10px}
+.subtotal-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#B4A898}
+.subtotal-amount{font-size:12px;font-weight:700;color:#1a1a1a}
 </style></head><body>
 <div class="print-bar"><span>Presupuesto ${quote.number} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
 <div class="page">
