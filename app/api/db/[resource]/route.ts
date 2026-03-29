@@ -96,7 +96,8 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:11px;color:#1a1a1a;backg
 .company-identity{display:flex;align-items:center;gap:14px}
 .logo{height:28px;width:auto;flex-none}
 .company-name{font-size:14px;font-weight:300;letter-spacing:.16em;text-transform:uppercase;color:#1a1a1a}
-.company-detail{font-size:9px;color:#aaa;margin-top:8px;letter-spacing:.04em}
+.company-detail{font-size:9px;color:#6b5e52;margin-top:6px;letter-spacing:.06em;font-weight:500}
+.company-web{font-size:8px;color:#bbb;margin-top:2px;letter-spacing:.04em}
 .doc-block{text-align:right}
 .doc-type{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#B4A898;margin-bottom:4px}
 .doc-number{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
@@ -133,7 +134,7 @@ td.bold{font-weight:600}
 @media print{body{padding-top:0}.print-bar{display:none!important}}
 `
 
-async function buildCertificationPdf(id: string): Promise<NextResponse> {
+async function buildCertificationPdf(id: string, certNumber?: number): Promise<NextResponse> {
   const supabase = createAdminSupabaseClient()
   const { data: quote, error } = await supabase.from('quotes').select('*').eq('id', id).single()
   if (error || !quote) return new NextResponse('Presupuesto no encontrado', { status: 404 })
@@ -151,7 +152,19 @@ async function buildCertificationPdf(id: string): Promise<NextResponse> {
   }
 
   const division = divisionFor(projectType)
-  const items: { description: string; total: number; certified_pct: number; invoiced_pct: number }[] = Array.isArray(quote.items) ? quote.items : []
+
+  // If a specific cert number is requested, use its snapshot
+  let items: { description: string; total: number; certified_pct: number; invoiced_pct: number }[]
+  let certLabel = ''
+  if (certNumber) {
+    const phases: { number: number; items: typeof items; total_certified: number }[] = Array.isArray(quote.certifications) ? quote.certifications : []
+    const phase = phases.find((p) => p.number === certNumber)
+    if (!phase) return new NextResponse('Certificación no encontrada', { status: 404 })
+    items = phase.items ?? []
+    certLabel = ` — Certificación ${certNumber}`
+  } else {
+    items = Array.isArray(quote.items) ? quote.items : []
+  }
 
   const totalBudget = items.reduce((s, it) => s + (it.total || 0), 0)
   const totalCertified = items.reduce((s, it) => s + Math.round((it.total || 0) * ((it.certified_pct || 0) / 100) * 100) / 100, 0)
@@ -197,10 +210,11 @@ ${divisionCss}
         <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
       </div>
-      <div class="company-detail">Cathedral House Investment SL · CIF B19761915 · cathedralgroup.es</div>
+      <div class="company-detail">CIF B19761915</div>
+      <div class="company-web">Cathedral House Investment SL · cathedralgroup.es</div>
     </div>
     <div class="doc-block">
-      <div class="doc-type">Certificación Parcial</div>
+      <div class="doc-type">${certLabel ? `Certificación ${certNumber}` : 'Certificación Parcial'}</div>
       <div class="doc-number">${quote.number}</div>
       <div class="doc-sub">Presupuesto de referencia</div>
     </div>
@@ -321,7 +335,8 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
         <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
       </div>
-      <div class="company-detail">Cathedral House Investment SL · CIF B19761915 · cathedralgroup.es</div>
+      <div class="company-detail">CIF B19761915</div>
+      <div class="company-web">Cathedral House Investment SL · cathedralgroup.es</div>
     </div>
     <div class="doc-block">
       <div class="doc-type">Presupuesto</div>
@@ -373,7 +388,11 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     const id = request.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
     const type = request.nextUrl.searchParams.get('type')
-    if (type === 'certificacion') return buildCertificationPdf(id)
+    if (type === 'certificacion') {
+      const certParam = request.nextUrl.searchParams.get('cert')
+      const certNumber = certParam ? parseInt(certParam, 10) : undefined
+      return buildCertificationPdf(id, certNumber)
+    }
     return buildQuotePdf(id)
   }
 

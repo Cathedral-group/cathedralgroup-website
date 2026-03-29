@@ -21,6 +21,7 @@ interface Quote {
   created_by: string | null
   created_at: string
   updated_at: string
+  certifications: { number: number; closed_at: string; items: { description: string; total: number; certified_pct: number; invoiced_pct: number }[]; total_budget: number; total_certified: number; vat_pct: number }[]
 }
 
 interface QuoteItem {

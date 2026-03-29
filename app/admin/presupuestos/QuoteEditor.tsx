@@ -23,6 +23,15 @@ interface QuoteItem {
   invoiced_pct: number
 }
 
+interface CertPhase {
+  number: number
+  closed_at: string
+  items: { description: string; total: number; certified_pct: number; invoiced_pct: number }[]
+  total_budget: number
+  total_certified: number
+  vat_pct: number
+}
+
 interface Quote {
   id?: string
   number: string
@@ -41,6 +50,7 @@ interface Quote {
   created_by: string | null
   created_at: string
   updated_at: string
+  certifications: CertPhase[]
 }
 
 interface Client {
@@ -148,7 +158,7 @@ export default function QuoteEditor({
   const isEdit = !!quote?.id
 
   const [form, setForm] = useState<Quote>(() => {
-    if (quote) return { ...quote, items: Array.isArray(quote.items) ? quote.items.map(normalizeItem) : [] }
+    if (quote) return { ...quote, items: Array.isArray(quote.items) ? quote.items.map(normalizeItem) : [], certifications: Array.isArray(quote.certifications) ? quote.certifications : [] }
     return {
       number: generateNumber(),
       client_id: null,
@@ -166,6 +176,7 @@ export default function QuoteEditor({
       created_by: userEmail,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      certifications: [],
     }
   })
 
@@ -458,6 +469,75 @@ export default function QuoteEditor({
       }
       window.location.href = '/admin/facturas'
     }
+  }
+
+  /* ── Close / lock a certification phase ── */
+  const handleCloseCertification = async () => {
+    if (!savedIdRef.current) return
+    const vatPct = form.items[0]?.vat_pct ?? 21
+    const totalBudget = form.total
+    const totalCertified = form.items.reduce((s, it) => s + Math.round((it.total || 0) * ((it.certified_pct || 0) / 100) * 100) / 100, 0)
+    const newPhase: CertPhase = {
+      number: (form.certifications?.length ?? 0) + 1,
+      closed_at: new Date().toISOString().slice(0, 10),
+      items: form.items.filter((it) => it.description).map((it) => ({
+        description: it.description,
+        total: it.total,
+        certified_pct: it.certified_pct,
+        invoiced_pct: it.invoiced_pct,
+      })),
+      total_budget: totalBudget,
+      total_certified: Math.round(totalCertified * 100) / 100,
+      vat_pct: vatPct,
+    }
+    const updatedCerts = [...(form.certifications ?? []), newPhase]
+    await fetch('/api/db/quotes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: savedIdRef.current, certifications: updatedCerts }),
+    })
+    setForm((prev) => ({ ...prev, certifications: updatedCerts }))
+  }
+
+  /* ── Create invoice from a closed certification phase ── */
+  const handleCertInvoice = async (phase: CertPhase) => {
+    const prevPhase = form.certifications?.find((c) => c.number === phase.number - 1)
+    const prevCertified = prevPhase?.total_certified ?? 0
+    const deltaCertified = Math.round((phase.total_certified - prevCertified) * 100) / 100
+    const vatPct = phase.vat_pct ?? 21
+    const base = deltaCertified
+    const vat = Math.round(base * vatPct / 100 * 100) / 100
+    const total = Math.round((base + vat) * 100) / 100
+    const invoicePayload = {
+      direction: 'emitida',
+      doc_type: 'factura',
+      number: '',
+      concept: `Certificación ${phase.number} — Pres. ${form.number}`,
+      amount_base: base,
+      vat_pct: vatPct,
+      vat_amount: vat,
+      irpf_rate: null,
+      irpf_amount: null,
+      amount_total: total,
+      issue_date: phase.closed_at,
+      due_date: phase.closed_at,
+      payment_date: null,
+      payment_status: 'pendiente',
+      payment_method: null,
+      proyecto_code: null,
+      supplier_nif: null,
+      categoria_gasto: null,
+      es_rectificativa: false,
+      numero_factura_original: null,
+      notes: `Cert. ${phase.number} de pres. ${form.number}. Certificado acumulado: ${phase.total_certified.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`,
+    }
+    const res = await fetch('/api/db/invoices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(invoicePayload),
+    })
+    const { data: inv } = await res.json()
+    if (inv) window.location.href = '/admin/facturas'
   }
 
   /* ── Delete ── */
@@ -794,13 +874,22 @@ export default function QuoteEditor({
                 PDF Presupuesto
               </button>
               {form.items.some((it) => (it.certified_pct ?? 0) > 0) && (
-                <button
-                  onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}&type=certificacion`, '_blank')}
-                  className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-green-600 hover:border-green-400 hover:bg-green-50 transition-colors"
-                  title="Generar PDF de certificación parcial"
-                >
-                  PDF Certificación
-                </button>
+                <>
+                  <button
+                    onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}&type=certificacion`, '_blank')}
+                    className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-green-600 hover:border-green-400 hover:bg-green-50 transition-colors"
+                    title="Generar PDF de certificación parcial"
+                  >
+                    PDF Cert.
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`¿Cerrar y bloquear Certificación ${(form.certifications?.length ?? 0) + 1}?`)) handleCloseCertification() }}
+                    className="hidden sm:block border border-green-600 text-green-700 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-green-600 hover:text-white transition-colors"
+                    title="Cerrar y bloquear la certificación actual"
+                  >
+                    Cerrar Cert. {(form.certifications?.length ?? 0) + 1}
+                  </button>
+                </>
               )}
               <button onClick={handleConvertToInvoice} className="hidden sm:block bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">
                 → Factura
@@ -890,7 +979,6 @@ export default function QuoteEditor({
                       {h:'Descripcion', cls:'px-3 py-2'},
                       {h:'Cant.', cls:'px-2 py-2'},
                       {h:'Ud.', cls:'px-2 py-2'},
-                      {h:'Cal.', cls:'px-1 py-2 w-14'},
                       {h:'Gremio', cls:'px-1 py-2 w-28'},
                       {h:'Precio', cls:'px-2 py-2'},
                       {h:'Total', cls:'px-2 py-2'},
@@ -948,7 +1036,7 @@ export default function QuoteEditor({
 
                       const headerRow = showChapterHeader ? (
                         <tr key={`ch-${idx}`} className="bg-neutral-100 border-t-2 border-neutral-200">
-                          <td colSpan={11} className="px-3 py-2">
+                          <td colSpan={10} className="px-3 py-2">
                             <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
                               {chapterSeq[item.chapter_code!]} — {item.chapter_name}
                             </span>
@@ -1061,36 +1149,6 @@ export default function QuoteEditor({
                               <option value="ml">ml</option>
                               <option value="pa">pa</option>
                             </select>
-                          </td>
-                          {/* Calidad por partida */}
-                          <td className="px-1 py-2">
-                            <select
-                              value={item.quality_level ?? form.quality_level}
-                              onChange={(e) => updateItem(idx, 'quality_level', e.target.value)}
-                              className="bg-transparent border-0 focus:ring-0 p-0 text-xs"
-                            >
-                              <option value="basico">Bás</option>
-                              <option value="estandar">Std</option>
-                              <option value="premium">Prm</option>
-                              <option value="lujo">Luj</option>
-                              <option value="alto_lujo">ALj</option>
-                              <option value="personalizado">Per</option>
-                            </select>
-                            {(item.quality_level ?? form.quality_level) === 'personalizado' && (
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                defaultValue={(item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1.25).toString()}
-                                key={`itemcoeff-${idx}-${item.quality_coefficient_override ?? form.quality_coefficient_override ?? 1.25}`}
-                                onBlur={(e) => {
-                                  const val = parseFloat(e.target.value.replace(',', '.')) || 1
-                                  updateItem(idx, 'quality_coefficient_override', val)
-                                }}
-                                className="bg-transparent border-0 focus:ring-0 p-0 text-[10px] w-10 tabular-nums text-center text-neutral-500"
-                                title="Coeficiente personalizado para esta partida"
-                                placeholder="×"
-                              />
-                            )}
                           </td>
                           {/* Gremio (capítulo) */}
                           <td className="px-1 py-2">
@@ -1321,6 +1379,52 @@ export default function QuoteEditor({
                   Aplicar certificacion
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Historial de certificaciones cerradas */}
+        {(form.certifications?.length ?? 0) > 0 && (
+          <div className={sectionCls}>
+            <p className={sectionTitle}>Certificaciones cerradas</p>
+            <div className="space-y-2">
+              {form.certifications.map((phase) => {
+                const prevPhase = form.certifications.find((c) => c.number === phase.number - 1)
+                const prevCertified = prevPhase?.total_certified ?? 0
+                const delta = Math.round((phase.total_certified - prevCertified) * 100) / 100
+                const vatPct = phase.vat_pct ?? 21
+                const deltaTotal = Math.round(delta * (1 + vatPct / 100) * 100) / 100
+                const fmtEur = (v: number) => v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })
+                return (
+                  <div key={phase.number} className="border border-neutral-100 p-4 flex items-center gap-4 bg-neutral-50">
+                    <div className="flex-1">
+                      <p className="text-xs font-bold uppercase tracking-widest text-neutral-600">Certificación {phase.number}</p>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">Cerrada el {new Date(phase.closed_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        Cert. acumulado: <strong>{fmtEur(phase.total_certified)}</strong>
+                        {' · '}Nuevo en esta cert.: <strong className="text-neutral-800">{fmtEur(delta)}</strong>
+                        {' · '}Total c/IVA: <strong className="text-green-700">{fmtEur(deltaTotal)}</strong>
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {savedIdRef.current && (
+                        <button
+                          onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}&type=certificacion&cert=${phase.number}`, '_blank')}
+                          className="border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
+                        >
+                          PDF Cert. {phase.number}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleCertInvoice(phase)}
+                        className="bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors"
+                      >
+                        → Factura
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
