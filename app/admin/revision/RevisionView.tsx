@@ -37,7 +37,7 @@ interface RevisionViewProps {
 const DOC_TYPES = [
   'factura', 'proforma', 'ticket', 'albaran', 'certificado', 'presupuesto',
   'contrato', 'nota_simple', 'escritura', 'licencia', 'informe', 'nomina',
-  'modelo_fiscal', 'seguro', 'rectificativa', 'abono', 'otro',
+  'modelo_fiscal', 'seguro', 'rectificativa', 'abono', 'justificante_pago', 'otro',
 ]
 
 function formatEur(val: number | null): string {
