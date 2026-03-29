@@ -154,15 +154,12 @@ async function buildCertificationPdf(id: string, certNumber?: number): Promise<N
 
   const division = divisionFor(projectType)
 
-  // If a specific cert number is requested, use its snapshot
   let items: { description: string; total: number; certified_pct: number; invoiced_pct: number }[]
-  let certLabel = ''
   if (certNumber) {
     const phases: { number: number; items: typeof items; total_certified: number }[] = Array.isArray(quote.certifications) ? quote.certifications : []
     const phase = phases.find((p) => p.number === certNumber)
     if (!phase) return new NextResponse('Certificación no encontrada', { status: 404 })
     items = phase.items ?? []
-    certLabel = ` — Certificación ${certNumber}`
   } else {
     items = Array.isArray(quote.items) ? quote.items : []
   }
@@ -189,21 +186,16 @@ async function buildCertificationPdf(id: string, certNumber?: number): Promise<N
     </tr>`
   }).join('')
 
-  const divisionCss = division
-    ? `.company-division{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#B4A898;margin-top:2px}`
-    : ''
-
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Certificación ${quote.number} — Cathedral Group</title>
+<title>Certificación ${certNumber ?? ''} — ${quote.number} — Cathedral Group</title>
 <style>${PDF_COMMON_CSS}
 td.pending-positive{color:#16a34a}
 .progress-bar-wrap{background:#e5e7eb;border-radius:4px;height:8px;margin-bottom:24px;overflow:hidden}
 .progress-bar-fill{height:8px;border-radius:4px;background:#22c55e}
 .progress-label{font-size:11px;color:#555;margin-bottom:6px}
 .total-row .amount-cell{color:#16a34a !important}
-${divisionCss}
 </style></head><body>
-<div class="print-bar"><span>Certificación ${quote.number} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
+<div class="print-bar"><span>Certificación ${certNumber ?? ''} — ${quote.number} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
 <div class="page">
   <div class="header">
     <div>
@@ -215,7 +207,7 @@ ${divisionCss}
       <div class="company-web">Cathedral House Investment SL · cathedralgroup.es</div>
     </div>
     <div class="doc-block">
-      <div class="doc-type">${certLabel ? `Certificación ${certNumber}` : 'Certificación Parcial'}</div>
+      <div class="doc-type">${certNumber ? `Certificación ${certNumber}` : 'Certificación Parcial'}</div>
       <div class="doc-number">${quote.number}</div>
       <div class="doc-sub">Presupuesto de referencia</div>
     </div>
@@ -244,6 +236,138 @@ ${divisionCss}
       <tr><td class="label-cell">Total facturado</td><td class="amount-cell">${fmtEur(Math.round(totalInvoiced * 100) / 100)}</td></tr>
       <tr class="total-row"><td class="label-cell">Pendiente de facturar</td><td class="amount-cell">${fmtEur(totalPending)}</td></tr>
     </tbody></table></div>
+  </div>
+  <div class="footer">
+    <span class="footer-brand">Cathedral House Investment SL</span>
+    <span class="footer-meta">CIF B19761915 · cathedralgroup.es · administracion@cathedralgroup.es</span>
+  </div>
+</div></body></html>`
+
+  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+}
+
+async function buildInvoicePdf(id: string): Promise<NextResponse> {
+  const supabase = createAdminSupabaseClient()
+  const { data: inv, error } = await supabase.from('invoices').select('*').eq('id', id).single()
+  if (error || !inv) return new NextResponse('Factura no encontrada', { status: 404 })
+
+  // Try to get client info via project
+  let client: ClientData | null = null
+  let projectType: string | null = null
+  if (inv.proyecto_code) {
+    const { data: proj } = await supabase.from('projects').select('type, client_id').eq('code', inv.proyecto_code).single()
+    if (proj) {
+      projectType = proj.type ?? null
+      if (proj.client_id) {
+        const { data: c } = await supabase.from('clients').select('name,nif_cif,email,phone,address,company_name').eq('id', proj.client_id).single()
+        if (c) client = c as ClientData
+      }
+    }
+  }
+
+  // For recibida invoices, get supplier info as the "other party"
+  let supplierName = ''
+  let supplierNif = ''
+  if (inv.direction === 'recibida' && inv.supplier_nif) {
+    const { data: sup } = await supabase.from('suppliers').select('name, cif').eq('cif', inv.supplier_nif).single()
+    if (sup) { supplierName = sup.name; supplierNif = sup.cif }
+  }
+
+  const division = divisionFor(projectType)
+
+  const docTypeLabels: Record<string, string> = {
+    factura: 'Factura', proforma: 'Proforma', rectificativa: 'Factura Rectificativa',
+    abono: 'Abono', otro: 'Documento',
+  }
+  const docTypeLabel = docTypeLabels[inv.doc_type ?? 'factura'] ?? 'Factura'
+  const isEmitida = inv.direction === 'emitida'
+
+  const paymentStatusLabels: Record<string, string> = {
+    pendiente: 'Pendiente', pagada: 'Pagada', vencida: 'Vencida', parcial: 'Pago parcial', cancelada: 'Cancelada',
+  }
+  const paymentStatusColors: Record<string, string> = {
+    pendiente: '#f59e0b', pagada: '#16a34a', vencida: '#dc2626', parcial: '#3b82f6', cancelada: '#9ca3af',
+  }
+  const statusLabel = paymentStatusLabels[inv.payment_status ?? 'pendiente'] ?? 'Pendiente'
+  const statusColor = paymentStatusColors[inv.payment_status ?? 'pendiente'] ?? '#f59e0b'
+
+  const base = inv.amount_base ?? inv.subtotal ?? 0
+  const vatAmt = inv.vat_amount ?? inv.vat_total ?? 0
+  const irpfAmt = inv.irpf_amount ?? 0
+  const total = inv.amount_total ?? inv.total ?? 0
+  const vatPct = inv.vat_pct ?? inv.vat_rate ?? 21
+  const irpfRate = inv.irpf_rate ?? 0
+
+  // Other party block (client for emitida, supplier for recibida)
+  let partyBlock = ''
+  if (isEmitida && client) {
+    partyBlock = buildClientBlock(client)
+  } else if (!isEmitida && supplierName) {
+    partyBlock = `<div class="meta-block"><label>Proveedor</label>
+      <div class="value client-name">${supplierName}</div>
+      ${supplierNif ? `<div class="client-detail">${supplierNif}</div>` : ''}
+    </div>`
+  } else {
+    partyBlock = '<div class="meta-block"></div>'
+  }
+
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${docTypeLabel} ${inv.invoice_number ?? ''} — Cathedral Group</title>
+<style>${PDF_COMMON_CSS}
+.status-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:3px;color:#fff;margin-top:6px}
+.concept-row td{font-size:13px;font-weight:500;color:#1a1a1a;padding:16px 10px}
+</style></head><body>
+<div class="print-bar"><span>${docTypeLabel} ${inv.invoice_number ?? ''} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="company-identity">
+        <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
+        <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
+      </div>
+      <div class="company-detail">CIF B19761915</div>
+      <div class="company-web">Cathedral House Investment SL · cathedralgroup.es</div>
+    </div>
+    <div class="doc-block">
+      <div class="doc-type">${isEmitida ? docTypeLabel : `${docTypeLabel} recibida`}</div>
+      <div class="doc-number">${inv.invoice_number ?? '—'}</div>
+      <div class="doc-sub">Emitida el ${fmtDate(inv.issue_date)}</div>
+      <div class="status-badge" style="background:${statusColor}">${statusLabel}</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="meta">
+      ${partyBlock}
+      <div class="meta-block">
+        <label>Fecha de emisión</label><div class="value">${fmtDate(inv.issue_date)}</div>
+        ${inv.due_date ? `<label style="margin-top:10px;display:block">Vencimiento</label><div class="value">${fmtDate(inv.due_date)}</div>` : ''}
+        ${inv.payment_date ? `<label style="margin-top:10px;display:block">Fecha de pago</label><div class="value">${fmtDate(inv.payment_date)}</div>` : ''}
+      </div>
+      <div class="meta-block">
+        ${inv.proyecto_code ? `<label>Proyecto</label><div class="value">${inv.proyecto_code}</div>` : ''}
+        ${inv.payment_method ? `<label style="margin-top:10px;display:block">Forma de pago</label><div class="value">${inv.payment_method}</div>` : ''}
+      </div>
+    </div>
+    <p class="section-title">Concepto</p>
+    <table>
+      <thead><tr>
+        <th>Descripción</th><th class="th-center">IVA</th><th class="th-num">Base imponible</th>
+      </tr></thead>
+      <tbody>
+        <tr class="concept-row">
+          <td class="td-desc">${inv.concept ?? '—'}</td>
+          <td class="td-center">${vatPct}%</td>
+          <td class="td-num bold">${fmtEur(base)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="totals"><table class="totals-table"><tbody>
+      <tr><td class="label-cell">Base imponible</td><td class="amount-cell">${fmtEur(base)}</td></tr>
+      <tr><td class="label-cell">IVA (${vatPct}%)</td><td class="amount-cell">${fmtEur(vatAmt)}</td></tr>
+      ${irpfRate > 0 ? `<tr><td class="label-cell">IRPF (${irpfRate}%)</td><td class="amount-cell" style="color:#dc2626">−${fmtEur(irpfAmt)}</td></tr>` : ''}
+      <tr class="total-row"><td class="label-cell">Total</td><td class="amount-cell">${fmtEur(total)}</td></tr>
+    </tbody></table></div>
+    ${inv.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${inv.notes.replace(/\n/g, '<br>')}</p></div></div>` : ''}
   </div>
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
@@ -426,6 +550,15 @@ export async function GET(request: NextRequest, ctx: Ctx) {
       return buildCertificationPdf(id, certNumber)
     }
     return buildQuotePdf(id)
+  }
+
+  // factura-pdf: admin session required
+  if (resource === 'factura-pdf') {
+    const user = await authCheck()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const id = request.nextUrl.searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+    return buildInvoicePdf(id)
   }
 
   const user = await authCheck()

@@ -477,6 +477,14 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
           </button>
 
           {isEdit && (
+            <button
+              onClick={() => window.open(`/api/db/factura-pdf?id=${invoice!.id}`, '_blank')}
+              className="w-full border border-neutral-200 py-2.5 text-xs font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
+            >
+              Ver PDF
+            </button>
+          )}
+          {isEdit && (
             <div className="flex gap-3">
               <button
                 onClick={handleDuplicate}
