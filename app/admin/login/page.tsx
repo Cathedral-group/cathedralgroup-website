@@ -1,8 +1,20 @@
 'use client'
 
-import { useState, useEffect, FormEvent } from 'react'
+import { useState, useEffect, useRef, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import Script from 'next/script'
+
+const TURNSTILE_SITE_KEY = '0x4AAAAAACoXVuKbf-SK4IC1'
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement, options: Record<string, unknown>) => string
+      reset: (widgetId: string) => void
+    }
+  }
+}
 
 const MAX_ATTEMPTS = 5
 const LOCKOUT_MS = 15 * 60 * 1000 // 15 min lockout
@@ -18,6 +30,10 @@ export default function LoginPage() {
   const [lockedUntil, setLockedUntil] = useState<number | null>(null)
   const [countdown, setCountdown] = useState(0)
   const [showReset, setShowReset] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const [turnstileReady, setTurnstileReady] = useState(false)
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const widgetIdRef = useRef<string | null>(null)
 
   // Check if already authenticated
   useEffect(() => {
@@ -56,15 +72,55 @@ export default function LoginPage() {
     return () => clearInterval(interval)
   }, [lockedUntil])
 
+  // Render Turnstile widget once script is loaded
+  useEffect(() => {
+    if (!turnstileReady || !turnstileRef.current || showReset) return
+    if (widgetIdRef.current) return
+    widgetIdRef.current = window.turnstile!.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      theme: 'light',
+      callback: (token: string) => setTurnstileToken(token),
+      'expired-callback': () => setTurnstileToken(null),
+      'error-callback': () => setTurnstileToken(null),
+    })
+  }, [turnstileReady, showReset])
+
+  // Reset widget when switching back to login form
+  useEffect(() => {
+    if (!showReset && widgetIdRef.current && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current)
+      setTurnstileToken(null)
+    }
+  }, [showReset])
+
   const isLocked = lockedUntil !== null && lockedUntil > Date.now()
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault()
     if (isLocked) return
 
+    if (!turnstileToken) {
+      setError('Completa la verificación de seguridad.')
+      return
+    }
+
     setLoading(true)
     setError('')
     setSuccess('')
+
+    // Validate Turnstile server-side before attempting auth
+    const verifyRes = await fetch('/api/auth/verify-turnstile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: turnstileToken }),
+    })
+    if (!verifyRes.ok) {
+      setError('Verificación de seguridad fallida. Inténtalo de nuevo.')
+      setTurnstileToken(null)
+      if (widgetIdRef.current && window.turnstile) window.turnstile.reset(widgetIdRef.current)
+      setLoading(false)
+      return
+    }
 
     const supabase = createClient()
     const { error: authError } = await supabase.auth.signInWithPassword({
@@ -75,6 +131,8 @@ export default function LoginPage() {
     if (authError) {
       const newAttempts = attempts + 1
       setAttempts(newAttempts)
+      setTurnstileToken(null)
+      if (widgetIdRef.current && window.turnstile) window.turnstile.reset(widgetIdRef.current)
 
       if (newAttempts >= MAX_ATTEMPTS) {
         const until = Date.now() + LOCKOUT_MS
@@ -121,6 +179,11 @@ export default function LoginPage() {
   }
 
   return (
+    <>
+    <Script
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+      onReady={() => setTurnstileReady(true)}
+    />
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="w-full bg-white p-8 shadow-sm max-w-sm mx-auto mt-20">
         <div className="text-center mb-10">
@@ -160,6 +223,11 @@ export default function LoginPage() {
                 />
               </div>
 
+              {/* Cloudflare Turnstile — bot protection */}
+              {!isLocked && (
+                <div ref={turnstileRef} className="flex justify-center" />
+              )}
+
               {error && <p className="text-red-600 text-sm text-center">{error}</p>}
               {isLocked && countdown > 0 && (
                 <p className="text-neutral-500 text-xs text-center">
@@ -169,7 +237,7 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading || isLocked}
+                disabled={loading || isLocked || !turnstileToken}
                 className="w-full bg-[#5A5550] text-white py-3 font-bold uppercase tracking-widest hover:bg-neutral-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLocked ? 'Bloqueado' : loading ? '...' : 'Acceder'}
@@ -229,5 +297,6 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+    </>
   )
 }
