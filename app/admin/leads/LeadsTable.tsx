@@ -384,11 +384,12 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   value={selectedLead.origen || ''}
                   onChange={async (e) => {
                     const val = e.target.value
-                    await fetch('/api/db/leads', {
+                    const res = await fetch('/api/db/leads', {
                       method: 'PATCH',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ id: selectedLead.id, origen: val }),
                     })
+                    if (!res.ok) return
                     setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, origen: val } : l))
                     setSelectedLead({ ...selectedLead, origen: val })
                   }}

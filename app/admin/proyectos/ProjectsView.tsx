@@ -671,11 +671,12 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   <button
                     key={s}
                     onClick={async () => {
-                      await fetch('/api/db/projects', {
+                      const res = await fetch('/api/db/projects', {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: selected.id, status: s }),
                       })
+                      if (!res.ok) return
                       setProjects(prev => prev.map(p => p.id === selected.id ? { ...p, status: s } : p))
                       setSelected({ ...selected, status: s })
                       setEditForm({ ...editForm, status: s })

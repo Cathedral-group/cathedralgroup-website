@@ -287,7 +287,7 @@ function CashFlowTab({ invoices, year, quarter, month }: { invoices: Invoice[]; 
         acumulado,
       }
     })
-  }, [invoices])
+  }, [invoices, year, quarter, month])
 
   return (
     <div className="bg-white border border-neutral-100 rounded overflow-hidden">
