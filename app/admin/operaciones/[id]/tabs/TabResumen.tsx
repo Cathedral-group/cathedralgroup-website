@@ -66,7 +66,7 @@ function pct(v: number | null) {
 }
 
 function calcAll(op: FlippingOp, mortgages: Mortgage[], costs: OpCost[], invoices: Invoice[]) {
-  const itp = op.itp_amount ?? (op.purchase_price ?? 0) * ((op.itp_rate ?? 0.4) / 100)
+  const itp = op.itp_amount ?? (op.purchase_price ?? 0) * ((op.itp_rate ?? 6) / 100)
   const totalCompra =
     (op.purchase_price ?? 0) + itp +
     (op.purchase_notary_cost ?? 0) +

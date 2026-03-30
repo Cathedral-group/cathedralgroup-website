@@ -118,7 +118,7 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
     const endDate = effectiveSaleDate ? new Date(effectiveSaleDate) : new Date(startDate.getFullYear(), startDate.getMonth() + 12, 1)
 
     // Mes compra: gastos compra
-    const itp = op.itp_amount ?? (op.purchase_price ?? 0) * ((op.itp_rate ?? 0.4) / 100)
+    const itp = op.itp_amount ?? (op.purchase_price ?? 0) * ((op.itp_rate ?? 6) / 100)
     const gastosCompra =
       (op.purchase_price ?? 0) + itp +
       (op.purchase_notary_cost ?? 0) +
