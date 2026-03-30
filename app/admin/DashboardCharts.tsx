@@ -88,8 +88,8 @@ export default function DashboardCharts({ monthlyData, invoiceStatus, leadSource
   })
 
   const currentAcum = cashFlowData[cashFlowData.length - 1]?.acumulado ?? 0
-  const mejorMes = Math.max(...cashFlowData.map(r => r.neto))
-  const peorMes = Math.min(...cashFlowData.map(r => r.neto))
+  const mejorMes = cashFlowData.length > 0 ? Math.max(...cashFlowData.map(r => r.neto)) : 0
+  const peorMes = cashFlowData.length > 0 ? Math.min(...cashFlowData.map(r => r.neto)) : 0
   const mesesPositivos = cashFlowData.filter(r => r.neto > 0).length
 
   return (
