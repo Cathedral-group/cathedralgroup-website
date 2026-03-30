@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react'
 import TabPanel from '@/components/admin/TabPanel'
-import PeriodSelector from '@/components/admin/PeriodSelector'
 
 interface Invoice {
   id: string
@@ -48,37 +47,58 @@ function formatEUR(value: number | null | undefined): string {
   }).format(value)
 }
 
-function getQuarterForDate(date: Date): number {
-  return Math.floor(date.getMonth() / 3) + 1
-}
+const MONTHS_ES_LONG = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-function filterByPeriod(invoices: Invoice[], period: string): Invoice[] {
-  if (period === 'all') return invoices
-
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
-  const quarter = getQuarterForDate(now)
-
+function filterByPeriod(invoices: Invoice[], year: number, quarter: number | null, month: number | null): Invoice[] {
   return invoices.filter((inv) => {
     const dateStr = inv.issue_date
     if (!dateStr) return false
     const d = new Date(dateStr)
-    const invYear = d.getFullYear()
-    const invMonth = d.getMonth()
-
-    if (period === 'month') {
-      return invYear === year && invMonth === month
-    }
-    if (period === 'quarter') {
-      const invQ = getQuarterForDate(d)
-      return invYear === year && invQ === quarter
-    }
-    if (period === 'year') {
-      return invYear === year
-    }
+    if (d.getFullYear() !== year) return false
+    if (month) return d.getMonth() + 1 === month
+    if (quarter) return Math.ceil((d.getMonth() + 1) / 3) === quarter
     return true
   })
+}
+
+// Inline period selector (local state, no URL navigation)
+function InformePeriodSelector({ year, quarter, month, onYear, onQuarter, onMonth }: {
+  year: number; quarter: number | null; month: number | null
+  onYear: (y: number) => void; onQuarter: (q: number | null) => void; onMonth: (m: number | null) => void
+}) {
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: currentYear - 2023 }, (_, i) => 2024 + i)
+  return (
+    <div className="flex flex-wrap items-center gap-2 mb-6">
+      <select
+        value={year}
+        onChange={e => { onYear(parseInt(e.target.value)); onQuarter(null); onMonth(null) }}
+        className="text-xs border border-neutral-200 rounded px-2 py-1.5 bg-white text-neutral-700 font-medium"
+      >
+        {years.map(y => <option key={y} value={y}>{y}</option>)}
+      </select>
+      <div className="flex items-center gap-0.5 bg-neutral-100 rounded p-0.5">
+        <button onClick={() => { onQuarter(null); onMonth(null) }}
+          className={`text-xs px-2.5 py-1 rounded ${!quarter && !month ? 'bg-white shadow-sm font-semibold text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}>
+          Año
+        </button>
+        {[1,2,3,4].map(q => (
+          <button key={q} onClick={() => { onQuarter(q); onMonth(null) }}
+            className={`text-xs px-2.5 py-1 rounded ${quarter === q ? 'bg-white shadow-sm font-semibold text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}>
+            Q{q}
+          </button>
+        ))}
+      </div>
+      <select
+        value={month ?? ''}
+        onChange={e => { onMonth(e.target.value ? parseInt(e.target.value) : null); onQuarter(null) }}
+        className="text-xs border border-neutral-200 rounded px-2 py-1.5 bg-white text-neutral-700"
+      >
+        <option value="">— Mes —</option>
+        {MONTHS_ES_LONG.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+      </select>
+    </div>
+  )
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -93,9 +113,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 const CATEGORY_ORDER = ['material', 'mano_de_obra', 'subcontratas', 'alquiler', 'servicios', 'otros']
 
 // ─── P&L Tab ───
-function PnLTab({ invoices }: { invoices: Invoice[] }) {
-  const [period, setPeriod] = useState('year')
-  const filtered = useMemo(() => filterByPeriod(invoices, period), [invoices, period])
+function PnLTab({ invoices, year, quarter, month }: { invoices: Invoice[]; year: number; quarter: number | null; month: number | null }) {
+  const filtered = useMemo(() => filterByPeriod(invoices, year, quarter, month), [invoices, year, quarter, month])
 
   const totalIngresos = useMemo(
     () =>
@@ -122,8 +141,7 @@ function PnLTab({ invoices }: { invoices: Invoice[] }) {
 
   return (
     <div>
-      <PeriodSelector value={period} onChange={setPeriod} />
-      <div className="mt-6 bg-white border border-neutral-100 rounded overflow-hidden">
+      <div className="bg-white border border-neutral-100 rounded overflow-hidden">
         <table className="w-full text-sm">
           <tbody>
             {/* INGRESOS */}
@@ -192,29 +210,35 @@ function PnLTab({ invoices }: { invoices: Invoice[] }) {
 }
 
 // ─── Cash Flow Tab ───
-function CashFlowTab({ invoices }: { invoices: Invoice[] }) {
+function CashFlowTab({ invoices, year, quarter, month }: { invoices: Invoice[]; year: number; quarter: number | null; month: number | null }) {
   const monthlyData = useMemo(() => {
-    const now = new Date()
+    // Build month range for selected period
+    let startM: number, endM: number
+    if (month) {
+      startM = month; endM = month
+    } else if (quarter) {
+      startM = (quarter - 1) * 3 + 1; endM = quarter * 3
+    } else {
+      startM = 1; endM = 12
+    }
     const months: { key: string; label: string; year: number; month: number }[] = []
-
-    // Last 12 months including current
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    for (let m = startM; m <= endM; m++) {
       months.push({
-        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        label: d.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }),
-        year: d.getFullYear(),
-        month: d.getMonth(),
+        key: `${year}-${String(m).padStart(2,'0')}`,
+        label: new Date(year, m - 1, 1).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }),
+        year,
+        month: m - 1,
       })
     }
 
-    const currentMonth = now.getFullYear() * 12 + now.getMonth()
+    const now = new Date()
+    const currentMonthIndex = now.getFullYear() * 12 + now.getMonth()
 
     let acumulado = 0
     return months.map((m) => {
       const monthIndex = m.year * 12 + m.month
-      const isPast = monthIndex < currentMonth
-      const isCurrent = monthIndex === currentMonth
+      const isPast = monthIndex < currentMonthIndex
+      const isCurrent = monthIndex === currentMonthIndex
 
       let ingresos = 0
       let gastos = 0
@@ -391,12 +415,22 @@ function IvaTab({ vatQuarterly }: { vatQuarterly: VatQuarterly[] }) {
 // ─── Main Component ───
 export default function ReportsView({ invoices, vatQuarterly }: ReportsViewProps) {
   const [activeTab, setActiveTab] = useState('pnl')
+  const currentYear = new Date().getFullYear()
+  const [year, setYear] = useState(currentYear)
+  const [quarter, setQuarter] = useState<number | null>(null)
+  const [month, setMonth] = useState<number | null>(null)
 
   return (
-    <TabPanel tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab}>
-      {activeTab === 'pnl' && <PnLTab invoices={invoices} />}
-      {activeTab === 'cashflow' && <CashFlowTab invoices={invoices} />}
-      {activeTab === 'iva' && <IvaTab vatQuarterly={vatQuarterly} />}
-    </TabPanel>
+    <div>
+      <InformePeriodSelector
+        year={year} quarter={quarter} month={month}
+        onYear={setYear} onQuarter={setQuarter} onMonth={setMonth}
+      />
+      <TabPanel tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab}>
+        {activeTab === 'pnl' && <PnLTab invoices={invoices} year={year} quarter={quarter} month={month} />}
+        {activeTab === 'cashflow' && <CashFlowTab invoices={invoices} year={year} quarter={quarter} month={month} />}
+        {activeTab === 'iva' && <IvaTab vatQuarterly={vatQuarterly} />}
+      </TabPanel>
+    </div>
   )
 }
