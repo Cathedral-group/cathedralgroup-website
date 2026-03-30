@@ -243,6 +243,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                     lead_status: 'nuevo',
                   }),
                 })
+                if (!res.ok) return
                 const { data } = await res.json()
                 if (data) {
                   setLeads(prev => [data as Lead, ...prev])
