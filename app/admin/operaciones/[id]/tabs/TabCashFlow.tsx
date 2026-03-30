@@ -170,10 +170,7 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
       }
     }
 
-    // IBI/comunidad recurring (monthly spread)
-    const ibi = costs.filter(c => c.type === 'ibi').reduce((s, c) => s + c.amount, 0)
-    const comunidad = costs.filter(c => c.type === 'comunidad').reduce((s, c) => s + c.amount, 0)
-    // These are already individual entries, skip recurring calculation
+    // IBI/comunidad are already included as individual cost entries above
 
     // Reserva
     if (op.reserva_amount && op.reserva_date) {

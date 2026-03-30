@@ -86,7 +86,7 @@ export default function TabGastos({ operationId, reformBudget, costs, invoices, 
         }),
       })
       if (res.ok) {
-        const data = await res.json()
+        const { data } = await res.json()
         onCostsUpdate([data, ...costs])
         setNewCost({ type: 'ibi', concept: '', amount: '', date: '', notes: '' })
         setShowAdd(false)
