@@ -1,8 +1,10 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import CashFlowBar from '@/components/admin/CashFlowBar'
 import QuickAddButton from '@/components/admin/QuickAddButton'
+import PeriodSelector from '@/components/admin/PeriodSelector'
 import DashboardCharts from './DashboardCharts'
 
 function formatEUR(value: number | null | undefined): string {
@@ -50,134 +52,146 @@ function marginColor(margin: number | null | undefined): string {
   return 'text-red-600'
 }
 
-async function getStats() {
-  const supabase = createAdminSupabaseClient()
+const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
-  // --- KPI: Facturaci\u00f3n total (emitidas) ---
+function periodRange(year: number, quarter: number | null, month: number | null) {
+  if (month) {
+    const start = `${year}-${String(month).padStart(2,'0')}-01`
+    const lastDay = new Date(year, month, 0).getDate()
+    const end = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
+    return { start, end }
+  }
+  if (quarter) {
+    const startMonth = (quarter - 1) * 3 + 1
+    const endMonth = quarter * 3
+    const lastDay = new Date(year, endMonth, 0).getDate()
+    return {
+      start: `${year}-${String(startMonth).padStart(2,'0')}-01`,
+      end: `${year}-${String(endMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`,
+    }
+  }
+  return { start: `${year}-01-01`, end: `${year}-12-31` }
+}
+
+function buildMonthlyMap(year: number, quarter: number | null, month: number | null) {
+  const map: Record<string, { ingresos: number; gastos: number }> = {}
+  if (month) {
+    const key = `${year}-${String(month).padStart(2,'0')}`
+    map[key] = { ingresos: 0, gastos: 0 }
+  } else if (quarter) {
+    for (let m = (quarter - 1) * 3 + 1; m <= quarter * 3; m++) {
+      map[`${year}-${String(m).padStart(2,'0')}`] = { ingresos: 0, gastos: 0 }
+    }
+  } else {
+    for (let m = 1; m <= 12; m++) {
+      map[`${year}-${String(m).padStart(2,'0')}`] = { ingresos: 0, gastos: 0 }
+    }
+  }
+  return map
+}
+
+async function getStats(year: number, quarter: number | null, month: number | null) {
+  const supabase = createAdminSupabaseClient()
+  const { start, end } = periodRange(year, quarter, month)
+
+  // --- KPI: Facturación total del período (emitidas) ---
   const { data: emitidas } = await supabase
     .from('invoices')
     .select('amount_total')
     .eq('direction', 'emitida')
     .is('deleted_at', null)
+    .gte('issue_date', start)
+    .lte('issue_date', end)
 
-  const facturacionTotal = (emitidas || []).reduce(
-    (sum, inv) => sum + (Number(inv.amount_total) || 0),
-    0
-  )
+  const facturacionTotal = (emitidas || []).reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
 
-  // --- KPI: Gastos totales (recibidas) ---
+  // --- KPI: Gastos totales del período (recibidas) ---
   const { data: recibidas } = await supabase
     .from('invoices')
     .select('amount_total')
     .eq('direction', 'recibida')
     .is('deleted_at', null)
+    .gte('issue_date', start)
+    .lte('issue_date', end)
 
-  const gastosTotal = (recibidas || []).reduce(
-    (sum, inv) => sum + (Number(inv.amount_total) || 0),
-    0
-  )
-
+  const gastosTotal = (recibidas || []).reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
   const margenBruto = facturacionTotal - gastosTotal
 
-  // --- KPI: Proyectos activos ---
+  // --- KPI: Proyectos activos (sin filtro de período, siempre en tiempo real) ---
   const { count: proyectosActivos } = await supabase
     .from('projects')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'en_curso')
     .is('deleted_at', null)
 
-  // --- KPI: Facturas pendientes de cobro (emitidas + pendiente) ---
-  const { data: pendientesCobro } = await supabase
-    .from('invoices')
-    .select('amount_total')
-    .eq('direction', 'emitida')
-    .eq('payment_status', 'pendiente')
-    .is('deleted_at', null)
-
-  const totalPendienteCobro = (pendientesCobro || []).reduce(
-    (sum, inv) => sum + (Number(inv.amount_total) || 0),
-    0
-  )
+  // --- KPI: Pendiente cobro/pago (sin filtro de período — deuda viva actual) ---
+  const [{ data: pendientesCobro }, { data: pendientesPago }] = await Promise.all([
+    supabase.from('invoices').select('amount_total').eq('direction','emitida').eq('payment_status','pendiente').is('deleted_at',null),
+    supabase.from('invoices').select('amount_total').eq('direction','recibida').eq('payment_status','pendiente').is('deleted_at',null),
+  ])
+  const totalPendienteCobro = (pendientesCobro || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
   const countPendienteCobro = pendientesCobro?.length || 0
-
-  // --- KPI: Facturas pendientes de pago (recibidas + pendiente) ---
-  const { data: pendientesPago } = await supabase
-    .from('invoices')
-    .select('amount_total')
-    .eq('direction', 'recibida')
-    .eq('payment_status', 'pendiente')
-    .is('deleted_at', null)
-
-  const totalPendientePago = (pendientesPago || []).reduce(
-    (sum, inv) => sum + (Number(inv.amount_total) || 0),
-    0
-  )
+  const totalPendientePago = (pendientesPago || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
   const countPendientePago = pendientesPago?.length || 0
 
-  // --- IVA trimestral (Q1 2026) ---
+  // --- IVA trimestral: muestra el trimestre seleccionado, o Q actual si vista anual/mensual ---
+  const vatQuarter = quarter ?? Math.ceil((new Date().getMonth() + 1) / 3)
   const { data: vatData } = await supabase
     .from('vat_quarterly')
     .select('*')
-    .eq('year', 2026)
-    .eq('quarter', 1)
+    .eq('year', year)
+    .eq('quarter', vatQuarter)
     .maybeSingle()
 
-  // --- Facturas por vencer (pr\u00f3ximos 30 d\u00edas) ---
+  // --- Facturas por vencer (próximos 30 días — siempre forward-looking) ---
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  today.setHours(0,0,0,0)
   const in30 = new Date(today)
   in30.setDate(in30.getDate() + 30)
 
   const { data: facturasPorVencer } = await supabase
     .from('invoices')
     .select('id, number, concept, amount_total, due_date, direction')
-    .eq('payment_status', 'pendiente')
+    .eq('payment_status','pendiente')
     .is('deleted_at', null)
     .gte('due_date', today.toISOString().split('T')[0])
     .lte('due_date', in30.toISOString().split('T')[0])
     .order('due_date', { ascending: true })
 
-  // --- CashFlow 30 days (from facturasPorVencer) ---
   const cashFlow30Income = (facturasPorVencer || [])
-    .filter((inv: { direction: string }) => inv.direction === 'emitida')
-    .reduce((sum: number, inv: { amount_total: number | null }) => sum + (Number(inv.amount_total) || 0), 0)
-
+    .filter((i: { direction: string }) => i.direction === 'emitida')
+    .reduce((s: number, i: { amount_total: number | null }) => s + (Number(i.amount_total)||0), 0)
   const cashFlow30Expenses = (facturasPorVencer || [])
-    .filter((inv: { direction: string }) => inv.direction === 'recibida')
-    .reduce((sum: number, inv: { amount_total: number | null }) => sum + (Number(inv.amount_total) || 0), 0)
+    .filter((i: { direction: string }) => i.direction === 'recibida')
+    .reduce((s: number, i: { amount_total: number | null }) => s + (Number(i.amount_total)||0), 0)
 
   // --- Proyectos activos con rentabilidad ---
   const { data: projectFinancials } = await supabase
     .from('project_financials')
     .select('code, name, budget_estimated, sale_price, income_base, expense_base, gross_margin, status')
-    .eq('status', 'en_curso')
+    .eq('status','en_curso')
     .order('code', { ascending: true })
 
-  // --- Leads recientes (7 d\u00edas) ---
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  // --- Leads del período ---
   const { data: recentLeads } = await supabase
     .from('leads')
     .select('id, nombre, email, tipo_proyecto, zona, created_at')
     .is('deleted_at', null)
-    .gte('created_at', sevenDaysAgo)
+    .gte('created_at', start)
+    .lte('created_at', end + 'T23:59:59')
     .order('created_at', { ascending: false })
     .limit(10)
 
-  // --- Chart data: All invoices for monthly breakdown ---
-  const { data: allInvoices } = await supabase
+  // --- Chart: monthly breakdown del período ---
+  const { data: periodInvoices } = await supabase
     .from('invoices')
     .select('amount_total, direction, issue_date, payment_status, due_date')
     .is('deleted_at', null)
+    .gte('issue_date', start)
+    .lte('issue_date', end)
 
-  const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-  const now = new Date()
-  const monthlyMap: Record<string, { ingresos: number; gastos: number }> = {}
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    monthlyMap[key] = { ingresos: 0, gastos: 0 }
-  }
-  for (const inv of allInvoices || []) {
+  const monthlyMap = buildMonthlyMap(year, quarter, month)
+  for (const inv of periodInvoices || []) {
     if (!inv.issue_date) continue
     const key = inv.issue_date.substring(0, 7)
     if (monthlyMap[key]) {
@@ -189,14 +203,14 @@ async function getStats() {
   const monthlyData = Object.entries(monthlyMap).map(([key, vals]) => {
     const [, m] = key.split('-')
     const margen = vals.ingresos > 0 ? ((vals.ingresos - vals.gastos) / vals.ingresos) * 100 : 0
-    return { month: MONTHS_ES[parseInt(m, 10) - 1], ...vals, margen: Math.round(margen * 10) / 10 }
+    return { month: MONTHS_ES[parseInt(m,10) - 1], ...vals, margen: Math.round(margen * 10) / 10 }
   })
 
-  // --- Chart data: Invoice status ---
+  // --- Chart: estado facturas del período ---
+  const now = new Date()
   const statusCounts: Record<string, number> = { pagada: 0, pendiente: 0, vencida: 0 }
-  for (const inv of allInvoices || []) {
-    const s = inv.payment_status || 'pendiente'
-    if (s === 'pagada') statusCounts.pagada++
+  for (const inv of periodInvoices || []) {
+    if (inv.payment_status === 'pagada') statusCounts.pagada++
     else if (inv.due_date && new Date(inv.due_date) < now) statusCounts.vencida++
     else statusCounts.pendiente++
   }
@@ -206,45 +220,47 @@ async function getStats() {
     { name: 'Vencida', value: statusCounts.vencida, color: '#ef4444' },
   ].filter(s => s.value > 0)
 
-  // --- Chart data: Lead sources ---
-  const { data: allLeads } = await supabase.from('leads').select('origen').is('deleted_at', null)
+  // --- Chart: origen leads del período ---
+  const { data: periodLeads } = await supabase.from('leads').select('origen').is('deleted_at',null).gte('created_at', start).lte('created_at', end + 'T23:59:59')
   const sourceMap: Record<string, number> = {}
-  for (const lead of allLeads || []) {
+  for (const lead of periodLeads || []) {
     const src = lead.origen || 'Directo'
     sourceMap[src] = (sourceMap[src] || 0) + 1
   }
-  const leadSources = Object.entries(sourceMap).map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
+  const leadSources = Object.entries(sourceMap).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value)
 
   return {
-    facturacionTotal,
-    gastosTotal,
-    margenBruto,
+    facturacionTotal, gastosTotal, margenBruto,
     proyectosActivos: proyectosActivos || 0,
-    totalPendienteCobro,
-    countPendienteCobro,
-    totalPendientePago,
-    countPendientePago,
-    vat: vatData,
+    totalPendienteCobro, countPendienteCobro,
+    totalPendientePago, countPendientePago,
+    vat: vatData, vatQuarter,
     facturasPorVencer: (facturasPorVencer || []).slice(0, 15),
-    cashFlow30Income,
-    cashFlow30Expenses,
+    cashFlow30Income, cashFlow30Expenses,
     projectFinancials: projectFinancials || [],
     recentLeads: recentLeads || [],
-    monthlyData,
-    invoiceStatus,
-    leadSources,
+    monthlyData, invoiceStatus, leadSources,
   }
 }
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string; quarter?: string; month?: string }>
+}) {
   // Auth check
   const authClient = await createServerSupabaseClient()
   const { data: { user } } = await authClient.auth.getUser()
   if (!user) redirect('/admin/login')
 
+  const sp = await searchParams
+  const currentYear = new Date().getFullYear()
+  const year = sp.year ? parseInt(sp.year) : currentYear
+  const quarter = sp.quarter ? parseInt(sp.quarter) : null
+  const month = sp.month ? parseInt(sp.month) : null
+
   // Data
-  const stats = await getStats()
+  const stats = await getStats(year, quarter, month)
 
   const kpis = [
     {
@@ -289,17 +305,17 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
-        <h1 className="text-xl font-medium uppercase tracking-wide">Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <p className="text-xs text-neutral-400 uppercase tracking-widest">
-            {new Date().toLocaleDateString('es-ES', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-xl font-medium uppercase tracking-wide">Dashboard</h1>
+          <p className="text-xs text-neutral-400 uppercase tracking-widest mt-1">
+            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Suspense fallback={null}>
+            <PeriodSelector year={year} quarter={quarter} month={month} />
+          </Suspense>
           <QuickAddButton />
         </div>
       </div>
@@ -336,7 +352,7 @@ export default async function AdminDashboard() {
         <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
           <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
             <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-              IVA &mdash; Q1 2026
+              IVA &mdash; Q{stats.vatQuarter} {year}
             </h2>
             <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
           </div>
@@ -594,7 +610,7 @@ export default async function AdminDashboard() {
       <div className="bg-white border border-neutral-100 rounded">
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-            Leads recientes &mdash; &uacute;ltimos 7 d&iacute;as
+            Leads &mdash; {month ? MONTHS_ES[month-1] : quarter ? `Q${quarter}` : 'Año'} {year}
           </h2>
           <Link
             href="/admin/leads"
