@@ -78,8 +78,22 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<ReviewItem>>({})
 
+  // Check if item was re-sent after deletion
+  const isReenviada = (item: ReviewItem) =>
+    item.duplicate_reason === 'reenviada_tras_borrar'
+
+  // Days remaining before auto-delete (30 days from creation)
+  const daysRemaining = (item: ReviewItem) => {
+    if (!isReenviada(item)) return null
+    const created = new Date(item.created_at)
+    const autoDelete = new Date(created.getTime() + 30 * 24 * 60 * 60 * 1000)
+    const now = new Date()
+    return Math.max(0, Math.ceil((autoDelete.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+  }
+
   // Categorize items by problem type
   const categorize = (item: ReviewItem) => {
+    if (isReenviada(item)) return 'reenviadas'
     if (item.duplicate_reason) return 'duplicados'
     if (item.ai_confidence !== null && item.ai_confidence < 0.5) return 'no_legibles'
     if (item.doc_type === 'otro') return 'sin_clasificar'
@@ -96,14 +110,26 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
     sin_clasificar: pending.filter(i => categorize(i) === 'sin_clasificar').length,
     datos_incompletos: pending.filter(i => categorize(i) === 'datos_incompletos').length,
     baja_confianza: pending.filter(i => categorize(i) === 'baja_confianza').length,
+    reenviadas: pending.filter(i => categorize(i) === 'reenviadas').length,
     resueltos: items.filter(i => i.review_status !== 'pendiente').length,
   }
 
-  const filtered = category === 'resueltos'
-    ? items.filter(i => i.review_status !== 'pendiente')
-    : category === 'todos_pendientes'
-      ? pending
-      : pending.filter(i => categorize(i) === category)
+  // Sort: reenviadas always last
+  const sortItems = (list: ReviewItem[]) => {
+    const normal = list.filter(i => !isReenviada(i))
+    const reenv = list.filter(i => isReenviada(i))
+    return [...normal, ...reenv]
+  }
+
+  const filtered = sortItems(
+    category === 'resueltos'
+      ? items.filter(i => i.review_status !== 'pendiente')
+      : category === 'todos_pendientes'
+        ? pending
+        : category === 'reenviadas'
+          ? pending.filter(i => isReenviada(i))
+          : pending.filter(i => categorize(i) === category)
+  )
 
   const openItem = (item: ReviewItem) => {
     setSelected(item)
@@ -153,6 +179,7 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
     { key: 'sin_clasificar', label: 'Sin clasificar', icon: '', color: 'bg-purple-100 text-purple-700' },
     { key: 'datos_incompletos', label: 'Datos incompletos', icon: '', color: 'bg-blue-100 text-blue-700' },
     { key: 'baja_confianza', label: 'Baja confianza', icon: '', color: 'bg-yellow-100 text-yellow-700' },
+    { key: 'reenviadas', label: 'Reenviadas', icon: '', color: 'bg-neutral-200 text-neutral-500' },
     { key: 'resueltos', label: 'Resueltos', icon: '', color: 'bg-green-100 text-green-700' },
   ]
 
@@ -204,7 +231,7 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
                 <tr
                   key={item.id}
                   onClick={() => openItem(item)}
-                  className="border-b hover:bg-neutral-50 cursor-pointer transition-colors"
+                  className={`border-b cursor-pointer transition-colors ${isReenviada(item) ? 'bg-neutral-50 opacity-60 hover:opacity-80' : 'hover:bg-neutral-50'}`}
                 >
                   <td className="p-3">
                     <div className="max-w-[200px] truncate text-xs font-mono">{item.original_filename || '--'}</div>
@@ -221,6 +248,14 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
                   <td className="p-3">
                     {(() => {
                       const cat = categorize(item)
+                      if (cat === 'reenviadas') {
+                        const days = daysRemaining(item)
+                        return (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-neutral-200 text-neutral-500">
+                            Reenviada · se borra en {days}d
+                          </span>
+                        )
+                      }
                       const catMap: Record<string, { label: string; cls: string }> = {
                         duplicados: { label: 'Duplicado', cls: 'bg-red-100 text-red-700' },
                         no_legibles: { label: 'No legible', cls: 'bg-orange-100 text-orange-700' },
