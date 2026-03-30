@@ -10,6 +10,10 @@ interface FlippingOp {
   itp_amount?: number | null
   itp_rate?: number | null
   reform_budget_estimated?: number | null
+  reserva_amount?: number | null
+  reserva_date?: string | null
+  arras_amount?: number | null
+  arras_date?: string | null
   sale_price?: number | null
   sale_notary_cost?: number | null
   sale_registry_cost?: number | null

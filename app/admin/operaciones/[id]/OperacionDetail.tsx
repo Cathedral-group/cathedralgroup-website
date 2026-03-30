@@ -29,6 +29,11 @@ interface FlippingOp {
   reform_start_date: string | null
   reform_end_date: string | null
   project_id: string | null
+  reserva_amount: number | null
+  reserva_date: string | null
+  arras_amount: number | null
+  arras_date: string | null
+  arras_contract_url: string | null
   sale_price: number | null
   sale_date: string | null
   sale_notary_cost: number | null
