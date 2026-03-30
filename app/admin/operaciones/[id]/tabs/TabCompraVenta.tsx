@@ -69,9 +69,18 @@ function eur(v: number | null | undefined) {
 
 const PROPERTY_TYPES = ['piso','local','chalet','atico','planta_baja','nave','otro']
 
+const EDITABLE_FIELDS = [
+  'id','property_type','surface_m2','catastral_ref',
+  'purchase_price','purchase_date','purchase_notary_cost','purchase_registry_cost','purchase_gestoria_cost',
+  'itp_rate','itp_amount',
+  'reserva_amount','reserva_date','arras_amount','arras_date','arras_contract_url',
+  'sale_price','sale_date','sale_notary_cost','sale_registry_cost','sale_gestoria_cost',
+  'agent_commission_pct','agent_commission_amount','plusvalia_amount','is_tax_amount',
+]
+
 export default function TabCompraVenta({ op, onUpdate }: Props) {
   const toForm = (o: FlippingOp) => Object.fromEntries(
-    Object.entries(o).map(([k, v]) => [k, v == null ? '' : String(v)])
+    EDITABLE_FIELDS.map(k => [k, (o[k as keyof FlippingOp] ?? '') === null ? '' : String(o[k as keyof FlippingOp] ?? '')])
   ) as Record<string, string>
 
   const [form, setForm] = useState<Record<string, string>>(toForm(op))
@@ -129,7 +138,7 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        const updated = await res.json()
+        const { data: updated } = await res.json()
         onUpdate(updated)
         setDirty(false)
       }

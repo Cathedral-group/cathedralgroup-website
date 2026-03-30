@@ -110,14 +110,17 @@ export default function TabHipoteca({ operationId, mortgages, onUpdate }: Props)
     if (!form.capital || !form.interest_rate || !form.term_months) return
     setSaving(true)
     try {
-      const body = { ...form, operation_id: operationId }
+      const isEdit = !!mortgage
+      const body = isEdit
+        ? { ...form, id: mortgage!.id }
+        : { ...form, operation_id: operationId }
       const res = await fetch('/api/db/mortgages', {
-        method: 'POST',
+        method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        const data = await res.json()
+        const { data } = await res.json()
         onUpdate([data])
         setShowForm(false)
       }
