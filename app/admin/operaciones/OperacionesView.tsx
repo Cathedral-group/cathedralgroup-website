@@ -56,7 +56,7 @@ function eur(v: number | null | undefined) {
 function calcKpis(op: FlippingOp) {
   const totalCompra =
     (op.purchase_price ?? 0) +
-    (op.itp_amount ?? (op.purchase_price ?? 0) * ((op.itp_rate ?? 0.4) / 100)) +
+    (op.itp_amount ?? (op.purchase_price ?? 0) * ((op.itp_rate ?? 6) / 100)) +
     (op.purchase_notary_cost ?? 0) +
     (op.purchase_registry_cost ?? 0) +
     (op.purchase_gestoria_cost ?? 0)
