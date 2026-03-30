@@ -1,0 +1,21 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # Runs every 3 days at 09:00 UTC
+    - cron: '0 9 */3 * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Cathedral Admin
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://cathedralgroup.es/api/ping)
+          echo "Response status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "WARNING: ping returned $STATUS"
+            exit 1
+          fi
+          echo "OK — Supabase is alive"
