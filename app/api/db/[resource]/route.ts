@@ -319,8 +319,8 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
   let supplierName = ''
   let supplierNif = ''
   if (inv.direction === 'recibida' && inv.supplier_nif) {
-    const { data: sup } = await supabase.from('suppliers').select('name, cif').eq('cif', inv.supplier_nif).single()
-    if (sup) { supplierName = sup.name; supplierNif = sup.cif }
+    const { data: sup } = await supabase.from('suppliers').select('name, nif').eq('nif', inv.supplier_nif).single()
+    if (sup) { supplierName = sup.name; supplierNif = sup.nif }
   }
 
   const division = divisionFor(projectType)
@@ -362,7 +362,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
   }
 
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${docTypeLabel} ${inv.invoice_number ?? ''} — Cathedral Group</title>
+<title>${docTypeLabel} ${inv.number ?? ''} — Cathedral Group</title>
 <style>${PDF_COMMON_CSS}
 .status-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:3px;color:#fff;margin-top:6px}
 .concept-row td{font-size:13px;font-weight:500;color:#1a1a1a;padding:16px 10px}
@@ -372,7 +372,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
 .qr-hint{font-size:9px;color:#9b8f84;margin-bottom:4px}
 .qr-url{font-size:8px;color:#B4A898;word-break:break-all}
 </style></head><body>
-<div class="print-bar"><span>${docTypeLabel} ${inv.invoice_number ?? ''} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
+<div class="print-bar"><span>${docTypeLabel} ${inv.number ?? ''} — Cathedral Group${division ? ' · ' + division : ''}</span><button class="btn-print" onclick="window.print()">⬇ Guardar como PDF</button></div>
 <div class="page">
   <div class="header">
     <div>
@@ -386,7 +386,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
     </div>
     <div class="doc-block">
       <div class="doc-type">${isEmitida ? docTypeLabel : `${docTypeLabel} recibida`}</div>
-      <div class="doc-number">${inv.invoice_number ?? '—'}</div>
+      <div class="doc-number">${inv.number ?? '—'}</div>
       <div class="doc-sub">Emitida el ${fmtDate(inv.issue_date)}</div>
       <div class="status-badge" style="background:${statusColor}">${statusLabel}</div>
     </div>

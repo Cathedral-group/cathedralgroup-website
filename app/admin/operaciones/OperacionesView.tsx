@@ -113,6 +113,7 @@ export default function OperacionesView({ initialData, projects }: Props) {
       })
       if (res.ok) {
         const { data } = await res.json()
+        if (!data?.id) return
         setOps(prev => [data, ...prev])
         setShowNew(false)
         setNewForm({ code: '', name: '', status: 'prospecto', address: '', property_type: 'piso', surface_m2: '' })
