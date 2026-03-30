@@ -93,103 +93,54 @@ function buildMonthlyMap(year: number, quarter: number | null, month: number | n
 async function getStats(year: number, quarter: number | null, month: number | null) {
   const supabase = createAdminSupabaseClient()
   const { start, end } = periodRange(year, quarter, month)
+  const vatQuarter = quarter ?? Math.ceil((new Date().getMonth() + 1) / 3)
 
-  // --- KPI: Facturación total del período (emitidas) ---
-  const { data: emitidas } = await supabase
-    .from('invoices')
-    .select('amount_total')
-    .eq('direction', 'emitida')
-    .is('deleted_at', null)
-    .gte('issue_date', start)
-    .lte('issue_date', end)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const in30 = new Date(today)
+  in30.setDate(in30.getDate() + 30)
+  const todayStr = today.toISOString().split('T')[0]
+  const in30Str = in30.toISOString().split('T')[0]
 
-  const facturacionTotal = (emitidas || []).reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
-
-  // --- KPI: Gastos totales del período (recibidas) ---
-  const { data: recibidas } = await supabase
-    .from('invoices')
-    .select('amount_total')
-    .eq('direction', 'recibida')
-    .is('deleted_at', null)
-    .gte('issue_date', start)
-    .lte('issue_date', end)
-
-  const gastosTotal = (recibidas || []).reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
-  const margenBruto = facturacionTotal - gastosTotal
-
-  // --- KPI: Proyectos activos (sin filtro de período, siempre en tiempo real) ---
-  const { count: proyectosActivos } = await supabase
-    .from('projects')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'en_curso')
-    .is('deleted_at', null)
-
-  // --- KPI: Pendiente cobro/pago (sin filtro de período — deuda viva actual) ---
-  const [{ data: pendientesCobro }, { data: pendientesPago }] = await Promise.all([
+  // ── Todas las queries en paralelo ──────────────────────────────────────────
+  const [
+    { data: emitidas },
+    { data: recibidas },
+    { count: proyectosActivos },
+    { data: pendientesCobro },
+    { data: pendientesPago },
+    { data: vatData },
+    { data: facturasPorVencer },
+    { data: projectFinancials },
+    { data: recentLeads },
+    { data: periodInvoices },
+    { data: periodLeads },
+  ] = await Promise.all([
+    supabase.from('invoices').select('amount_total').eq('direction','emitida').is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('invoices').select('amount_total').eq('direction','recibida').is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('projects').select('*',{count:'exact',head:true}).eq('status','en_curso').is('deleted_at',null),
     supabase.from('invoices').select('amount_total').eq('direction','emitida').eq('payment_status','pendiente').is('deleted_at',null),
     supabase.from('invoices').select('amount_total').eq('direction','recibida').eq('payment_status','pendiente').is('deleted_at',null),
+    supabase.from('vat_quarterly').select('*').eq('year',year).eq('quarter',vatQuarter).maybeSingle(),
+    supabase.from('invoices').select('id,number,concept,amount_total,due_date,direction').eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str).order('due_date',{ascending:true}),
+    supabase.from('project_financials').select('code,name,budget_estimated,sale_price,income_base,expense_base,gross_margin,status').eq('status','en_curso').order('code',{ascending:true}),
+    supabase.from('leads').select('id,nombre,email,tipo_proyecto,zona,created_at').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59').order('created_at',{ascending:false}).limit(10),
+    supabase.from('invoices').select('amount_total,direction,issue_date,payment_status,due_date').is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('leads').select('origen').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59'),
   ])
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const facturacionTotal = (emitidas || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
+  const gastosTotal = (recibidas || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
+  const margenBruto = facturacionTotal - gastosTotal
   const totalPendienteCobro = (pendientesCobro || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
   const countPendienteCobro = pendientesCobro?.length || 0
   const totalPendientePago = (pendientesPago || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
   const countPendientePago = pendientesPago?.length || 0
+  const cashFlow30Income = (facturasPorVencer || []).filter((i: {direction:string}) => i.direction==='emitida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
+  const cashFlow30Expenses = (facturasPorVencer || []).filter((i: {direction:string}) => i.direction==='recibida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
 
-  // --- IVA trimestral: muestra el trimestre seleccionado, o Q actual si vista anual/mensual ---
-  const vatQuarter = quarter ?? Math.ceil((new Date().getMonth() + 1) / 3)
-  const { data: vatData } = await supabase
-    .from('vat_quarterly')
-    .select('*')
-    .eq('year', year)
-    .eq('quarter', vatQuarter)
-    .maybeSingle()
-
-  // --- Facturas por vencer (próximos 30 días — siempre forward-looking) ---
-  const today = new Date()
-  today.setHours(0,0,0,0)
-  const in30 = new Date(today)
-  in30.setDate(in30.getDate() + 30)
-
-  const { data: facturasPorVencer } = await supabase
-    .from('invoices')
-    .select('id, number, concept, amount_total, due_date, direction')
-    .eq('payment_status','pendiente')
-    .is('deleted_at', null)
-    .gte('due_date', today.toISOString().split('T')[0])
-    .lte('due_date', in30.toISOString().split('T')[0])
-    .order('due_date', { ascending: true })
-
-  const cashFlow30Income = (facturasPorVencer || [])
-    .filter((i: { direction: string }) => i.direction === 'emitida')
-    .reduce((s: number, i: { amount_total: number | null }) => s + (Number(i.amount_total)||0), 0)
-  const cashFlow30Expenses = (facturasPorVencer || [])
-    .filter((i: { direction: string }) => i.direction === 'recibida')
-    .reduce((s: number, i: { amount_total: number | null }) => s + (Number(i.amount_total)||0), 0)
-
-  // --- Proyectos activos con rentabilidad ---
-  const { data: projectFinancials } = await supabase
-    .from('project_financials')
-    .select('code, name, budget_estimated, sale_price, income_base, expense_base, gross_margin, status')
-    .eq('status','en_curso')
-    .order('code', { ascending: true })
-
-  // --- Leads del período ---
-  const { data: recentLeads } = await supabase
-    .from('leads')
-    .select('id, nombre, email, tipo_proyecto, zona, created_at')
-    .is('deleted_at', null)
-    .gte('created_at', start)
-    .lte('created_at', end + 'T23:59:59')
-    .order('created_at', { ascending: false })
-    .limit(10)
-
-  // --- Chart: monthly breakdown del período ---
-  const { data: periodInvoices } = await supabase
-    .from('invoices')
-    .select('amount_total, direction, issue_date, payment_status, due_date')
-    .is('deleted_at', null)
-    .gte('issue_date', start)
-    .lte('issue_date', end)
-
+  // Chart: monthly breakdown
   const monthlyMap = buildMonthlyMap(year, quarter, month)
   for (const inv of periodInvoices || []) {
     if (!inv.issue_date) continue
@@ -206,28 +157,27 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     return { month: MONTHS_ES[parseInt(m,10) - 1], ...vals, margen: Math.round(margen * 10) / 10 }
   })
 
-  // --- Chart: estado facturas del período ---
+  // Chart: estado facturas
   const now = new Date()
-  const statusCounts: Record<string, number> = { pagada: 0, pendiente: 0, vencida: 0 }
+  const statusCounts: Record<string,number> = { pagada:0, pendiente:0, vencida:0 }
   for (const inv of periodInvoices || []) {
     if (inv.payment_status === 'pagada') statusCounts.pagada++
     else if (inv.due_date && new Date(inv.due_date) < now) statusCounts.vencida++
     else statusCounts.pendiente++
   }
   const invoiceStatus = [
-    { name: 'Pagada', value: statusCounts.pagada, color: '#22c55e' },
-    { name: 'Pendiente', value: statusCounts.pendiente, color: '#f59e0b' },
-    { name: 'Vencida', value: statusCounts.vencida, color: '#ef4444' },
+    { name:'Pagada', value:statusCounts.pagada, color:'#22c55e' },
+    { name:'Pendiente', value:statusCounts.pendiente, color:'#f59e0b' },
+    { name:'Vencida', value:statusCounts.vencida, color:'#ef4444' },
   ].filter(s => s.value > 0)
 
-  // --- Chart: origen leads del período ---
-  const { data: periodLeads } = await supabase.from('leads').select('origen').is('deleted_at',null).gte('created_at', start).lte('created_at', end + 'T23:59:59')
-  const sourceMap: Record<string, number> = {}
+  // Chart: origen leads
+  const sourceMap: Record<string,number> = {}
   for (const lead of periodLeads || []) {
     const src = lead.origen || 'Directo'
     sourceMap[src] = (sourceMap[src] || 0) + 1
   }
-  const leadSources = Object.entries(sourceMap).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value)
+  const leadSources = Object.entries(sourceMap).map(([name,value]) => ({name,value})).sort((a,b) => b.value - a.value)
 
   return {
     facturacionTotal, gastosTotal, margenBruto,
