@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard', href: '/admin', icon: '📊' },
   { label: 'Leads', href: '/admin/leads', icon: '📩' },
   { label: 'Proyectos', href: '/admin/proyectos', icon: '🏗️' },
+  { label: 'Operaciones', href: '/admin/operaciones', icon: '🏠' },
   { label: 'Clientes', href: '/admin/clientes', icon: '👤' },
   { label: 'Proveedores', href: '/admin/proveedores', icon: '🔧' },
   { label: 'Facturas', href: '/admin/facturas', icon: '📄' },
