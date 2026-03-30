@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
+import { useMemo, useState } from 'react'
+import { ComposedChart, Bar, Area, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts'
 
 interface FlippingOp {
   purchase_price?: number | null
@@ -13,6 +13,10 @@ interface FlippingOp {
   itp_rate?: number | null
   reform_start_date?: string | null
   reform_end_date?: string | null
+  reserva_amount?: number | null
+  reserva_date?: string | null
+  arras_amount?: number | null
+  arras_date?: string | null
   sale_price?: number | null
   sale_date?: string | null
   sale_notary_cost?: number | null
@@ -70,16 +74,48 @@ interface CashFlowRow {
   concepto: string
   entrada: number
   salida: number
+  neto: number
   acumulado: number
 }
 
+function CashFlowTooltip({ active, payload, label, rows }: {
+  active?: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: readonly any[]
+  label?: string | number
+  rows: CashFlowRow[]
+}) {
+  if (!active || !payload?.length) return null
+  const row = rows.find(r => r.mes === String(label))
+  return (
+    <div className="bg-white border rounded-lg shadow-lg p-3 text-xs min-w-[180px]">
+      <p className="font-bold text-neutral-700 mb-2">{label}</p>
+      {row && <p className="text-neutral-400 mb-2 truncate max-w-[180px]">{row.concepto}</p>}
+      {payload.map((p, i) => (
+        <div key={i} className="flex justify-between gap-4">
+          <span style={{ color: p.color }}>{p.name}</span>
+          <span className="font-mono font-bold">{Number(p.value).toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
+  const [projDate, setProjDate] = useState(op.sale_date ?? '')
+  const [projPrice, setProjPrice] = useState(op.sale_price != null ? String(op.sale_price) : '')
+
+  // Effective sale data: use actual if available, else projection inputs
+  const effectiveSaleDate = op.sale_date || (projDate || null)
+  const effectiveSalePrice = op.sale_price ?? (projPrice ? parseFloat(projPrice) : null)
+  const isProjection = !op.sale_date && (!!projDate || !!projPrice)
+
   const rows = useMemo(() => {
     if (!op.purchase_date) return []
 
     const events: { fecha: Date; concepto: string; entrada: number; salida: number }[] = []
     const startDate = new Date(op.purchase_date)
-    const endDate = op.sale_date ? new Date(op.sale_date) : new Date(startDate.getFullYear(), startDate.getMonth() + 24, 1)
+    const endDate = effectiveSaleDate ? new Date(effectiveSaleDate) : new Date(startDate.getFullYear(), startDate.getMonth() + 12, 1)
 
     // Mes compra: gastos compra
     const itp = op.itp_amount ?? (op.purchase_price ?? 0) * ((op.itp_rate ?? 0.4) / 100)
@@ -139,17 +175,29 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
     const comunidad = costs.filter(c => c.type === 'comunidad').reduce((s, c) => s + c.amount, 0)
     // These are already individual entries, skip recurring calculation
 
-    // Sale month
-    if (op.sale_price && op.sale_date) {
-      const saleDate = new Date(op.sale_date)
+    // Reserva
+    if (op.reserva_amount && op.reserva_date) {
+      events.push({ fecha: new Date(op.reserva_date), concepto: 'Señal de reserva', entrada: op.reserva_amount, salida: 0 })
+    }
+
+    // Arras
+    if (op.arras_amount && op.arras_date) {
+      events.push({ fecha: new Date(op.arras_date), concepto: 'Contrato de arras', entrada: op.arras_amount, salida: 0 })
+    }
+
+    // Sale month (real or projected)
+    if (effectiveSalePrice && effectiveSaleDate) {
+      const saleDate = new Date(effectiveSaleDate)
       const gastosVenta =
         (op.sale_notary_cost ?? 0) +
         (op.sale_registry_cost ?? 0) +
         (op.sale_gestoria_cost ?? 0) +
-        (op.agent_commission_amount ?? (op.sale_price ?? 0) * ((op.agent_commission_pct ?? 3) / 100)) +
+        (op.agent_commission_amount ?? effectiveSalePrice * ((op.agent_commission_pct ?? 3) / 100)) +
         (op.plusvalia_amount ?? 0) +
         (op.is_tax_amount ?? 0)
-      events.push({ fecha: saleDate, concepto: 'Venta inmueble', entrada: op.sale_price, salida: 0 })
+      const alreadyReceived = (op.reserva_amount ?? 0) + (op.arras_amount ?? 0)
+      const remainder = effectiveSalePrice - alreadyReceived
+      events.push({ fecha: saleDate, concepto: isProjection ? 'Venta estimada (resto)' : 'Escritura venta (resto)', entrada: remainder > 0 ? remainder : effectiveSalePrice, salida: 0 })
       if (gastosVenta > 0) {
         events.push({ fecha: saleDate, concepto: 'Gastos de venta', entrada: 0, salida: gastosVenta })
       }
@@ -180,10 +228,11 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
         concepto: val.conceptos.join(', '),
         entrada: val.entrada,
         salida: val.salida,
+        neto,
         acumulado,
       }
     })
-  }, [op, mortgages, costs, invoices])
+  }, [op, mortgages, costs, invoices, effectiveSaleDate, effectiveSalePrice, isProjection])
 
   if (!op.purchase_date) {
     return (
@@ -193,30 +242,144 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
     )
   }
 
+  const lastRow = rows[rows.length - 1]
+  const now = new Date()
+  const peakOut = rows.length > 0 ? Math.min(...rows.map(r => r.acumulado)) : 0
+  const finalAcum = lastRow?.acumulado ?? null
+  const todayRow = [...rows].reverse().find(r => r.fecha <= now)
+  const currentPos = todayRow?.acumulado ?? null
+  const projRoi = peakOut < 0 && finalAcum != null ? (finalAcum / Math.abs(peakOut)) * 100 : null
+  const nowMes = now.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })
+  const toMes = (d: string) => new Date(d).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })
+
   return (
     <div className="space-y-6">
+      {/* Projection panel — only shown if no real sale yet */}
+      {!op.sale_date && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-amber-600 font-bold text-sm">Proyección de venta</span>
+            <span className="text-xs text-amber-500">— introduce valores estimados para simular el cash flow futuro</span>
+          </div>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div>
+              <label className="block text-xs text-neutral-500 mb-1">Fecha estimada de venta</label>
+              <input
+                type="date"
+                value={projDate}
+                onChange={e => setProjDate(e.target.value)}
+                className="border rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-500 mb-1">Precio estimado de venta</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={projPrice}
+                  onChange={e => setProjPrice(e.target.value)}
+                  placeholder="ej. 185000"
+                  className="border rounded px-3 py-2 text-sm pr-8 w-44"
+                />
+                <span className="absolute right-3 top-2 text-xs text-neutral-400">€</span>
+              </div>
+            </div>
+            {lastRow && projPrice && (
+              <div className={`ml-auto px-4 py-2 rounded-lg text-sm font-bold ${lastRow.acumulado >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                Resultado proyectado: {lastRow.acumulado.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* Chart */}
       <div className="bg-white rounded-xl border p-5">
-        <h3 className="font-bold mb-4">Posición de caja acumulada</h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={rows} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-            <YAxis tickFormatter={v => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-            <Tooltip
-              formatter={(val) => eur(Number(val))}
-              labelStyle={{ fontWeight: 'bold' }}
+        {/* KPI row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="bg-neutral-50 rounded-lg p-3">
+            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Posición hoy</p>
+            <p className={`text-base font-bold mt-0.5 ${currentPos == null ? 'text-neutral-400' : currentPos >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+              {currentPos != null ? eur(currentPos) : '--'}
+            </p>
+          </div>
+          <div className="bg-neutral-50 rounded-lg p-3">
+            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">Pico de inversión</p>
+            <p className="text-base font-bold mt-0.5 text-red-600">
+              {peakOut < 0 ? eur(peakOut) : '--'}
+            </p>
+          </div>
+          <div className={`rounded-lg p-3 ${finalAcum == null ? 'bg-neutral-50' : finalAcum >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">
+              {isProjection ? 'Resultado estimado' : 'Resultado final'}
+            </p>
+            <p className={`text-base font-bold mt-0.5 ${finalAcum == null ? 'text-neutral-400' : finalAcum >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+              {finalAcum != null ? eur(finalAcum) : '--'}
+            </p>
+          </div>
+          <div className={`rounded-lg p-3 ${projRoi == null ? 'bg-neutral-50' : projRoi >= 0 ? 'bg-blue-50' : 'bg-red-50'}`}>
+            <p className="text-[10px] text-neutral-400 uppercase tracking-wide">ROI sobre inversión</p>
+            <p className={`text-base font-bold mt-0.5 ${projRoi == null ? 'text-neutral-400' : projRoi >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
+              {projRoi != null ? `${projRoi >= 0 ? '+' : ''}${projRoi.toFixed(1)}%` : '--'}
+            </p>
+          </div>
+        </div>
+
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={rows} margin={{ top: 10, right: 20, bottom: 5, left: 10 }}>
+            <defs>
+              <linearGradient id="gradAcum" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
+            <XAxis dataKey="mes" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis
+              tickFormatter={v => `${(v / 1000).toFixed(0)}k€`}
+              tick={{ fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+              width={48}
             />
-            <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
-            <Line
+            <Tooltip content={(props) => <CashFlowTooltip {...props} rows={rows} />} />
+            <Legend iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+
+            <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1.5} />
+            <ReferenceLine
+              x={nowMes}
+              stroke="#6B7280"
+              strokeDasharray="4 3"
+              label={{ value: 'Hoy', position: 'insideTopRight', fontSize: 9, fill: '#9CA3AF' }}
+            />
+            {op.purchase_date && (
+              <ReferenceLine x={toMes(op.purchase_date)} stroke="#3B82F6" strokeDasharray="3 3"
+                label={{ value: 'Compra', position: 'insideTopLeft', fontSize: 9, fill: '#3B82F6' }} />
+            )}
+            {op.reform_start_date && (
+              <ReferenceLine x={toMes(op.reform_start_date)} stroke="#F59E0B" strokeDasharray="3 3"
+                label={{ value: 'Reforma', position: 'insideTopLeft', fontSize: 9, fill: '#F59E0B' }} />
+            )}
+            {effectiveSaleDate && (
+              <ReferenceLine x={toMes(effectiveSaleDate)} stroke="#10B981" strokeDasharray="3 3"
+                label={{ value: isProjection ? 'Venta est.' : 'Venta', position: 'insideTopRight', fontSize: 9, fill: '#10B981' }} />
+            )}
+
+            <Bar dataKey="neto" name="Neto mes" maxBarSize={18} radius={[2, 2, 0, 0]}>
+              {rows.map((row, i) => (
+                <Cell key={i} fill={row.neto >= 0 ? '#10B981' : '#EF4444'} fillOpacity={0.65} />
+              ))}
+            </Bar>
+            <Area
               type="monotone"
               dataKey="acumulado"
-              stroke="#3B82F6"
-              strokeWidth={2}
-              dot={false}
               name="Acumulado"
+              stroke="#3B82F6"
+              strokeWidth={2.5}
+              fill="url(#gradAcum)"
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 

@@ -14,6 +14,11 @@ interface FlippingOp {
   catastral_ref?: string | null
   property_type?: string | null
   surface_m2?: number | null
+  reserva_amount?: number | null
+  reserva_date?: string | null
+  arras_amount?: number | null
+  arras_date?: string | null
+  arras_contract_url?: string | null
   sale_price?: number | null
   sale_date?: string | null
   sale_notary_cost?: number | null
@@ -106,6 +111,7 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
       const numFields = [
         'purchase_price','purchase_notary_cost','purchase_registry_cost','purchase_gestoria_cost',
         'itp_rate','itp_amount','surface_m2',
+        'reserva_amount','arras_amount',
         'sale_price','sale_notary_cost','sale_registry_cost','sale_gestoria_cost',
         'agent_commission_pct','agent_commission_amount','plusvalia_amount','is_tax_amount'
       ]
@@ -195,9 +201,48 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
         </div>
       </div>
 
+      {/* Reserva y Arras */}
+      <div className="bg-white rounded-xl border p-5">
+        <h3 className="font-bold text-neutral-800 mb-1">Reserva y Arras</h3>
+        <p className="text-xs text-neutral-400 mb-4">Pasos previos a la escritura de venta</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <NumInput label="Reserva (importe)" field="reserva_amount" form={form} setForm={set} suffix="€" />
+          <div>
+            <label className="block text-xs text-neutral-500 mb-1">Fecha reserva</label>
+            <input
+              type="date"
+              value={form.reserva_date ?? ''}
+              onChange={e => set(p => ({ ...p, reserva_date: e.target.value }))}
+              className="w-full border rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="md:col-span-1" />
+          <NumInput label="Arras (importe)" field="arras_amount" form={form} setForm={set} suffix="€" />
+          <div>
+            <label className="block text-xs text-neutral-500 mb-1">Fecha arras</label>
+            <input
+              type="date"
+              value={form.arras_date ?? ''}
+              onChange={e => set(p => ({ ...p, arras_date: e.target.value }))}
+              className="w-full border rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-neutral-500 mb-1">Contrato arras (Drive URL)</label>
+            <input
+              type="url"
+              value={form.arras_contract_url ?? ''}
+              onChange={e => set(p => ({ ...p, arras_contract_url: e.target.value }))}
+              className="w-full border rounded px-3 py-2 text-sm"
+              placeholder="https://drive.google.com/..."
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Venta */}
       <div className="bg-white rounded-xl border p-5">
-        <h3 className="font-bold text-neutral-800 mb-4">Datos de venta</h3>
+        <h3 className="font-bold text-neutral-800 mb-4">Datos de venta (escritura)</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <NumInput label="Precio de venta" field="sale_price" form={form} setForm={set} suffix="€" />
           <div>
