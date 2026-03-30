@@ -54,6 +54,8 @@ export default function TabDocumentos({ op, mortgages, invoices, onOpUpdate }: P
       if (res.ok) {
         onOpUpdate({ drive_folder_url: folderUrl || null })
         setEditingFolder(false)
+      } else {
+        alert('Error al guardar la carpeta. Inténtalo de nuevo.')
       }
     } finally {
       setSaving(false)

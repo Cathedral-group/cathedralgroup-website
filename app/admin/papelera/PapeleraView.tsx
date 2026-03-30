@@ -56,6 +56,8 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
     })
     if (res.ok) {
       setItems(prev => prev.filter(i => i.id !== item.id))
+    } else {
+      alert('Error al restaurar. Inténtalo de nuevo.')
     }
     setRestoring(null)
   }
@@ -70,6 +72,8 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
     })
     if (res.ok) {
       setItems(prev => prev.filter(i => i.id !== item.id))
+    } else {
+      alert('Error al eliminar. Inténtalo de nuevo.')
     }
     setDeleting(null)
   }

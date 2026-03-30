@@ -90,7 +90,7 @@ function calcAll(op: FlippingOp, mortgages: Mortgage[], costs: OpCost[], invoice
   if (mortgages.length > 0 && mortgages[0].start_date) {
     const m = mortgages[0]
     const r = m.interest_rate / 100 / 12
-    const n = m.term_months
+    const n = Math.max(1, m.term_months || 1)
     const cuota = r > 0 ? m.capital * r / (1 - Math.pow(1 + r, -n)) : m.capital / n
     const now = new Date()
     const start = new Date(m.start_date!)
