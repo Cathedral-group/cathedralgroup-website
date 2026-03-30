@@ -9,7 +9,7 @@ async function authCheck() {
 }
 
 // Resources that support soft delete (deleted_at field)
-const SOFT_DELETE_TABLES = new Set(['leads', 'clients', 'suppliers', 'projects', 'invoices', 'quotes'])
+const SOFT_DELETE_TABLES = new Set(['leads', 'clients', 'suppliers', 'projects', 'invoices', 'quotes', 'flipping_operations', 'mortgages', 'operation_costs'])
 
 // Map URL segment to actual table name
 function tableFor(resource: string): string | null {
@@ -24,6 +24,9 @@ function tableFor(resource: string): string | null {
     communications: 'communications',
     catalog: 'quote_items_catalog',
     'quality-coefficients': 'quality_coefficients',
+    'flipping-operations': 'flipping_operations',
+    mortgages: 'mortgages',
+    'operation-costs': 'operation_costs',
     papelera: 'papelera', // handled separately
   }
   return map[resource] ?? null
