@@ -73,6 +73,9 @@ export default function SendDocumentModal({
         setLocalSentAt(now)
         setLocalSentChannel(channel)
         onSent(now, channel)
+      } else {
+        const body = await res.json().catch(() => ({}))
+        alert('Error al marcar como enviado: ' + (body.error || `Error ${res.status}`))
       }
     } catch (e) {
       console.error('mark-sent error:', e)

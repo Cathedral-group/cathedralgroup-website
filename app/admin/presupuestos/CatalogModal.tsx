@@ -31,7 +31,7 @@ export default function CatalogModal({ qualityCoefficient, qualityLabel, onAdd, 
 
   useEffect(() => {
     fetch('/api/db/catalog')
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then((d) => { setItems(d.data || []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
