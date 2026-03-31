@@ -105,6 +105,8 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
   const [data, setData] = useState<Quote[]>(initialQuotes)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingQuote, setEditingQuote] = useState<Quote | null>(null)
+  const [deleteConfirmQuote, setDeleteConfirmQuote] = useState<Quote | null>(null)
+  const [deletingQuote, setDeletingQuote] = useState(false)
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('todos')
@@ -160,6 +162,24 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
 
   const handleClose = () => {
     setEditorOpen(false)
+  }
+
+  const handleDeleteQuote = async () => {
+    if (!deleteConfirmQuote?.id) return
+    setDeletingQuote(true)
+    try {
+      const res = await fetch(`/api/db/quotes?id=${deleteConfirmQuote.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setData(prev => prev.filter(r => r.id !== deleteConfirmQuote.id))
+      setDeleteConfirmQuote(null)
+    } catch (err) {
+      alert('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setDeletingQuote(false)
+    }
   }
 
   const filterBtnCls = (active: boolean) =>
@@ -227,6 +247,7 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
                     {h.label}
                   </th>
                 ))}
+                <th className="px-4 py-4"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
@@ -262,6 +283,17 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
                     <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">
                       {formatDate(q.created_at)}
                     </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirmQuote(q) }}
+                        className="text-neutral-300 hover:text-red-500 transition-colors"
+                        title="Eliminar presupuesto"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -281,6 +313,35 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
           onSaved={handleSaved}
           onDeleted={handleDeleted}
         />
+      )}
+
+      {deleteConfirmQuote && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md p-6 shadow-xl">
+            <h2 className="text-sm font-bold uppercase tracking-widest mb-4">Eliminar presupuesto</h2>
+            <p className="text-sm text-neutral-600 mb-2">¿Eliminar este presupuesto? Esta acción no se puede deshacer.</p>
+            <div className="bg-neutral-50 rounded p-3 mb-6 text-sm space-y-1">
+              <div className="font-medium">{deleteConfirmQuote.number || '--'}</div>
+              <div className="text-neutral-500">{formatEur(deleteConfirmQuote.total)}</div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirmQuote(null)}
+                disabled={deletingQuote}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest border border-neutral-200 text-neutral-500 hover:border-neutral-400 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteQuote}
+                disabled={deletingQuote}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deletingQuote ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

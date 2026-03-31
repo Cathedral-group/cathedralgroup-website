@@ -120,6 +120,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
   const [activeTab, setActiveTab] = useState('datos')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Client>>({})
+  const [deletingInline, setDeletingInline] = useState<string | null>(null)
 
   // Communications inline form
   const [commForm, setCommForm] = useState({ type: 'llamada', summary: '', date: new Date().toISOString().slice(0, 10) })
@@ -237,6 +238,27 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       console.error('deleteClient:', err)
       alert('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     }
+  }
+
+  const deleteClientInline = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('¿Mover este cliente a la papelera?')) return
+    setDeletingInline(id)
+    try {
+      const res = await fetch('/api/db/clients', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) {
+        setClients(prev => prev.filter(c => c.id !== id))
+        if (selected?.id === id) closeDetail()
+      } else {
+        const body = await res.json().catch(() => ({}))
+        alert('Error: ' + (body.error || 'No se pudo eliminar'))
+      }
+    } catch { alert('Error de red') }
+    setDeletingInline(null)
   }
 
   async function addCommunication() {
@@ -376,6 +398,22 @@ export default function ClientsView({ clients: initialClients, projects, invoice
         const total = invoiceTotalsByClient[String(row.id)]
         return <span className="tabular-nums">{currency(total)}</span>
       },
+    },
+    {
+      key: '_actions',
+      label: '',
+      render: (_: unknown, row: Record<string, unknown>) => (
+        <button
+          onClick={(e) => deleteClientInline(String(row.id), e as React.MouseEvent)}
+          disabled={deletingInline === String(row.id)}
+          className="text-neutral-300 hover:text-red-500 transition-colors disabled:opacity-50"
+          title="Eliminar cliente"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      ),
     },
   ]
 

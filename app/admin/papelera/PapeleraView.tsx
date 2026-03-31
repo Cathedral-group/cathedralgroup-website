@@ -35,6 +35,7 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
   const [typeFilter, setTypeFilter] = useState('')
   const [restoring, setRestoring] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [clearingAll, setClearingAll] = useState(false)
 
   const types = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -60,6 +61,26 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
       alert('Error al restaurar. Inténtalo de nuevo.')
     }
     setRestoring(null)
+  }
+
+  const handleClearAll = async () => {
+    if (!confirm(`¿Eliminar permanentemente ${filtered.length} elemento${filtered.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return
+    setClearingAll(true)
+    let deleted = 0
+    for (const item of filtered) {
+      try {
+        const res = await fetch('/api/db/papelera', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: item.id, table: item._table }),
+        })
+        if (res.ok) {
+          deleted++
+          setItems(prev => prev.filter(i => i.id !== item.id))
+        }
+      } catch { /* continue */ }
+    }
+    setClearingAll(false)
   }
 
   const handlePermanentDelete = async (item: TrashedItem) => {
@@ -102,6 +123,18 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
           </button>
         ))}
       </div>
+
+      {filtered.length > 0 && (
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={handleClearAll}
+            disabled={clearingAll}
+            className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors disabled:opacity-50"
+          >
+            {clearingAll ? 'Eliminando...' : `Vaciar todo (${filtered.length})`}
+          </button>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="bg-white border border-neutral-100 p-12 text-center">
