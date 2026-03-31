@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react'
 import InvoiceForm from './InvoiceForm'
 
+type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status'
+
 interface Invoice {
   id?: string
   direction: string
@@ -106,14 +108,37 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const [data, setData] = useState<Invoice[]>(initialData)
   const [formOpen, setFormOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<Invoice | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // Filters
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
   const [search, setSearch] = useState('')
 
+  // Sort: default concept ASC so duplicates cluster together, date DESC secondary
+  const [sortField, setSortField] = useState<SortField>('concept')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir(field === 'issue_date' || field === 'due_date' ? 'desc' : 'asc')
+    }
+  }
+
+  const sortIcon = (field: SortField) =>
+    sortField === field ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'
+
+  const thCls = (field: SortField, extra = '') =>
+    `text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest cursor-pointer select-none transition-colors ${
+      sortField === field ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'
+    } ${extra}`
+
   const filtered = useMemo(() => {
-    return data.filter((inv) => {
+    const list = data.filter((inv) => {
       if (dirFilter !== 'todas' && inv.direction !== dirFilter) return false
       if (statusFilter !== 'todas' && inv.payment_status !== statusFilter) return false
       if (search) {
@@ -123,7 +148,44 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
       }
       return true
     })
-  }, [data, dirFilter, statusFilter, search])
+
+    list.sort((a, b) => {
+      let cmp = 0
+      switch (sortField) {
+        case 'number':
+          cmp = (a.number ?? '').localeCompare(b.number ?? '', 'es', { numeric: true })
+          break
+        case 'direction':
+          cmp = (a.direction ?? '').localeCompare(b.direction ?? '')
+          break
+        case 'concept':
+          cmp = (a.concept ?? '').localeCompare(b.concept ?? '', 'es', { sensitivity: 'base' })
+          if (cmp === 0) cmp = (b.issue_date ?? '').localeCompare(a.issue_date ?? '')
+          break
+        case 'amount_base':
+          cmp = (a.amount_base ?? 0) - (b.amount_base ?? 0)
+          break
+        case 'vat_amount':
+          cmp = (a.vat_amount ?? 0) - (b.vat_amount ?? 0)
+          break
+        case 'amount_total':
+          cmp = (a.amount_total ?? 0) - (b.amount_total ?? 0)
+          break
+        case 'issue_date':
+          cmp = (a.issue_date ?? '').localeCompare(b.issue_date ?? '')
+          break
+        case 'due_date':
+          cmp = (a.due_date ?? '').localeCompare(b.due_date ?? '')
+          break
+        case 'payment_status':
+          cmp = (a.payment_status ?? '').localeCompare(b.payment_status ?? '')
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
+    return list
+  }, [data, dirFilter, statusFilter, search, sortField, sortDir])
 
   const openNew = () => {
     setEditingInvoice(null)
@@ -170,6 +232,24 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const handleDeleted = (id: string) => {
     setData((prev) => prev.filter((r) => r.id !== id))
     setFormOpen(false)
+  }
+
+  const handleDelete = async () => {
+    if (!deleteConfirm?.id) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/db/invoices?id=${deleteConfirm.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setData((prev) => prev.filter((r) => r.id !== deleteConfirm.id))
+      setDeleteConfirm(null)
+    } catch (err) {
+      alert('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const markAsPaid = async (inv: Invoice, e: React.MouseEvent) => {
@@ -266,25 +346,16 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
           <table className="w-full">
             <thead>
               <tr className="border-b border-neutral-100">
-                {[
-                  { label: 'Nº', cls: '' },
-                  { label: 'Tipo', cls: '' },
-                  { label: 'Concepto', cls: 'hidden sm:table-cell' },
-                  { label: 'Base', cls: 'hidden md:table-cell' },
-                  { label: 'IVA', cls: 'hidden md:table-cell' },
-                  { label: 'Total', cls: '' },
-                  { label: 'Fecha', cls: 'hidden sm:table-cell' },
-                  { label: 'Vencimiento', cls: 'hidden sm:table-cell' },
-                  { label: 'Estado', cls: '' },
-                  { label: '', cls: '' },
-                ].map((h) => (
-                  <th
-                    key={h.label}
-                    className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${h.cls}`}
-                  >
-                    {h.label}
-                  </th>
-                ))}
+                <th className={thCls('number')} onClick={() => handleSort('number')}>Nº{sortIcon('number')}</th>
+                <th className={thCls('direction')} onClick={() => handleSort('direction')}>Tipo{sortIcon('direction')}</th>
+                <th className={`hidden sm:table-cell ${thCls('concept')}`} onClick={() => handleSort('concept')}>Concepto{sortIcon('concept')}</th>
+                <th className={`hidden md:table-cell ${thCls('amount_base')}`} onClick={() => handleSort('amount_base')}>Base{sortIcon('amount_base')}</th>
+                <th className={`hidden md:table-cell ${thCls('vat_amount')}`} onClick={() => handleSort('vat_amount')}>IVA{sortIcon('vat_amount')}</th>
+                <th className={thCls('amount_total')} onClick={() => handleSort('amount_total')}>Total{sortIcon('amount_total')}</th>
+                <th className={`hidden sm:table-cell ${thCls('issue_date')}`} onClick={() => handleSort('issue_date')}>Fecha{sortIcon('issue_date')}</th>
+                <th className={`hidden sm:table-cell ${thCls('due_date')}`} onClick={() => handleSort('due_date')}>Vencimiento{sortIcon('due_date')}</th>
+                <th className={thCls('payment_status')} onClick={() => handleSort('payment_status')}>Estado{sortIcon('payment_status')}</th>
+                <th className="px-4 py-4"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
@@ -322,14 +393,25 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {inv.payment_status === 'pendiente' && (
+                      <div className="flex items-center gap-3">
+                        {inv.payment_status === 'pendiente' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); markAsPaid(inv, e) }}
+                            className="text-[10px] font-bold uppercase tracking-widest text-green-600 hover:text-green-800 whitespace-nowrap"
+                          >
+                            Marcar pagada
+                          </button>
+                        )}
                         <button
-                          onClick={(e) => markAsPaid(inv, e)}
-                          className="text-[10px] font-bold uppercase tracking-widest text-green-600 hover:text-green-800 whitespace-nowrap"
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(inv) }}
+                          className="text-neutral-300 hover:text-red-500 transition-colors"
+                          title="Eliminar factura"
                         >
-                          Marcar pagada
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -349,6 +431,42 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
           onSaved={handleSaved}
           onDeleted={handleDeleted}
         />
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md p-6 shadow-xl">
+            <h2 className="text-sm font-bold uppercase tracking-widest mb-4">Eliminar factura</h2>
+            <p className="text-sm text-neutral-600 mb-2">
+              ¿Eliminar esta factura? Esta acción no se puede deshacer.
+            </p>
+            <div className="bg-neutral-50 rounded p-3 mb-6 text-sm space-y-1">
+              <div className="font-medium truncate">{deleteConfirm.concept || '--'}</div>
+              <div className="text-neutral-500 flex gap-4">
+                <span>{formatDate(deleteConfirm.issue_date)}</span>
+                <span className="font-semibold">{formatEur(deleteConfirm.amount_total)}</span>
+                <span>{deleteConfirm.number || ''}</span>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleting}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest border border-neutral-200 text-neutral-500 hover:border-neutral-400 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
