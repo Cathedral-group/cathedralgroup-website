@@ -4,8 +4,8 @@ import ClientsView from './ClientsView'
 
 export default async function ClientesPage() {
   const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) redirect('/admin/login')
+  const { data, error } = await authClient.auth.getUser()
+  if (error || !data?.user) redirect('/admin/login')
 
   const supabase = createAdminSupabaseClient()
 

@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function ConfiguracionPage() {
   const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) redirect('/admin/login')
+  const { data, error } = await authClient.auth.getUser()
+  if (error || !data?.user) redirect('/admin/login')
 
   const supabase = createAdminSupabaseClient()
   const { data: coefficients } = await supabase

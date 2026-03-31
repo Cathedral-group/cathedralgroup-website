@@ -92,8 +92,8 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
     setDirty(true)
   }
 
-  const itp_calc = parseFloat(form.purchase_price || '0') * ((parseFloat(form.itp_rate || '0.4')) / 100)
-  const itp_effective = parseFloat(form.itp_amount || '0') || itp_calc
+  const itp_calc = parseFloat(form.purchase_price || '0') * ((parseFloat(form.itp_rate || '6')) / 100)
+  const itp_effective = form.itp_amount !== '' && !isNaN(parseFloat(form.itp_amount)) ? parseFloat(form.itp_amount) : itp_calc
   const totalCompra =
     parseFloat(form.purchase_price || '0') +
     itp_effective +
@@ -102,7 +102,7 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
     parseFloat(form.purchase_gestoria_cost || '0')
 
   const commission_calc = parseFloat(form.sale_price || '0') * ((parseFloat(form.agent_commission_pct || '3')) / 100)
-  const commission_effective = parseFloat(form.agent_commission_amount || '0') || commission_calc
+  const commission_effective = form.agent_commission_amount !== '' && !isNaN(parseFloat(form.agent_commission_amount)) ? parseFloat(form.agent_commission_amount) : commission_calc
   const gastosVenta =
     parseFloat(form.sale_notary_cost || '0') +
     parseFloat(form.sale_registry_cost || '0') +
@@ -141,6 +141,9 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
         const { data: updated } = await res.json()
         onUpdate(updated)
         setDirty(false)
+      } else {
+        const errBody = await res.json().catch(() => ({}))
+        alert('Error al guardar: ' + (errBody.error || `Error ${res.status}`))
       }
     } finally {
       setSaving(false)

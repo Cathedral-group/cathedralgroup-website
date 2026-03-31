@@ -4,8 +4,8 @@ import QuotesView from './QuotesView'
 
 export default async function PresupuestosPage() {
   const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) redirect('/admin/login')
+  const { data, error } = await authClient.auth.getUser()
+  if (error || !data?.user) redirect('/admin/login')
 
   const supabase = createAdminSupabaseClient()
 
@@ -41,7 +41,7 @@ export default async function PresupuestosPage() {
         quotes={quotesRes.data || []}
         clients={clientsRes.data || []}
         projects={projectsRes.data || []}
-        userEmail={user.email || ''}
+        userEmail={data.user?.email || ''}
       />
     </div>
   )

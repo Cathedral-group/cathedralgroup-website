@@ -55,6 +55,8 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const [deleting, setDeleting] = useState(false)
   const [showNewForm, setShowNewForm] = useState(false)
   const [newLead, setNewLead] = useState({ nombre: '', email: '', phone: '', tipo_proyecto: '', zona: '', origen: 'Referido / Boca a boca', mensaje: '' })
+  const [savingNewLead, setSavingNewLead] = useState(false)
+  const [updatingOrigen, setUpdatingOrigen] = useState(false)
 
   const filteredLeads = useMemo(() => {
     let result = filter ? leads.filter((l) => (l.lead_status || 'nuevo') === filter) : leads
@@ -158,7 +160,11 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
     {
       key: 'created_at',
       label: 'Fecha',
-      render: (val: unknown) => new Date(String(val)).toLocaleDateString('es-ES'),
+      render: (val: unknown) => {
+        if (!val) return '—'
+        const d = new Date(String(val))
+        return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-ES')
+      },
     },
   ]
 
@@ -228,32 +234,42 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
           <div className="flex gap-3">
             <button
               onClick={async () => {
-                if (!newLead.nombre) return
-                const res = await fetch('/api/db/leads', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    nombre: newLead.nombre,
-                    email: newLead.email || null,
-                    phone: newLead.phone || null,
-                    tipo_proyecto: newLead.tipo_proyecto || null,
-                    zona: newLead.zona || null,
-                    origen: newLead.origen,
-                    mensaje: newLead.mensaje || null,
-                    lead_status: 'nuevo',
-                  }),
-                })
-                if (!res.ok) return
-                const { data } = await res.json()
-                if (data) {
-                  setLeads(prev => [data as Lead, ...prev])
-                  setShowNewForm(false)
-                  setNewLead({ nombre: '', email: '', phone: '', tipo_proyecto: '', zona: '', origen: 'Referido / Boca a boca', mensaje: '' })
+                if (!newLead.nombre || savingNewLead) return
+                setSavingNewLead(true)
+                try {
+                  const res = await fetch('/api/db/leads', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      nombre: newLead.nombre,
+                      email: newLead.email || null,
+                      phone: newLead.phone || null,
+                      tipo_proyecto: newLead.tipo_proyecto || null,
+                      zona: newLead.zona || null,
+                      origen: newLead.origen,
+                      mensaje: newLead.mensaje || null,
+                      lead_status: 'nuevo',
+                    }),
+                  })
+                  if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}))
+                    alert('Error al guardar lead: ' + (errBody.error || `Error ${res.status}`))
+                    return
+                  }
+                  const { data } = await res.json()
+                  if (data) {
+                    setLeads(prev => [data as Lead, ...prev])
+                    setShowNewForm(false)
+                    setNewLead({ nombre: '', email: '', phone: '', tipo_proyecto: '', zona: '', origen: 'Referido / Boca a boca', mensaje: '' })
+                  }
+                } finally {
+                  setSavingNewLead(false)
                 }
               }}
-              className="bg-[#5A5550] text-white px-6 py-2 text-xs font-bold uppercase tracking-widest hover:bg-neutral-700 transition-colors"
+              disabled={savingNewLead}
+              className="bg-[#5A5550] text-white px-6 py-2 text-xs font-bold uppercase tracking-widest hover:bg-neutral-700 transition-colors disabled:opacity-50"
             >
-              Guardar lead
+              {savingNewLead ? 'Guardando...' : 'Guardar lead'}
             </button>
             <button
               onClick={() => setShowNewForm(false)}
@@ -383,17 +399,28 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                 <select
                   value={selectedLead.origen || ''}
                   onChange={async (e) => {
+                    if (updatingOrigen) return
                     const val = e.target.value
-                    const res = await fetch('/api/db/leads', {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ id: selectedLead.id, origen: val }),
-                    })
-                    if (!res.ok) return
-                    setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, origen: val } : l))
-                    setSelectedLead({ ...selectedLead, origen: val })
+                    setUpdatingOrigen(true)
+                    try {
+                      const res = await fetch('/api/db/leads', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: selectedLead.id, origen: val }),
+                      })
+                      if (!res.ok) {
+                        const errBody = await res.json().catch(() => ({}))
+                        alert('Error al actualizar origen: ' + (errBody.error || `Error ${res.status}`))
+                        return
+                      }
+                      setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, origen: val } : l))
+                      setSelectedLead({ ...selectedLead, origen: val })
+                    } finally {
+                      setUpdatingOrigen(false)
+                    }
                   }}
-                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+                  disabled={updatingOrigen}
+                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm disabled:opacity-50"
                 >
                   <option value="">Sin origen</option>
                   {ORIGENES.map(o => <option key={o} value={o}>{o}</option>)}

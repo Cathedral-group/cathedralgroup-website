@@ -205,6 +205,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     setActiveTab('general')
     setShowPhaseForm(false)
     setEditingPhaseId(null)
+    setPhaseForm({ name: '', status: 'pendiente', start_date: '', end_date: '' })
   }
 
   function closeDetail() {
@@ -427,8 +428,8 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const phasePct = projectPhases.length > 0 ? Math.round((completedPhases / projectPhases.length) * 100) : 0
 
   const projectInvoices = selected ? initialInvoices.filter((inv) => inv.proyecto_code === selected.code) : []
-  const totalInvoiced = projectInvoices.filter((i) => i.tipo === 'cobro' || i.tipo === 'emitida').reduce((s, i) => s + (i.total || 0), 0)
-  const totalSpent = projectInvoices.filter((i) => i.tipo === 'pago' || i.tipo === 'recibida').reduce((s, i) => s + (i.total || 0), 0)
+  const totalInvoiced = projectInvoices.filter((i) => i.tipo === 'cobro' || i.tipo === 'emitida').reduce((s, i) => s + (Number(i.total) || 0), 0)
+  const totalSpent = projectInvoices.filter((i) => i.tipo === 'pago' || i.tipo === 'recibida').reduce((s, i) => s + (Number(i.total) || 0), 0)
   const invoiceMargin = totalInvoiced > 0 ? ((totalInvoiced - totalSpent) / totalInvoiced) * 100 : 0
 
   /* ───────── Field helper ───────── */
@@ -632,7 +633,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      {p.start_date ? new Date(p.start_date).toLocaleDateString('es-ES') : '—'}
+                      {p.start_date ? new Date(p.start_date + 'T00:00:00').toLocaleDateString('es-ES') : '—'}
                     </td>
                   </tr>
                 )
@@ -676,7 +677,11 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: selected.id, status: s }),
                       })
-                      if (!res.ok) return
+                      if (!res.ok) {
+                        const body = await res.json().catch(() => ({}))
+                        alert('Error al cambiar estado: ' + (body.error || `Error ${res.status}`))
+                        return
+                      }
                       setProjects(prev => prev.map(p => p.id === selected.id ? { ...p, status: s } : p))
                       setSelected({ ...selected, status: s })
                       setEditForm({ ...editForm, status: s })

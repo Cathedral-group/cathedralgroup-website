@@ -140,6 +140,9 @@ export default function OperacionDetail({ op: initialOp, mortgages: initialMortg
       if (res.ok) {
         setOp(prev => ({ ...prev, status: newStatus }))
         setEditingStatus(false)
+      } else {
+        const errBody = await res.json().catch(() => ({}))
+        alert('Error al cambiar estado: ' + (errBody.error || `Error ${res.status}`))
       }
     } finally {
       setSavingStatus(false)
@@ -166,7 +169,7 @@ export default function OperacionDetail({ op: initialOp, mortgages: initialMortg
             {editingStatus ? (
               <div className="flex items-center gap-2">
                 <select
-                  defaultValue={op.status}
+                  value={op.status}
                   onChange={e => changeStatus(e.target.value)}
                   disabled={savingStatus}
                   className="border rounded px-2 py-1 text-sm"

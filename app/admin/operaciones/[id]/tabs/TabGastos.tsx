@@ -62,6 +62,7 @@ export default function TabGastos({ operationId, reformBudget, costs, invoices, 
   const [showAdd, setShowAdd] = useState(false)
   const [newCost, setNewCost] = useState({ type: 'ibi', concept: '', amount: '', date: '', notes: '' })
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const reformaReal = invoices.reduce((s, i) => s + (i.amount_total ?? 0), 0)
   const reformPct = reformBudget && reformaReal > 0 ? Math.min(100, (reformaReal / reformBudget) * 100) : 0
@@ -90,6 +91,9 @@ export default function TabGastos({ operationId, reformBudget, costs, invoices, 
         onCostsUpdate([data, ...costs])
         setNewCost({ type: 'ibi', concept: '', amount: '', date: '', notes: '' })
         setShowAdd(false)
+      } else {
+        const errBody = await res.json().catch(() => ({}))
+        alert('Error al guardar el gasto: ' + (errBody.error || `Error ${res.status}`))
       }
     } finally {
       setSaving(false)
@@ -97,12 +101,22 @@ export default function TabGastos({ operationId, reformBudget, costs, invoices, 
   }
 
   const deleteCost = async (id: string) => {
-    const res = await fetch(`/api/db/operation-costs`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
-    if (res.ok) onCostsUpdate(costs.filter(c => c.id !== id))
+    if (deletingId) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/db/operation-costs`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) {
+        onCostsUpdate(costs.filter(c => c.id !== id))
+      } else {
+        alert('Error al eliminar el gasto. Inténtalo de nuevo.')
+      }
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -266,7 +280,8 @@ export default function TabGastos({ operationId, reformBudget, costs, invoices, 
                   <td className="p-2 text-right">
                     <button
                       onClick={() => deleteCost(c.id)}
-                      className="text-neutral-300 hover:text-red-500 text-xs transition-colors"
+                      disabled={deletingId === c.id}
+                      className="text-neutral-300 hover:text-red-500 text-xs transition-colors disabled:opacity-50"
                     >
                       ✕
                     </button>

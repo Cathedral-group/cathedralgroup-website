@@ -89,6 +89,8 @@ export default function LoginPage() {
 
     setAttempts(0)
     sessionStorage.removeItem('login_lockout')
+    // Log login event (fire-and-forget)
+    fetch('/api/auth/login-log', { method: 'POST' }).catch(() => {})
     router.push('/admin')
     router.refresh()
   }

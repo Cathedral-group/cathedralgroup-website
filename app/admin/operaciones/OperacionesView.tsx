@@ -95,8 +95,9 @@ export default function OperacionesView({ initialData, projects }: Props) {
     .filter(o => ACTIVE_STATUSES.includes(o.status))
     .reduce((s, o) => s + calcKpis(o).totalInvertido, 0)
   const vendidas = ops.filter(o => o.status === 'vendida')
-  const roiMedio = vendidas.length > 0
-    ? vendidas.reduce((s, o) => s + (calcKpis(o).roi ?? 0), 0) / vendidas.length
+  const vendidaRois = vendidas.map(o => calcKpis(o).roi).filter((r): r is number => r !== null)
+  const roiMedio = vendidaRois.length > 0
+    ? vendidaRois.reduce((s, r) => s + r, 0) / vendidaRois.length
     : null
 
   const createOp = async () => {
@@ -108,7 +109,7 @@ export default function OperacionesView({ initialData, projects }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newForm,
-          surface_m2: newForm.surface_m2 ? parseFloat(newForm.surface_m2) : null,
+          surface_m2: newForm.surface_m2.trim() ? parseFloat(newForm.surface_m2) : null,
         }),
       })
       if (res.ok) {
@@ -118,6 +119,9 @@ export default function OperacionesView({ initialData, projects }: Props) {
         setShowNew(false)
         setNewForm({ code: '', name: '', status: 'prospecto', address: '', property_type: 'piso', surface_m2: '' })
         router.push(`/admin/operaciones/${data.id}`)
+      } else {
+        const errBody = await res.json().catch(() => ({}))
+        alert('Error al crear la operación: ' + (errBody.error || `Error ${res.status}`))
       }
     } finally {
       setSaving(false)
@@ -237,7 +241,7 @@ export default function OperacionesView({ initialData, projects }: Props) {
       {/* New operation modal */}
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowNew(false)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setShowNew(false); setNewForm({ code: '', name: '', status: 'prospecto', address: '', property_type: 'piso', surface_m2: '' }) }} />
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-bold mb-4">Nueva operación</h2>
             <div className="space-y-3">
@@ -314,7 +318,7 @@ export default function OperacionesView({ initialData, projects }: Props) {
               >
                 {saving ? 'Creando...' : 'Crear operación'}
               </button>
-              <button onClick={() => setShowNew(false)} className="px-4 py-2.5 rounded text-sm border hover:bg-neutral-50">
+              <button onClick={() => { setShowNew(false); setNewForm({ code: '', name: '', status: 'prospecto', address: '', property_type: 'piso', surface_m2: '' }) }} className="px-4 py-2.5 rounded text-sm border hover:bg-neutral-50">
                 Cancelar
               </button>
             </div>

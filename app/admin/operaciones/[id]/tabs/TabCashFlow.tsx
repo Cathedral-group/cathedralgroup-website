@@ -114,8 +114,8 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
     if (!op.purchase_date) return []
 
     const events: { fecha: Date; concepto: string; entrada: number; salida: number }[] = []
-    const startDate = new Date(op.purchase_date)
-    const endDate = effectiveSaleDate ? new Date(effectiveSaleDate) : new Date(startDate.getFullYear(), startDate.getMonth() + 12, 1)
+    const startDate = new Date(op.purchase_date + 'T00:00:00')
+    const endDate = effectiveSaleDate ? new Date(effectiveSaleDate + 'T00:00:00') : new Date(startDate.getFullYear(), startDate.getMonth() + 12, 1)
 
     // Mes compra: gastos compra
     const itp = op.itp_amount ?? (op.purchase_price ?? 0) * ((op.itp_rate ?? 6) / 100)
@@ -138,7 +138,7 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
       }
       // Monthly mortgage payments
       const cuota = mortgage.monthly_payment ?? calcCuota(mortgage.capital, mortgage.interest_rate, mortgage.term_months)
-      const mortStart = mortgage.start_date ? new Date(mortgage.start_date) : startDate
+      const mortStart = mortgage.start_date ? new Date(mortgage.start_date + 'T00:00:00') : startDate
       for (let i = 0; i < mortgage.term_months; i++) {
         const fecha = new Date(mortStart.getFullYear(), mortStart.getMonth() + i + 1, 1)
         if (fecha > endDate) break
@@ -150,7 +150,7 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
     for (const inv of invoices) {
       if (inv.issue_date && inv.amount_total) {
         events.push({
-          fecha: new Date(inv.issue_date),
+          fecha: new Date(inv.issue_date + 'T00:00:00'),
           concepto: 'Factura reforma',
           entrada: 0,
           salida: inv.amount_total,
@@ -162,7 +162,7 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
     for (const cost of costs) {
       if (cost.date && cost.amount) {
         events.push({
-          fecha: new Date(cost.date),
+          fecha: new Date(cost.date + 'T00:00:00'),
           concepto: cost.type,
           entrada: 0,
           salida: cost.amount,
@@ -174,17 +174,17 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
 
     // Reserva
     if (op.reserva_amount && op.reserva_date) {
-      events.push({ fecha: new Date(op.reserva_date), concepto: 'Señal de reserva', entrada: op.reserva_amount, salida: 0 })
+      events.push({ fecha: new Date(op.reserva_date + 'T00:00:00'), concepto: 'Señal de reserva', entrada: op.reserva_amount, salida: 0 })
     }
 
     // Arras
     if (op.arras_amount && op.arras_date) {
-      events.push({ fecha: new Date(op.arras_date), concepto: 'Contrato de arras', entrada: op.arras_amount, salida: 0 })
+      events.push({ fecha: new Date(op.arras_date + 'T00:00:00'), concepto: 'Contrato de arras', entrada: op.arras_amount, salida: 0 })
     }
 
     // Sale month (real or projected)
     if (effectiveSalePrice && effectiveSaleDate) {
-      const saleDate = new Date(effectiveSaleDate)
+      const saleDate = new Date(effectiveSaleDate + 'T00:00:00')
       const gastosVenta =
         (op.sale_notary_cost ?? 0) +
         (op.sale_registry_cost ?? 0) +
@@ -194,7 +194,7 @@ export default function TabCashFlow({ op, mortgages, costs, invoices }: Props) {
         (op.is_tax_amount ?? 0)
       const alreadyReceived = (op.reserva_amount ?? 0) + (op.arras_amount ?? 0)
       const remainder = effectiveSalePrice - alreadyReceived
-      events.push({ fecha: saleDate, concepto: isProjection ? 'Venta estimada (resto)' : 'Escritura venta (resto)', entrada: remainder > 0 ? remainder : effectiveSalePrice, salida: 0 })
+      events.push({ fecha: saleDate, concepto: isProjection ? 'Venta estimada (resto)' : 'Escritura venta (resto)', entrada: Math.max(0, remainder), salida: 0 })
       if (gastosVenta > 0) {
         events.push({ fecha: saleDate, concepto: 'Gastos de venta', entrada: 0, salida: gastosVenta })
       }

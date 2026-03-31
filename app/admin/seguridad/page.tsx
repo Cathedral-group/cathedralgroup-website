@@ -1,28 +1,26 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import LeadsTable from './LeadsTable'
+import AuditLogView from './AuditLogView'
 
-export default async function LeadsPage() {
+export default async function SeguridadPage() {
   const authClient = await createServerSupabaseClient()
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
 
   const supabase = createAdminSupabaseClient()
-
-  const { data: leads } = await supabase
-    .from('leads')
+  const { data: logs } = await supabase
+    .from('admin_audit_log')
     .select('*')
-    .is('deleted_at', null)
     .order('created_at', { ascending: false })
+    .limit(500)
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-xl font-medium uppercase tracking-wide">Leads</h1>
-        <p className="text-sm text-neutral-500">{leads?.length || 0} resultados</p>
+      <div className="mb-8">
+        <h1 className="text-xl font-medium uppercase tracking-wide">Seguridad</h1>
+        <p className="text-xs text-neutral-400 mt-1">Registro de actividad del panel de administración</p>
       </div>
-
-      <LeadsTable leads={leads || []} />
+      <AuditLogView logs={logs ?? []} />
     </div>
   )
 }

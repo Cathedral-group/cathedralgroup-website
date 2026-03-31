@@ -28,8 +28,8 @@ interface VatQuarterly {
 
 export default async function InformesPage() {
   const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) redirect('/admin/login')
+  const { data, error } = await authClient.auth.getUser()
+  if (error || !data?.user) redirect('/admin/login')
 
   const supabase = createAdminSupabaseClient()
 

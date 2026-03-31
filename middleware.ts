@@ -6,7 +6,11 @@ export async function middleware(request: NextRequest) {
 
   // Only protect admin routes — skip login and reset-password
   if (!pathname.startsWith('/admin')) return NextResponse.next()
-  if (pathname.startsWith('/admin/login') || pathname.startsWith('/admin/reset-password')) {
+  if (
+    pathname.startsWith('/admin/login') ||
+    pathname.startsWith('/admin/reset-password') ||
+    pathname.startsWith('/admin/mfa')
+  ) {
     return NextResponse.next()
   }
 
@@ -27,12 +31,29 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (error || !data?.user) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/admin/login'
     return NextResponse.redirect(loginUrl)
+  }
+
+  // MFA enforcement: check assurance level
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aal) {
+    if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+      // User has MFA enrolled but hasn't verified it this session
+      const mfaUrl = request.nextUrl.clone()
+      mfaUrl.pathname = '/admin/mfa'
+      return NextResponse.redirect(mfaUrl)
+    }
+    if (aal.nextLevel !== 'aal2') {
+      // User has no MFA factor enrolled yet — force setup
+      const setupUrl = request.nextUrl.clone()
+      setupUrl.pathname = '/admin/mfa/setup'
+      return NextResponse.redirect(setupUrl)
+    }
   }
 
   return response
