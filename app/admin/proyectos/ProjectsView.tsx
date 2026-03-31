@@ -218,19 +218,23 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   async function saveProject() {
     if (!selected) return
     setSaving(true)
-    const { id, created_at, ...rest } = editForm as Project
-    void id; void created_at
+    const ef = editForm as Record<string, unknown>
+    const payload: Record<string, unknown> = {}
+    const FIELDS = ['code', 'name', 'client_id', 'type', 'status', 'address', 'description',
+      'budget_estimated', 'sale_price', 'start_date', 'end_date_planned', 'end_date_real',
+      'notes', 'drive_folder_url']
+    for (const f of FIELDS) payload[f] = ef[f] ?? null
     try {
       const res = await fetch('/api/db/projects', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selected.id, ...rest }),
+        body: JSON.stringify({ id: selected.id, ...payload }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || `Error ${res.status}`)
       }
-      const updated = { ...selected, ...rest }
+      const updated = { ...selected, ...payload }
       setProjects((prev) => prev.map((p) => (p.id === selected.id ? updated : p)))
       setSelected(updated)
     } catch (err) {
@@ -769,22 +773,6 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   </div>
 
                   <Field label="Notas" name="notes" type="textarea" />
-
-                  <div className="flex gap-3 pt-4 border-t border-neutral-100">
-                    <button
-                      onClick={saveProject}
-                      disabled={saving}
-                      className="bg-primary text-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {saving ? 'Guardando...' : 'Guardar'}
-                    </button>
-                    <button
-                      onClick={deleteProject}
-                      className="bg-white border border-red-200 text-red-600 px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -1006,6 +994,23 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                 </div>
               )}
             </TabPanel>
+
+            {/* Save / Delete — always visible regardless of active tab */}
+            <div className="flex gap-3 pt-4 mt-4 border-t border-neutral-100">
+              <button
+                onClick={saveProject}
+                disabled={saving}
+                className="bg-neutral-900 text-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-[#5A5550] disabled:opacity-50 transition-colors"
+              >
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
+              <button
+                onClick={deleteProject}
+                className="bg-white border border-red-200 text-red-600 px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50 transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
           </div>
         </div>
       )}
