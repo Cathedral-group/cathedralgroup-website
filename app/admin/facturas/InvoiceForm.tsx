@@ -139,9 +139,11 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
     }
   }, [form.direction]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-calculate amounts
+  // Auto-calculate amounts — only when amount_base has a value (null = no tocar importes existentes de la DB)
   useEffect(() => {
-    const base = form.amount_base ?? 0
+    if (form.amount_base === null || form.amount_base === undefined) return
+
+    const base = form.amount_base
     const vatPct = form.vat_pct ?? 0
     const irpfRate = form.irpf_rate ?? 0
 
