@@ -56,7 +56,7 @@ interface Props {
 }
 
 function eur(v: number | null | undefined) {
-  if (v == null || v === 0) return '--'
+  if (v == null) return '--'
   return v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
@@ -95,7 +95,7 @@ function calcAll(op: FlippingOp, mortgages: Mortgage[], costs: OpCost[], invoice
     const now = new Date()
     const start = new Date(m.start_date!)
     const monthsPaid = Math.min(
-      Math.max(0, Math.floor((now.getTime() - start.getTime()) / (30 * 24 * 60 * 60 * 1000))),
+      Math.max(0, (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth())),
       n
     )
     let saldo = m.capital
@@ -194,7 +194,7 @@ export default function TabResumen({ op, mortgages, costs, invoices }: Props) {
             <tbody className="divide-y">
               {[
                 { label: 'Precio de compra', val: op.purchase_price },
-                { label: `ITP (${op.itp_rate ?? 0.4}%)`, val: k.itp },
+                { label: `ITP (${op.itp_rate ?? 6}%)`, val: k.itp },
                 { label: 'Notaría + registro compra', val: (op.purchase_notary_cost ?? 0) + (op.purchase_registry_cost ?? 0) + (op.purchase_gestoria_cost ?? 0) },
                 { label: 'Costes hipotecarios', val: k.hipCostes || null },
                 { label: 'Reforma (facturas)', val: k.reformaTotal || null },
@@ -267,7 +267,7 @@ export default function TabResumen({ op, mortgages, costs, invoices }: Props) {
                     {step.label}
                   </p>
                   <p className="text-[10px] text-neutral-400">
-                    {step.date ? new Date(step.date).toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'2-digit' }) : '--'}
+                    {step.date ? new Date(step.date + 'T00:00:00').toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'2-digit' }) : '--'}
                   </p>
                 </div>
                 {i < STATUS_STEPS.length - 1 && (

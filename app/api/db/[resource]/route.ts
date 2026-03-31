@@ -2,10 +2,34 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import QRCode from 'qrcode'
 
+function escapeHtml(text: string | null | undefined): string {
+  if (text == null) return ''
+  const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+  return String(text).replace(/[&<>"']/g, (m) => map[m])
+}
+
 async function authCheck() {
   const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  return user
+  const { data, error } = await authClient.auth.getUser()
+  if (error || !data?.user) return null
+  return data.user
+}
+
+function auditLog(
+  userEmail: string,
+  action: 'create' | 'update' | 'delete' | 'restore' | 'permanent_delete',
+  tableName: string,
+  recordId: string | null,
+  ip: string,
+) {
+  const supabase = createAdminSupabaseClient()
+  void supabase.from('admin_audit_log').insert({
+    user_email: userEmail,
+    action,
+    table_name: tableName,
+    record_id: recordId,
+    ip,
+  }) // fire-and-forget: never blocks the main request
 }
 
 // Resources that support soft delete (deleted_at field)
@@ -82,11 +106,11 @@ function buildPdfHeader(division: string | null): string {
 function buildClientBlock(client: ClientData | null): string {
   if (!client) return '<div class="meta-block"></div>'
   const lines = [
-    `<div class="value client-name">${client.company_name || client.name}</div>`,
-    client.nif_cif ? `<div class="client-detail">${client.nif_cif}</div>` : '',
-    client.address ? `<div class="client-detail">${client.address}</div>` : '',
-    client.email ? `<div class="client-detail">${client.email}</div>` : '',
-    client.phone ? `<div class="client-detail">${client.phone}</div>` : '',
+    `<div class="value client-name">${escapeHtml(client.company_name || client.name)}</div>`,
+    client.nif_cif ? `<div class="client-detail">${escapeHtml(client.nif_cif)}</div>` : '',
+    client.address ? `<div class="client-detail">${escapeHtml(client.address)}</div>` : '',
+    client.email ? `<div class="client-detail">${escapeHtml(client.email)}</div>` : '',
+    client.phone ? `<div class="client-detail">${escapeHtml(client.phone)}</div>` : '',
   ].filter(Boolean).join('')
   return `<div class="meta-block"><label>Cliente</label>${lines}</div>`
 }
@@ -198,7 +222,7 @@ async function buildCertificationPdf(id: string, certNumber?: number): Promise<N
     const pending = Math.round((certAmt - invAmt) * 100) / 100
     const rowBg = it.invoiced_pct >= 100 ? '#f0fdf4' : it.certified_pct > it.invoiced_pct ? '#fffbeb' : (i % 2 === 0 ? '#fff' : '#faf9f8')
     return `<tr style="background:${rowBg}">
-      <td class="td-desc">${it.description}</td>
+      <td class="td-desc">${escapeHtml(it.description)}</td>
       <td class="td-num">${fmtEur(it.total || 0)}</td>
       <td class="td-center">${it.certified_pct || 0}%</td>
       <td class="td-num">${fmtEur(certAmt)}</td>
@@ -244,7 +268,7 @@ td.pending-positive{color:#16a34a}
     <div class="meta">
       ${buildClientBlock(client)}
       <div class="meta-block"><label>Fecha de certificación</label><div class="value">${fmtDate(new Date().toISOString())}</div></div>
-      ${projectCode ? `<div class="meta-block"><label>Proyecto</label><div class="value">${projectCode}</div></div>` : '<div class="meta-block"></div>'}
+      ${projectCode ? `<div class="meta-block"><label>Proyecto</label><div class="value">${escapeHtml(projectCode)}</div></div>` : '<div class="meta-block"></div>'}
     </div>
     <p class="progress-label"><strong>Avance global certificado: ${certPct}%</strong> — ${fmtEur(Math.round(totalCertified * 100) / 100)} de ${fmtEur(Math.round(totalBudget * 100) / 100)}</p>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.min(certPct, 100)}%"></div></div>
@@ -354,8 +378,8 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
     partyBlock = buildClientBlock(client)
   } else if (!isEmitida && supplierName) {
     partyBlock = `<div class="meta-block"><label>Proveedor</label>
-      <div class="value client-name">${supplierName}</div>
-      ${supplierNif ? `<div class="client-detail">${supplierNif}</div>` : ''}
+      <div class="value client-name">${escapeHtml(supplierName)}</div>
+      ${supplierNif ? `<div class="client-detail">${escapeHtml(supplierNif)}</div>` : ''}
     </div>`
   } else {
     partyBlock = '<div class="meta-block"></div>'
@@ -400,8 +424,8 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
         ${inv.payment_date ? `<label style="margin-top:10px;display:block">Fecha de pago</label><div class="value">${fmtDate(inv.payment_date)}</div>` : ''}
       </div>
       <div class="meta-block">
-        ${inv.proyecto_code ? `<label>Proyecto</label><div class="value">${inv.proyecto_code}</div>` : ''}
-        ${inv.payment_method ? `<label style="margin-top:10px;display:block">Forma de pago</label><div class="value">${inv.payment_method}</div>` : ''}
+        ${inv.proyecto_code ? `<label>Proyecto</label><div class="value">${escapeHtml(inv.proyecto_code)}</div>` : ''}
+        ${inv.payment_method ? `<label style="margin-top:10px;display:block">Forma de pago</label><div class="value">${escapeHtml(inv.payment_method)}</div>` : ''}
       </div>
     </div>
     <p class="section-title">Concepto</p>
@@ -411,7 +435,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
       </tr></thead>
       <tbody>
         <tr class="concept-row">
-          <td class="td-desc">${inv.concept ?? '—'}</td>
+          <td class="td-desc">${escapeHtml(inv.concept) || '—'}</td>
           <td class="td-center">${vatPct}%</td>
           <td class="td-num bold">${fmtEur(base)}</td>
         </tr>
@@ -423,7 +447,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
       ${irpfRate > 0 ? `<tr><td class="label-cell">IRPF (${irpfRate}%)</td><td class="amount-cell" style="color:#dc2626">−${fmtEur(irpfAmt)}</td></tr>` : ''}
       <tr class="total-row"><td class="label-cell">Total</td><td class="amount-cell">${fmtEur(total)}</td></tr>
     </tbody></table></div>
-    ${inv.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${inv.notes.replace(/\n/g, '<br>')}</p></div></div>` : ''}
+    ${inv.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${escapeHtml(inv.notes).replace(/\n/g, '<br>')}</p></div></div>` : ''}
     ${isEmitida ? `<div class="bank-section">
       <p class="section-title">Datos de pago</p>
       <div class="bank-row">
@@ -507,12 +531,12 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
     const showSubtotal = !!(it.chapter_code && nextWithChapter?.chapter_code !== it.chapter_code)
     const rows: string[] = []
     if (showHeader) {
-      rows.push(`<tr class="chapter-header"><td colspan="5">${chapterSeq[it.chapter_code!]} — ${it.chapter_name ?? it.chapter_code}</td></tr>`)
+      rows.push(`<tr class="chapter-header"><td colspan="5">${escapeHtml(String(chapterSeq[it.chapter_code!]))} — ${escapeHtml(it.chapter_name ?? it.chapter_code)}</td></tr>`)
     }
     rows.push(`<tr>
-      <td class="td-desc">${it.description}${it.notes ? `<br><span style="font-size:8px;color:#9b8f84;font-style:italic">${it.notes}</span>` : ''}</td>
-      <td class="td-num">${it.quantity}</td>
-      <td class="td-center">${it.unit}</td>
+      <td class="td-desc">${escapeHtml(it.description)}${it.notes ? `<br><span style="font-size:8px;color:#9b8f84;font-style:italic">${escapeHtml(it.notes)}</span>` : ''}</td>
+      <td class="td-num">${escapeHtml(String(it.quantity))}</td>
+      <td class="td-center">${escapeHtml(it.unit)}</td>
       <td class="td-num">${fmtEur(it.unit_price)}</td>
       <td class="td-num bold">${fmtEur(it.total)}</td>
     </tr>`)
@@ -561,7 +585,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
       ${buildClientBlock(client)}
       <div class="meta-block"><label>Fecha de emisión</label><div class="value">${fmtDate(quote.created_at)}</div></div>
       <div class="meta-block"><label>Válido hasta</label><div class="value">${fmtDate(quote.valid_until)}</div></div>
-      ${projectCode ? `<div class="meta-block"><label>Proyecto</label><div class="value">${projectCode}</div></div>` : ''}
+      ${projectCode ? `<div class="meta-block"><label>Proyecto</label><div class="value">${escapeHtml(projectCode)}</div></div>` : ''}
     </div>
     <p class="section-title">Partidas del presupuesto</p>
     <table>
@@ -575,7 +599,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
       <tr class="total-row"><td class="label-cell">Total presupuesto</td><td class="amount-cell">${fmtEur(quote.subtotal ?? 0)}</td></tr>
     </tbody></table></div>
     <p class="vat-note">* Los importes indicados en este presupuesto no incluyen IVA.</p>
-    ${quote.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${quote.notes.replace(/\n/g, '<br>')}</p></div></div>` : ''}
+    ${quote.notes ? `<div class="notes-grid"><div class="notes-block"><p class="section-title">Notas</p><p>${escapeHtml(quote.notes).replace(/\n/g, '<br>')}</p></div></div>` : ''}
     ${qrDataUrl ? `<div class="qr-section">
       <img src="${qrDataUrl}" class="qr-img" alt="QR Área de cliente" />
       <div>
@@ -587,7 +611,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   </div>
   ${quote.conditions ? `<div class="conditions-page">
     <p class="section-title">Condiciones generales</p>
-    <p class="notes-block" style="font-size:8.5px;color:#777;line-height:1.7;white-space:pre-wrap">${quote.conditions.replace(/\n/g, '<br>')}</p>
+    <p class="notes-block" style="font-size:8.5px;color:#777;line-height:1.7;white-space:pre-wrap">${escapeHtml(quote.conditions).replace(/\n/g, '<br>')}</p>
   </div>` : ''}
   <div class="footer">
     <span class="footer-brand">Cathedral House Investment SL</span>
@@ -683,7 +707,9 @@ export async function GET(request: NextRequest, ctx: Ctx) {
   // Single-record fetch by id (for any table)
   const id = request.nextUrl.searchParams.get('id')
   if (id) {
-    const { data, error } = await supabase.from(table).select('*').eq('id', id).single()
+    let query = supabase.from(table).select('*').eq('id', id)
+    if (SOFT_DELETE_TABLES.has(table)) query = query.is('deleted_at', null)
+    const { data, error } = await query.single()
     if (error) return NextResponse.json({ error: error.message }, { status: 404 })
     return NextResponse.json({ data })
   }
@@ -699,11 +725,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   const table = tableFor(resource)
   if (!table || table === 'papelera') return NextResponse.json({ error: 'Ruta no válida' }, { status: 404 })
 
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
   const body = await request.json()
   const supabase = createAdminSupabaseClient()
   const { data, error } = await supabase.from(table).insert(body).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  auditLog(user.email ?? user.id, 'create', table, (data as Record<string, unknown>)?.id as string ?? null, ip)
   return NextResponse.json({ data })
 }
 
@@ -712,6 +740,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { resource } = await ctx.params
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 
   // Papelera: restore item (set deleted_at = null)
   if (resource === 'papelera') {
@@ -721,6 +750,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     const supabase = createAdminSupabaseClient()
     const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    auditLog(user.email ?? user.id, 'restore', table, id, ip)
     return NextResponse.json({ ok: true })
   }
 
@@ -740,6 +770,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     console.error(`[PATCH ${table}] id=${id} error:`, error.message, error.details, error.hint)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+  auditLog(user.email ?? user.id, 'update', table, id, ip)
   return NextResponse.json({ ok: true, data })
 }
 
@@ -748,6 +779,7 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { resource } = await ctx.params
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 
   // Papelera: permanent delete
   if (resource === 'papelera') {
@@ -757,6 +789,7 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
     const supabase = createAdminSupabaseClient()
     const { error } = await supabase.from(table).delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    auditLog(user.email ?? user.id, 'permanent_delete', table, id, ip)
     return NextResponse.json({ ok: true })
   }
 
@@ -778,5 +811,6 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  auditLog(user.email ?? user.id, 'delete', table, id, ip)
   return NextResponse.json({ ok: true })
 }

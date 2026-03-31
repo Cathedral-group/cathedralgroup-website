@@ -61,7 +61,8 @@ function formatEur(val: number | null): string {
 
 function formatDate(d: string | null): string {
   if (!d) return '--'
-  return new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+  const dateStr = d.includes('T') ? d : d + 'T00:00:00'
+  return new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 const STATUS_STYLES: Record<string, string> = {

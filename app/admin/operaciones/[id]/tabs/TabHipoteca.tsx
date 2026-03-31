@@ -51,7 +51,7 @@ function buildAmortTable(mortgage: Mortgage): AmortRow[] {
   const r = mortgage.interest_rate / 100 / 12
   const n = mortgage.term_months
   const cuota = mortgage.monthly_payment ?? calcCuota(mortgage.capital, mortgage.interest_rate, n)
-  const start = mortgage.start_date ? new Date(mortgage.start_date) : new Date()
+  const start = mortgage.start_date ? new Date(mortgage.start_date + 'T00:00:00') : new Date()
   const now = new Date()
   const rows: AmortRow[] = []
   let saldo = mortgage.capital
@@ -123,6 +123,9 @@ export default function TabHipoteca({ operationId, mortgages, onUpdate }: Props)
         const { data } = await res.json()
         onUpdate([data])
         setShowForm(false)
+      } else {
+        const errBody = await res.json().catch(() => ({}))
+        alert('Error al guardar la hipoteca: ' + (errBody.error || `Error ${res.status}`))
       }
     } finally {
       setSaving(false)

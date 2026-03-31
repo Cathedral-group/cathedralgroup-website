@@ -158,14 +158,15 @@ export async function POST(request: Request) {
     })
 
     if (!response.ok) {
-      const text = await response.text()
-      return NextResponse.json({ error: 'Supabase devolvió error', details: text }, { status: 500 })
+      console.error('Supabase error saving lead:', await response.text().catch(() => ''))
+      return NextResponse.json({ error: 'Error al procesar la solicitud' }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, message: 'Lead guardado correctamente' })
   } catch (error) {
+    console.error('Contact route error:', error)
     return NextResponse.json(
-      { error: 'Error interno del servidor', details: String(error) },
+      { error: 'Error interno del servidor' },
       { status: 500 }
     )
   }

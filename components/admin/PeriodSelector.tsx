@@ -30,7 +30,7 @@ export default function PeriodSelector({ year, quarter, month }: Props) {
   }, [router, searchParams])
 
   const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: currentYear - 2023 }, (_, i) => 2024 + i)
+  const years = Array.from({ length: currentYear - 2023 + 1 }, (_, i) => 2023 + i)
 
   return (
     <div className="flex flex-wrap items-center gap-2">

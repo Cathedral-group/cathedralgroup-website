@@ -93,7 +93,8 @@ function currency(v?: number | null) {
 
 function formatDate(d: string | null | undefined) {
   if (!d) return '\u2014'
-  return new Date(d + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+  const dateStr = d.includes('T') ? d : d + 'T00:00:00'
+  return new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function whatsappLink(phone: string) {

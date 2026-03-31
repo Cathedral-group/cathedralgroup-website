@@ -4,8 +4,8 @@ import OperacionDetail from './OperacionDetail'
 
 export default async function OperacionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) redirect('/admin/login')
+  const { data, error } = await authClient.auth.getUser()
+  if (error || !data?.user) redirect('/admin/login')
 
   const { id } = await params
   const supabase = createAdminSupabaseClient()

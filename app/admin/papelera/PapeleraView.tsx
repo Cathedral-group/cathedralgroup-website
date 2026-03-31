@@ -38,9 +38,9 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
 
   const types = useMemo(() => {
     const counts: Record<string, number> = {}
-    initialItems.forEach(i => { counts[i._type] = (counts[i._type] || 0) + 1 })
+    items.forEach(i => { counts[i._type] = (counts[i._type] || 0) + 1 })
     return Object.entries(counts).map(([type, count]) => ({ type, count }))
-  }, [initialItems])
+  }, [items])
 
   const filtered = useMemo(() => {
     if (!typeFilter) return items

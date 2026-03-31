@@ -35,7 +35,7 @@ interface InvoicesViewProps {
 }
 
 function formatEur(val: number | null): string {
-  if (val === null || val === undefined) return '--'
+  if (val === null || val === undefined || isNaN(val)) return '--'
   return val.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })
 }
 

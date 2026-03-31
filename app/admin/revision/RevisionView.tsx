@@ -47,7 +47,8 @@ function formatEur(val: number | null): string {
 
 function formatDate(d: string | null): string {
   if (!d) return '--'
-  return new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+  const dateStr = d.includes('T') ? d : d + 'T00:00:00'
+  return new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function ConfidenceBadge({ confidence }: { confidence: number | null }) {
@@ -153,6 +154,8 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
       const body = {
         id: selected.id,
         ...editForm,
+        supplier_nif: editForm.supplier_nif || null,
+        number: editForm.number || null,
         review_status: status,
         reviewed_at: new Date().toISOString(),
         reviewed_by: 'admin',
@@ -166,6 +169,9 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
       if (res.ok) {
         setItems(prev => prev.map(i => i.id === selected.id ? { ...i, ...body } as ReviewItem : i))
         setSelected(null)
+      } else {
+        const errBody = await res.json().catch(() => ({}))
+        alert('Error al guardar: ' + (errBody.error || `Error ${res.status}`))
       }
     } finally {
       setSaving(false)
@@ -312,7 +318,7 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
 
               {/* AI extraction */}
               <div className="bg-neutral-50 rounded-lg p-3">
-                <p className="text-xs text-neutral-500 mb-2">Datos extraidos por IA (confianza: {Math.round((selected.ai_confidence || 0) * 100)}%)</p>
+                <p className="text-xs text-neutral-500 mb-2">Datos extraidos por IA (confianza: {selected.ai_confidence != null ? `${Math.round(selected.ai_confidence * 100)}%` : '--'})</p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div><span className="text-neutral-400">Tipo:</span> {selected.doc_type}</div>
                   <div><span className="text-neutral-400">Numero:</span> {selected.number || '--'}</div>

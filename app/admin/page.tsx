@@ -18,7 +18,8 @@ function formatEUR(value: number | null | undefined): string {
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '\u2014'
-  return new Date(dateStr).toLocaleDateString('es-ES', {
+  const d = dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00'
+  return new Date(d).toLocaleDateString('es-ES', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -29,6 +30,7 @@ function daysUntil(dateStr: string): number {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   const target = new Date(dateStr)
+  if (isNaN(target.getTime())) return 999
   target.setHours(0, 0, 0, 0)
   return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 }
@@ -159,10 +161,11 @@ async function getStats(year: number, quarter: number | null, month: number | nu
 
   // Chart: estado facturas
   const now = new Date()
+  now.setHours(0, 0, 0, 0)
   const statusCounts: Record<string,number> = { pagada:0, pendiente:0, vencida:0 }
   for (const inv of periodInvoices || []) {
     if (inv.payment_status === 'pagada') statusCounts.pagada++
-    else if (inv.due_date && new Date(inv.due_date) < now) statusCounts.vencida++
+    else if (inv.due_date && new Date(inv.due_date + 'T00:00:00') < now) statusCounts.vencida++
     else statusCounts.pendiente++
   }
   const invoiceStatus = [
@@ -200,8 +203,8 @@ export default async function AdminDashboard({
 }) {
   // Auth check
   const authClient = await createServerSupabaseClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) redirect('/admin/login')
+  const { data, error } = await authClient.auth.getUser()
+  if (error || !data?.user) redirect('/admin/login')
 
   const sp = await searchParams
   const currentYear = new Date().getFullYear()

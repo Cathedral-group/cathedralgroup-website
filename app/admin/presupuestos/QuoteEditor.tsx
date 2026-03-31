@@ -266,6 +266,7 @@ export default function QuoteEditor({
   const [catalogDropdownPos, setCatalogDropdownPos] = useState({ top: 0, left: 0 })
   const [certModalOpen, setCertModalOpen] = useState(false)
   const [certDraft, setCertDraft] = useState<number[]>([])
+  const [closingCert, setClosingCert] = useState(false)
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
   const savedIdRef = useRef<string | undefined>(quote?.id)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -383,43 +384,49 @@ export default function QuoteEditor({
         updated_at: new Date().toISOString(),
       }
 
-      if (savedIdRef.current) {
-        // UPDATE
-        const res = await fetch('/api/db/quotes', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: savedIdRef.current, ...payload }),
-        })
-        const json = await res.json()
-        if (json.data) {
-          onSaved(json.data as Quote, false)
-          setSaveStatus('saved')
-          setSaveError(null)
+      try {
+        if (savedIdRef.current) {
+          // UPDATE
+          const res = await fetch('/api/db/quotes', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: savedIdRef.current, ...payload }),
+          })
+          const json = await res.json()
+          if (json.data) {
+            onSaved(json.data as Quote, false)
+            setSaveStatus('saved')
+            setSaveError(null)
+          } else {
+            console.error('Quote save error:', json.error)
+            setSaveStatus('error')
+            setSaveError(json.error ?? 'Error desconocido')
+          }
         } else {
-          console.error('Quote save error:', json.error)
-          setSaveStatus('error')
-          setSaveError(json.error ?? 'Error desconocido')
+          // INSERT
+          const res = await fetch('/api/db/quotes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          const json = await res.json()
+          if (json.data) {
+            const saved = json.data as Quote
+            savedIdRef.current = saved.id
+            setForm((prev) => ({ ...prev, id: saved.id }))
+            onSaved(saved, true)
+            setSaveStatus('saved')
+            setSaveError(null)
+          } else {
+            console.error('Quote insert error:', json.error)
+            setSaveStatus('error')
+            setSaveError(json.error ?? 'Error desconocido')
+          }
         }
-      } else {
-        // INSERT
-        const res = await fetch('/api/db/quotes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        const json = await res.json()
-        if (json.data) {
-          const saved = json.data as Quote
-          savedIdRef.current = saved.id
-          setForm((prev) => ({ ...prev, id: saved.id }))
-          onSaved(saved, true)
-          setSaveStatus('saved')
-          setSaveError(null)
-        } else {
-          console.error('Quote insert error:', json.error)
-          setSaveStatus('error')
-          setSaveError(json.error ?? 'Error desconocido')
-        }
+      } catch (err) {
+        console.error('Quote auto-save network error:', err)
+        setSaveStatus('error')
+        setSaveError('Error de red al guardar')
       }
     }, 2000)
 
@@ -480,6 +487,7 @@ export default function QuoteEditor({
 
   /* ── Convert to invoice ── */
   const handleConvertToInvoice = async () => {
+    if (generatingInvoice) return
     const concept = form.items.map((it) => it.description).filter(Boolean).join(', ') || 'Presupuesto ' + form.number
     const invoicePayload = {
       direction: 'emitida',
@@ -487,7 +495,7 @@ export default function QuoteEditor({
       number: '',
       concept,
       amount_base: form.subtotal,
-      vat_pct: form.items.length > 0 ? form.items[0].vat_pct : 21,
+      vat_pct: form.subtotal > 0 ? Math.round(form.vat_total / form.subtotal * 100 * 100) / 100 : (form.items[0]?.vat_pct ?? 21),
       vat_amount: form.vat_total,
       irpf_rate: null,
       irpf_amount: null,
@@ -510,6 +518,11 @@ export default function QuoteEditor({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(invoicePayload),
     })
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      alert('Error al crear la factura: ' + (errBody.error || `Error ${res.status}`))
+      return
+    }
     const { data: inv } = await res.json()
     if (inv) {
       // Update quote status to accepted
@@ -526,34 +539,45 @@ export default function QuoteEditor({
 
   /* ── Close / lock a certification phase ── */
   const handleCloseCertification = async () => {
-    if (!savedIdRef.current) return
-    const vatPct = form.items[0]?.vat_pct ?? 21
-    const totalBudget = form.total
-    const totalCertified = form.items.reduce((s, it) => s + Math.round((it.total || 0) * ((it.certified_pct || 0) / 100) * 100) / 100, 0)
-    const newPhase: CertPhase = {
-      number: (form.certifications?.length ?? 0) + 1,
-      closed_at: new Date().toISOString().slice(0, 10),
-      items: form.items.filter((it) => it.description).map((it) => ({
-        description: it.description,
-        total: it.total,
-        certified_pct: it.certified_pct,
-        invoiced_pct: it.invoiced_pct,
-      })),
-      total_budget: totalBudget,
-      total_certified: Math.round(totalCertified * 100) / 100,
-      vat_pct: vatPct,
+    if (!savedIdRef.current || closingCert) return
+    setClosingCert(true)
+    try {
+      const vatPct = form.subtotal > 0 ? Math.round(form.vat_total / form.subtotal * 100 * 100) / 100 : (form.items[0]?.vat_pct ?? 21)
+      const totalBudget = form.total
+      const totalCertified = form.items.reduce((s, it) => s + Math.round((it.total || 0) * ((it.certified_pct || 0) / 100) * 100) / 100, 0)
+      const newPhase: CertPhase = {
+        number: (form.certifications?.length ?? 0) + 1,
+        closed_at: new Date().toISOString().slice(0, 10),
+        items: form.items.filter((it) => it.description).map((it) => ({
+          description: it.description,
+          total: it.total,
+          certified_pct: it.certified_pct,
+          invoiced_pct: it.invoiced_pct,
+        })),
+        total_budget: totalBudget,
+        total_certified: Math.round(totalCertified * 100) / 100,
+        vat_pct: vatPct,
+      }
+      const updatedCerts = [...(form.certifications ?? []), newPhase]
+      const res = await fetch('/api/db/quotes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: savedIdRef.current, certifications: updatedCerts }),
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        alert('Error al cerrar certificación: ' + (errBody.error || `Error ${res.status}`))
+        return
+      }
+      setForm((prev) => ({ ...prev, certifications: updatedCerts }))
+    } finally {
+      setClosingCert(false)
     }
-    const updatedCerts = [...(form.certifications ?? []), newPhase]
-    await fetch('/api/db/quotes', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: savedIdRef.current, certifications: updatedCerts }),
-    })
-    setForm((prev) => ({ ...prev, certifications: updatedCerts }))
   }
 
   /* ── Create invoice from a closed certification phase ── */
   const handleCertInvoice = async (phase: CertPhase) => {
+    if (generatingInvoice) return
     const prevPhase = form.certifications?.find((c) => c.number === phase.number - 1)
     const prevCertified = prevPhase?.total_certified ?? 0
     const deltaCertified = Math.round((phase.total_certified - prevCertified) * 100) / 100
@@ -589,6 +613,12 @@ export default function QuoteEditor({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(invoicePayload),
     })
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      alert('Error al generar factura de certificación: ' + (errBody.error || `Error ${res.status}`))
+      setGeneratingInvoice(false)
+      return
+    }
     const { data: inv } = await res.json()
     if (inv) window.location.href = '/admin/facturas'
   }
@@ -614,11 +644,16 @@ export default function QuoteEditor({
     })
     const totals = calcTotals(restoredItems)
 
-    await fetch('/api/db/quotes', {
+    const res = await fetch('/api/db/quotes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: savedIdRef.current, certifications: updatedCerts, items: restoredItems, ...totals }),
     })
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      alert('Error al reabrir la certificación: ' + (errBody.error || `Error ${res.status}`))
+      return
+    }
     setForm((prev) => ({ ...prev, certifications: updatedCerts, items: restoredItems, ...totals }))
   }
 
@@ -716,6 +751,12 @@ export default function QuoteEditor({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(invoicePayload),
     })
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      alert('Error al generar la factura: ' + (errBody.error || `Error ${res.status}`))
+      setGeneratingInvoice(false)
+      return
+    }
     const { data: inv } = await res.json()
     if (inv) {
       // Update invoiced_pct to match certified_pct
@@ -729,11 +770,15 @@ export default function QuoteEditor({
         ...totals,
         updated_at: new Date().toISOString(),
       }
-      await fetch('/api/db/quotes', {
+      const patchRes = await fetch('/api/db/quotes', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: savedIdRef.current!, ...updatePayload }),
       })
+      if (!patchRes.ok) {
+        const errBody = await patchRes.json().catch(() => ({}))
+        alert('Factura creada pero error al actualizar el presupuesto: ' + (errBody.error || `Error ${patchRes.status}`))
+      }
       window.location.href = '/admin/facturas'
     }
     setGeneratingInvoice(false)
@@ -977,15 +1022,16 @@ export default function QuoteEditor({
                   </button>
                   <button
                     onClick={() => { if (confirm(`¿Cerrar y bloquear Certificación ${(form.certifications?.length ?? 0) + 1}?`)) handleCloseCertification() }}
-                    className="hidden sm:block border border-green-600 text-green-700 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-green-600 hover:text-white transition-colors"
+                    disabled={closingCert}
+                    className="hidden sm:block border border-green-600 text-green-700 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-green-600 hover:text-white transition-colors disabled:opacity-50"
                     title="Cerrar y bloquear la certificación actual"
                   >
                     Cerrar Cert. {(form.certifications?.length ?? 0) + 1}
                   </button>
                 </>
               )}
-              <button onClick={handleConvertToInvoice} className="hidden sm:block bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">
-                → Factura
+              <button onClick={handleConvertToInvoice} disabled={generatingInvoice} className="hidden sm:block bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors disabled:opacity-50">
+                {generatingInvoice ? 'Generando...' : '→ Factura'}
               </button>
               {confirmDelete ? (
                 <button onClick={handleDelete} className="bg-red-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-colors">
@@ -1509,9 +1555,10 @@ export default function QuoteEditor({
                       )}
                       <button
                         onClick={() => handleCertInvoice(phase)}
-                        className="bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors"
+                        disabled={generatingInvoice}
+                        className="bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors disabled:opacity-50"
                       >
-                        → Factura
+                        {generatingInvoice ? 'Generando...' : '→ Factura'}
                       </button>
                     </div>
                   </div>
@@ -1566,8 +1613,8 @@ export default function QuoteEditor({
                 PDF Certificación
               </button>
             )}
-            <button onClick={handleConvertToInvoice} className="bg-blue-600 text-white px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">
-              → Factura
+            <button onClick={handleConvertToInvoice} disabled={generatingInvoice} className="bg-blue-600 text-white px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors disabled:opacity-50">
+              {generatingInvoice ? 'Generando...' : '→ Factura'}
             </button>
           </div>
         )}

@@ -53,10 +53,12 @@ function filterByPeriod(invoices: Invoice[], year: number, quarter: number | nul
   return invoices.filter((inv) => {
     const dateStr = inv.issue_date
     if (!dateStr) return false
-    const d = new Date(dateStr)
-    if (d.getFullYear() !== year) return false
-    if (month) return d.getMonth() + 1 === month
-    if (quarter) return Math.ceil((d.getMonth() + 1) / 3) === quarter
+    const parts = dateStr.slice(0, 10).split('-').map(Number)
+    if (parts.length < 3 || parts.some(isNaN)) return false
+    const [y, mo] = parts
+    if (y !== year) return false
+    if (month) return mo === month
+    if (quarter) return Math.ceil(mo / 3) === quarter
     return true
   })
 }
@@ -265,8 +267,10 @@ function CashFlowTab({ invoices, year, quarter, month }: { invoices: Invoice[]; 
         }
 
         if (!dateStr) return
-        const d = new Date(dateStr)
-        if (d.getFullYear() !== m.year || d.getMonth() !== m.month) return
+        // Parse date-only strings as local time to avoid UTC midnight shifting the day back in UTC+1/+2
+        const parts = dateStr.slice(0, 10).split('-').map(Number)
+        if (parts.length < 3 || parts.some(isNaN)) return
+        if (parts[0] !== m.year || parts[1] - 1 !== m.month) return
 
         const amount = Number(inv.amount_total) || 0
         if (inv.direction === 'emitida') {
