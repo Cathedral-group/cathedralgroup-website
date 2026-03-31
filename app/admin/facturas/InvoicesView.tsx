@@ -110,6 +110,8 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Invoice | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [dedupPreview, setDedupPreview] = useState<Invoice[] | null>(null)
+  const [deduping, setDeduping] = useState(false)
 
   // Filters
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
@@ -252,6 +254,53 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
     }
   }
 
+  const findDuplicates = (): Invoice[] => {
+    const groups = new Map<string, Invoice[]>()
+    for (const inv of data) {
+      if (!inv.concept || inv.amount_total === null || inv.amount_total === undefined) continue
+      const key = `${inv.concept.trim().toLowerCase()}||${inv.amount_total}`
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(inv)
+    }
+    const toDelete: Invoice[] = []
+    for (const group of groups.values()) {
+      if (group.length <= 1) continue
+      // Keep the one with drive_url first, then oldest (by issue_date)
+      const sorted = [...group].sort((a, b) => {
+        if (a.drive_url && !b.drive_url) return -1
+        if (!a.drive_url && b.drive_url) return 1
+        return (a.issue_date ?? '').localeCompare(b.issue_date ?? '')
+      })
+      toDelete.push(...sorted.slice(1))
+    }
+    return toDelete
+  }
+
+  const handleDedupPreview = () => {
+    const dupes = findDuplicates()
+    setDedupPreview(dupes)
+  }
+
+  const handleDedupConfirm = async () => {
+    if (!dedupPreview) return
+    setDeduping(true)
+    let deleted = 0
+    for (const inv of dedupPreview) {
+      try {
+        const res = await fetch(`/api/db/invoices?id=${inv.id}`, { method: 'DELETE' })
+        if (res.ok) {
+          deleted++
+          setData((prev) => prev.filter((r) => r.id !== inv.id))
+        }
+      } catch {
+        // continue with rest
+      }
+    }
+    setDeduping(false)
+    setDedupPreview(null)
+    alert(`${deleted} facturas duplicadas eliminadas.`)
+  }
+
   const markAsPaid = async (inv: Invoice, e: React.MouseEvent) => {
     e.stopPropagation()
     const today = new Date().toISOString().slice(0, 10)
@@ -292,6 +341,12 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
             className="border border-neutral-200 text-neutral-500 px-4 py-2.5 text-xs font-bold uppercase tracking-widest hover:border-neutral-400 transition-colors"
           >
             ↓ CSV
+          </button>
+          <button
+            onClick={handleDedupPreview}
+            className="border border-neutral-200 text-neutral-500 px-4 py-2.5 text-xs font-bold uppercase tracking-widest hover:border-amber-400 hover:text-amber-600 transition-colors"
+          >
+            Limpiar duplicados
           </button>
           <button
             onClick={openNew}
@@ -431,6 +486,57 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
           onSaved={handleSaved}
           onDeleted={handleDeleted}
         />
+      )}
+
+      {/* Dedup preview modal */}
+      {dedupPreview && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg p-6 shadow-xl flex flex-col max-h-[80vh]">
+            <h2 className="text-sm font-bold uppercase tracking-widest mb-2">Limpiar duplicados</h2>
+            {dedupPreview.length === 0 ? (
+              <>
+                <p className="text-sm text-neutral-500 mb-6">No se han encontrado facturas duplicadas.</p>
+                <div className="flex justify-end">
+                  <button onClick={() => setDedupPreview(null)} className="px-4 py-2 text-xs font-bold uppercase tracking-widest border border-neutral-200 text-neutral-500 hover:border-neutral-400">
+                    Cerrar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-neutral-600 mb-1">
+                  Se eliminarán <span className="font-semibold text-red-600">{dedupPreview.length} facturas</span> con concepto e importe idénticos. Se conserva una por grupo.
+                </p>
+                <p className="text-xs text-neutral-400 mb-4">Prioridad: se conserva la que tiene enlace a Drive; si no, la más antigua.</p>
+                <div className="overflow-y-auto flex-1 border border-neutral-100 divide-y divide-neutral-50 mb-6">
+                  {dedupPreview.map((inv) => (
+                    <div key={inv.id} className="px-3 py-2 text-xs flex justify-between gap-2">
+                      <span className="truncate text-neutral-700">{inv.concept || '--'}</span>
+                      <span className="whitespace-nowrap font-semibold tabular-nums">{formatEur(inv.amount_total)}</span>
+                      <span className="whitespace-nowrap text-neutral-400">{formatDate(inv.issue_date)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setDedupPreview(null)}
+                    disabled={deduping}
+                    className="px-4 py-2 text-xs font-bold uppercase tracking-widest border border-neutral-200 text-neutral-500 hover:border-neutral-400 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleDedupConfirm}
+                    disabled={deduping}
+                    className="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    {deduping ? 'Eliminando...' : `Eliminar ${dedupPreview.length} duplicadas`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Delete confirmation modal */}
