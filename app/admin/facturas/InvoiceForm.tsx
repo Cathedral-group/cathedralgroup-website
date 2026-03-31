@@ -260,7 +260,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
             {Array.isArray(invoice.ai_razones) && invoice.ai_razones.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {invoice.ai_razones.map((r, i) => (
-                  <span key={i} className="inline-block bg-white border border-neutral-200 rounded px-2 py-0.5 text-[10px] text-neutral-600">
+                  <span key={i} className="inline-block bg-white border border-neutral-200 rounded px-2 py-0.5 text-[10px] text-neutral-600 max-w-[220px] truncate" title={r}>
                     {r}
                   </span>
                 ))}
