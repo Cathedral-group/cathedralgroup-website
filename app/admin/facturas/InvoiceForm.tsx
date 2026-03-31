@@ -34,6 +34,9 @@ interface Invoice {
   ai_confidence?: number | null
   ai_razones?: string[] | null
   source?: string | null
+  drive_url?: string | null
+  drive_file_id?: string | null
+  original_filename?: string | null
 }
 
 interface InvoiceFormProps {
@@ -270,6 +273,41 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Drive document preview — only for auto-processed invoices with a Drive file */}
+        {isEdit && invoice?.source === 'email_automatico' && invoice?.drive_url && (
+          <div className="mb-6">
+            <p className={sectionTitle}>Documento original</p>
+            <div className="rounded-lg border border-neutral-200 overflow-hidden">
+              <div className="bg-neutral-100" style={{ height: 300 }}>
+                <iframe
+                  src={invoice.drive_url.replace('/view', '/preview')}
+                  width="100%"
+                  height="300"
+                  allow="autoplay"
+                  className="border-0 w-full h-full"
+                  title="Vista previa del documento"
+                />
+              </div>
+              <div className="px-3 py-2.5 flex items-center justify-between bg-white border-t border-neutral-100">
+                <span className="text-[11px] text-neutral-500 truncate max-w-[200px]" title={invoice.original_filename ?? undefined}>
+                  {invoice.original_filename ?? 'Documento adjunto'}
+                </span>
+                <a
+                  href={invoice.drive_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline flex items-center gap-1 shrink-0 ml-2"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Ver en Drive
+                </a>
+              </div>
+            </div>
           </div>
         )}
 
@@ -549,13 +587,23 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
             {saving ? '...' : isEdit ? 'Guardar cambios' : 'Crear factura'}
           </button>
 
-          {isEdit && (
+          {isEdit && invoice?.source !== 'email_automatico' && (
             <button
               onClick={() => window.open(`/api/db/factura-pdf?id=${invoice!.id}`, '_blank')}
               className="w-full border border-neutral-200 py-2.5 text-xs font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
             >
               Ver PDF
             </button>
+          )}
+          {isEdit && invoice?.source === 'email_automatico' && invoice?.drive_url && (
+            <a
+              href={invoice.drive_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full text-center border border-neutral-200 py-2.5 text-xs font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
+            >
+              Abrir en Google Drive
+            </a>
           )}
 
           {isEdit && form.direction === 'emitida' && (
