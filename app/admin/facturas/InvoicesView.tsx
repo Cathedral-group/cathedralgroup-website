@@ -30,6 +30,9 @@ interface Invoice {
   ai_confidence?: number | null
   ai_razones?: string[] | null
   source?: string | null
+  drive_url?: string | null
+  drive_file_id?: string | null
+  original_filename?: string | null
 }
 
 interface InvoicesViewProps {
