@@ -30,6 +30,10 @@ interface Invoice {
   notes: string | null
   sent_at?: string | null
   sent_channel?: string | null
+  needs_review?: boolean | null
+  ai_confidence?: number | null
+  ai_razones?: string[] | null
+  source?: string | null
 }
 
 interface InvoiceFormProps {
@@ -234,6 +238,36 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
             &#x2715;
           </button>
         </div>
+
+        {/* AI info banner — only for auto-processed invoices */}
+        {isEdit && invoice?.source === 'email_automatico' && (
+          <div className={`mb-6 rounded-lg border p-4 ${invoice.needs_review ? 'bg-amber-50 border-amber-200' : 'bg-neutral-50 border-neutral-200'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Clasificado por IA</span>
+              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                invoice.ai_confidence != null && invoice.ai_confidence >= 0.9
+                  ? 'bg-green-100 text-green-700'
+                  : invoice.ai_confidence != null && invoice.ai_confidence >= 0.6
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                Confianza {invoice.ai_confidence != null && invoice.ai_confidence >= 0.9 ? 'alta' : invoice.ai_confidence != null && invoice.ai_confidence >= 0.6 ? 'media' : 'baja'}
+              </span>
+            </div>
+            {invoice.needs_review && (
+              <p className="text-xs text-amber-700 font-medium mb-2">Requiere revisión manual</p>
+            )}
+            {Array.isArray(invoice.ai_razones) && invoice.ai_razones.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {invoice.ai_razones.map((r, i) => (
+                  <span key={i} className="inline-block bg-white border border-neutral-200 rounded px-2 py-0.5 text-[10px] text-neutral-600">
+                    {r}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 1. Direction toggle */}
         <div className={sectionCls}>

@@ -26,6 +26,10 @@ interface Invoice {
   es_rectificativa: boolean
   numero_factura_original: string | null
   notes: string | null
+  needs_review?: boolean | null
+  ai_confidence?: number | null
+  ai_razones?: string[] | null
+  source?: string | null
 }
 
 interface InvoicesViewProps {
@@ -304,7 +308,16 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                     <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">
                       <DueDate date={inv.due_date} status={inv.payment_status} />
                     </td>
-                    <td className="px-4 py-3"><StatusBadge status={inv.payment_status} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <StatusBadge status={inv.payment_status} />
+                        {inv.needs_review && (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">
+                            Revisar
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       {inv.payment_status === 'pendiente' && (
                         <button
