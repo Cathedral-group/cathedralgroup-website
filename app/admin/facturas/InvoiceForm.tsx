@@ -77,6 +77,10 @@ const DEFAULTS: Invoice = {
   es_rectificativa: false,
   numero_factura_original: null,
   notes: null,
+  needs_review: null,
+  ai_confidence: null,
+  ai_razones: null,
+  source: null,
 }
 
 export default function InvoiceForm({ invoice, projects, suppliers, onClose, onSaved, onDeleted }: InvoiceFormProps) {
