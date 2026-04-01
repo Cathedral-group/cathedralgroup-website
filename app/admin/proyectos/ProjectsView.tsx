@@ -43,12 +43,12 @@ interface Financial {
 
 interface Invoice {
   id: string
-  numero?: string
-  concepto?: string
-  tipo?: string
-  total?: number
-  estado?: string
-  proyecto_code?: string
+  number?: string | null
+  concept?: string | null
+  direction?: string | null
+  amount_total?: number | null
+  payment_status?: string | null
+  proyecto_code?: string | null
 }
 
 interface Phase {
@@ -432,8 +432,8 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const phasePct = projectPhases.length > 0 ? Math.round((completedPhases / projectPhases.length) * 100) : 0
 
   const projectInvoices = selected ? initialInvoices.filter((inv) => inv.proyecto_code === selected.code) : []
-  const totalInvoiced = projectInvoices.filter((i) => i.tipo === 'cobro' || i.tipo === 'emitida').reduce((s, i) => s + (Number(i.total) || 0), 0)
-  const totalSpent = projectInvoices.filter((i) => i.tipo === 'pago' || i.tipo === 'recibida').reduce((s, i) => s + (Number(i.total) || 0), 0)
+  const totalInvoiced = projectInvoices.filter((i) => i.direction === 'emitida').reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
+  const totalSpent = projectInvoices.filter((i) => i.direction === 'recibida').reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
   const invoiceMargin = totalInvoiced > 0 ? ((totalInvoiced - totalSpent) / totalInvoiced) * 100 : 0
 
   /* ───────── Field helper ───────── */
@@ -913,23 +913,22 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                         <tbody className="divide-y divide-neutral-50">
                           {projectInvoices.map((inv) => (
                             <tr key={inv.id}>
-                              <td className="px-3 py-2">{inv.numero || '—'}</td>
-                              <td className="px-3 py-2">{inv.concepto || '—'}</td>
+                              <td className="px-3 py-2">{inv.number || '—'}</td>
+                              <td className="px-3 py-2">{inv.concept || '—'}</td>
                               <td className="px-3 py-2">
-                                <Badge value={inv.tipo || 'cobro'} styles={{
-                                  cobro: 'bg-green-50 text-green-700',
+                                <Badge value={inv.direction || 'recibida'} styles={{
                                   emitida: 'bg-green-50 text-green-700',
-                                  pago: 'bg-red-50 text-red-700',
                                   recibida: 'bg-red-50 text-red-700',
                                 }} />
                               </td>
-                              <td className="px-3 py-2 text-right font-medium">{currency(inv.total)}</td>
+                              <td className="px-3 py-2 text-right font-medium">{currency(inv.amount_total)}</td>
                               <td className="px-3 py-2">
-                                <Badge value={inv.estado || 'pendiente'} styles={{
+                                <Badge value={inv.payment_status || 'pendiente'} styles={{
                                   pendiente: 'bg-amber-50 text-amber-700',
                                   pagada: 'bg-green-50 text-green-700',
-                                  cobrada: 'bg-green-50 text-green-700',
                                   vencida: 'bg-red-50 text-red-700',
+                                  parcial: 'bg-blue-50 text-blue-700',
+                                  cancelada: 'bg-neutral-100 text-neutral-500',
                                 }} />
                               </td>
                             </tr>
