@@ -1,4 +1,4 @@
-import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import ReportsView from './ReportsView'
 
@@ -34,18 +34,21 @@ export default async function InformesPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const { data: invoices } = await supabase
-    .from('invoices')
-    .select('id, number, direction, amount_base, amount_total, vat_amount, categoria_gasto, issue_date, due_date, payment_date, payment_status, created_at')
-    .is('deleted_at', null)
-    .order('issue_date', { ascending: false })
-    
-
-  const { data: vatData } = await supabase
-    .from('vat_quarterly')
-    .select('*')
-    .order('year', { ascending: false })
-    .order('quarter', { ascending: false })
+  const [invoices, vatData] = await Promise.all([
+    fetchAllRows<Invoice>((sb) =>
+      sb
+        .from('invoices')
+        .select('id, number, direction, amount_base, amount_total, vat_amount, categoria_gasto, issue_date, due_date, payment_date, payment_status, created_at')
+        .is('deleted_at', null)
+        .order('issue_date', { ascending: false })
+    ),
+    supabase
+      .from('vat_quarterly')
+      .select('*')
+      .order('year', { ascending: false })
+      .order('quarter', { ascending: false })
+      .then((r) => r.data),
+  ])
 
   return (
     <div>
@@ -53,7 +56,7 @@ export default async function InformesPage() {
         <h1 className="text-xl font-medium uppercase tracking-wide">Informes Financieros</h1>
       </div>
       <ReportsView
-        invoices={(invoices || []) as Invoice[]}
+        invoices={invoices as Invoice[]}
         vatQuarterly={(vatData || []) as VatQuarterly[]}
       />
     </div>

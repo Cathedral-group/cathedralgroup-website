@@ -1,4 +1,4 @@
-import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import InvoicesView from './InvoicesView'
 
@@ -9,8 +9,10 @@ export default async function FacturasPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const [invoicesRes, projectsRes, suppliersRes] = await Promise.all([
-    supabase.from('invoices').select('*').is('deleted_at', null).order('issue_date', { ascending: false }),
+  const [invoices, projectsRes, suppliersRes] = await Promise.all([
+    fetchAllRows((sb) =>
+      sb.from('invoices').select('*').is('deleted_at', null).order('issue_date', { ascending: false })
+    ),
     supabase.from('projects').select('code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
   ])
@@ -27,7 +29,8 @@ export default async function FacturasPage() {
 
   return (
     <InvoicesView
-      initialData={invoicesRes.data ?? []}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      initialData={invoices as any}
       projects={projects}
       suppliers={suppliers}
     />
