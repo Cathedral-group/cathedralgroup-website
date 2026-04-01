@@ -100,7 +100,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
     // Try to get client contact from project → client chain
     if (form.proyecto_code && !clientContact) {
       try {
-        const projRes = await fetch(`/api/db/projects?id=${encodeURIComponent(form.proyecto_code)}`)
+        const projRes = await fetch(`/api/db/projects?code=${encodeURIComponent(form.proyecto_code)}`)
         if (projRes.ok) {
           const projData = await projRes.json()
           const project = Array.isArray(projData.data) ? projData.data[0] : projData.data

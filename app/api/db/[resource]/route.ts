@@ -714,6 +714,16 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     return NextResponse.json({ data })
   }
 
+  // Fetch project by code (used by invoice form to pre-fill client contact)
+  const code = request.nextUrl.searchParams.get('code')
+  if (code && resource === 'projects') {
+    let query = supabase.from(table).select('*').eq('code', code)
+    if (SOFT_DELETE_TABLES.has(table)) query = query.is('deleted_at', null)
+    const { data, error } = await query.single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+    return NextResponse.json({ data })
+  }
+
   return NextResponse.json({ error: 'Recurso no soporta GET' }, { status: 405 })
 }
 

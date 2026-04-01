@@ -120,7 +120,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
           name: selectedLead.nombre,
           email: selectedLead.email,
           phone: selectedLead.phone || null,
-          source: 'web',
+          source: selectedLead.origen || 'directo',
           lead_id: selectedLead.id,
           type: 'particular',
         }),
@@ -131,6 +131,12 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
       }
       const { data: client } = await res.json()
       if (client) {
+        // Escribir converted_client_id de vuelta al lead para mantener el vínculo
+        await fetch('/api/db/leads', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedLead.id, converted_client_id: client.id }),
+        })
         await updateStatus(selectedLead.id, 'aceptado')
         setConverted(true)
       }

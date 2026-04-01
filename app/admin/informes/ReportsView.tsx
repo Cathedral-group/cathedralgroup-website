@@ -19,13 +19,11 @@ interface Invoice {
 }
 
 interface VatQuarterly {
-  id: string
   year: number
   quarter: number
   vat_repercutido: number | null
   vat_soportado: number | null
   cuota_a_ingresar: number | null
-  status: string | null
 }
 
 interface ReportsViewProps {
@@ -358,16 +356,6 @@ function IvaTab({ vatQuarterly }: { vatQuarterly: VatQuarterly[] }) {
 
   const quarterLabel = (q: number) => `Q${q}`
 
-  const statusLabel = (status: string | null) => {
-    if (!status) return '—'
-    const map: Record<string, { label: string; color: string }> = {
-      pendiente: { label: 'Pendiente', color: 'bg-amber-50 text-amber-600' },
-      presentado: { label: 'Presentado', color: 'bg-green-50 text-green-600' },
-      borrador: { label: 'Borrador', color: 'bg-neutral-100 text-neutral-500' },
-    }
-    return map[status] || { label: status, color: 'bg-neutral-100 text-neutral-500' }
-  }
-
   if (byYear.length === 0) {
     return (
       <div className="bg-white border border-neutral-100 rounded p-8 text-center text-sm text-neutral-400">
@@ -391,13 +379,11 @@ function IvaTab({ vatQuarterly }: { vatQuarterly: VatQuarterly[] }) {
                   <th className="text-right px-6 py-3">IVA Repercutido</th>
                   <th className="text-right px-6 py-3">IVA Soportado</th>
                   <th className="text-right px-6 py-3">Cuota</th>
-                  <th className="text-center px-6 py-3">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {quarters.map((q, i) => {
                   const cuota = Number(q.cuota_a_ingresar) || 0
-                  const st = statusLabel(q.status)
                   return (
                     <tr key={q.quarter} className={i % 2 === 1 ? 'bg-neutral-50' : ''}>
                       <td className="px-6 py-3 font-medium">{quarterLabel(q.quarter)}</td>
@@ -405,15 +391,6 @@ function IvaTab({ vatQuarterly }: { vatQuarterly: VatQuarterly[] }) {
                       <td className="px-6 py-3 text-right tabular-nums">{formatEUR(q.vat_soportado)}</td>
                       <td className={`px-6 py-3 text-right font-bold tabular-nums ${cuota <= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {formatEUR(q.cuota_a_ingresar)}
-                      </td>
-                      <td className="px-6 py-3 text-center">
-                        {typeof st === 'string' ? (
-                          <span className="text-neutral-400">{st}</span>
-                        ) : (
-                          <span className={`inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${st.color}`}>
-                            {st.label}
-                          </span>
-                        )}
                       </td>
                     </tr>
                   )
