@@ -220,7 +220,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     setSaving(true)
     const ef = editForm as Record<string, unknown>
     const payload: Record<string, unknown> = {}
-    const FIELDS = ['code', 'name', 'client_id', 'type', 'status', 'address', 'description',
+    const FIELDS = ['code', 'name', 'client_id', 'type', 'status', 'address',
       'budget_estimated', 'sale_price', 'start_date', 'end_date_planned', 'end_date_real',
       'notes', 'drive_folder_url']
     for (const f of FIELDS) payload[f] = ef[f] ?? null
@@ -759,7 +759,6 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   </div>
 
                   <Field label="Direccion" name="address" />
-                  <Field label="Descripcion" name="description" type="textarea" />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Presupuesto estimado" name="budget_estimated" type="number" />
