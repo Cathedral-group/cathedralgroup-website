@@ -349,6 +349,18 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
                 <option value="proforma">Proforma</option>
                 <option value="rectificativa">Rectificativa</option>
                 <option value="abono">Abono</option>
+                <option value="ticket">Ticket</option>
+                <option value="albaran">Albarán</option>
+                <option value="certificado">Certificado</option>
+                <option value="presupuesto">Presupuesto</option>
+                <option value="contrato">Contrato</option>
+                <option value="nota_simple">Nota simple</option>
+                <option value="nomina">Nómina</option>
+                <option value="modelo_fiscal">Modelo fiscal</option>
+                <option value="seguro">Seguro</option>
+                <option value="justificante_pago">Justificante de pago</option>
+                <option value="informe">Informe</option>
+                <option value="otro">Otro</option>
               </select>
             </div>
             <div>

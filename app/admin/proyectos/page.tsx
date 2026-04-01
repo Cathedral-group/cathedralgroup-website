@@ -1,4 +1,4 @@
-import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import ProjectsView from './ProjectsView'
 
@@ -9,11 +9,16 @@ export default async function ProyectosPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const [projectsRes, clientsRes, financialsRes, invoicesRes, phasesRes] = await Promise.all([
+  const [projectsRes, clientsRes, financialsRes, invoices, phasesRes] = await Promise.all([
     supabase.from('projects').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
     supabase.from('clients').select('id, name').is('deleted_at', null).order('name'),
     supabase.from('project_financials').select('*'),
-    supabase.from('invoices').select('id, number, concept, direction, amount_total, payment_status, proyecto_code').is('deleted_at', null),
+    fetchAllRows((sb) =>
+      sb
+        .from('invoices')
+        .select('id, number, concept, direction, amount_total, payment_status, proyecto_code')
+        .is('deleted_at', null)
+    ),
     supabase.from('project_phases').select('*').order('start_date', { ascending: true }),
   ])
 
@@ -22,7 +27,8 @@ export default async function ProyectosPage() {
       projects={projectsRes.data || []}
       clients={clientsRes.data || []}
       financials={financialsRes.data || []}
-      invoices={invoicesRes.data || []}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      invoices={invoices as any}
       phases={phasesRes.data || []}
     />
   )

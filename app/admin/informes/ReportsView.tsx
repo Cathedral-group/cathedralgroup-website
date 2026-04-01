@@ -116,6 +116,15 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = ['material', 'mano_de_obra', 'subcontratas', 'alquiler', 'servicios', 'otros']
 
+// Mejor estimación del importe neto (sin IVA):
+// 1) amount_base si existe  2) amount_total - vat_amount  3) amount_total  4) 0
+function getNetAmount(inv: Invoice): number {
+  if (inv.amount_base != null) return Number(inv.amount_base)
+  if (inv.amount_total != null && inv.vat_amount != null) return Number(inv.amount_total) - Number(inv.vat_amount)
+  if (inv.amount_total != null) return Number(inv.amount_total)
+  return 0
+}
+
 // ─── P&L Tab ───
 function PnLTab({ invoices, year, quarter, month }: { invoices: Invoice[]; year: number; quarter: number | null; month: number | null }) {
   const filtered = useMemo(() => filterByPeriod(invoices, year, quarter, month), [invoices, year, quarter, month])
@@ -124,7 +133,7 @@ function PnLTab({ invoices, year, quarter, month }: { invoices: Invoice[]; year:
     () =>
       filtered
         .filter((inv) => inv.direction === 'emitida')
-        .reduce((sum, inv) => sum + (Number(inv.amount_base) || 0), 0),
+        .reduce((sum, inv) => sum + getNetAmount(inv), 0),
     [filtered]
   )
 
@@ -134,7 +143,7 @@ function PnLTab({ invoices, year, quarter, month }: { invoices: Invoice[]; year:
       .filter((inv) => inv.direction === 'recibida')
       .forEach((inv) => {
         const cat = inv.categoria_gasto || 'otros'
-        map[cat] = (map[cat] || 0) + (Number(inv.amount_base) || 0)
+        map[cat] = (map[cat] || 0) + getNetAmount(inv)
       })
     return map
   }, [filtered])

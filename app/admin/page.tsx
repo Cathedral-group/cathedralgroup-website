@@ -1,4 +1,4 @@
-import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -109,8 +109,8 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     { data: emitidas },
     { data: recibidas },
     { count: proyectosActivos },
-    { data: pendientesCobro },
-    { data: pendientesPago },
+    pendientesCobro,
+    pendientesPago,
     { data: vatData },
     { data: facturasPorVencer },
     { data: projectFinancials },
@@ -121,8 +121,8 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('invoices').select('amount_total').eq('direction','emitida').is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('invoices').select('amount_total').eq('direction','recibida').is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('projects').select('*',{count:'exact',head:true}).eq('status','en_curso').is('deleted_at',null),
-    supabase.from('invoices').select('amount_total').eq('direction','emitida').eq('payment_status','pendiente').is('deleted_at',null),
-    supabase.from('invoices').select('amount_total').eq('direction','recibida').eq('payment_status','pendiente').is('deleted_at',null),
+    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','emitida').eq('payment_status','pendiente').is('deleted_at',null)),
+    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','recibida').eq('payment_status','pendiente').is('deleted_at',null)),
     supabase.from('vat_quarterly').select('*').eq('year',year).eq('quarter',vatQuarter).maybeSingle(),
     supabase.from('invoices').select('id,number,concept,amount_total,due_date,direction').eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str).order('due_date',{ascending:true}),
     supabase.from('project_financials').select('code,name,budget_estimated,sale_price,income_base,expense_base,gross_margin,status').eq('status','en_curso').order('code',{ascending:true}),

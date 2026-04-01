@@ -30,11 +30,45 @@ export async function createServerSupabaseClient() {
 
 // Admin client with service_role key — bypasses RLS for data access
 // ONLY use after verifying auth with createServerSupabaseClient()
-// db.schema fetch option removes the default 1000-row limit from PostgREST
 export function createAdminSupabaseClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } }
   )
+}
+
+/**
+ * Fetch ALL rows from a Supabase table, bypassing PostgREST's max_rows limit
+ * (default 1000) by paginating automatically in batches of PAGE_SIZE.
+ *
+ * Usage:
+ *   const invoices = await fetchAllRows((q) =>
+ *     q.from('invoices').select('*').is('deleted_at', null).order('issue_date', { ascending: false })
+ *   )
+ */
+export async function fetchAllRows<T = Record<string, unknown>>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  buildQuery: (client: ReturnType<typeof createAdminSupabaseClient>) => any,
+  pageSize = 900
+): Promise<T[]> {
+  const all: T[] = []
+  let from = 0
+
+  while (true) {
+    const supabase = createAdminSupabaseClient()
+    const { data, error } = await buildQuery(supabase).range(from, from + pageSize - 1)
+
+    if (error) {
+      console.error('[fetchAllRows] error:', error)
+      break
+    }
+    if (!data || data.length === 0) break
+
+    all.push(...(data as T[]))
+    if (data.length < pageSize) break // last page — no more rows
+    from += pageSize
+  }
+
+  return all
 }
