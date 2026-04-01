@@ -279,7 +279,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
         )}
 
         {/* Drive document preview — only for auto-processed invoices with a Drive file */}
-        {isEdit && invoice?.source === 'email_automatico' && invoice?.drive_url && (
+        {isEdit && invoice?.drive_url && (
           <div className="mb-6">
             <p className={sectionTitle}>Documento original</p>
             <div className="rounded-lg border border-neutral-200 overflow-hidden">
@@ -609,7 +609,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
               Ver PDF
             </button>
           )}
-          {isEdit && invoice?.source === 'email_automatico' && invoice?.drive_url && (
+          {isEdit && invoice?.drive_url && (
             <a
               href={invoice.drive_url}
               target="_blank"
