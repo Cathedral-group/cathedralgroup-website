@@ -35,12 +35,6 @@ export function createAdminSupabaseClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: { persistSession: false },
-      db: { schema: 'public' },
-      global: {
-        headers: { 'Range-Unit': 'items', 'Range': '0-9999999' },
-      },
-    }
+    { auth: { persistSession: false } }
   )
 }
