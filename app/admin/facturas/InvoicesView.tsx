@@ -35,6 +35,8 @@ interface Invoice {
   drive_url?: string | null
   drive_file_id?: string | null
   original_filename?: string | null
+  sent_at?: string | null
+  sent_channel?: string | null
 }
 
 interface InvoicesViewProps {
@@ -240,7 +242,11 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
     if (!deleteConfirm?.id) return
     setDeleting(true)
     try {
-      const res = await fetch(`/api/db/invoices?id=${deleteConfirm.id}`, { method: 'DELETE' })
+      const res = await fetch('/api/db/invoices', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteConfirm.id }),
+      })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || `Error ${res.status}`)
@@ -287,7 +293,11 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
     let deleted = 0
     for (const inv of dedupPreview) {
       try {
-        const res = await fetch(`/api/db/invoices?id=${inv.id}`, { method: 'DELETE' })
+        const res = await fetch('/api/db/invoices', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: inv.id }),
+        })
         if (res.ok) {
           deleted++
           setData((prev) => prev.filter((r) => r.id !== inv.id))
