@@ -13,7 +13,7 @@ export default async function ProyectosPage() {
     supabase.from('projects').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
     supabase.from('clients').select('id, name').is('deleted_at', null).order('name'),
     supabase.from('project_financials').select('*'),
-    supabase.from('invoices').select('id, numero, concepto, tipo, total, estado, proyecto_code').is('deleted_at', null),
+    supabase.from('invoices').select('id, number, concept, direction, amount_total, payment_status, proyecto_code').is('deleted_at', null),
     supabase.from('project_phases').select('*').order('start_date', { ascending: true }),
   ])
 

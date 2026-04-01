@@ -32,15 +32,10 @@ interface Project {
 
 interface Invoice {
   id: string
-  numero?: string | null
   number?: string | null
-  concepto?: string | null
   concept?: string | null
-  tipo?: string | null
   direction?: string | null
-  total?: number | null
   amount_total?: number | null
-  estado?: string | null
   payment_status?: string | null
   proyecto_code?: string | null
   issue_date?: string | null
@@ -154,7 +149,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       if (!inv.proyecto_code) return
       const clientId = projectCodeToClientId[inv.proyecto_code]
       if (!clientId) return
-      const total = inv.amount_total ?? inv.total ?? 0
+      const total = inv.amount_total ?? 0
       m[clientId] = (m[clientId] || 0) + total
     })
     return m
@@ -350,7 +345,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
         return projectCodeToClientId[inv.proyecto_code] === selected.id
       })
     : []
-  const clientTotalInvoiced = clientInvoices.reduce((s, i) => s + (i.amount_total ?? i.total ?? 0), 0)
+  const clientTotalInvoiced = clientInvoices.reduce((s, i) => s + (i.amount_total ?? 0), 0)
   const clientComms = selected ? comms.filter((c) => c.entity_id === selected.id) : []
 
   /* ───────── Table columns ───────── */
@@ -581,16 +576,17 @@ export default function ClientsView({ clients: initialClients, projects, invoice
                         <tbody className="divide-y divide-neutral-50">
                           {clientInvoices.map((inv) => (
                             <tr key={inv.id}>
-                              <td className="px-3 py-2">{inv.number || inv.numero || '\u2014'}</td>
-                              <td className="px-3 py-2 max-w-[160px] truncate">{inv.concept || inv.concepto || '\u2014'}</td>
-                              <td className="px-3 py-2 text-[10px] uppercase tracking-widest text-neutral-400">{inv.proyecto_code || '\u2014'}</td>
-                              <td className="px-3 py-2 text-right font-medium tabular-nums">{currency(inv.amount_total ?? inv.total)}</td>
+                              <td className="px-3 py-2">{inv.number || '—'}</td>
+                              <td className="px-3 py-2 max-w-[160px] truncate">{inv.concept || '—'}</td>
+                              <td className="px-3 py-2 text-[10px] uppercase tracking-widest text-neutral-400">{inv.proyecto_code || '—'}</td>
+                              <td className="px-3 py-2 text-right font-medium tabular-nums">{currency(inv.amount_total)}</td>
                               <td className="px-3 py-2">
-                                <Badge value={inv.payment_status || inv.estado || 'pendiente'} styles={{
+                                <Badge value={inv.payment_status || 'pendiente'} styles={{
                                   pendiente: 'bg-amber-50 text-amber-700',
                                   pagada: 'bg-green-50 text-green-700',
-                                  cobrada: 'bg-green-50 text-green-700',
                                   vencida: 'bg-red-50 text-red-700',
+                                  parcial: 'bg-blue-50 text-blue-700',
+                                  cancelada: 'bg-neutral-100 text-neutral-500',
                                 }} />
                               </td>
                             </tr>
