@@ -10,7 +10,7 @@ export default async function FacturasPage() {
   const supabase = createAdminSupabaseClient()
 
   const [invoicesRes, projectsRes, suppliersRes] = await Promise.all([
-    supabase.from('invoices').select('*').is('deleted_at', null).order('issue_date', { ascending: false }),
+    supabase.from('invoices').select('*').is('deleted_at', null).order('issue_date', { ascending: false }).limit(5000),
     supabase.from('projects').select('code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
   ])
