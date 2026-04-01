@@ -14,6 +14,7 @@ interface Invoice {
   due_date: string | null
   payment_date: string | null
   payment_status: string | null
+  created_at: string | null
 }
 
 interface VatQuarterly {
@@ -35,7 +36,7 @@ export default async function InformesPage() {
 
   const { data: invoices } = await supabase
     .from('invoices')
-    .select('id, number, direction, amount_base, amount_total, vat_amount, categoria_gasto, issue_date, due_date, payment_date, payment_status')
+    .select('id, number, direction, amount_base, amount_total, vat_amount, categoria_gasto, issue_date, due_date, payment_date, payment_status, created_at')
     .is('deleted_at', null)
     .order('issue_date', { ascending: false })
     

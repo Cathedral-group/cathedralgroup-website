@@ -15,6 +15,7 @@ interface Invoice {
   due_date: string | null
   payment_date: string | null
   payment_status: string | null
+  created_at: string | null
 }
 
 interface VatQuarterly {
@@ -51,7 +52,8 @@ const MONTHS_ES_LONG = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio'
 
 function filterByPeriod(invoices: Invoice[], year: number, quarter: number | null, month: number | null): Invoice[] {
   return invoices.filter((inv) => {
-    const dateStr = inv.issue_date
+    // Usar issue_date si existe, si no created_at como fallback
+    const dateStr = inv.issue_date || inv.created_at
     if (!dateStr) return false
     const parts = dateStr.slice(0, 10).split('-').map(Number)
     if (parts.length < 3 || parts.some(isNaN)) return false

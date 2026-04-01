@@ -15,8 +15,7 @@ export default async function RevisionPage() {
       .select('*')
       .is('deleted_at', null)
       .or('needs_review.eq.true,doc_type.eq.otro,review_status.eq.pendiente,ai_confidence.lt.0.7')
-      .order('created_at', { ascending: false })
-      .limit(100),
+      .order('created_at', { ascending: false }),
     supabase.from('projects').select('code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
   ])
