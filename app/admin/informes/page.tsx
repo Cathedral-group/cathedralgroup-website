@@ -38,6 +38,7 @@ export default async function InformesPage() {
     .select('id, number, direction, amount_base, amount_total, vat_amount, categoria_gasto, issue_date, due_date, payment_date, payment_status')
     .is('deleted_at', null)
     .order('issue_date', { ascending: false })
+    .limit(5000)
 
   const { data: vatData } = await supabase
     .from('vat_quarterly')
