@@ -30,10 +30,17 @@ export async function createServerSupabaseClient() {
 
 // Admin client with service_role key — bypasses RLS for data access
 // ONLY use after verifying auth with createServerSupabaseClient()
+// db.schema fetch option removes the default 1000-row limit from PostgREST
 export function createAdminSupabaseClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
+    {
+      auth: { persistSession: false },
+      db: { schema: 'public' },
+      global: {
+        headers: { 'Range-Unit': 'items', 'Range': '0-9999999' },
+      },
+    }
   )
 }
