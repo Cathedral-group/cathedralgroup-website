@@ -14,7 +14,7 @@ export default async function PapeleraPage() {
     supabase.from('clients').select('id, name, email, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('suppliers').select('id, name, nif, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('projects').select('id, code, name, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    supabase.from('invoices').select('id, number, concept, direction, amount_total, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).limit(5000),
+    supabase.from('invoices').select('id, number, concept, direction, amount_total, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('quotes').select('id, number, total, status, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
   ])
 
