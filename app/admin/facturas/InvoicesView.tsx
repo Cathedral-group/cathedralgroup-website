@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import InvoiceForm from './InvoiceForm'
 
@@ -130,11 +130,15 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const [data, setData] = useState<Invoice[]>(initialData)
   const [refreshing, setRefreshing] = useState(false)
 
-  const handleRefresh = async () => {
+  // Sync state when server sends fresh data after router.refresh()
+  useEffect(() => {
+    setData(initialData)
+    setRefreshing(false)
+  }, [initialData])
+
+  const handleRefresh = () => {
     setRefreshing(true)
     router.refresh()
-    // Give the server component time to re-render, then reset flag
-    setTimeout(() => setRefreshing(false), 1500)
   }
   const [formOpen, setFormOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
