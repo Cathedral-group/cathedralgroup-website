@@ -55,6 +55,7 @@ interface Invoice {
   original_filename?: string | null
   sent_at?: string | null
   sent_channel?: string | null
+  due_date_estimated?: boolean | null
 }
 
 interface InvoicesViewProps {
@@ -110,18 +111,18 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function DueDate({ date, status }: { date: string | null; status: string }) {
+function DueDate({ date, status, estimated }: { date: string | null; status: string; estimated?: boolean | null }) {
   if (!date) return <span className="text-neutral-300">--</span>
-  if (status === 'pagada') return <span>{formatDate(date)}</span>
+  if (status === 'pagada') return <span className={estimated ? 'text-neutral-400' : ''}>{formatDate(date)}{estimated ? ' *' : ''}</span>
 
   const days = daysUntil(date)
-  let color = 'text-green-600'
-  if (days !== null) {
+  let color = estimated ? 'text-neutral-400' : 'text-green-600'
+  if (!estimated && days !== null) {
     if (days < 0) color = 'text-red-600 font-semibold'
     else if (days < 7) color = 'text-red-500'
     else if (days <= 15) color = 'text-amber-500'
   }
-  return <span className={color}>{formatDate(date)}</span>
+  return <span className={color} title={estimated ? 'Fecha estimada (+21 días)' : undefined}>{formatDate(date)}{estimated ? ' *' : ''}</span>
 }
 
 export default function InvoicesView({ initialData, projects, suppliers }: InvoicesViewProps) {
@@ -484,7 +485,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                     <td className="px-4 py-3 text-sm tabular-nums text-right font-semibold">{formatEur(inv.amount_total)}</td>
                     <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">{formatDate(inv.issue_date)}</td>
                     <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">
-                      <DueDate date={inv.due_date} status={inv.payment_status} />
+                      <DueDate date={inv.due_date} status={inv.payment_status} estimated={inv.due_date_estimated} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">

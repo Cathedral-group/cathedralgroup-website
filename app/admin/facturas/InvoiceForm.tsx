@@ -37,6 +37,7 @@ interface Invoice {
   drive_url?: string | null
   drive_file_id?: string | null
   original_filename?: string | null
+  due_date_estimated?: boolean | null
 }
 
 interface InvoiceFormProps {
@@ -459,11 +460,13 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
               />
             </div>
             <div>
-              <label className={labelCls}>Vencimiento</label>
+              <label className={labelCls}>
+                Vencimiento{form.due_date_estimated && <span className="ml-1 text-neutral-400 font-normal normal-case tracking-normal">* estimado</span>}
+              </label>
               <input
                 type="date"
                 value={form.due_date ?? ''}
-                onChange={(e) => set('due_date', e.target.value)}
+                onChange={(e) => { set('due_date', e.target.value); set('due_date_estimated', false) }}
                 className={inputCls}
               />
             </div>
