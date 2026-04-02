@@ -4,7 +4,14 @@ import { useState, useMemo } from 'react'
 import TabPanel from '@/components/admin/TabPanel'
 
 interface Supplier { id?: string; name: string; nif?: string; email?: string; phone?: string; specialty?: string; address?: string; contact_person?: string; bank_account?: string; payment_terms?: string; active?: boolean; iban?: string; notes?: string; [k: string]: unknown }
-interface Invoice { id: string; number?: string; concept?: string; amount_total?: number; payment_status?: string; direction?: string; supplier_nif?: string; [k: string]: unknown }
+interface Invoice { id: string; number?: string; concept?: string; amount_base?: number; vat_amount?: number; amount_total?: number; payment_status?: string; direction?: string; supplier_nif?: string; [k: string]: unknown }
+
+function getNetAmt(inv: Pick<Invoice, 'amount_base' | 'vat_amount' | 'amount_total'>): number {
+  if (inv.amount_base != null) return Number(inv.amount_base)
+  const total = inv.amount_total ? Number(inv.amount_total) : 0
+  const vat = inv.vat_amount ? Number(inv.vat_amount) : 0
+  return total > 0 && vat > 0 ? total - vat : total
+}
 
 function formatEur(v: number | null | undefined) { return v == null ? '—' : v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) }
 
@@ -35,8 +42,8 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
   const set = (k: string, v: unknown) => setForm(f => f ? { ...f, [k]: v } : f)
 
   const supplierInv = useMemo(() => form?.nif ? invoices.filter(i => i.supplier_nif === form.nif && i.direction === 'recibida') : [], [form, invoices])
-  const totalGastado = supplierInv.reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
-  const totalPendiente = supplierInv.filter(i => i.payment_status === 'pendiente').reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
+  const totalGastado = supplierInv.reduce((s, i) => s + getNetAmt(i), 0)
+  const totalPendiente = supplierInv.filter(i => i.payment_status === 'pendiente').reduce((s, i) => s + getNetAmt(i), 0)
 
   const openDetail = (s: Supplier) => { setSelected(s); setForm({ ...s }); setTab('datos') }
   const openNew = () => { setSelected(null); setForm({ name: '', specialty: '', active: true }); setTab('datos') }
@@ -45,6 +52,19 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
   const handleSave = async () => {
     if (!form?.name) return
     setSaving(true)
+    // Check for duplicate NIF before saving
+    if (form.nif && form.nif.trim()) {
+      const normalizedNif = form.nif.trim().toUpperCase()
+      const duplicate = data.find(s =>
+        s.nif && s.nif.trim().toUpperCase() === normalizedNif &&
+        s.id !== (selected?.id ?? '')
+      )
+      if (duplicate) {
+        setSaving(false)
+        alert(`Ya existe un proveedor con este NIF/CIF: "${duplicate.name}". No se pueden tener dos proveedores con el mismo NIF.`)
+        return
+      }
+    }
     const payload = { ...form }; delete payload.id
     try {
       if (selected?.id) {
@@ -128,7 +148,7 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
             {filtered.length === 0 ? <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-neutral-400">Sin proveedores</td></tr> :
             filtered.map(s => {
               const sInv = invoices.filter(i => i.supplier_nif === s.nif && i.direction === 'recibida')
-              const sPend = sInv.filter(i => i.payment_status === 'pendiente').reduce((sum, i) => sum + (Number(i.amount_total) || 0), 0)
+              const sPend = sInv.filter(i => i.payment_status === 'pendiente').reduce((sum, i) => sum + getNetAmt(i), 0)
               return (<tr key={s.id} onClick={() => openDetail(s)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
                 <td className="px-4 py-3 text-sm font-medium">{s.name}{s.active === false && <span className="ml-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 bg-neutral-100 px-1.5 py-0.5">Inactivo</span>}</td>
                 <td className="hidden sm:table-cell px-4 py-3"><span className="text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-600 px-2 py-0.5">{s.specialty ? (SPECIALTY_LABELS[s.specialty] ?? s.specialty) : '—'}</span></td>

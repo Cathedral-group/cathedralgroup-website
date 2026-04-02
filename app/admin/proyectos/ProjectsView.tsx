@@ -46,9 +46,18 @@ interface Invoice {
   number?: string | null
   concept?: string | null
   direction?: string | null
+  amount_base?: number | null
+  vat_amount?: number | null
   amount_total?: number | null
   payment_status?: string | null
   proyecto_code?: string | null
+}
+
+function getNetAmt(inv: Pick<Invoice, 'amount_base' | 'vat_amount' | 'amount_total'>): number {
+  if (inv.amount_base != null) return Number(inv.amount_base)
+  const total = inv.amount_total ? Number(inv.amount_total) : 0
+  const vat = inv.vat_amount ? Number(inv.vat_amount) : 0
+  return total > 0 && vat > 0 ? total - vat : total
 }
 
 interface Phase {
@@ -432,8 +441,8 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const phasePct = projectPhases.length > 0 ? Math.round((completedPhases / projectPhases.length) * 100) : 0
 
   const projectInvoices = selected ? initialInvoices.filter((inv) => inv.proyecto_code === selected.code) : []
-  const totalInvoiced = projectInvoices.filter((i) => i.direction === 'emitida').reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
-  const totalSpent = projectInvoices.filter((i) => i.direction === 'recibida').reduce((s, i) => s + (Number(i.amount_total) || 0), 0)
+  const totalInvoiced = projectInvoices.filter((i) => i.direction === 'emitida').reduce((s, i) => s + getNetAmt(i), 0)
+  const totalSpent = projectInvoices.filter((i) => i.direction === 'recibida').reduce((s, i) => s + getNetAmt(i), 0)
   const invoiceMargin = totalInvoiced > 0 ? ((totalInvoiced - totalSpent) / totalInvoiced) * 100 : 0
 
   /* ───────── Field helper ───────── */
