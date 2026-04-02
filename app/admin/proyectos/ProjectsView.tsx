@@ -51,6 +51,7 @@ interface Invoice {
   amount_total?: number | null
   payment_status?: string | null
   proyecto_code?: string | null
+  project_id?: string | null
 }
 
 function getNetAmt(inv: Pick<Invoice, 'amount_base' | 'vat_amount' | 'amount_total'>): number {
@@ -440,7 +441,9 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const completedPhases = projectPhases.filter((ph) => ph.status === 'completado').length
   const phasePct = projectPhases.length > 0 ? Math.round((completedPhases / projectPhases.length) * 100) : 0
 
-  const projectInvoices = selected ? initialInvoices.filter((inv) => inv.proyecto_code === selected.code) : []
+  const projectInvoices = selected ? initialInvoices.filter((inv) =>
+    inv.project_id === selected.id || inv.proyecto_code === selected.code
+  ) : []
   const totalInvoiced = projectInvoices.filter((i) => i.direction === 'emitida').reduce((s, i) => s + getNetAmt(i), 0)
   const totalSpent = projectInvoices.filter((i) => i.direction === 'recibida').reduce((s, i) => s + getNetAmt(i), 0)
   const invoiceMargin = totalInvoiced > 0 ? ((totalInvoiced - totalSpent) / totalInvoiced) * 100 : 0
