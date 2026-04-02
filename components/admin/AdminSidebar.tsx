@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
@@ -27,12 +28,19 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const [refreshing, setRefreshing] = useState(false)
 
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/admin/login')
     router.refresh()
+  }
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    router.refresh()
+    setTimeout(() => setRefreshing(false), 1500)
   }
 
   return (
@@ -97,12 +105,20 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
         </nav>
 
         {/* Footer */}
-        <div className="p-6 border-t border-neutral-100">
+        <div className="p-6 border-t border-neutral-100 flex items-center justify-between gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-700 transition-colors disabled:opacity-50"
+            title="Refrescar datos"
+          >
+            {refreshing ? '↻ Refrescando...' : '↻ Refrescar'}
+          </button>
           <button
             onClick={handleLogout}
             className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-red-500 transition-colors"
           >
-            Cerrar sesión
+            Salir
           </button>
         </div>
       </aside>

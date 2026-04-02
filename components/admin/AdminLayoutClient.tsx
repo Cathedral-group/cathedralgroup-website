@@ -1,10 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import AdminSidebar from './AdminSidebar'
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const router = useRouter()
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    router.refresh()
+    setTimeout(() => setRefreshing(false), 1500)
+  }
 
   // Set bg on html+body so the neutral-50 covers the full scrollable area (including horizontal overflow)
   useEffect(() => {
@@ -37,9 +46,18 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
           </button>
           <span className="text-xs font-bold uppercase tracking-widest text-neutral-500">Cathedral Group</span>
         </div>
-        <a href="/admin" className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline">
-          Dashboard
-        </a>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-700 transition-colors disabled:opacity-50"
+          >
+            {refreshing ? '↻' : '↻ Refrescar'}
+          </button>
+          <a href="/admin" className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline">
+            Dashboard
+          </a>
+        </div>
       </div>
 
       {/* Main content */}

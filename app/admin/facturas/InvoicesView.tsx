@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import InvoiceForm from './InvoiceForm'
 
 type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status'
@@ -126,20 +125,13 @@ function DueDate({ date, status }: { date: string | null; status: string }) {
 }
 
 export default function InvoicesView({ initialData, projects, suppliers }: InvoicesViewProps) {
-  const router = useRouter()
   const [data, setData] = useState<Invoice[]>(initialData)
-  const [refreshing, setRefreshing] = useState(false)
 
   // Sync state when server sends fresh data after router.refresh()
   useEffect(() => {
     setData(initialData)
-    setRefreshing(false)
   }, [initialData])
 
-  const handleRefresh = () => {
-    setRefreshing(true)
-    router.refresh()
-  }
   const [formOpen, setFormOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Invoice | null>(null)
@@ -380,13 +372,6 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-medium uppercase tracking-wide">Facturas</h1>
         <div className="flex gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="border border-neutral-200 text-neutral-500 px-4 py-2.5 text-xs font-bold uppercase tracking-widest hover:border-neutral-400 transition-colors disabled:opacity-50"
-          >
-            {refreshing ? '↻ Refrescando...' : '↻ Refrescar'}
-          </button>
           <button
             onClick={exportCSV}
             className="border border-neutral-200 text-neutral-500 px-4 py-2.5 text-xs font-bold uppercase tracking-widest hover:border-neutral-400 transition-colors"
