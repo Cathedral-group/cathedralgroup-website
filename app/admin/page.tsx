@@ -92,6 +92,9 @@ function buildMonthlyMap(year: number, quarter: number | null, month: number | n
   return map
 }
 
+// Doc types that represent real monetary transactions (exclude presupuesto, contrato, albaran, escritura, etc.)
+const FINANCIAL_DOC_TYPES = ['factura','ticket','proforma','certificado','rectificativa','abono','nomina','modelo_fiscal','seguro','justificante_pago'] as const
+
 async function getStats(year: number, quarter: number | null, month: number | null) {
   const supabase = createAdminSupabaseClient()
   const { start, end } = periodRange(year, quarter, month)
@@ -118,16 +121,16 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     { data: periodInvoices },
     { data: periodLeads },
   ] = await Promise.all([
-    supabase.from('invoices').select('amount_total').eq('direction','emitida').is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
-    supabase.from('invoices').select('amount_total').eq('direction','recibida').is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('invoices').select('amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('invoices').select('amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('projects').select('*',{count:'exact',head:true}).eq('status','en_curso').is('deleted_at',null),
-    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','emitida').eq('payment_status','pendiente').is('deleted_at',null)),
-    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','recibida').eq('payment_status','pendiente').is('deleted_at',null)),
+    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
+    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
     supabase.from('vat_quarterly').select('*').eq('year',year).eq('quarter',vatQuarter).maybeSingle(),
-    supabase.from('invoices').select('id,number,concept,amount_total,due_date,direction').eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str).order('due_date',{ascending:true}),
+    supabase.from('invoices').select('id,number,concept,amount_total,due_date,direction').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str).order('due_date',{ascending:true}),
     supabase.from('project_financials').select('code,name,budget_estimated,sale_price,income_base,expense_base,gross_margin,status').eq('status','en_curso').order('code',{ascending:true}),
     supabase.from('leads').select('id,nombre,email,tipo_proyecto,zona,created_at').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59').order('created_at',{ascending:false}).limit(10),
-    supabase.from('invoices').select('amount_total,direction,issue_date,payment_status,due_date').is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('invoices').select('amount_total,direction,issue_date,payment_status,due_date').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('leads').select('origen').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59'),
   ])
   // ──────────────────────────────────────────────────────────────────────────
