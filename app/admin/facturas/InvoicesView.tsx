@@ -381,7 +381,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
             disabled={refreshing}
             className="border border-neutral-200 text-neutral-500 px-4 py-2.5 text-xs font-bold uppercase tracking-widest hover:border-neutral-400 transition-colors disabled:opacity-50"
           >
-            {refreshing ? '↻ Actualizando...' : '↻ Actualizar'}
+            {refreshing ? '↻ Refrescando...' : '↻ Refrescar'}
           </button>
           <button
             onClick={exportCSV}
