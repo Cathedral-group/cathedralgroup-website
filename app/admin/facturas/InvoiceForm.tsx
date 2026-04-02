@@ -102,6 +102,8 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
   const [sentAt, setSentAt] = useState<string | null>(invoice?.sent_at ?? null)
   const [sentChannel, setSentChannel] = useState<string | null>(invoice?.sent_channel ?? null)
   const [clientContact, setClientContact] = useState<{ name?: string; email?: string; phone?: string } | null>(null)
+  const [creatingSupplier, setCreatingSupplier] = useState(false)
+  const [supplierCreated, setSupplierCreated] = useState(false)
 
   async function openSendModal() {
     // Try to get client contact from project → client chain
@@ -232,6 +234,34 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
       setSaving(false)
     }
   }
+
+  const handleCreateSupplier = async () => {
+    if (!form.empresa || !form.supplier_nif) return
+    setCreatingSupplier(true)
+    try {
+      const res = await fetch('/api/db/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.empresa, cif: form.supplier_nif }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setSupplierCreated(true)
+    } catch (err) {
+      alert('Error al crear proveedor: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setCreatingSupplier(false)
+    }
+  }
+
+  // Show supplier suggestion when empresa+nif are set but nif not in suppliers list
+  const showSupplierSuggestion =
+    !supplierCreated &&
+    !!form.empresa &&
+    !!form.supplier_nif &&
+    !suppliers.some((s) => s.value === form.supplier_nif)
 
   const labelCls = 'text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-2'
   const inputCls = 'w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-3 text-sm'
@@ -633,6 +663,28 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
             placeholder="Notas internas..."
           />
         </div>
+
+        {/* Supplier suggestion banner */}
+        {showSupplierSuggestion && (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-0.5">Proveedor no registrado</p>
+              <p className="text-xs text-blue-700 truncate max-w-[220px]">{form.empresa} ({form.supplier_nif})</p>
+            </div>
+            <button
+              onClick={handleCreateSupplier}
+              disabled={creatingSupplier}
+              className="shrink-0 bg-blue-600 text-white px-3 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors disabled:opacity-50 rounded"
+            >
+              {creatingSupplier ? '...' : '+ Crear'}
+            </button>
+          </div>
+        )}
+        {supplierCreated && (
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-green-600">Proveedor creado correctamente</p>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="space-y-3 pt-4 border-t border-neutral-100">
