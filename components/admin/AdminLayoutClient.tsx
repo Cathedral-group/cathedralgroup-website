@@ -61,7 +61,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
       </div>
 
       {/* Main content */}
-      <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-8 md:ml-64">
+      <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-8 md:ml-56">
         {children}
       </main>
     </>

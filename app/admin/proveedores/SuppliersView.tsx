@@ -9,6 +9,18 @@ interface Invoice { id: string; number?: string; concept?: string; amount_total?
 function formatEur(v: number | null | undefined) { return v == null ? '—' : v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) }
 
 const SPECIALTIES = ['electricidad','fontaneria','pintura','carpinteria','marmol','cristaleria','climatizacion','domotica','reformas','otro']
+const SPECIALTY_LABELS: Record<string, string> = {
+  electricidad: 'Electricidad',
+  fontaneria: 'Fontanería',
+  pintura: 'Pintura',
+  carpinteria: 'Carpintería',
+  marmol: 'Mármol',
+  cristaleria: 'Cristalería',
+  climatizacion: 'Climatización',
+  domotica: 'Domótica',
+  reformas: 'Reformas',
+  otro: 'Otro',
+}
 const TABS = [{ key: 'datos', label: 'Datos' }, { key: 'facturas', label: 'Facturas' }]
 
 export default function SuppliersView({ suppliers: initial, invoices }: { suppliers: Supplier[]; invoices: Invoice[] }) {
@@ -105,22 +117,24 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
             {[
               { label: 'Nombre', cls: '' },
               { label: 'Especialidad', cls: 'hidden sm:table-cell' },
-              { label: 'Teléfono', cls: 'hidden sm:table-cell' },
-              { label: 'NIF', cls: 'hidden md:table-cell' },
+              { label: 'Contacto', cls: 'hidden lg:table-cell' },
+              { label: 'Teléfono', cls: 'hidden md:table-cell' },
+              { label: 'NIF', cls: 'hidden lg:table-cell' },
               { label: 'Facturas', cls: 'hidden sm:table-cell' },
               { label: 'Pendiente', cls: '' },
             ].map(h => <th key={h.label} className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${h.cls}`}>{h.label}</th>)}
           </tr></thead>
           <tbody className="divide-y divide-neutral-50">
-            {filtered.length === 0 ? <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-neutral-400">Sin proveedores</td></tr> :
+            {filtered.length === 0 ? <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-neutral-400">Sin proveedores</td></tr> :
             filtered.map(s => {
               const sInv = invoices.filter(i => i.supplier_nif === s.nif && i.direction === 'recibida')
               const sPend = sInv.filter(i => i.payment_status === 'pendiente').reduce((sum, i) => sum + (Number(i.amount_total) || 0), 0)
               return (<tr key={s.id} onClick={() => openDetail(s)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
-                <td className="px-4 py-3 text-sm font-medium">{s.name}</td>
-                <td className="hidden sm:table-cell px-4 py-3"><span className="text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded">{s.specialty || '—'}</span></td>
-                <td className="hidden sm:table-cell px-4 py-3 text-sm">{s.phone || '—'}</td>
-                <td className="hidden md:table-cell px-4 py-3 text-sm text-neutral-500">{s.nif || '—'}</td>
+                <td className="px-4 py-3 text-sm font-medium">{s.name}{s.active === false && <span className="ml-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 bg-neutral-100 px-1.5 py-0.5">Inactivo</span>}</td>
+                <td className="hidden sm:table-cell px-4 py-3"><span className="text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-600 px-2 py-0.5">{s.specialty ? (SPECIALTY_LABELS[s.specialty] ?? s.specialty) : '—'}</span></td>
+                <td className="hidden lg:table-cell px-4 py-3 text-sm text-neutral-500">{s.contact_person || '—'}</td>
+                <td className="hidden md:table-cell px-4 py-3 text-sm">{s.phone || '—'}</td>
+                <td className="hidden lg:table-cell px-4 py-3 text-sm text-neutral-500">{s.nif || '—'}</td>
                 <td className="hidden sm:table-cell px-4 py-3 text-sm">{sInv.length}</td>
                 <td className="px-4 py-3 text-sm font-medium">{sPend > 0 ? <span className="text-amber-600">{formatEur(sPend)}</span> : '—'}</td>
               </tr>)
@@ -145,10 +159,10 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
                     <div><label className={lbl}>NIF/CIF</label><input type="text" value={form.nif || ''} onChange={e => set('nif', e.target.value)} className={inp} /></div>
                     <div><label className={lbl}>Email</label><input type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} className={inp} /></div>
                     <div><label className={lbl}>Teléfono</label><input type="tel" value={form.phone || ''} onChange={e => set('phone', e.target.value)} className={inp} /></div>
-                    <div><label className={lbl}>Especialidad</label><select value={form.specialty || ''} onChange={e => set('specialty', e.target.value)} className={inp}><option value="">Seleccionar</option>{SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                    <div><label className={lbl}>Especialidad</label><select value={form.specialty || ''} onChange={e => set('specialty', e.target.value)} className={inp}><option value="">Seleccionar</option>{SPECIALTIES.map(s => <option key={s} value={s}>{SPECIALTY_LABELS[s] ?? s}</option>)}</select></div>
                     <div><label className={lbl}>Contacto</label><input type="text" value={form.contact_person || ''} onChange={e => set('contact_person', e.target.value)} className={inp} /></div>
                     <div><label className={lbl}>Dirección</label><input type="text" value={form.address || ''} onChange={e => set('address', e.target.value)} className={inp} /></div>
-                    <div><label className={lbl}>IBAN</label><input type="text" value={form.iban || form.bank_account || ''} onChange={e => setForm(f => f ? { ...f, iban: e.target.value, bank_account: e.target.value } : f)} className={inp} /></div>
+                    <div><label className={lbl}>IBAN</label><input type="text" value={form.bank_account || ''} onChange={e => set('bank_account', e.target.value)} className={inp} placeholder="ES00 0000 0000 0000 0000 0000" /></div>
                     <div><label className={lbl}>Condiciones pago</label><select value={form.payment_terms || ''} onChange={e => set('payment_terms', e.target.value)} className={inp}><option value="">Sin especificar</option><option value="al_contado">Al contado</option><option value="30d">30 días</option><option value="60d">60 días</option></select></div>
                     <div><label className={lbl}>Notas</label><textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={3} className={inp} /></div>
                     <div className="space-y-3 pt-4 border-t border-neutral-100">

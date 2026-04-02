@@ -130,7 +130,7 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('invoices').select('id,number,concept,amount_total,due_date,direction').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str).order('due_date',{ascending:true}),
     supabase.from('project_financials').select('code,name,budget_estimated,sale_price,income_base,expense_base,gross_margin,status').eq('status','en_curso').order('code',{ascending:true}),
     supabase.from('leads').select('id,nombre,email,tipo_proyecto,zona,created_at').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59').order('created_at',{ascending:false}).limit(10),
-    supabase.from('invoices').select('amount_total,direction,issue_date,payment_status,due_date').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('invoices').select('amount_base,vat_amount,amount_total,direction,issue_date,payment_status,due_date').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('leads').select('origen').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59'),
   ])
   // ──────────────────────────────────────────────────────────────────────────
@@ -151,13 +151,13 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   const cashFlow30Income = (facturasPorVencer || []).filter((i: {direction:string}) => i.direction==='emitida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
   const cashFlow30Expenses = (facturasPorVencer || []).filter((i: {direction:string}) => i.direction==='recibida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
 
-  // Chart: monthly breakdown
+  // Chart: monthly breakdown (use net base amounts, consistent with P&L)
   const monthlyMap = buildMonthlyMap(year, quarter, month)
   for (const inv of periodInvoices || []) {
     if (!inv.issue_date) continue
     const key = inv.issue_date.substring(0, 7)
     if (monthlyMap[key]) {
-      const amount = Number(inv.amount_total) || 0
+      const amount = getNetAmt(inv)
       if (inv.direction === 'emitida') monthlyMap[key].ingresos += amount
       else monthlyMap[key].gastos += amount
     }
@@ -224,7 +224,18 @@ export default async function AdminDashboard({
   // Data
   const stats = await getStats(year, quarter, month)
 
+  const margenPct = stats.facturacionTotal > 0
+    ? ((stats.margenBruto / stats.facturacionTotal) * 100).toFixed(1)
+    : null
+
   const kpis = [
+    {
+      label: 'Pendiente de cobro',
+      value: formatEUR(stats.totalPendienteCobro),
+      sub: `${stats.countPendienteCobro} ${stats.countPendienteCobro === 1 ? 'factura' : 'facturas'} pendientes`,
+      color: stats.totalPendienteCobro > 0 ? 'text-amber-600' : 'text-neutral-900',
+      href: '/admin/facturas',
+    },
     {
       label: 'Facturación total',
       value: formatEUR(stats.facturacionTotal),
@@ -232,35 +243,30 @@ export default async function AdminDashboard({
       href: '/admin/facturas',
     },
     {
-      label: 'Gastos totales',
-      value: formatEUR(stats.gastosTotal),
-      color: 'text-neutral-900',
-      href: '/admin/facturas',
-    },
-    {
       label: 'Margen bruto',
       value: formatEUR(stats.margenBruto),
+      sub: margenPct ? `${margenPct}% sobre facturación` : undefined,
       color: stats.margenBruto >= 0 ? 'text-green-600' : 'text-red-600',
       href: '/admin/informes',
     },
     {
+      label: 'Pendiente de pago',
+      value: formatEUR(stats.totalPendientePago),
+      sub: `${stats.countPendientePago} ${stats.countPendientePago === 1 ? 'factura' : 'facturas'} por pagar`,
+      color: stats.totalPendientePago > 0 ? 'text-amber-600' : 'text-neutral-900',
+      href: '/admin/facturas',
+    },
+    {
       label: 'Proyectos activos',
       value: String(stats.proyectosActivos),
+      sub: 'en curso actualmente',
       color: 'text-neutral-900',
       href: '/admin/proyectos',
     },
     {
-      label: 'Pendiente de cobro',
-      value: formatEUR(stats.totalPendienteCobro),
-      sub: `${stats.countPendienteCobro} facturas · acumulado`,
-      color: 'text-amber-600',
-      href: '/admin/facturas',
-    },
-    {
-      label: 'Pendiente de pago',
-      value: formatEUR(stats.totalPendientePago),
-      sub: `${stats.countPendientePago} facturas · acumulado`,
-      color: 'text-amber-600',
+      label: 'Gastos totales',
+      value: formatEUR(stats.gastosTotal),
+      color: 'text-neutral-900',
       href: '/admin/facturas',
     },
   ]
@@ -299,79 +305,6 @@ export default async function AdminDashboard({
             </p>
           </Link>
         ))}
-      </div>
-
-      {/* ── Charts ── */}
-      <DashboardCharts
-        monthlyData={stats.monthlyData}
-        invoiceStatus={stats.invoiceStatus}
-        leadSources={stats.leadSources}
-      />
-
-      {/* ── Two-column: IVA + Flujo de Caja ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-        {/* IVA Trimestral */}
-        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
-          <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-              IVA &mdash; Q{stats.vatQuarter} {year}
-            </h2>
-            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
-          </div>
-          <div className="p-5">
-            {stats.vat ? (
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-lg font-bold text-neutral-900">
-                    {formatEUR(stats.vat.vat_repercutido)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
-                    Repercutido
-                  </p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-neutral-900">
-                    {formatEUR(stats.vat.vat_soportado)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
-                    Soportado
-                  </p>
-                </div>
-                <div>
-                  <p
-                    className={`text-lg font-bold ${
-                      (stats.vat.cuota_a_ingresar ?? 0) >= 0
-                        ? 'text-red-600'
-                        : 'text-green-600'
-                    }`}
-                  >
-                    {formatEUR(stats.vat.cuota_a_ingresar)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
-                    Cuota a ingresar
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-neutral-400 text-center py-4">
-                Sin datos de IVA para este trimestre
-              </p>
-            )}
-          </div>
-        </Link>
-
-        {/* Flujo de Caja - próximos 30 días */}
-        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
-          <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-              Flujo de Caja &mdash; próximos 30 días
-            </h2>
-            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
-          </div>
-          <div className="p-5">
-            <CashFlowBar income={stats.cashFlow30Income} expenses={stats.cashFlow30Expenses} />
-          </div>
-        </Link>
       </div>
 
       {/* ── Facturas por vencer ── */}
@@ -464,6 +397,7 @@ export default async function AdminDashboard({
       </div>
 
       {/* ── Proyectos activos con rentabilidad ── */}
+
       <div className="bg-white border border-neutral-100 rounded mb-10">
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
@@ -568,6 +502,79 @@ export default async function AdminDashboard({
         )}
       </div>
 
+      {/* ── Charts ── */}
+      <DashboardCharts
+        monthlyData={stats.monthlyData}
+        invoiceStatus={stats.invoiceStatus}
+        leadSources={stats.leadSources}
+      />
+
+      {/* ── Two-column: IVA + Flujo de Caja ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+        {/* IVA Trimestral */}
+        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
+          <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+              IVA &mdash; Q{stats.vatQuarter} {year}
+            </h2>
+            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
+          </div>
+          <div className="p-5">
+            {stats.vat ? (
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-lg font-bold text-neutral-900">
+                    {formatEUR(stats.vat.vat_repercutido)}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
+                    Repercutido
+                  </p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-neutral-900">
+                    {formatEUR(stats.vat.vat_soportado)}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
+                    Soportado
+                  </p>
+                </div>
+                <div>
+                  <p
+                    className={`text-lg font-bold ${
+                      (stats.vat.cuota_a_ingresar ?? 0) >= 0
+                        ? 'text-red-600'
+                        : 'text-green-600'
+                    }`}
+                  >
+                    {formatEUR(stats.vat.cuota_a_ingresar)}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
+                    Cuota a ingresar
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-neutral-400 text-center py-4">
+                Sin datos de IVA para este trimestre
+              </p>
+            )}
+          </div>
+        </Link>
+
+        {/* Flujo de Caja - próximos 30 días */}
+        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
+          <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+              Flujo de Caja &mdash; próximos 30 días
+            </h2>
+            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
+          </div>
+          <div className="p-5">
+            <CashFlowBar income={stats.cashFlow30Income} expenses={stats.cashFlow30Expenses} />
+          </div>
+        </Link>
+      </div>
+
       {/* ── Leads recientes ── */}
       <div className="bg-white border border-neutral-100 rounded">
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
@@ -583,7 +590,7 @@ export default async function AdminDashboard({
         </div>
         {stats.recentLeads.length === 0 ? (
           <div className="p-8 text-center text-sm text-neutral-400">
-            No hay leads en los &uacute;ltimos 7 d&iacute;as
+            No hay leads en este periodo
           </div>
         ) : (
           <div className="overflow-x-auto">
