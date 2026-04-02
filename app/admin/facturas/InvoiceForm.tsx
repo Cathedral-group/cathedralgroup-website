@@ -30,6 +30,7 @@ interface Invoice {
   numero_factura_original: string | null
   direccion_obra?: string | null
   tipo_operacion_iva?: string | null
+  lineas?: { descripcion: string; cantidad?: number | null; precio_unitario?: number | null; importe?: number | null }[] | null
   notes: string | null
   sent_at?: string | null
   sent_channel?: string | null
@@ -104,6 +105,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
   const [clientContact, setClientContact] = useState<{ name?: string; email?: string; phone?: string } | null>(null)
   const [creatingSupplier, setCreatingSupplier] = useState(false)
   const [supplierCreated, setSupplierCreated] = useState(false)
+  const [lineasOpen, setLineasOpen] = useState(false)
 
   async function openSendModal() {
     // Try to get client contact from project → client chain
@@ -642,7 +644,53 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
           )}
         </div>
 
-        {/* 8. Dirección obra + Notes */}
+        {/* 8. Líneas de partida */}
+        {Array.isArray(form.lineas) && form.lineas.length > 0 && (
+          <div className={sectionCls}>
+            <button
+              type="button"
+              onClick={() => setLineasOpen((v) => !v)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <p className={sectionTitle + ' mb-0'}>
+                Líneas ({form.lineas.length})
+              </p>
+              <span className="text-neutral-400 text-sm">{lineasOpen ? '▲' : '▼'}</span>
+            </button>
+            {lineasOpen && (
+              <div className="mt-3 border border-neutral-100 rounded overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-neutral-50 border-b border-neutral-100">
+                      <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-400">Descripción</th>
+                      <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-neutral-400 hidden sm:table-cell">Cant.</th>
+                      <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-neutral-400 hidden sm:table-cell">P. Unit.</th>
+                      <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-neutral-400">Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-50">
+                    {form.lineas.map((l, i) => (
+                      <tr key={i} className="hover:bg-neutral-50">
+                        <td className="px-3 py-2 text-neutral-700">{l.descripcion}</td>
+                        <td className="px-3 py-2 text-right text-neutral-500 hidden sm:table-cell">
+                          {l.cantidad != null ? l.cantidad : '--'}
+                        </td>
+                        <td className="px-3 py-2 text-right text-neutral-500 hidden sm:table-cell">
+                          {l.precio_unitario != null ? l.precio_unitario.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) : '--'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium text-neutral-700">
+                          {l.importe != null ? l.importe.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) : '--'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 9. Dirección obra + Notes */}
         <div className={sectionCls}>
           <p className={sectionTitle}>Obra y notas</p>
           <div className="mb-3">
