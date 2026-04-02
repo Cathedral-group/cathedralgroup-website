@@ -3,10 +3,17 @@
 import { useState, useMemo } from 'react'
 import TabPanel from '@/components/admin/TabPanel'
 
+// Only these doc_types represent real monetary transactions
+const FINANCIAL_DOC_TYPES = new Set([
+  'factura', 'ticket', 'proforma', 'certificado', 'rectificativa',
+  'abono', 'nomina', 'modelo_fiscal', 'seguro', 'justificante_pago',
+])
+
 interface Invoice {
   id: string
   number: string | null
   direction: 'emitida' | 'recibida'
+  doc_type: string | null
   amount_base: number | null
   amount_total: number | null
   vat_amount: number | null
@@ -125,7 +132,10 @@ function getNetAmount(inv: Invoice): number {
 
 // ─── P&L Tab ───
 function PnLTab({ invoices, year, quarter, month }: { invoices: Invoice[]; year: number; quarter: number | null; month: number | null }) {
-  const filtered = useMemo(() => filterByPeriod(invoices, year, quarter, month), [invoices, year, quarter, month])
+  const filtered = useMemo(
+    () => filterByPeriod(invoices, year, quarter, month).filter((inv) => !inv.doc_type || FINANCIAL_DOC_TYPES.has(inv.doc_type)),
+    [invoices, year, quarter, month]
+  )
 
   const totalIngresos = useMemo(
     () =>
@@ -255,6 +265,9 @@ function CashFlowTab({ invoices, year, quarter, month }: { invoices: Invoice[]; 
       let gastos = 0
 
       invoices.forEach((inv) => {
+        // Only count financial documents
+        if (inv.doc_type && !FINANCIAL_DOC_TYPES.has(inv.doc_type)) return
+
         // For past months: use payment_date; for current/future: use due_date for pending
         let dateStr: string | null = null
         if (isPast) {
@@ -281,7 +294,7 @@ function CashFlowTab({ invoices, year, quarter, month }: { invoices: Invoice[]; 
         if (parts.length < 3 || parts.some(isNaN)) return
         if (parts[0] !== m.year || parts[1] - 1 !== m.month) return
 
-        const amount = Number(inv.amount_total) || 0
+        const amount = getNetAmount(inv)
         if (inv.direction === 'emitida') {
           ingresos += amount
         } else {

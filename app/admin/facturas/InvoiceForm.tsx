@@ -244,7 +244,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
       const res = await fetch('/api/db/suppliers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.empresa, cif: form.supplier_nif }),
+        body: JSON.stringify({ name: form.empresa, nif: form.supplier_nif }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))

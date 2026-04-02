@@ -117,6 +117,11 @@ export default function ClientsView({ clients: initialClients, projects, invoice
   const [editForm, setEditForm] = useState<Partial<Client>>({})
   const [deletingInline, setDeletingInline] = useState<string | null>(null)
 
+  // New client modal
+  const [showNewForm, setShowNewForm] = useState(false)
+  const [newClientForm, setNewClientForm] = useState({ name: '', email: '', phone: '', type: 'particular', source: '', company_name: '' })
+  const [savingNew, setSavingNew] = useState(false)
+
   // Communications inline form
   const [commForm, setCommForm] = useState({ type: 'llamada', summary: '', date: new Date().toISOString().slice(0, 10) })
   const [savingComm, setSavingComm] = useState(false)
@@ -147,6 +152,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
     const m: Record<string, number> = {}
     invoices.forEach((inv) => {
       if (!inv.proyecto_code) return
+      if (inv.direction !== 'emitida') return
       const clientId = projectCodeToClientId[inv.proyecto_code]
       if (!clientId) return
       const total = inv.amount_total ?? 0
@@ -256,6 +262,39 @@ export default function ClientsView({ clients: initialClients, projects, invoice
     setDeletingInline(null)
   }
 
+  async function createClient() {
+    if (!newClientForm.name.trim()) return
+    setSavingNew(true)
+    try {
+      const res = await fetch('/api/db/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newClientForm.name.trim(),
+          email: newClientForm.email || null,
+          phone: newClientForm.phone || null,
+          type: newClientForm.type || 'particular',
+          source: newClientForm.source || null,
+          company_name: newClientForm.company_name || null,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      const { data } = await res.json()
+      if (data) {
+        setClients((prev) => [data as Client, ...prev])
+        setShowNewForm(false)
+        setNewClientForm({ name: '', email: '', phone: '', type: 'particular', source: '', company_name: '' })
+      }
+    } catch (err) {
+      alert('Error al crear cliente: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSavingNew(false)
+    }
+  }
+
   async function addCommunication() {
     if (!selected || !commForm.summary.trim()) return
     setSavingComm(true)
@@ -345,7 +384,9 @@ export default function ClientsView({ clients: initialClients, projects, invoice
         return projectCodeToClientId[inv.proyecto_code] === selected.id
       })
     : []
-  const clientTotalInvoiced = clientInvoices.reduce((s, i) => s + (i.amount_total ?? 0), 0)
+  const clientTotalInvoiced = clientInvoices
+    .filter((i) => i.direction === 'emitida')
+    .reduce((s, i) => s + (i.amount_total ?? 0), 0)
   const clientComms = selected ? comms.filter((c) => c.entity_id === selected.id) : []
 
   /* ───────── Table columns ───────── */
@@ -419,14 +460,109 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       {/* Header + Search */}
       <div className="flex flex-wrap items-center gap-3 justify-between mb-6">
         <h1 className="text-xl font-medium uppercase tracking-wide">Clientes</h1>
-        <input
-          type="text"
-          placeholder="Buscar cliente..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-64"
-        />
+        <div className="flex items-center gap-3 flex-wrap">
+          <input
+            type="text"
+            placeholder="Buscar cliente..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-64"
+          />
+          <button
+            onClick={() => setShowNewForm(true)}
+            className="bg-neutral-900 text-white px-5 py-2 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors whitespace-nowrap"
+          >
+            + Nuevo cliente
+          </button>
+        </div>
       </div>
+
+      {/* New client modal */}
+      {showNewForm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md p-6 shadow-xl">
+            <h2 className="text-sm font-bold uppercase tracking-widest mb-5">Nuevo cliente</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className={labelCls}>Nombre *</label>
+                  <input
+                    type="text"
+                    value={newClientForm.name}
+                    onChange={(e) => setNewClientForm({ ...newClientForm, name: e.target.value })}
+                    className={inputCls}
+                    placeholder="Nombre completo"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Email</label>
+                  <input
+                    type="email"
+                    value={newClientForm.email}
+                    onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Teléfono</label>
+                  <input
+                    type="tel"
+                    value={newClientForm.phone}
+                    onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Empresa</label>
+                  <input
+                    type="text"
+                    value={newClientForm.company_name}
+                    onChange={(e) => setNewClientForm({ ...newClientForm, company_name: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Tipo</label>
+                  <select
+                    value={newClientForm.type}
+                    onChange={(e) => setNewClientForm({ ...newClientForm, type: e.target.value })}
+                    className={inputCls}
+                  >
+                    {CLIENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className={labelCls}>Origen</label>
+                  <select
+                    value={newClientForm.source}
+                    onChange={(e) => setNewClientForm({ ...newClientForm, source: e.target.value })}
+                    className={inputCls}
+                  >
+                    <option value="">Sin especificar</option>
+                    {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={createClient}
+                disabled={savingNew || !newClientForm.name.trim()}
+                className="bg-primary text-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/90 disabled:opacity-50"
+              >
+                {savingNew ? 'Guardando...' : 'Crear cliente'}
+              </button>
+              <button
+                onClick={() => setShowNewForm(false)}
+                className="text-neutral-500 hover:text-neutral-700 text-xs font-bold uppercase tracking-widest"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Type filters */}
       <div className="flex gap-3 mb-6 flex-wrap">

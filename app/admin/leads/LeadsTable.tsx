@@ -181,6 +181,35 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
     { key: 'tipo_proyecto', label: 'Tipo' },
     { key: 'zona', label: 'Zona' },
     {
+      key: 'origen',
+      label: 'Origen',
+      render: (val: unknown) => {
+        if (!val) return <span className="text-neutral-300">—</span>
+        const s = String(val)
+        // Shorten common origins for table display
+        const short: Record<string, string> = {
+          'Web (cathedralgroup.es)': 'Web',
+          'Referido / Boca a boca': 'Referido',
+          'Google Ads': 'G. Ads',
+          'Google Business': 'G. Business',
+          'Llamada telefónica': 'Llamada',
+          'Email directo': 'Email',
+          'Idealista / Portal inmobiliario': 'Idealista',
+        }
+        return <span className="text-xs text-neutral-500">{short[s] ?? s}</span>
+      },
+    },
+    {
+      key: 'lead_score',
+      label: 'Score',
+      render: (val: unknown) => {
+        if (val == null || val === '') return <span className="text-neutral-300">—</span>
+        const score = Number(val)
+        const color = score >= 70 ? 'text-green-600' : score >= 40 ? 'text-amber-500' : 'text-red-500'
+        return <span className={`text-xs font-bold tabular-nums ${color}`}>{score}</span>
+      },
+    },
+    {
       key: 'lead_status',
       label: 'Estado',
       render: (val: unknown) => <StatusBadge status={String(val || 'nuevo')} />,
