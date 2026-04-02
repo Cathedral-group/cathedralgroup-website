@@ -220,7 +220,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     setSaving(true)
     const ef = editForm as Record<string, unknown>
     const payload: Record<string, unknown> = {}
-    const FIELDS = ['code', 'name', 'client_id', 'type', 'status', 'address',
+    const FIELDS = ['code', 'name', 'client_id', 'type', 'status', 'address', 'description',
       'budget_estimated', 'sale_price', 'start_date', 'end_date_planned', 'end_date_real',
       'notes', 'drive_folder_url']
     for (const f of FIELDS) payload[f] = ef[f] ?? null
@@ -717,7 +717,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               {activeTab === 'general' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label="Codigo" name="code" />
+                    <Field label="Código" name="code" />
                     <Field label="Nombre" name="name" />
                   </div>
 
@@ -758,7 +758,8 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                     </div>
                   </div>
 
-                  <Field label="Direccion" name="address" />
+                  <Field label="Dirección" name="address" />
+                  <Field label="Descripción del proyecto" name="description" type="textarea" />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Presupuesto estimado" name="budget_estimated" type="number" />
@@ -772,6 +773,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   </div>
 
                   <Field label="Notas" name="notes" type="textarea" />
+                  <Field label="Carpeta Google Drive (URL)" name="drive_folder_url" />
                 </div>
               )}
 
@@ -888,7 +890,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                       }}
                       className="text-[10px] font-bold uppercase tracking-widest text-primary hover:text-primary/80"
                     >
-                      + Anadir fase
+                      + Añadir fase
                     </button>
                   )}
                 </div>
@@ -998,7 +1000,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               <button
                 onClick={saveProject}
                 disabled={saving}
-                className="bg-neutral-900 text-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-[#5A5550] disabled:opacity-50 transition-colors"
+                className="bg-neutral-900 text-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary disabled:opacity-50 transition-colors"
               >
                 {saving ? 'Guardando...' : 'Guardar'}
               </button>
