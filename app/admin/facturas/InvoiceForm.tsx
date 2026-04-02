@@ -24,6 +24,7 @@ interface Invoice {
   payment_status: string
   payment_method: string | null
   proyecto_code: string | null
+  project_id?: string | null
   supplier_nif: string | null
   categoria_gasto: string | null
   es_rectificativa: boolean
@@ -81,6 +82,7 @@ const DEFAULTS: Invoice = {
   payment_status: 'pendiente',
   payment_method: null,
   proyecto_code: null,
+  project_id: null,
   supplier_nif: null,
   categoria_gasto: null,
   es_rectificativa: false,
@@ -109,9 +111,12 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
 
   async function openSendModal() {
     // Try to get client contact from project → client chain
-    if (form.proyecto_code && !clientContact) {
+    if ((form.project_id || form.proyecto_code) && !clientContact) {
       try {
-        const projRes = await fetch(`/api/db/projects?code=${encodeURIComponent(form.proyecto_code)}`)
+        const projQuery = form.project_id
+          ? `/api/db/projects?id=${encodeURIComponent(form.project_id)}`
+          : `/api/db/projects?code=${encodeURIComponent(form.proyecto_code!)}`
+        const projRes = await fetch(projQuery)
         if (projRes.ok) {
           const projData = await projRes.json()
           const project = Array.isArray(projData.data) ? projData.data[0] : projData.data
@@ -571,8 +576,23 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
             <LinkedSelect
               label="Proyecto"
               options={projects}
-              value={form.proyecto_code}
-              onChange={(v) => set('proyecto_code', v || null)}
+              value={form.project_id ?? null}
+              onChange={(v) => {
+                setForm(prev => {
+                  const updated = { ...prev, project_id: v || null }
+                  if (v) {
+                    // Also set proyecto_code for backwards compatibility with n8n
+                    const proj = projects.find(p => p.value === v)
+                    if (proj) {
+                      const code = proj.label.includes(' - ') ? proj.label.split(' - ')[0] : proj.label
+                      updated.proyecto_code = code
+                    }
+                  } else {
+                    updated.proyecto_code = null
+                  }
+                  return updated
+                })
+              }}
               placeholder="Sin proyecto"
             />
             <LinkedSelect

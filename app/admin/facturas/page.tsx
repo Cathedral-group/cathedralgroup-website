@@ -13,12 +13,12 @@ export default async function FacturasPage() {
     fetchAllRows((sb) =>
       sb.from('invoices').select('*').is('deleted_at', null).order('issue_date', { ascending: false })
     ),
-    supabase.from('projects').select('code, name').is('deleted_at', null),
+    supabase.from('projects').select('id, code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
   ])
 
   const projects = (projectsRes.data ?? []).map((p) => ({
-    value: p.code,
+    value: p.id,
     label: `${p.code} - ${p.name}`,
   }))
 

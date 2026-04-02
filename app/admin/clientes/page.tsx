@@ -15,7 +15,7 @@ export default async function ClientesPage() {
     fetchAllRows((sb) =>
       sb
         .from('invoices')
-        .select('id, number, concept, direction, amount_base, vat_amount, amount_total, payment_status, proyecto_code, issue_date')
+        .select('id, number, concept, direction, amount_base, vat_amount, amount_total, payment_status, proyecto_code, project_id, issue_date')
         .is('deleted_at', null)
     ),
     supabase.from('communications').select('*').eq('entity_type', 'client').order('date', { ascending: false }),

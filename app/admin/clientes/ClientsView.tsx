@@ -40,6 +40,7 @@ interface Invoice {
   amount_total?: number | null
   payment_status?: string | null
   proyecto_code?: string | null
+  project_id?: string | null
   issue_date?: string | null
 }
 
@@ -157,17 +158,27 @@ export default function ClientsView({ clients: initialClients, projects, invoice
     return m
   }, [projects])
 
+  // Map project UUIDs to client IDs
+  const projectIdToClientId = useMemo(() => {
+    const m: Record<string, string> = {}
+    projects.forEach((p) => {
+      if (p.client_id) m[p.id] = p.client_id
+    })
+    return m
+  }, [projects])
+
   const invoiceTotalsByClient = useMemo(() => {
     const m: Record<string, number> = {}
     invoices.forEach((inv) => {
-      if (!inv.proyecto_code) return
       if (inv.direction !== 'emitida') return
-      const clientId = projectCodeToClientId[inv.proyecto_code]
+      // Prefer project_id (UUID FK), fall back to proyecto_code (string FK)
+      const clientId = (inv.project_id ? projectIdToClientId[inv.project_id] : null)
+        ?? (inv.proyecto_code ? projectCodeToClientId[inv.proyecto_code] : null)
       if (!clientId) return
       m[clientId] = (m[clientId] || 0) + getNetAmt(inv)
     })
     return m
-  }, [invoices, projectCodeToClientId])
+  }, [invoices, projectIdToClientId, projectCodeToClientId])
 
   const filtered = useMemo(() => {
     let list = clients
@@ -388,8 +399,9 @@ export default function ClientsView({ clients: initialClients, projects, invoice
   const clientProjects = selected ? (projectsByClient[selected.id] || []) : []
   const clientInvoices = selected
     ? invoices.filter((inv) => {
-        if (!inv.proyecto_code) return false
-        return projectCodeToClientId[inv.proyecto_code] === selected.id
+        const clientId = (inv.project_id ? projectIdToClientId[inv.project_id] : null)
+          ?? (inv.proyecto_code ? projectCodeToClientId[inv.proyecto_code] : null)
+        return clientId === selected.id
       })
     : []
   const clientTotalInvoiced = clientInvoices
