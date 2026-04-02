@@ -134,8 +134,26 @@ function DueDate({ date, status, estimated }: { date: string | null; status: str
   return <span className={color} title={estimated ? 'Fecha estimada (+21 días)' : undefined}>{formatDate(date)}{estimated ? ' *' : ''}</span>
 }
 
+// Parse §PROYECTO_SUGERIDO:CODE:CONF%:RAZON from ai_razones array
+function parseSugerido(razones: string[] | null | undefined): { code: string; conf: number; razon: string } | null {
+  if (!razones) return null
+  for (const r of razones) {
+    if (r.startsWith('§PROYECTO_SUGERIDO:')) {
+      const parts = r.replace('§PROYECTO_SUGERIDO:', '').split(':')
+      if (parts.length >= 1) {
+        const code = parts[0]
+        const conf = parts[1] ? parseFloat(parts[1]) / 100 : 0
+        const razon = parts.slice(2).join(':')
+        return { code, conf, razon }
+      }
+    }
+  }
+  return null
+}
+
 export default function InvoicesView({ initialData, projects, suppliers }: InvoicesViewProps) {
   const [data, setData] = useState<Invoice[]>(initialData)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   // Sync state when server sends fresh data after router.refresh()
   useEffect(() => {
@@ -376,6 +394,42 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
     alert(`${deleted} facturas duplicadas eliminadas.`)
   }
 
+  const confirmProject = async (inv: Invoice, code: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!inv.id) return
+    setConfirmingId(inv.id)
+    // Find UUID from project code
+    const proj = projects.find(p => {
+      const labelCode = p.label.includes(' - ') ? p.label.split(' - ')[0] : p.label
+      return labelCode.trim().toUpperCase() === code.trim().toUpperCase()
+    })
+    try {
+      const res = await fetch('/api/db/invoices', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: inv.id,
+          project_id: proj?.value ?? null,
+          proyecto_code: code,
+          needs_review: false,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      const { data: updated } = await res.json()
+      setData(prev => prev.map(r => r.id === inv.id
+        ? (updated ?? { ...r, project_id: proj?.value ?? null, proyecto_code: code, needs_review: false }) as Invoice
+        : r
+      ))
+    } catch (err) {
+      alert('Error al confirmar proyecto: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setConfirmingId(null)
+    }
+  }
+
   const markAsPaid = async (inv: Invoice, e: React.MouseEvent) => {
     e.stopPropagation()
     const today = new Date().toISOString().slice(0, 10)
@@ -525,9 +579,9 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                       })()}
                     </td>
                     <td className="px-4 py-3"><DirectionBadge dir={inv.direction} /></td>
-                    <td className="hidden sm:table-cell px-4 py-3 text-sm max-w-[200px]">
+                    <td className="hidden sm:table-cell px-4 py-3 text-sm max-w-[220px]">
                       <span className="block truncate">{inv.concept}</span>
-                      {(inv.project_id || inv.proyecto_code) && (() => {
+                      {(inv.project_id || inv.proyecto_code) ? (() => {
                         const label = inv.project_id
                           ? (projectMap[inv.project_id] ?? inv.proyecto_code ?? inv.project_id)
                           : inv.proyecto_code
@@ -536,6 +590,20 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                             {label}
                           </span>
                         ) : null
+                      })() : (() => {
+                        const sug = parseSugerido(inv.ai_razones)
+                        if (!sug) return null
+                        const isConfirming = confirmingId === inv.id
+                        return (
+                          <button
+                            onClick={(e) => confirmProject(inv, sug.code, e)}
+                            disabled={isConfirming}
+                            title={sug.razon || `Sugerido con ${Math.round(sug.conf * 100)}% confianza`}
+                            className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 bg-violet-50 border border-violet-200 text-violet-700 text-[10px] font-bold uppercase tracking-wider hover:bg-violet-100 transition-colors disabled:opacity-50 rounded-sm"
+                          >
+                            {isConfirming ? '...' : `✓ ${sug.code}`}
+                          </button>
+                        )
                       })()}
                     </td>
                     <td className="hidden md:table-cell px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.amount_base)}</td>
