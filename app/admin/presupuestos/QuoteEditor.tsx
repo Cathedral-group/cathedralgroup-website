@@ -15,7 +15,7 @@ interface QuoteItem {
   unit_price: number
   base_unit_price?: number        // catalog base price before quality coefficient
   quality_level?: string          // per-item quality override
-  quality_coefficient_override?: number  // custom coefficient when quality_level === 'personalizado'
+  quality_coefficient_override?: number | null  // custom coefficient when quality_level === 'personalizado'
   chapter_code?: string           // from catalog, used for sorting
   chapter_name?: string           // from catalog, used for sorting
   notes?: string                  // per-item observation or clarification
@@ -266,6 +266,7 @@ export default function QuoteEditor({
   const [catalogDropdownPos, setCatalogDropdownPos] = useState({ top: 0, left: 0 })
   const [certModalOpen, setCertModalOpen] = useState(false)
   const [certDraft, setCertDraft] = useState<number[]>([])
+  const [certDraftMap, setCertDraftMap] = useState<Map<string, number>>(new Map())
   const [closingCert, setClosingCert] = useState(false)
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
   const savedIdRef = useRef<string | undefined>(quote?.id)
@@ -670,16 +671,22 @@ export default function QuoteEditor({
 
   /* ── Certification helpers ── */
   const openCertModal = () => {
+    // Use description as key to avoid positional index bugs when items are reordered
     setCertDraft(form.items.map((it) => it.certified_pct))
+    setCertDraftMap(new Map(form.items.map((it, i) => [it.description, certDraft[i] ?? it.certified_pct])))
     setCertModalOpen(true)
   }
 
   const applyCertification = () => {
     setForm((prev) => {
-      const items = prev.items.map((item, i) => ({
-        ...item,
-        certified_pct: Math.max(item.certified_pct, certDraft[i] ?? item.certified_pct),
-      }))
+      const items = prev.items.map((item) => {
+        // Prefer map lookup by description; fallback to current value
+        const draftPct = certDraftMap?.get(item.description) ?? item.certified_pct
+        return {
+          ...item,
+          certified_pct: Math.max(item.certified_pct, draftPct),
+        }
+      })
       return { ...prev, items }
     })
     setCertModalOpen(false)
@@ -717,10 +724,15 @@ export default function QuoteEditor({
     const totalAmount = Math.round((totalBase + totalVat) * 100) / 100
 
     const concept = `Certificacion ${form.number} — ${lines.join('; ')}`
-    const avgVat =
-      form.items.length > 0
-        ? form.items.reduce((s, it) => s + it.vat_pct, 0) / form.items.length
-        : 21
+    // Weighted average VAT of items that participate in this certification (by base amount)
+    const certItems = form.items.filter(it => (it.certified_pct - it.invoiced_pct) > 0 && it.total > 0)
+    const avgVat = certItems.length > 0
+      ? (() => {
+          const totalBase = certItems.reduce((s, it) => s + it.quantity * it.unit_price, 0)
+          if (totalBase === 0) return 21
+          return certItems.reduce((s, it) => s + it.vat_pct * (it.quantity * it.unit_price), 0) / totalBase
+        })()
+      : 21
 
     const invoicePayload = {
       direction: 'emitida',
@@ -860,7 +872,7 @@ export default function QuoteEditor({
           quality_level: newLevel,
           unit_price: Math.round(base * newCoeff * 100) / 100,
           base_unit_price: base,
-          quality_coefficient_override: newLevel === 'personalizado' && effectiveOverride != null ? effectiveOverride : undefined,
+          quality_coefficient_override: newLevel === 'personalizado' && effectiveOverride != null ? effectiveOverride : null,
         }
         updated.total = calcItemTotal(updated)
         return updated
@@ -970,7 +982,13 @@ export default function QuoteEditor({
           </div>
         )}
         <select
-          value={form.items[0]?.vat_pct ?? 21}
+          value={(() => {
+            // Show the most common VAT among items, fallback to 21
+            if (form.items.length === 0) return 21
+            const counts: Record<number, number> = {}
+            form.items.forEach(it => { counts[it.vat_pct] = (counts[it.vat_pct] || 0) + 1 })
+            return Number(Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0])
+          })()}
           onChange={(e) => handleGlobalVatChange(Number(e.target.value))}
           className="text-[10px] font-bold uppercase tracking-widest border border-neutral-200 px-2 py-1 bg-white focus:ring-1 focus:ring-primary hidden sm:block"
           title="IVA para todas las partidas"

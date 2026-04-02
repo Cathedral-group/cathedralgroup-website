@@ -67,7 +67,7 @@ function calcKpis(op: FlippingOp) {
     (op.sale_notary_cost ?? 0) +
     (op.sale_registry_cost ?? 0) +
     (op.sale_gestoria_cost ?? 0) +
-    (op.agent_commission_amount ?? 0) +
+    (op.agent_commission_amount ?? (op.sale_price ?? 0) * ((op.agent_commission_pct ?? 3) / 100)) +
     (op.plusvalia_amount ?? 0) +
     (op.is_tax_amount ?? 0)
   const benefNeto = op.sale_price ? ingreso - totalInvertido - gastosVenta : null

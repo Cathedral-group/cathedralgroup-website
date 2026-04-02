@@ -121,8 +121,8 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     { data: periodInvoices },
     { data: periodLeads },
   ] = await Promise.all([
-    supabase.from('invoices').select('amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
-    supabase.from('invoices').select('amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('projects').select('*',{count:'exact',head:true}).eq('status','en_curso').is('deleted_at',null),
     fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
     fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
@@ -135,8 +135,14 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   ])
   // ──────────────────────────────────────────────────────────────────────────
 
-  const facturacionTotal = (emitidas || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
-  const gastosTotal = (recibidas || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
+  // Usar amount_base (neto sin IVA) igual que P&L — si no existe, derivar de amount_total - vat_amount
+  function getNetAmt(i: { amount_base?: number|null; vat_amount?: number|null; amount_total?: number|null }): number {
+    if (i.amount_base != null) return Number(i.amount_base)
+    if (i.amount_total != null && i.vat_amount != null) return Number(i.amount_total) - Number(i.vat_amount)
+    return Number(i.amount_total) || 0
+  }
+  const facturacionTotal = (emitidas || []).reduce((s,i) => s + getNetAmt(i), 0)
+  const gastosTotal = (recibidas || []).reduce((s,i) => s + getNetAmt(i), 0)
   const margenBruto = facturacionTotal - gastosTotal
   const totalPendienteCobro = (pendientesCobro || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
   const countPendienteCobro = pendientesCobro?.length || 0
@@ -167,7 +173,7 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   now.setHours(0, 0, 0, 0)
   const statusCounts: Record<string,number> = { pagada:0, pendiente:0, vencida:0 }
   for (const inv of periodInvoices || []) {
-    if (inv.payment_status === 'pagada') statusCounts.pagada++
+    if (inv.payment_status === 'pagada' || inv.payment_status === 'cobrada') statusCounts.pagada++
     else if (inv.due_date && new Date(inv.due_date + 'T00:00:00') < now) statusCounts.vencida++
     else statusCounts.pendiente++
   }
@@ -246,14 +252,14 @@ export default async function AdminDashboard({
     {
       label: 'Pendiente de cobro',
       value: formatEUR(stats.totalPendienteCobro),
-      sub: `${stats.countPendienteCobro} facturas`,
+      sub: `${stats.countPendienteCobro} facturas · acumulado`,
       color: 'text-amber-600',
       href: '/admin/facturas',
     },
     {
       label: 'Pendiente de pago',
       value: formatEUR(stats.totalPendientePago),
-      sub: `${stats.countPendientePago} facturas`,
+      sub: `${stats.countPendientePago} facturas · acumulado`,
       color: 'text-amber-600',
       href: '/admin/facturas',
     },

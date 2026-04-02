@@ -158,8 +158,8 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
     const vatPct = form.vat_pct ?? 0
     const irpfRate = form.irpf_rate ?? 0
 
-    const vatAmount = Math.round(base * vatPct) / 100
-    const irpfAmount = Math.round(base * irpfRate) / 100
+    const vatAmount = Math.round(base * vatPct / 100 * 100) / 100
+    const irpfAmount = Math.round(base * irpfRate / 100 * 100) / 100
     const total = Math.round((base + vatAmount - irpfAmount) * 100) / 100
 
     setForm((prev) => ({
