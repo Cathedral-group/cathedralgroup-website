@@ -10,6 +10,7 @@ interface Invoice {
   direction: string
   doc_type: string
   number: string
+  empresa?: string | null
   concept: string
   amount_base: number | null
   vat_pct: number | null
@@ -65,6 +66,7 @@ const DEFAULTS: Invoice = {
   direction: 'recibida',
   doc_type: 'factura',
   number: '',
+  empresa: null,
   concept: '',
   amount_base: null,
   vat_pct: 21,
@@ -380,6 +382,16 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
             </div>
           </div>
           <div>
+            <label className={labelCls}>Empresa emisora</label>
+            <input
+              type="text"
+              value={form.empresa ?? ''}
+              onChange={(e) => set('empresa', e.target.value || null)}
+              className={inputCls}
+              placeholder="Ej: Leroy Merlin, Bauhaus..."
+            />
+          </div>
+          <div className="mt-3">
             <label className={labelCls}>Concepto *</label>
             <input
               type="text"

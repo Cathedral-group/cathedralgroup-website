@@ -28,6 +28,7 @@ interface Invoice {
   direction: string
   doc_type: string
   number: string
+  empresa?: string | null
   concept: string
   amount_base: number | null
   vat_pct: number | null
@@ -176,7 +177,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
       if (statusFilter !== 'todas' && inv.payment_status !== statusFilter) return false
       if (search) {
         const q = search.toLowerCase()
-        const haystack = `${inv.number} ${inv.concept} ${inv.supplier_nif ?? ''} ${inv.proyecto_code ?? ''}`.toLowerCase()
+        const haystack = `${inv.number} ${inv.concept} ${inv.empresa ?? ''} ${inv.supplier_nif ?? ''} ${inv.proyecto_code ?? ''}`.toLowerCase()
         if (!haystack.includes(q)) return false
       }
       return true
@@ -226,9 +227,9 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   }
 
   const exportCSV = () => {
-    const headers = ['Número','Tipo','Dirección','Concepto','Base','IVA%','IVA','IRPF%','IRPF','Total','Emisión','Vencimiento','Fecha pago','Estado pago','Método pago','Proyecto','Proveedor NIF','Categoría gasto','Rectificativa','Factura original','Notas']
+    const headers = ['Número','Empresa','Tipo','Dirección','Concepto','Base','IVA%','IVA','IRPF%','IRPF','Total','Emisión','Vencimiento','Fecha pago','Estado pago','Método pago','Proyecto','Proveedor NIF','Categoría gasto','Rectificativa','Factura original','Notas']
     const rows = filtered.map((inv) => [
-      inv.number, inv.doc_type, inv.direction, inv.concept,
+      inv.number, inv.empresa ?? '', inv.doc_type, inv.direction, inv.concept,
       inv.amount_base ?? '', inv.vat_pct ?? '', inv.vat_amount ?? '',
       inv.irpf_rate ?? '', inv.irpf_amount ?? '', inv.amount_total ?? '',
       inv.issue_date, inv.due_date ?? '', inv.payment_date ?? '',
@@ -479,7 +480,12 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                     onClick={() => openEdit(inv)}
                     className="cursor-pointer hover:bg-neutral-50 transition-colors"
                   >
-                    <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{inv.number || '--'}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm font-mono whitespace-nowrap">{inv.number || '--'}</span>
+                      {inv.empresa && (
+                        <div className="text-[10px] text-neutral-400 truncate max-w-[120px]" title={inv.empresa}>{inv.empresa}</div>
+                      )}
+                    </td>
                     <td className="px-4 py-3"><DirectionBadge dir={inv.direction} /></td>
                     <td className="hidden sm:table-cell px-4 py-3 text-sm max-w-[200px] truncate">{inv.concept}</td>
                     <td className="hidden md:table-cell px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.amount_base)}</td>
