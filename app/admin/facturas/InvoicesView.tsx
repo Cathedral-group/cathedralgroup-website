@@ -102,14 +102,19 @@ function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     pendiente: 'bg-amber-100 text-amber-700',
     pagada: 'bg-green-100 text-green-700',
+    cobrada: 'bg-green-100 text-green-700',
     vencida: 'bg-red-100 text-red-700',
     parcial: 'bg-purple-100 text-purple-700',
+    cancelada: 'bg-neutral-100 text-neutral-500',
+  }
+  const label: Record<string, string> = {
+    cobrada: 'pagada',
   }
   return (
     <span
       className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${map[status] ?? 'bg-neutral-100 text-neutral-500'}`}
     >
-      {status}
+      {label[status] ?? status}
     </span>
   )
 }
@@ -174,7 +179,17 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
     const list = data.filter((inv) => {
       if (categoryFilter !== 'todas' && !CATEGORY_TYPES[categoryFilter].includes(inv.doc_type)) return false
       if (dirFilter !== 'todas' && inv.direction !== dirFilter) return false
-      if (statusFilter !== 'todas' && inv.payment_status !== statusFilter) return false
+      if (statusFilter !== 'todas') {
+        if (statusFilter === 'vencida') {
+          const isVencida = inv.payment_status === 'vencida' ||
+            (inv.payment_status === 'pendiente' && !!inv.due_date && new Date(inv.due_date + 'T00:00:00') < new Date())
+          if (!isVencida) return false
+        } else if (statusFilter === 'pagada') {
+          if (inv.payment_status !== 'pagada' && inv.payment_status !== 'cobrada') return false
+        } else {
+          if (inv.payment_status !== statusFilter) return false
+        }
+      }
       if (search) {
         const q = search.toLowerCase()
         const haystack = `${inv.number} ${inv.concept} ${inv.empresa ?? ''} ${inv.supplier_nif ?? ''} ${inv.proyecto_code ?? ''}`.toLowerCase()

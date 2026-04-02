@@ -168,7 +168,11 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
     if (!deleteConfirmQuote?.id) return
     setDeletingQuote(true)
     try {
-      const res = await fetch(`/api/db/quotes?id=${deleteConfirmQuote.id}`, { method: 'DELETE' })
+      const res = await fetch('/api/db/quotes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteConfirmQuote.id }),
+      })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || `Error ${res.status}`)
