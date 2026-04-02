@@ -57,6 +57,7 @@ interface Invoice {
   sent_channel?: string | null
   due_date_estimated?: boolean | null
   direccion_obra?: string | null
+  tipo_operacion_iva?: string | null
 }
 
 interface InvoicesViewProps {

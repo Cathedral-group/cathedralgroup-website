@@ -28,6 +28,7 @@ interface Invoice {
   es_rectificativa: boolean
   numero_factura_original: string | null
   direccion_obra?: string | null
+  tipo_operacion_iva?: string | null
   notes: string | null
   sent_at?: string | null
   sent_channel?: string | null
@@ -82,6 +83,7 @@ const DEFAULTS: Invoice = {
   es_rectificativa: false,
   numero_factura_original: null,
   direccion_obra: null,
+  tipo_operacion_iva: 'nacional',
   notes: null,
   needs_review: null,
   ai_confidence: null,
@@ -542,6 +544,19 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
         {/* 7. Extra */}
         <div className={sectionCls}>
           <p className={sectionTitle}>Extra</p>
+          <div className="mb-3">
+            <label className={labelCls}>Régimen IVA</label>
+            <select
+              value={form.tipo_operacion_iva ?? 'nacional'}
+              onChange={(e) => set('tipo_operacion_iva', e.target.value)}
+              className={inputCls}
+            >
+              <option value="nacional">Nacional — IVA español normal</option>
+              <option value="intracomunitaria">Intracomunitaria — UE B2B (inversión sujeto pasivo)</option>
+              <option value="importacion_exportacion">Importación / Exportación — fuera UE</option>
+              <option value="exenta">Exenta — seguros, financiero, educación...</option>
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label className={labelCls}>Categoria gasto</label>
