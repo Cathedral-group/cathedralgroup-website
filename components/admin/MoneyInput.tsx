@@ -32,7 +32,13 @@ export default function MoneyInput({ value, onChange, label, disabled = false }:
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setRawValue(e.target.value)
+    const raw = e.target.value
+    setRawValue(raw)
+    // Also propagate valid numbers immediately so parent state is up-to-date before blur
+    const parsed = parseFloat(raw)
+    if (!isNaN(parsed)) {
+      onChange(parsed)
+    }
   }
 
   return (

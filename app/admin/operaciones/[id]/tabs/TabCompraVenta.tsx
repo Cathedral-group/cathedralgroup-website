@@ -301,7 +301,7 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
               <p className="font-bold font-mono mt-1">{eur(gastosVenta)}</p>
             </div>
             <div className={`p-3 rounded-lg text-sm ${benefNeto >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-              <p className="text-xs text-neutral-500">Benef. neto</p>
+              <p className="text-xs text-neutral-500">Benef. neto <span className="text-neutral-400">(sin reforma)</span></p>
               <p className={`font-bold font-mono mt-1 ${benefNeto >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                 {eur(benefNeto)}
               </p>
