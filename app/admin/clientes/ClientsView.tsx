@@ -35,10 +35,19 @@ interface Invoice {
   number?: string | null
   concept?: string | null
   direction?: string | null
+  amount_base?: number | null
+  vat_amount?: number | null
   amount_total?: number | null
   payment_status?: string | null
   proyecto_code?: string | null
   issue_date?: string | null
+}
+
+function getNetAmt(inv: Pick<Invoice, 'amount_base' | 'vat_amount' | 'amount_total'>): number {
+  if (inv.amount_base != null) return Number(inv.amount_base)
+  const total = inv.amount_total ? Number(inv.amount_total) : 0
+  const vat = inv.vat_amount ? Number(inv.vat_amount) : 0
+  return total > 0 && vat > 0 ? total - vat : total
 }
 
 interface Communication {
@@ -155,8 +164,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       if (inv.direction !== 'emitida') return
       const clientId = projectCodeToClientId[inv.proyecto_code]
       if (!clientId) return
-      const total = inv.amount_total ?? 0
-      m[clientId] = (m[clientId] || 0) + total
+      m[clientId] = (m[clientId] || 0) + getNetAmt(inv)
     })
     return m
   }, [invoices, projectCodeToClientId])

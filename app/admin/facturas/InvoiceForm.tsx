@@ -579,7 +579,23 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
               label="Proveedor (NIF)"
               options={suppliers}
               value={form.supplier_nif}
-              onChange={(v) => set('supplier_nif', v || null)}
+              onChange={(v) => {
+                setForm(prev => {
+                  const updated = { ...prev, supplier_nif: v || null }
+                  // Auto-fill empresa with supplier name if empresa is currently empty
+                  if (v && !prev.empresa) {
+                    const sup = suppliers.find(s => s.value === v)
+                    if (sup) {
+                      // label format: "NIF - Name"
+                      const name = sup.label.includes(' - ')
+                        ? sup.label.split(' - ').slice(1).join(' - ')
+                        : sup.label
+                      updated.empresa = name || null
+                    }
+                  }
+                  return updated
+                })
+              }}
               placeholder="Sin proveedor"
             />
           </div>

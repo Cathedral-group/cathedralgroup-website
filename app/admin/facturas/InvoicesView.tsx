@@ -236,6 +236,27 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
     return list
   }, [data, categoryFilter, dirFilter, statusFilter, search, sortField, sortDir])
 
+  // Maps for resolving names from FK references
+  const supplierMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    suppliers.forEach(s => {
+      // label format: "NIF - Name"
+      const name = s.label.includes(' - ') ? s.label.split(' - ').slice(1).join(' - ') : s.label
+      if (s.value) m[s.value] = name
+    })
+    return m
+  }, [suppliers])
+
+  const projectMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    projects.forEach(p => {
+      // label format: "CODE - Name"
+      const name = p.label.includes(' - ') ? p.label.split(' - ').slice(1).join(' - ') : p.label
+      if (p.value) m[p.value] = name
+    })
+    return m
+  }, [projects])
+
   const openNew = () => {
     setEditingInvoice(null)
     setFormOpen(true)
@@ -497,12 +518,22 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                   >
                     <td className="px-4 py-3">
                       <span className="text-sm font-mono whitespace-nowrap">{inv.number || '--'}</span>
-                      {inv.empresa && (
-                        <div className="text-[10px] text-neutral-400 truncate max-w-[120px]" title={inv.empresa}>{inv.empresa}</div>
-                      )}
+                      {(() => {
+                        const displayName = inv.empresa || (inv.supplier_nif ? supplierMap[inv.supplier_nif] : null)
+                        return displayName ? (
+                          <div className="text-[10px] text-neutral-400 truncate max-w-[120px]" title={displayName}>{displayName}</div>
+                        ) : null
+                      })()}
                     </td>
                     <td className="px-4 py-3"><DirectionBadge dir={inv.direction} /></td>
-                    <td className="hidden sm:table-cell px-4 py-3 text-sm max-w-[200px] truncate">{inv.concept}</td>
+                    <td className="hidden sm:table-cell px-4 py-3 text-sm max-w-[200px]">
+                      <span className="block truncate">{inv.concept}</span>
+                      {inv.proyecto_code && (
+                        <span className="text-[10px] text-neutral-400 truncate block" title={projectMap[inv.proyecto_code] ? `${inv.proyecto_code} - ${projectMap[inv.proyecto_code]}` : inv.proyecto_code}>
+                          {inv.proyecto_code}{projectMap[inv.proyecto_code] ? ` · ${projectMap[inv.proyecto_code]}` : ''}
+                        </span>
+                      )}
+                    </td>
                     <td className="hidden md:table-cell px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.amount_base)}</td>
                     <td className="hidden md:table-cell px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.vat_amount)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-right font-semibold">{formatEur(inv.amount_total)}</td>

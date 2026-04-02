@@ -14,7 +14,7 @@ export default async function ProveedoresPage() {
     fetchAllRows((sb) =>
       sb
         .from('invoices')
-        .select('id, number, concept, direction, amount_total, payment_status, proyecto_code, supplier_nif, issue_date, payment_date')
+        .select('id, number, concept, direction, amount_base, vat_amount, amount_total, payment_status, proyecto_code, supplier_nif, issue_date, payment_date')
         .is('deleted_at', null)
     ),
   ])
