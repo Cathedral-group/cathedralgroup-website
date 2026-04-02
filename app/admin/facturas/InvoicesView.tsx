@@ -4,6 +4,24 @@ import { useState, useMemo } from 'react'
 import InvoiceForm from './InvoiceForm'
 
 type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status'
+type DocTypeCategory = 'todas' | 'facturas' | 'obra' | 'legal' | 'admin' | 'otros'
+
+const CATEGORY_TYPES: Record<string, string[]> = {
+  facturas: ['factura', 'proforma', 'rectificativa', 'abono', 'ticket', 'justificante_pago'],
+  obra:     ['presupuesto', 'albaran', 'certificado'],
+  legal:    ['contrato', 'escritura', 'nota_simple', 'licencia'],
+  admin:    ['nomina', 'modelo_fiscal', 'seguro', 'informe'],
+  otros:    ['otro'],
+}
+
+const CATEGORY_LABELS: Record<DocTypeCategory, string> = {
+  todas:    'Todas',
+  facturas: 'Facturas',
+  obra:     'Obra',
+  legal:    'Legal',
+  admin:    'Admin',
+  otros:    'Otros',
+}
 
 interface Invoice {
   id?: string
@@ -116,6 +134,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const [deduping, setDeduping] = useState(false)
 
   // Filters
+  const [categoryFilter, setCategoryFilter] = useState<DocTypeCategory>('todas')
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
   const [search, setSearch] = useState('')
@@ -143,6 +162,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
 
   const filtered = useMemo(() => {
     const list = data.filter((inv) => {
+      if (categoryFilter !== 'todas' && !CATEGORY_TYPES[categoryFilter].includes(inv.doc_type)) return false
       if (dirFilter !== 'todas' && inv.direction !== dirFilter) return false
       if (statusFilter !== 'todas' && inv.payment_status !== statusFilter) return false
       if (search) {
@@ -189,7 +209,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
     })
 
     return list
-  }, [data, dirFilter, statusFilter, search, sortField, sortDir])
+  }, [data, categoryFilter, dirFilter, statusFilter, search, sortField, sortDir])
 
   const openNew = () => {
     setEditingInvoice(null)
@@ -367,6 +387,19 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
         </div>
       </div>
 
+      {/* Category tabs */}
+      <div className="flex gap-1 mb-3 border-b border-neutral-100 pb-3">
+        {(['todas', 'facturas', 'obra', 'legal', 'admin', 'otros'] as const).map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setCategoryFilter(cat)}
+            className={filterBtnCls(categoryFilter === cat)}
+          >
+            {CATEGORY_LABELS[cat]}
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
         {/* Direction */}
@@ -427,7 +460,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-6 py-8 text-center text-sm text-neutral-400">
-                    Sin facturas
+                    Sin resultados
                   </td>
                 </tr>
               ) : (
