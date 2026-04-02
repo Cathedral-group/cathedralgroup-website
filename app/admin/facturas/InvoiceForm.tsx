@@ -27,6 +27,7 @@ interface Invoice {
   categoria_gasto: string | null
   es_rectificativa: boolean
   numero_factura_original: string | null
+  direccion_obra?: string | null
   notes: string | null
   sent_at?: string | null
   sent_channel?: string | null
@@ -80,6 +81,7 @@ const DEFAULTS: Invoice = {
   categoria_gasto: null,
   es_rectificativa: false,
   numero_factura_original: null,
+  direccion_obra: null,
   notes: null,
   needs_review: null,
   ai_confidence: null,
@@ -583,14 +585,25 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
           )}
         </div>
 
-        {/* 8. Notes */}
+        {/* 8. Dirección obra + Notes */}
         <div className={sectionCls}>
-          <p className={sectionTitle}>Notas</p>
+          <p className={sectionTitle}>Obra y notas</p>
+          <div className="mb-3">
+            <label className={labelCls}>Dirección de obra / entrega</label>
+            <input
+              type="text"
+              value={form.direccion_obra ?? ''}
+              onChange={(e) => set('direccion_obra', e.target.value || null)}
+              className={inputCls}
+              placeholder="Ej: Calle Mayor 12, 28001 Madrid"
+            />
+          </div>
           <textarea
             value={form.notes ?? ''}
             onChange={(e) => set('notes', e.target.value || null)}
             rows={3}
             className={inputCls}
+            placeholder="Notas internas..."
           />
         </div>
 
