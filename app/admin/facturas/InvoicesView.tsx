@@ -67,6 +67,7 @@ interface InvoicesViewProps {
   initialData: Invoice[]
   projects: { value: string; label: string }[]
   suppliers: { value: string; label: string }[]
+  defaultCategory?: DocTypeCategory
 }
 
 function formatEur(val: number | null): string {
@@ -152,7 +153,7 @@ function parseSugerido(razones: string[] | null | undefined): { code: string; co
   return null
 }
 
-export default function InvoicesView({ initialData, projects, suppliers }: InvoicesViewProps) {
+export default function InvoicesView({ initialData, projects, suppliers, defaultCategory = 'facturas' }: InvoicesViewProps) {
   const [data, setData] = useState<Invoice[]>(initialData)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
@@ -169,7 +170,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const [deduping, setDeduping] = useState(false)
 
   // Filters
-  const [categoryFilter, setCategoryFilter] = useState<DocTypeCategory>('facturas')
+  const [categoryFilter, setCategoryFilter] = useState<DocTypeCategory>(defaultCategory)
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
   const [search, setSearch] = useState('')
