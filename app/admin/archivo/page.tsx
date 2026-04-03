@@ -1,8 +1,8 @@
 import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import InvoicesView from './InvoicesView'
+import InvoicesView from '../facturas/InvoicesView'
 
-export default async function FacturasPage() {
+export default async function ArchivoPage() {
   const authClient = await createServerSupabaseClient()
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
@@ -11,7 +11,7 @@ export default async function FacturasPage() {
 
   const [invoices, projectsRes, suppliersRes] = await Promise.all([
     fetchAllRows((sb) =>
-      sb.from('invoices').select('*').is('deleted_at', null).order('issue_date', { ascending: false })
+      sb.from('invoices').select('*').is('deleted_at', null).order('created_at', { ascending: false })
     ),
     supabase.from('projects').select('id, code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
@@ -33,7 +33,7 @@ export default async function FacturasPage() {
       initialData={invoices as any}
       projects={projects}
       suppliers={suppliers}
-      defaultCategory="facturas"
+      defaultCategory="todas"
     />
   )
 }
