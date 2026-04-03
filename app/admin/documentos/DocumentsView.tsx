@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
+import type { DocumentRecord, DocumentsViewConfig } from './types'
 import {
   ESCRITURAS_CONFIG,
   CONTRATOS_CONFIG,
@@ -12,56 +13,8 @@ import {
   CORPORATIVO_CONFIG,
 } from './configs'
 
-export interface Document {
-  id?: string
-  doc_category: string
-  doc_type: string
-  titulo?: string | null
-  fecha_documento?: string | null
-  fecha_vencimiento?: string | null
-  partes?: string | null
-  importe?: number | null
-  estado?: string | null
-  texto_completo?: string | null
-  resumen_ia?: string | null
-  datos_brutos?: Record<string, unknown> | null
-  datos_extraidos?: Record<string, unknown> | null
-  drive_url?: string | null
-  drive_file_id?: string | null
-  original_filename?: string | null
-  source?: string | null
-  ai_confidence?: number | null
-  needs_review?: boolean | null
-  project_id?: string | null
-  proyecto_code?: string | null
-  entity_type?: string | null
-  entity_id?: string | null
-  created_at?: string
-}
-
-export interface DocTypeConfig {
-  value: string
-  label: string
-}
-
-export interface FieldConfig {
-  key: string          // key in datos_extraidos
-  label: string
-  type?: 'text' | 'date' | 'number' | 'textarea' | 'select'
-  options?: string[]
-}
-
-export interface DocumentsViewConfig {
-  category: string
-  title: string
-  docTypes: DocTypeConfig[]
-  fields: FieldConfig[]
-  tableColumns: {
-    key: string
-    label: string
-    render?: (doc: Document) => React.ReactNode
-  }[]
-}
+// Re-export for backwards compatibility with any external imports
+export type { DocumentRecord as Document, DocumentsViewConfig }
 
 const CONFIG_MAP: Record<string, DocumentsViewConfig> = {
   escrituras: ESCRITURAS_CONFIG,
@@ -73,6 +26,9 @@ const CONFIG_MAP: Record<string, DocumentsViewConfig> = {
   flota: FLOTA_CONFIG,
   corporativo: CORPORATIVO_CONFIG,
 }
+
+// Local alias used throughout this file
+type Document = DocumentRecord
 
 function formatDate(d: string | null | undefined) {
   if (!d) return '—'
