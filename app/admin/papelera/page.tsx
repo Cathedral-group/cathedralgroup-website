@@ -9,13 +9,14 @@ export default async function PapeleraPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const [leadsRes, clientsRes, suppliersRes, projectsRes, invoicesRes, quotesRes] = await Promise.all([
+  const [leadsRes, clientsRes, suppliersRes, projectsRes, invoicesRes, quotesRes, documentsRes] = await Promise.all([
     supabase.from('leads').select('id, nombre, email, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('clients').select('id, name, email, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('suppliers').select('id, name, nif, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('projects').select('id, code, name, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('invoices').select('id, number, concept, direction, amount_total, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('quotes').select('id, number, total, status, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    supabase.from('documents').select('id, titulo, doc_type, doc_category, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
   ])
 
   const items = [
@@ -25,6 +26,7 @@ export default async function PapeleraPage() {
     ...(projectsRes.data || []).map(r => ({ ...r, _table: 'projects' as const, _type: 'Proyecto', _label: r.code ? `${r.code} - ${r.name}` : r.name || 'Sin nombre' })),
     ...(invoicesRes.data || []).map(r => ({ ...r, _table: 'invoices' as const, _type: 'Factura', _label: r.number || r.concept || 'Sin numero' })),
     ...(quotesRes.data || []).map(r => ({ ...r, _table: 'quotes' as const, _type: 'Presupuesto', _label: r.number || 'Sin numero' })),
+    ...(documentsRes.data || []).map(r => ({ ...r, _table: 'documents' as const, _type: 'Documento', _label: r.titulo || r.doc_type || 'Sin título' })),
   ]
 
   return (

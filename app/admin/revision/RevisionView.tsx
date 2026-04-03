@@ -28,8 +28,19 @@ interface ReviewItem {
   [key: string]: unknown
 }
 
+interface PendingDocument {
+  id: string
+  titulo: string | null
+  doc_type: string
+  doc_category: string | null
+  ai_confidence: number | null
+  created_at: string
+  [key: string]: unknown
+}
+
 interface RevisionViewProps {
   initialData: ReviewItem[]
+  pendingDocuments?: PendingDocument[]
   projects: { value: string; label: string }[]
   suppliers: { value: string; label: string }[]
 }
@@ -72,7 +83,16 @@ function ReviewBadge({ status }: { status: string }) {
   )
 }
 
-export default function RevisionView({ initialData, projects, suppliers }: RevisionViewProps) {
+const DOC_CATEGORY_PATH: Record<string, string> = {
+  legal: 'escrituras',
+  seguros: 'seguros',
+  fiscal: 'fiscal',
+  laboral: 'laboral',
+  flota: 'flota',
+  corporativo: 'corporativo',
+}
+
+export default function RevisionView({ initialData, pendingDocuments = [], projects, suppliers }: RevisionViewProps) {
   const [items, setItems] = useState<ReviewItem[]>(initialData)
   const [selected, setSelected] = useState<ReviewItem | null>(null)
   const [category, setCategory] = useState<string>('todos_pendientes')
@@ -192,9 +212,46 @@ export default function RevisionView({ initialData, projects, suppliers }: Revis
   return (
     <div className="p-4 md:p-6 max-w-7xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-neutral-800">Revision de Documentos</h1>
-        <p className="text-sm text-neutral-500 mt-1">{counts.todos_pendientes} documentos pendientes de revision</p>
+        <h1 className="text-2xl font-bold text-neutral-800">Revisión</h1>
+        <p className="text-sm text-neutral-500 mt-1">{counts.todos_pendientes} facturas · {pendingDocuments.length} documentos pendientes de revisión</p>
       </div>
+
+      {/* Documentos pendientes de revisión */}
+      {pendingDocuments.length > 0 && (
+        <div className="mb-6 border border-violet-200 bg-violet-50 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-violet-600 mb-3">
+            Documentos pendientes de revisión ({pendingDocuments.length})
+          </p>
+          <div className="space-y-2">
+            {pendingDocuments.map(doc => {
+              const path = DOC_CATEGORY_PATH[doc.doc_category ?? ''] ?? 'escrituras'
+              return (
+                <a
+                  key={doc.id}
+                  href={`/admin/documentos/${path}`}
+                  className="flex items-center justify-between bg-white border border-violet-100 px-3 py-2 hover:border-violet-300 transition-colors"
+                >
+                  <div>
+                    <span className="text-sm font-medium text-neutral-800">{doc.titulo || doc.doc_type}</span>
+                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-violet-500 bg-violet-100 px-1.5 py-0.5 rounded">
+                      {doc.doc_type}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {doc.ai_confidence !== null && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${doc.ai_confidence >= 0.8 ? 'bg-green-100 text-green-700' : doc.ai_confidence >= 0.5 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                        {Math.round((doc.ai_confidence as number) * 100)}%
+                      </span>
+                    )}
+                    <span className="text-[10px] text-neutral-400">Ver →</span>
+                  </div>
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
 
       {/* Category chips */}
       <div className="flex flex-wrap gap-2 mb-4">
