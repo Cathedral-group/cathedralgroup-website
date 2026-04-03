@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import InvoiceForm from './InvoiceForm'
 
-type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status'
+type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status' | 'created_at'
 type DocTypeCategory = 'todas' | 'facturas' | 'obra' | 'legal' | 'admin' | 'otros'
 
 const CATEGORY_TYPES: Record<string, string[]> = {
@@ -60,6 +60,7 @@ interface Invoice {
   due_date_estimated?: boolean | null
   direccion_obra?: string | null
   tipo_operacion_iva?: string | null
+  created_at?: string | null
 }
 
 interface InvoicesViewProps {
@@ -168,21 +169,21 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
   const [deduping, setDeduping] = useState(false)
 
   // Filters
-  const [categoryFilter, setCategoryFilter] = useState<DocTypeCategory>('todas')
+  const [categoryFilter, setCategoryFilter] = useState<DocTypeCategory>('facturas')
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
   const [search, setSearch] = useState('')
 
-  // Sort: default concept ASC so duplicates cluster together, date DESC secondary
-  const [sortField, setSortField] = useState<SortField>('concept')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // Sort: default by entry date descending
+  const [sortField, setSortField] = useState<SortField>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     } else {
       setSortField(field)
-      setSortDir(field === 'issue_date' || field === 'due_date' ? 'desc' : 'asc')
+      setSortDir(field === 'issue_date' || field === 'due_date' || field === 'created_at' ? 'desc' : 'asc')
     }
   }
 
@@ -247,6 +248,9 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
           break
         case 'payment_status':
           cmp = (a.payment_status ?? '').localeCompare(b.payment_status ?? '')
+          break
+        case 'created_at':
+          cmp = (a.created_at ?? '').localeCompare(b.created_at ?? '')
           break
       }
       return sortDir === 'asc' ? cmp : -cmp
@@ -552,6 +556,7 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                 <th className={`hidden sm:table-cell ${thCls('issue_date')}`} onClick={() => handleSort('issue_date')}>Fecha{sortIcon('issue_date')}</th>
                 <th className={`hidden sm:table-cell ${thCls('due_date')}`} onClick={() => handleSort('due_date')}>Vencimiento{sortIcon('due_date')}</th>
                 <th className={thCls('payment_status')} onClick={() => handleSort('payment_status')}>Estado{sortIcon('payment_status')}</th>
+                <th className={`hidden lg:table-cell ${thCls('created_at')}`} onClick={() => handleSort('created_at')}>Entrada{sortIcon('created_at')}</th>
                 <th className="px-4 py-4"></th>
               </tr>
             </thead>
@@ -622,6 +627,9 @@ export default function InvoicesView({ initialData, projects, suppliers }: Invoi
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="hidden lg:table-cell px-4 py-3 text-xs text-neutral-400 whitespace-nowrap">
+                      {inv.created_at ? new Date(inv.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '--'}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
