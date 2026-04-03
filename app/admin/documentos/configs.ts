@@ -1,4 +1,6 @@
-import type { DocumentsViewConfig } from './DocumentsView'
+import type { DocumentsViewConfig, DocumentRecord } from './types'
+// Alias for backwards compat with render functions
+type Document = DocumentRecord
 
 export const ESCRITURAS_CONFIG: DocumentsViewConfig = {
   category: 'legal',
