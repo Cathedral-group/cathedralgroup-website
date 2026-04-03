@@ -9,7 +9,7 @@ export default async function RevisionPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const [pending, projectsRes, suppliersRes] = await Promise.all([
+  const [pending, pendingDocs, projectsRes, suppliersRes] = await Promise.all([
     fetchAllRows((sb) =>
       sb
         .from('invoices')
@@ -18,6 +18,12 @@ export default async function RevisionPage() {
         .or('needs_review.eq.true,doc_type.eq.otro,review_status.eq.pendiente,ai_confidence.lt.0.7')
         .order('created_at', { ascending: false })
     ),
+    supabase
+      .from('documents')
+      .select('*')
+      .is('deleted_at', null)
+      .eq('needs_review', true)
+      .order('created_at', { ascending: false }),
     supabase.from('projects').select('code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
   ])
@@ -36,6 +42,8 @@ export default async function RevisionPage() {
     <RevisionView
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initialData={pending as any}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pendingDocuments={(pendingDocs.data ?? []) as any}
       projects={projects}
       suppliers={suppliers}
     />
