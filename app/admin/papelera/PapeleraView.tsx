@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 
 interface TrashedItem {
   id: string
-  _table: 'leads' | 'clients' | 'suppliers' | 'projects' | 'invoices' | 'quotes'
+  _table: 'leads' | 'clients' | 'suppliers' | 'projects' | 'invoices' | 'quotes' | 'documents'
   _type: string
   _label: string
   deleted_at: string
@@ -18,6 +18,7 @@ const TYPE_STYLES: Record<string, string> = {
   Proyecto: 'bg-green-50 text-green-700',
   Factura: 'bg-amber-50 text-amber-700',
   Presupuesto: 'bg-neutral-100 text-neutral-700',
+  Documento: 'bg-teal-50 text-teal-700',
 }
 
 function formatDate(d: string) {
