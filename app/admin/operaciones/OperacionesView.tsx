@@ -92,9 +92,9 @@ export default function OperacionesView({ initialData, projects }: Props) {
   })
 
   const totalActivas = ops.filter(o => ACTIVE_STATUSES.includes(o.status)).length
-  const totalInversion = ops
-    .filter(o => ACTIVE_STATUSES.includes(o.status))
-    .reduce((s, o) => s + calcKpis(o).totalInvertido, 0)
+  const activeOps = ops.filter(o => ACTIVE_STATUSES.includes(o.status))
+  const hasInversionData = activeOps.some(o => o.purchase_price != null)
+  const totalInversion = activeOps.reduce((s, o) => s + calcKpis(o).totalInvertido, 0)
   const vendidas = ops.filter(o => o.status === 'vendida')
   const vendidaRois = vendidas.map(o => calcKpis(o).roi).filter((r): r is number => r !== null)
   const roiMedio = vendidaRois.length > 0
@@ -149,7 +149,7 @@ export default function OperacionesView({ initialData, projects }: Props) {
           <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mt-2">Operaciones activas</p>
         </div>
         <div className="bg-white border border-neutral-100 p-5 hover:border-primary hover:shadow-sm transition-all">
-          <p className="text-xl font-bold text-neutral-900">{eur(totalInversion)}</p>
+          <p className="text-xl font-bold text-neutral-900">{hasInversionData ? eur(totalInversion) : '—'}</p>
           <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mt-2">Inversión total viva</p>
         </div>
         <div className="bg-white border border-neutral-100 p-5 hover:border-primary hover:shadow-sm transition-all">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
@@ -138,6 +138,18 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const pathname = usePathname()
   const router = useRouter()
   const [refreshing, setRefreshing] = useState(false)
+  const [revisionCount, setRevisionCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('needs_review', true)
+      .eq('review_status', 'pendiente')
+      .is('deleted_at', null)
+      .then(({ count }) => { if (count !== null) setRevisionCount(count) })
+  }, [])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -199,6 +211,7 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
               </p>
               {section.items.map(({ label, href, icon }) => {
                 const active = isActive(href)
+                const isRevision = href === '/admin/revision'
                 return (
                   <a
                     key={href}
@@ -217,7 +230,12 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
                     <span className={active ? 'text-primary' : 'text-neutral-400'}>
                       {icon}
                     </span>
-                    {label}
+                    <span className="flex-1">{label}</span>
+                    {isRevision && revisionCount !== null && revisionCount > 0 && (
+                      <span className="ml-auto bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                        {revisionCount > 99 ? '99+' : revisionCount}
+                      </span>
+                    )}
                   </a>
                 )
               })}

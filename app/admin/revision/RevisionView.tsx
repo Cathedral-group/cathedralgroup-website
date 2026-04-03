@@ -98,6 +98,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
   const [category, setCategory] = useState<string>('todos_pendientes')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<ReviewItem>>({})
+  const [bulkConfirming, setBulkConfirming] = useState(false)
 
   // Check if item was re-sent after deletion
   const isReenviada = (item: ReviewItem) =>
@@ -198,6 +199,40 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     }
   }
 
+  const highConfidencePending = pending.filter(i =>
+    i.ai_confidence !== null && i.ai_confidence >= 0.95 && categorize(i) !== 'duplicados'
+  )
+
+  const bulkConfirmHighConfidence = async () => {
+    if (highConfidencePending.length === 0) return
+    if (!confirm(`¿Confirmar automáticamente ${highConfidencePending.length} facturas con IA ≥ 95%?`)) return
+    setBulkConfirming(true)
+    let confirmed = 0
+    for (const item of highConfidencePending) {
+      try {
+        const res = await fetch('/api/db/invoices', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: item.id,
+            review_status: 'confirmado',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: 'admin',
+            needs_review: false,
+          }),
+        })
+        if (res.ok) {
+          confirmed++
+          setItems(prev => prev.map(i =>
+            i.id === item.id ? { ...i, review_status: 'confirmado', needs_review: false } : i
+          ))
+        }
+      } catch { /* continue */ }
+    }
+    setBulkConfirming(false)
+    if (confirmed > 0) alert(`✓ ${confirmed} facturas confirmadas`)
+  }
+
   const categories: { key: string; label: string; icon: string; color: string }[] = [
     { key: 'todos_pendientes', label: 'Todos pendientes', icon: '', color: 'bg-amber-100 text-amber-700' },
     { key: 'duplicados', label: 'Duplicados', icon: '', color: 'bg-red-100 text-red-700' },
@@ -252,6 +287,23 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
         </div>
       )}
 
+
+      {/* Bulk action */}
+      {highConfidencePending.length > 0 && (
+        <div className="mb-4 flex items-center gap-3 bg-green-50 border border-green-200 px-4 py-3 rounded">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <p className="text-sm text-green-800 flex-1">
+            <span className="font-bold">{highConfidencePending.length} facturas</span> con confianza IA ≥ 95% listas para confirmar automáticamente
+          </p>
+          <button
+            onClick={bulkConfirmHighConfidence}
+            disabled={bulkConfirming}
+            className="bg-green-600 text-white px-4 py-1.5 text-xs font-bold uppercase tracking-widest hover:bg-green-700 disabled:opacity-50 rounded whitespace-nowrap"
+          >
+            {bulkConfirming ? 'Confirmando...' : `Confirmar ${highConfidencePending.length}`}
+          </button>
+        </div>
+      )}
 
       {/* Category chips */}
       <div className="flex flex-wrap gap-2 mb-4">

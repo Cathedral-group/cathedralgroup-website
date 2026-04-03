@@ -396,7 +396,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     },
     {
       key: 'budget_estimated',
-      label: 'Presupuesto',
+      label: 'Importe',
       render: (val: unknown) => <span>{currency(val as number)}</span>,
     },
     {

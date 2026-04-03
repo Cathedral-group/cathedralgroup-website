@@ -34,6 +34,7 @@ export default async function ArchivoPage() {
       projects={projects}
       suppliers={suppliers}
       defaultCategory="todas"
+      pageTitle="Archivo"
     />
   )
 }

@@ -419,7 +419,7 @@ export default function ClientsView({ clients: initialClients, projects, invoice
       label: 'Telefono',
       render: (val: unknown) => {
         const phone = String(val ?? '')
-        if (!phone || phone === '\u2014') return <span>\u2014</span>
+        if (!phone || phone === '\u2014' || phone === '\\u2014') return <span className="text-neutral-300">—</span>
         return (
           <a
             href={whatsappLink(phone)}

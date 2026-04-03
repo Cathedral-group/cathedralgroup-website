@@ -69,6 +69,7 @@ interface InvoicesViewProps {
   projects: { value: string; label: string }[]
   suppliers: { value: string; label: string }[]
   defaultCategory?: DocTypeCategory
+  pageTitle?: string
 }
 
 function formatEur(val: number | null): string {
@@ -154,7 +155,7 @@ function parseSugerido(razones: string[] | null | undefined): { code: string; co
   return null
 }
 
-export default function InvoicesView({ initialData, projects, suppliers, defaultCategory = 'facturas' }: InvoicesViewProps) {
+export default function InvoicesView({ initialData, projects, suppliers, defaultCategory = 'facturas', pageTitle }: InvoicesViewProps) {
   const [data, setData] = useState<Invoice[]>(initialData)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
@@ -469,7 +470,7 @@ export default function InvoicesView({ initialData, projects, suppliers, default
     <div>
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-medium uppercase tracking-wide">Facturas</h1>
+        <h1 className="text-xl font-medium uppercase tracking-wide">{pageTitle ?? 'Facturas'}</h1>
         <div className="flex gap-2">
           <button
             onClick={exportCSV}
@@ -556,7 +557,7 @@ export default function InvoicesView({ initialData, projects, suppliers, default
                 <th className={`hidden md:table-cell ${thCls('vat_amount')}`} onClick={() => handleSort('vat_amount')}>IVA{sortIcon('vat_amount')}</th>
                 <th className={thCls('amount_total')} onClick={() => handleSort('amount_total')}>Total{sortIcon('amount_total')}</th>
                 <th className={`hidden sm:table-cell ${thCls('issue_date')}`} onClick={() => handleSort('issue_date')}>Fecha{sortIcon('issue_date')}</th>
-                <th className={`hidden sm:table-cell ${thCls('due_date')}`} onClick={() => handleSort('due_date')}>Vencimiento{sortIcon('due_date')}</th>
+                <th className={`hidden sm:table-cell ${thCls('due_date')}`} onClick={() => handleSort('due_date')} title="* = fecha estimada (issue_date + 21 días)">Vencimiento{sortIcon('due_date')} <span className="text-neutral-300 font-normal">ℹ</span></th>
                 <th className={thCls('payment_status')} onClick={() => handleSort('payment_status')}>Estado{sortIcon('payment_status')}</th>
                 <th className={`hidden lg:table-cell ${thCls('created_at')}`} onClick={() => handleSort('created_at')}>Entrada{sortIcon('created_at')}</th>
                 <th className="px-4 py-4"></th>
