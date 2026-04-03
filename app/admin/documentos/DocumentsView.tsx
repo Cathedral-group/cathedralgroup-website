@@ -1,6 +1,16 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
+import {
+  ESCRITURAS_CONFIG,
+  CONTRATOS_CONFIG,
+  LICENCIAS_CONFIG,
+  SEGUROS_CONFIG,
+  FISCAL_CONFIG,
+  LABORAL_CONFIG,
+  FLOTA_CONFIG,
+  CORPORATIVO_CONFIG,
+} from './configs'
 
 export interface Document {
   id?: string
@@ -45,12 +55,23 @@ export interface DocumentsViewConfig {
   category: string
   title: string
   docTypes: DocTypeConfig[]
-  fields: FieldConfig[]   // fields shown in the form (from datos_extraidos)
-  tableColumns: {          // columns shown in the list table
+  fields: FieldConfig[]
+  tableColumns: {
     key: string
     label: string
     render?: (doc: Document) => React.ReactNode
   }[]
+}
+
+const CONFIG_MAP: Record<string, DocumentsViewConfig> = {
+  escrituras: ESCRITURAS_CONFIG,
+  contratos: CONTRATOS_CONFIG,
+  licencias: LICENCIAS_CONFIG,
+  seguros: SEGUROS_CONFIG,
+  fiscal: FISCAL_CONFIG,
+  laboral: LABORAL_CONFIG,
+  flota: FLOTA_CONFIG,
+  corporativo: CORPORATIVO_CONFIG,
 }
 
 function formatDate(d: string | null | undefined) {
@@ -98,12 +119,13 @@ function VencimientoBadge({ fecha }: { fecha: string | null | undefined }) {
 }
 
 interface Props {
-  config: DocumentsViewConfig
+  category: string
   initialData: Document[]
   projects: { value: string; label: string }[]
 }
 
-export default function DocumentsView({ config, initialData, projects }: Props) {
+export default function DocumentsView({ category, initialData, projects }: Props) {
+  const config = CONFIG_MAP[category] ?? ESCRITURAS_CONFIG
   const [data, setData] = useState<Document[]>(initialData)
   const [selected, setSelected] = useState<Document | null>(null)
   const [form, setForm] = useState<Document | null>(null)

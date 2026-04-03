@@ -1,7 +1,6 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import DocumentsView from '../DocumentsView'
-import { FLOTA_CONFIG } from '../configs'
 
 export default async function FlotaPage() {
   const authClient = await createServerSupabaseClient()
@@ -9,14 +8,12 @@ export default async function FlotaPage() {
   if (error || !data?.user) redirect('/admin/login')
 
   const supabase = createAdminSupabaseClient()
-  const docTypes = FLOTA_CONFIG.docTypes.map(d => d.value)
 
   const [docsRes, projectsRes] = await Promise.all([
     supabase
       .from('documents')
       .select('*')
       .eq('doc_category', 'flota')
-      .in('doc_type', docTypes)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     supabase
@@ -27,5 +24,5 @@ export default async function FlotaPage() {
   ])
 
   const projects = (projectsRes.data ?? []).map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))
-  return <DocumentsView config={FLOTA_CONFIG} initialData={docsRes.data ?? []} projects={projects} />
+  return <DocumentsView category="flota" initialData={docsRes.data ?? []} projects={projects} />
 }
