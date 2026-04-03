@@ -47,6 +47,7 @@ interface Invoice {
   categoria_gasto: string | null
   es_rectificativa: boolean
   numero_factura_original: string | null
+  linked_invoice_id?: string | null
   notes: string | null
   needs_review?: boolean | null
   ai_confidence?: number | null
@@ -627,6 +628,11 @@ export default function InvoicesView({ initialData, projects, suppliers, default
                             Revisar
                           </span>
                         )}
+                        {inv.es_rectificativa && !inv.linked_invoice_id && (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-violet-100 text-violet-700">
+                            Sin vincular
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3 text-xs text-neutral-400 whitespace-nowrap">
@@ -667,6 +673,13 @@ export default function InvoicesView({ initialData, projects, suppliers, default
           invoice={editingInvoice}
           projects={projects}
           suppliers={suppliers}
+          allInvoices={data.filter(inv => inv.id).map(inv => ({
+            id: inv.id!,
+            number: inv.number,
+            concept: inv.concept,
+            amount_total: inv.amount_total,
+            supplier_nif: inv.supplier_nif,
+          }))}
           onClose={() => setFormOpen(false)}
           onSaved={handleSaved}
           onDeleted={handleDeleted}

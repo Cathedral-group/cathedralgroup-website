@@ -29,6 +29,7 @@ interface Invoice {
   categoria_gasto: string | null
   es_rectificativa: boolean
   numero_factura_original: string | null
+  linked_invoice_id?: string | null
   direccion_obra?: string | null
   tipo_operacion_iva?: string | null
   lineas?: { descripcion: string; cantidad?: number | null; precio_unitario?: number | null; importe?: number | null }[] | null
@@ -49,6 +50,7 @@ interface InvoiceFormProps {
   invoice: Invoice | null
   projects: { value: string; label: string }[]
   suppliers: { value: string; label: string }[]
+  allInvoices?: { id: string; number: string; concept: string; amount_total: number | null; supplier_nif: string | null }[]
   onClose: () => void
   onSaved: (inv: Invoice, isNew: boolean) => void
   onDeleted: (id: string) => void
@@ -87,6 +89,7 @@ const DEFAULTS: Invoice = {
   categoria_gasto: null,
   es_rectificativa: false,
   numero_factura_original: null,
+  linked_invoice_id: null,
   direccion_obra: null,
   tipo_operacion_iva: 'nacional',
   notes: null,
@@ -96,7 +99,12 @@ const DEFAULTS: Invoice = {
   source: null,
 }
 
-export default function InvoiceForm({ invoice, projects, suppliers, onClose, onSaved, onDeleted }: InvoiceFormProps) {
+function formatEur(val: number | null): string {
+  if (val === null || val === undefined || isNaN(val)) return '--'
+  return val.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })
+}
+
+export default function InvoiceForm({ invoice, projects, suppliers, allInvoices = [], onClose, onSaved, onDeleted }: InvoiceFormProps) {
   const isEdit = !!invoice?.id
   const [form, setForm] = useState<Invoice>(invoice ?? { ...DEFAULTS })
   const [saving, setSaving] = useState(false)
@@ -667,15 +675,47 @@ export default function InvoiceForm({ invoice, projects, suppliers, onClose, onS
             </div>
           </div>
           {form.es_rectificativa && (
-            <div>
-              <label className={labelCls}>N factura original</label>
-              <input
-                type="text"
-                value={form.numero_factura_original ?? ''}
-                onChange={(e) => set('numero_factura_original', e.target.value || null)}
-                className={inputCls}
-                placeholder="Ej: F-2025-032"
-              />
+            <div className="space-y-3 col-span-2">
+              <div>
+                <label className={labelCls}>N factura original</label>
+                <input
+                  type="text"
+                  value={form.numero_factura_original ?? ''}
+                  onChange={(e) => set('numero_factura_original', e.target.value || null)}
+                  className={inputCls}
+                  placeholder="Ej: F-2025-032"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Vincular a factura original</label>
+                <select
+                  value={form.linked_invoice_id ?? ''}
+                  onChange={(e) => set('linked_invoice_id', e.target.value || null)}
+                  className={inputCls}
+                >
+                  <option value="">Sin vincular</option>
+                  {allInvoices
+                    .filter(inv => inv.id !== invoice?.id && (!form.supplier_nif || inv.supplier_nif === form.supplier_nif))
+                    .map(inv => (
+                      <option key={inv.id} value={inv.id}>
+                        {inv.number || '—'} · {(inv.concept ?? '').slice(0, 40)} · {formatEur(inv.amount_total)}
+                      </option>
+                    ))
+                  }
+                </select>
+                {form.linked_invoice_id && (() => {
+                  const original = allInvoices.find(inv => inv.id === form.linked_invoice_id)
+                  if (!original) return null
+                  const net = (original.amount_total ?? 0) + (form.amount_total ?? 0)
+                  return (
+                    <div className="mt-2 p-3 bg-neutral-50 rounded text-xs text-neutral-600 flex gap-6">
+                      <span>Original: <span className="font-semibold">{formatEur(original.amount_total)}</span></span>
+                      <span>Esta: <span className="font-semibold">{formatEur(form.amount_total)}</span></span>
+                      <span>Neto: <span className={`font-semibold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatEur(net)}</span></span>
+                    </div>
+                  )
+                })()}
+              </div>
             </div>
           )}
         </div>
