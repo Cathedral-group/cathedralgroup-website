@@ -67,20 +67,19 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
   const handleClearAll = async () => {
     if (!confirm(`¿Eliminar permanentemente ${filtered.length} elemento${filtered.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return
     setClearingAll(true)
-    let deleted = 0
-    for (const item of filtered) {
-      try {
-        const res = await fetch('/api/db/papelera', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: item.id, table: item._table }),
-        })
-        if (res.ok) {
-          deleted++
-          setItems(prev => prev.filter(i => i.id !== item.id))
-        }
-      } catch { /* continue */ }
-    }
+    try {
+      const res = await fetch('/api/db/papelera', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: filtered.map(i => ({ id: i.id, table: i._table })) }),
+      })
+      if (res.ok) {
+        const deletedIds = new Set(filtered.map(i => i.id))
+        setItems(prev => prev.filter(i => !deletedIds.has(i.id)))
+      } else {
+        alert('Error al eliminar. Inténtalo de nuevo.')
+      }
+    } catch { alert('Error al eliminar. Inténtalo de nuevo.') }
     setClearingAll(false)
   }
 

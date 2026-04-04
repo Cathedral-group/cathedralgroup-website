@@ -792,12 +792,31 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
   const { resource } = await ctx.params
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 
-  // Papelera: permanent delete
+  // Papelera: permanent delete (single or bulk)
   if (resource === 'papelera') {
-    const { id, table } = await request.json()
+    const body = await request.json()
+    const supabase = createAdminSupabaseClient()
+
+    // Bulk delete: { items: [{id, table}] }
+    if (Array.isArray(body.items)) {
+      const grouped: Record<string, string[]> = {}
+      for (const item of body.items) {
+        if (!item.id || !item.table || !SOFT_DELETE_TABLES.has(item.table)) continue
+        if (!grouped[item.table]) grouped[item.table] = []
+        grouped[item.table].push(item.id)
+      }
+      for (const [tbl, ids] of Object.entries(grouped)) {
+        const { error } = await supabase.from(tbl).delete().in('id', ids)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        auditLog(user.email ?? user.id, 'permanent_delete_bulk', tbl, ids.join(','), ip)
+      }
+      return NextResponse.json({ ok: true, deleted: body.items.length })
+    }
+
+    // Single delete: { id, table }
+    const { id, table } = body
     if (!id || !table) return NextResponse.json({ error: 'ID y tabla requeridos' }, { status: 400 })
     if (!SOFT_DELETE_TABLES.has(table)) return NextResponse.json({ error: 'Tabla no permitida' }, { status: 400 })
-    const supabase = createAdminSupabaseClient()
     const { error } = await supabase.from(table).delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     auditLog(user.email ?? user.id, 'permanent_delete', table, id, ip)
