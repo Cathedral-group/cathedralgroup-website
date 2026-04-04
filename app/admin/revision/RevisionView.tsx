@@ -2,6 +2,19 @@
 
 import { useState } from 'react'
 
+interface AiData {
+  supplier_name?: string
+  amount_base?: number
+  vat_pct?: number
+  vat_amount?: number
+  payment_status?: string
+  payment_method?: string
+  iban_proveedor?: string
+  lineas?: Array<{ descripcion?: string; cantidad?: number; precio_unitario?: number; total?: number }>
+  error?: string
+  [key: string]: unknown
+}
+
 interface ReviewItem {
   id: string
   doc_type: string
@@ -25,6 +38,7 @@ interface ReviewItem {
   es_documento_propio: boolean
   created_at: string
   direction: string
+  ai_data?: AiData | null
   [key: string]: unknown
 }
 
@@ -98,8 +112,6 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
   const [category, setCategory] = useState<string>('todos_pendientes')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<ReviewItem>>({})
-  const [bulkConfirming, setBulkConfirming] = useState(false)
-
   // Check if item was re-sent after deletion
   const isReenviada = (item: ReviewItem) =>
     item.duplicate_reason === 'reenviada_tras_borrar'
@@ -124,16 +136,18 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     return 'otros'
   }
 
-  const pending = items.filter(i => i.review_status === 'pendiente')
+  const pending = items.filter(i => i.review_status === 'pendiente' || i.review_status === 'revisado')
+  const procesadosIA = items.filter(i => i.review_status === 'revisado')
   const counts = {
     todos_pendientes: pending.length,
+    procesados_ia: procesadosIA.length,
     duplicados: pending.filter(i => categorize(i) === 'duplicados').length,
     no_legibles: pending.filter(i => categorize(i) === 'no_legibles').length,
     sin_clasificar: pending.filter(i => categorize(i) === 'sin_clasificar').length,
     datos_incompletos: pending.filter(i => categorize(i) === 'datos_incompletos').length,
     baja_confianza: pending.filter(i => categorize(i) === 'baja_confianza').length,
     reenviadas: pending.filter(i => categorize(i) === 'reenviadas').length,
-    resueltos: items.filter(i => i.review_status !== 'pendiente').length,
+    resueltos: items.filter(i => i.review_status === 'confirmado' || i.review_status === 'rechazado' || i.review_status === 'error').length,
   }
 
   // Sort: reenviadas always last
@@ -145,12 +159,14 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
 
   const filtered = sortItems(
     category === 'resueltos'
-      ? items.filter(i => i.review_status !== 'pendiente')
+      ? items.filter(i => i.review_status === 'confirmado' || i.review_status === 'rechazado' || i.review_status === 'error')
       : category === 'todos_pendientes'
         ? pending
-        : category === 'reenviadas'
-          ? pending.filter(i => isReenviada(i))
-          : pending.filter(i => categorize(i) === category)
+        : category === 'procesados_ia'
+          ? procesadosIA
+          : category === 'reenviadas'
+            ? pending.filter(i => isReenviada(i))
+            : pending.filter(i => categorize(i) === category)
   )
 
   const openItem = (item: ReviewItem) => {
@@ -199,42 +215,9 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     }
   }
 
-  const highConfidencePending = pending.filter(i =>
-    i.ai_confidence !== null && i.ai_confidence >= 0.95 && categorize(i) !== 'duplicados'
-  )
-
-  const bulkConfirmHighConfidence = async () => {
-    if (highConfidencePending.length === 0) return
-    if (!confirm(`¿Confirmar automáticamente ${highConfidencePending.length} facturas con IA ≥ 95%?`)) return
-    setBulkConfirming(true)
-    let confirmed = 0
-    for (const item of highConfidencePending) {
-      try {
-        const res = await fetch('/api/db/invoices', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: item.id,
-            review_status: 'confirmado',
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: 'admin',
-            needs_review: false,
-          }),
-        })
-        if (res.ok) {
-          confirmed++
-          setItems(prev => prev.map(i =>
-            i.id === item.id ? { ...i, review_status: 'confirmado', needs_review: false } : i
-          ))
-        }
-      } catch { /* continue */ }
-    }
-    setBulkConfirming(false)
-    if (confirmed > 0) alert(`✓ ${confirmed} facturas confirmadas`)
-  }
-
   const categories: { key: string; label: string; icon: string; color: string }[] = [
     { key: 'todos_pendientes', label: 'Todos pendientes', icon: '', color: 'bg-amber-100 text-amber-700' },
+    { key: 'procesados_ia', label: 'Procesados IA', icon: '', color: 'bg-blue-100 text-blue-700' },
     { key: 'duplicados', label: 'Duplicados', icon: '', color: 'bg-red-100 text-red-700' },
     { key: 'no_legibles', label: 'No legibles', icon: '', color: 'bg-orange-100 text-orange-700' },
     { key: 'sin_clasificar', label: 'Sin clasificar', icon: '', color: 'bg-purple-100 text-purple-700' },
@@ -248,7 +231,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     <div className="p-4 md:p-6 max-w-7xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-neutral-800">Revisión</h1>
-        <p className="text-sm text-neutral-500 mt-1">{counts.todos_pendientes} facturas · {pendingDocuments.length} documentos pendientes de revisión</p>
+        <p className="text-sm text-neutral-500 mt-1">{counts.todos_pendientes} facturas pendientes · {counts.procesados_ia} procesadas por IA · {pendingDocuments.length} documentos</p>
       </div>
 
       {/* Documentos pendientes de revisión */}
@@ -287,23 +270,6 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
         </div>
       )}
 
-
-      {/* Bulk action */}
-      {highConfidencePending.length > 0 && (
-        <div className="mb-4 flex items-center gap-3 bg-green-50 border border-green-200 px-4 py-3 rounded">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <p className="text-sm text-green-800 flex-1">
-            <span className="font-bold">{highConfidencePending.length} facturas</span> con confianza IA ≥ 95% listas para confirmar automáticamente
-          </p>
-          <button
-            onClick={bulkConfirmHighConfidence}
-            disabled={bulkConfirming}
-            className="bg-green-600 text-white px-4 py-1.5 text-xs font-bold uppercase tracking-widest hover:bg-green-700 disabled:opacity-50 rounded whitespace-nowrap"
-          >
-            {bulkConfirming ? 'Confirmando...' : `Confirmar ${highConfidencePending.length}`}
-          </button>
-        </div>
-      )}
 
       {/* Category chips */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -356,7 +322,12 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
                       {item.doc_type}
                     </span>
                   </td>
-                  <td className="p-3 text-xs">{item.supplier_nif || '--'}</td>
+                  <td className="p-3 text-xs">
+                    <div>{(item.ai_data as AiData)?.supplier_name || item.supplier_nif || '--'}</div>
+                    {(item.ai_data as AiData)?.supplier_name && item.supplier_nif && (
+                      <div className="text-neutral-400 font-mono text-[10px]">{item.supplier_nif}</div>
+                    )}
+                  </td>
                   <td className="p-3 text-right font-mono text-xs">{formatEur(item.amount_total)}</td>
                   <td className="p-3 text-center"><ConfidenceBadge confidence={item.ai_confidence} /></td>
                   <td className="p-3 text-center"><ReviewBadge status={item.review_status} /></td>
@@ -427,16 +398,43 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
 
               {/* AI extraction */}
               <div className="bg-neutral-50 rounded-lg p-3">
-                <p className="text-xs text-neutral-500 mb-2">Datos extraidos por IA (confianza: {selected.ai_confidence != null ? `${Math.round(selected.ai_confidence * 100)}%` : '--'})</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-neutral-500">Datos extraidos por IA</p>
+                  <ConfidenceBadge confidence={selected.ai_confidence} />
+                </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div><span className="text-neutral-400">Tipo:</span> {selected.doc_type}</div>
-                  <div><span className="text-neutral-400">Numero:</span> {selected.number || '--'}</div>
+                  <div><span className="text-neutral-400">Número:</span> {selected.number || '--'}</div>
                   <div><span className="text-neutral-400">NIF:</span> {selected.supplier_nif || '--'}</div>
-                  <div><span className="text-neutral-400">Importe:</span> {formatEur(selected.amount_total)}</div>
-                  <div><span className="text-neutral-400">IVA:</span> {formatEur(selected.vat_amount)}</div>
+                  <div><span className="text-neutral-400">Proveedor:</span> {selected.ai_data?.supplier_name || '--'}</div>
+                  <div><span className="text-neutral-400">Base imponible:</span> {selected.ai_data?.amount_base != null ? formatEur(selected.ai_data.amount_base) : '--'}</div>
+                  <div><span className="text-neutral-400">% IVA:</span> {selected.ai_data?.vat_pct != null ? `${selected.ai_data.vat_pct}%` : '--'}</div>
+                  <div><span className="text-neutral-400">IVA (€):</span> {formatEur(selected.vat_amount)}</div>
+                  <div><span className="text-neutral-400">Total:</span> {formatEur(selected.amount_total)}</div>
                   <div><span className="text-neutral-400">Fecha:</span> {formatDate(selected.issue_date)}</div>
+                  <div><span className="text-neutral-400">Estado pago:</span> {selected.ai_data?.payment_status || '--'}</div>
+                  <div><span className="text-neutral-400">Forma pago:</span> {selected.ai_data?.payment_method || '--'}</div>
+                  <div className="col-span-2"><span className="text-neutral-400">IBAN:</span> <span className="font-mono">{selected.ai_data?.iban_proveedor || '--'}</span></div>
                   <div className="col-span-2"><span className="text-neutral-400">Concepto:</span> {selected.concept || '--'}</div>
                 </div>
+                {selected.ai_data?.lineas && selected.ai_data.lineas.length > 0 && (
+                  <div className="mt-3 border-t pt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Líneas</p>
+                    <div className="space-y-1">
+                      {selected.ai_data.lineas.map((l, i) => (
+                        <div key={i} className="flex justify-between text-xs bg-white rounded px-2 py-1 border border-neutral-100">
+                          <span className="text-neutral-600 truncate flex-1">{l.descripcion || '—'}</span>
+                          <span className="text-neutral-400 ml-2 whitespace-nowrap">{l.cantidad != null ? `×${l.cantidad}` : ''} {l.total != null ? formatEur(l.total) : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selected.ai_data?.error && (
+                  <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-700">
+                    Error IA: {selected.ai_data.error}
+                  </div>
+                )}
                 {selected.duplicate_reason && (
                   <div className="mt-2 p-2 bg-amber-50 rounded text-xs text-amber-700">
                     Posible duplicado: {selected.duplicate_reason}
