@@ -350,29 +350,22 @@ function CashFlowTab({ invoices, year, quarter, month }: { invoices: Invoice[]; 
 }
 
 // ─── IVA Tab ───
-function IvaTab({ vatQuarterly }: { vatQuarterly: VatQuarterly[] }) {
-  // Group by year
+function IvaTab({ vatQuarterly, year }: { vatQuarterly: VatQuarterly[]; year: number }) {
+  // Filter to selected year
   const byYear = useMemo(() => {
-    const map: Record<number, VatQuarterly[]> = {}
-    vatQuarterly.forEach((v) => {
-      if (!map[v.year]) map[v.year] = []
-      map[v.year].push(v)
-    })
-    // Sort years descending
-    return Object.entries(map)
-      .sort(([a], [b]) => Number(b) - Number(a))
-      .map(([year, items]) => ({
-        year: Number(year),
-        quarters: items.sort((a, b) => a.quarter - b.quarter),
-      }))
-  }, [vatQuarterly])
+    const quarters = vatQuarterly
+      .filter((v) => v.year === year)
+      .sort((a, b) => a.quarter - b.quarter)
+    if (quarters.length === 0) return []
+    return [{ year, quarters }]
+  }, [vatQuarterly, year])
 
   const quarterLabel = (q: number) => `Q${q}`
 
   if (byYear.length === 0) {
     return (
       <div className="bg-white border border-neutral-100 rounded p-8 text-center text-sm text-neutral-400">
-        No hay datos de IVA trimestral
+        No hay datos de IVA para {year}
       </div>
     )
   }
@@ -434,7 +427,7 @@ export default function ReportsView({ invoices, vatQuarterly }: ReportsViewProps
       <TabPanel tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab}>
         {activeTab === 'pnl' && <PnLTab invoices={invoices} year={year} quarter={quarter} month={month} />}
         {activeTab === 'cashflow' && <CashFlowTab invoices={invoices} year={year} quarter={quarter} month={month} />}
-        {activeTab === 'iva' && <IvaTab vatQuarterly={vatQuarterly} />}
+        {activeTab === 'iva' && <IvaTab vatQuarterly={vatQuarterly} year={year} />}
       </TabPanel>
     </div>
   )
