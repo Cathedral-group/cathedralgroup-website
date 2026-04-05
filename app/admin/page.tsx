@@ -212,27 +212,27 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     if (p.code) projByCode[p.code.trim()] = p.name
     if (p.name) projByName[p.name.trim().toLowerCase()] = p.name
   }
-  function resolveProjectName(projectId: string|null, proyectoCode: string|null): {key:string;name:string}|null {
-    if (projectId && projById[projectId]) return { key: projectId, name: projById[projectId] }
-    if (proyectoCode) {
-      const c = proyectoCode.trim()
-      const byCode = projByCode[c]
-      if (byCode) return { key: `code:${c}`, name: byCode }
-      const byName = projByName[c.toLowerCase()]
-      if (byName) return { key: `name:${c.toLowerCase()}`, name: byName }
-      // fallback: use the raw value as display name
-      return { key: `raw:${c}`, name: c }
-    }
-    return null
-  }
   const projMap: Record<string,{name:string;ingresos:number;gastos:number}> = {}
+  let sinProyectoIngresos = 0, sinProyectoGastos = 0
   for (const inv of (projectInvoices || []) as {direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string|null;proyecto_code:string|null}[]) {
-    const resolved = resolveProjectName(inv.project_id, inv.proyecto_code)
-    if (!resolved) continue
-    if (!projMap[resolved.key]) projMap[resolved.key] = { name: resolved.name, ingresos: 0, gastos: 0 }
     const amt = getNetAmt(inv)
-    if (inv.direction === 'emitida') projMap[resolved.key].ingresos += amt
-    else projMap[resolved.key].gastos += amt
+    let key: string | null = null
+    let name: string | null = null
+    if (inv.project_id && projById[inv.project_id]) {
+      key = inv.project_id; name = projById[inv.project_id]
+    } else if (inv.proyecto_code) {
+      const c = inv.proyecto_code.trim()
+      const resolved = projByCode[c] || projByName[c.toLowerCase()]
+      if (resolved) { key = `p:${c.toLowerCase()}`; name = resolved }
+    }
+    if (key && name) {
+      if (!projMap[key]) projMap[key] = { name, ingresos: 0, gastos: 0 }
+      if (inv.direction === 'emitida') projMap[key].ingresos += amt
+      else projMap[key].gastos += amt
+    } else {
+      if (inv.direction === 'emitida') sinProyectoIngresos += amt
+      else sinProyectoGastos += amt
+    }
   }
   const projectProfitability = Object.values(projMap)
     .map(p => ({ name: p.name, ingresos: Math.round(p.ingresos), gastos: Math.round(p.gastos), margen: Math.round(p.ingresos - p.gastos) }))
@@ -263,7 +263,8 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     cashFlow30Income, cashFlow30Expenses,
     recentLeads: recentLeads || [],
     monthlyData, invoiceStatus, leadSources,
-    projectProfitability, estructuraData, estructuraYear: year,
+    projectProfitability, sinProyectoIngresos: Math.round(sinProyectoIngresos), sinProyectoGastos: Math.round(sinProyectoGastos),
+    estructuraData, estructuraYear: year,
     docsExpiringSoon: docsExpiringSoon || [],
     docsExpired: docsExpired || [],
   }
@@ -440,6 +441,8 @@ export default async function AdminDashboard({
         invoiceStatus={stats.invoiceStatus}
         leadSources={stats.leadSources}
         projectProfitability={stats.projectProfitability}
+        sinProyectoIngresos={stats.sinProyectoIngresos}
+        sinProyectoGastos={stats.sinProyectoGastos}
         estructuraData={stats.estructuraData}
         estructuraYear={stats.estructuraYear}
       />

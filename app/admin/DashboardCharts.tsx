@@ -42,6 +42,8 @@ interface Props {
   invoiceStatus: StatusData[]
   leadSources: SourceData[]
   projectProfitability: ProjectProfData[]
+  sinProyectoIngresos: number
+  sinProyectoGastos: number
   estructuraData: EstructuraData[]
   estructuraYear: number
 }
@@ -91,7 +93,7 @@ function CashFlowTooltip({ active, payload, label }: CashFlowTooltipProps) {
   )
 }
 
-export default function DashboardCharts({ monthlyData, invoiceStatus, leadSources, projectProfitability, estructuraData, estructuraYear }: Props) {
+export default function DashboardCharts({ monthlyData, invoiceStatus, leadSources, projectProfitability, sinProyectoIngresos, sinProyectoGastos, estructuraData, estructuraYear }: Props) {
   const totalInvoices = invoiceStatus.reduce((sum, s) => sum + s.value, 0)
 
   // Compute cumulative cash flow from monthly invoice data
@@ -304,12 +306,22 @@ export default function DashboardCharts({ monthlyData, invoiceStatus, leadSource
 
         {/* Rentabilidad por proyecto */}
         <div className="bg-white p-6 border border-neutral-100">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-4">
-            Rentabilidad por Proyecto
-          </h3>
+          <div className="flex items-start justify-between mb-4">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+              Rentabilidad por Proyecto
+            </h3>
+            {(sinProyectoIngresos > 0 || sinProyectoGastos > 0) && (
+              <span className="text-[10px] text-amber-500 font-medium bg-amber-50 px-2 py-1 rounded">
+                Sin clasificar: {formatEURFull(sinProyectoIngresos + sinProyectoGastos)}
+              </span>
+            )}
+          </div>
           {projectProfitability.length === 0 ? (
-            <div className="h-[260px] flex items-center justify-center text-neutral-300 text-sm">
-              Sin facturas vinculadas a proyectos en este periodo
+            <div className="h-[260px] flex flex-col items-center justify-center text-neutral-300 text-sm gap-1">
+              <span>Sin facturas vinculadas a proyectos en este periodo</span>
+              {(sinProyectoIngresos > 0 || sinProyectoGastos > 0) && (
+                <span className="text-xs text-amber-400">Asigna proyecto en las facturas para verlas aquí</span>
+              )}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={Math.max(260, projectProfitability.length * 56)}>
