@@ -573,6 +573,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
               >
                 <option value="">Sin especificar</option>
                 <option value="transferencia">Transferencia</option>
+                <option value="domiciliacion">Domiciliación bancaria</option>
                 <option value="tarjeta">Tarjeta</option>
                 <option value="efectivo">Efectivo</option>
                 <option value="cheque">Cheque</option>
