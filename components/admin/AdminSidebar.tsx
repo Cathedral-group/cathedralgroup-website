@@ -74,57 +74,52 @@ const NAV_SECTIONS = [
   {
     label: 'Principal',
     items: [
-      { label: 'Dashboard',    href: '/admin',             icon: <IconDashboard /> },
+      { label: 'Dashboard',      href: '/admin',               icon: <IconDashboard /> },
     ],
   },
   {
-    label: 'CRM',
+    label: 'Comercial',
     items: [
-      { label: 'Leads',        href: '/admin/leads',       icon: <IconLeads /> },
-      { label: 'Clientes',     href: '/admin/clientes',    icon: <IconClientes /> },
-      { label: 'Proveedores',  href: '/admin/proveedores', icon: <IconProveedores /> },
+      { label: 'Leads',          href: '/admin/leads',         icon: <IconLeads /> },
+      { label: 'Clientes',       href: '/admin/clientes',      icon: <IconClientes /> },
+      { label: 'Presupuestos',   href: '/admin/presupuestos',  icon: <IconPresupuestos /> },
     ],
   },
   {
-    label: 'Proyectos',
+    label: 'Obra & Operaciones',
     items: [
-      { label: 'Proyectos',    href: '/admin/proyectos',   icon: <IconProyectos /> },
+      { label: 'Proyectos',      href: '/admin/proyectos',     icon: <IconProyectos /> },
+      { label: 'Operaciones',    href: '/admin/operaciones',   icon: <IconOperaciones /> },
+      { label: 'Proveedores',    href: '/admin/proveedores',   icon: <IconProveedores /> },
     ],
   },
   {
     label: 'Finanzas',
     items: [
-      { label: 'Presupuestos', href: '/admin/presupuestos',icon: <IconPresupuestos /> },
-      { label: 'Facturas',     href: '/admin/facturas',    icon: <IconFacturas /> },
-      { label: 'Archivo',      href: '/admin/archivo',     icon: <IconArchivo /> },
-      { label: 'Operaciones',  href: '/admin/operaciones', icon: <IconOperaciones /> },
-      { label: 'Informes',     href: '/admin/informes',    icon: <IconInformes /> },
+      { label: 'Facturas',       href: '/admin/facturas',      icon: <IconFacturas /> },
+      { label: 'Informes',       href: '/admin/informes',      icon: <IconInformes /> },
     ],
   },
   {
-    label: 'Documentación Legal',
+    label: 'Documentos',
     items: [
-      { label: 'Escrituras',   href: '/admin/documentos/escrituras',  icon: <IconEscrituras /> },
-      { label: 'Contratos',    href: '/admin/documentos/contratos',   icon: <IconContratos /> },
-      { label: 'Licencias',    href: '/admin/documentos/licencias',   icon: <IconLicencias /> },
-    ],
-  },
-  {
-    label: 'Empresa',
-    items: [
-      { label: 'Seguros',      href: '/admin/documentos/seguros',     icon: <IconSeguros /> },
-      { label: 'Fiscal',       href: '/admin/documentos/fiscal',      icon: <IconFiscal /> },
-      { label: 'Laboral',      href: '/admin/documentos/laboral',     icon: <IconLaboral /> },
-      { label: 'Flota & Gastos', href: '/admin/documentos/flota',     icon: <IconFlota /> },
-      { label: 'Corporativo',  href: '/admin/documentos/corporativo', icon: <IconCorporativo /> },
+      { label: 'Escrituras',     href: '/admin/documentos/escrituras',  icon: <IconEscrituras /> },
+      { label: 'Contratos',      href: '/admin/documentos/contratos',   icon: <IconContratos /> },
+      { label: 'Licencias',      href: '/admin/documentos/licencias',   icon: <IconLicencias /> },
+      { label: 'Seguros',        href: '/admin/documentos/seguros',     icon: <IconSeguros /> },
+      { label: 'Fiscal',         href: '/admin/documentos/fiscal',      icon: <IconFiscal /> },
+      { label: 'Laboral',        href: '/admin/documentos/laboral',     icon: <IconLaboral /> },
+      { label: 'Flota & Gastos', href: '/admin/documentos/flota',       icon: <IconFlota /> },
+      { label: 'Corporativo',    href: '/admin/documentos/corporativo', icon: <IconCorporativo /> },
     ],
   },
   {
     label: 'Sistema',
     items: [
-      { label: 'Revisión',     href: '/admin/revision',    icon: <IconRevision /> },
-      { label: 'Papelera',     href: '/admin/papelera',    icon: <IconPapelera /> },
-      { label: 'Configuración',href: '/admin/configuracion',icon: <IconConfiguracion /> },
+      { label: 'Revisión IA',    href: '/admin/revision',      icon: <IconRevision /> },
+      { label: 'Archivo',        href: '/admin/archivo',       icon: <IconArchivo /> },
+      { label: 'Papelera',       href: '/admin/papelera',      icon: <IconPapelera /> },
+      { label: 'Configuración',  href: '/admin/configuracion', icon: <IconConfiguracion /> },
     ],
   },
 ]
