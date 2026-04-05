@@ -134,9 +134,9 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:true}),
     // Documentos ya vencidos (vencimiento pasado, no cancelados)
     supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:false}).limit(10),
-    // Facturas con proyecto para gráfica de rentabilidad (project_id o proyecto_code)
+    // Facturas del periodo para gráfica de rentabilidad por proyecto
     fetchAllRows<{direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string|null;proyecto_code:string|null}>((sb) =>
-      sb.from('invoices').select('direction,amount_base,vat_amount,amount_total,project_id,proyecto_code').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).or('project_id.not.is.null,proyecto_code.not.is.null').gte('issue_date',start).lte('issue_date',end)
+      sb.from('invoices').select('direction,amount_base,vat_amount,amount_total,project_id,proyecto_code').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end)
     ),
     // Lista de proyectos para nombres (con code para resolver proyecto_code)
     supabase.from('projects').select('id,code,name').is('deleted_at',null),
@@ -230,7 +230,6 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     .map(p => ({ name: p.name, ingresos: Math.round(p.ingresos), gastos: Math.round(p.gastos), margen: Math.round(p.ingresos - p.gastos) }))
     .filter(p => p.ingresos > 0 || p.gastos > 0)
     .sort((a,b) => (b.ingresos + b.gastos) - (a.ingresos + a.gastos))
-    .slice(0, 8)
 
   // Chart: gastos de estructura por línea
   const ESTRUCTURA_LABELS: Record<string,string> = {
