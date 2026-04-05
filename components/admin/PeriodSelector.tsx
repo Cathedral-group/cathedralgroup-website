@@ -14,9 +14,10 @@ interface Props {
   year: number
   quarter: number | null
   month: number | null
+  all?: boolean
 }
 
-export default function PeriodSelector({ year, quarter, month }: Props) {
+export default function PeriodSelector({ year, quarter, month, all }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -34,56 +35,73 @@ export default function PeriodSelector({ year, quarter, month }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Year */}
-      <select
-        value={year}
-        onChange={e => go({ year: e.target.value, quarter: null, month: null })}
-        className="text-xs border border-neutral-200 rounded px-2 py-1.5 bg-white text-neutral-700 font-medium hover:border-neutral-400 transition-colors"
-      >
-        {years.map(y => (
-          <option key={y} value={y}>{y}</option>
-        ))}
-      </select>
 
-      {/* Año / Q1–Q4 buttons */}
-      <div className="flex items-center gap-0.5 bg-neutral-100 rounded p-0.5">
-        <button
-          onClick={() => go({ quarter: null, month: null })}
-          className={`text-xs px-2.5 py-1 rounded transition-colors ${!quarter && !month ? 'bg-white shadow-sm text-neutral-900 font-semibold' : 'text-neutral-500 hover:text-neutral-700'}`}
-        >
-          Año
-        </button>
-        {[1,2,3,4].map(q => (
-          <button
-            key={q}
-            onClick={() => go({ quarter: String(q), month: null })}
-            className={`text-xs px-2.5 py-1 rounded transition-colors ${quarter === q ? 'bg-white shadow-sm text-neutral-900 font-semibold' : 'text-neutral-500 hover:text-neutral-700'}`}
+      {/* Histórico total */}
+      <button
+        onClick={() => go({ all: all ? null : '1', year: null, quarter: null, month: null })}
+        className={`text-xs px-3 py-1.5 rounded border transition-colors font-medium ${
+          all
+            ? 'bg-neutral-900 text-white border-neutral-900'
+            : 'bg-white text-neutral-500 border-neutral-200 hover:border-neutral-400'
+        }`}
+      >
+        Histórico total
+      </button>
+
+      {!all && (
+        <>
+          {/* Year */}
+          <select
+            value={year}
+            onChange={e => go({ year: e.target.value, quarter: null, month: null })}
+            className="text-xs border border-neutral-200 rounded px-2 py-1.5 bg-white text-neutral-700 font-medium hover:border-neutral-400 transition-colors"
           >
-            Q{q}
-          </button>
-        ))}
-      </div>
+            {years.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
 
-      {/* Month */}
-      <select
-        value={month ?? ''}
-        onChange={e => go({ month: e.target.value || null, quarter: null })}
-        className="text-xs border border-neutral-200 rounded px-2 py-1.5 bg-white text-neutral-700 hover:border-neutral-400 transition-colors"
-      >
-        <option value="">— Mes —</option>
-        {MONTHS.map((m, i) => (
-          <option key={i + 1} value={i + 1}>{m}</option>
-        ))}
-      </select>
+          {/* Año / Q1–Q4 buttons */}
+          <div className="flex items-center gap-0.5 bg-neutral-100 rounded p-0.5">
+            <button
+              onClick={() => go({ quarter: null, month: null })}
+              className={`text-xs px-2.5 py-1 rounded transition-colors ${!quarter && !month ? 'bg-white shadow-sm text-neutral-900 font-semibold' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Año
+            </button>
+            {[1,2,3,4].map(q => (
+              <button
+                key={q}
+                onClick={() => go({ quarter: String(q), month: null })}
+                className={`text-xs px-2.5 py-1 rounded transition-colors ${quarter === q ? 'bg-white shadow-sm text-neutral-900 font-semibold' : 'text-neutral-500 hover:text-neutral-700'}`}
+              >
+                Q{q}
+              </button>
+            ))}
+          </div>
 
-      {/* Active period label */}
-      <span className="text-[10px] text-neutral-400 uppercase tracking-widest">
-        {month
-          ? `${MONTHS[month - 1]} ${year}`
-          : quarter
-          ? `${QUARTERS[quarter - 1]} · ${year}`
-          : `Año natural ${year}`}
-      </span>
+          {/* Month */}
+          <select
+            value={month ?? ''}
+            onChange={e => go({ month: e.target.value || null, quarter: null })}
+            className="text-xs border border-neutral-200 rounded px-2 py-1.5 bg-white text-neutral-700 hover:border-neutral-400 transition-colors"
+          >
+            <option value="">— Mes —</option>
+            {MONTHS.map((m, i) => (
+              <option key={i + 1} value={i + 1}>{m}</option>
+            ))}
+          </select>
+
+          {/* Active period label */}
+          <span className="text-[10px] text-neutral-400 uppercase tracking-widest">
+            {month
+              ? `${MONTHS[month - 1]} ${year}`
+              : quarter
+              ? `${QUARTERS[quarter - 1]} · ${year}`
+              : `Año natural ${year}`}
+          </span>
+        </>
+      )}
     </div>
   )
 }

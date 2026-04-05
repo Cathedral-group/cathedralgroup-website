@@ -29,7 +29,8 @@ function formatDate(dateStr: string | null | undefined): string {
 
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
-function periodRange(year: number, quarter: number | null, month: number | null) {
+function periodRange(year: number, quarter: number | null, month: number | null, all?: boolean) {
+  if (all) return { start: '2000-01-01', end: '2099-12-31' }
   if (month) {
     const start = `${year}-${String(month).padStart(2,'0')}-01`
     const lastDay = new Date(year, month, 0).getDate()
@@ -48,9 +49,17 @@ function periodRange(year: number, quarter: number | null, month: number | null)
   return { start: `${year}-01-01`, end: `${year}-12-31` }
 }
 
-function buildMonthlyMap(year: number, quarter: number | null, month: number | null) {
+function buildMonthlyMap(year: number, quarter: number | null, month: number | null, all?: boolean) {
   const map: Record<string, { ingresos: number; gastos: number }> = {}
-  if (month) {
+  if (all) {
+    // Show last 12 months rolling for "all time" view
+    const now = new Date()
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`
+      map[key] = { ingresos: 0, gastos: 0 }
+    }
+  } else if (month) {
     const key = `${year}-${String(month).padStart(2,'0')}`
     map[key] = { ingresos: 0, gastos: 0 }
   } else if (quarter) {
@@ -68,9 +77,9 @@ function buildMonthlyMap(year: number, quarter: number | null, month: number | n
 // Doc types that represent real monetary transactions (exclude presupuesto, contrato, albaran, escritura, etc.)
 const FINANCIAL_DOC_TYPES = ['factura','ticket','proforma','certificado','rectificativa','abono','nomina','modelo_fiscal','seguro','justificante_pago'] as const
 
-async function getStats(year: number, quarter: number | null, month: number | null) {
+async function getStats(year: number, quarter: number | null, month: number | null, all?: boolean) {
   const supabase = createAdminSupabaseClient()
-  const { start, end } = periodRange(year, quarter, month)
+  const { start, end } = periodRange(year, quarter, month, all)
   const vatQuarter = quarter ?? Math.ceil((new Date().getMonth() + 1) / 3)
 
   const today = new Date()
@@ -121,7 +130,7 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   const cashFlow30Expenses = (cashFlowInvoices || []).filter((i: {direction:string}) => i.direction==='recibida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
 
   // Chart: monthly breakdown (use net base amounts, consistent with P&L)
-  const monthlyMap = buildMonthlyMap(year, quarter, month)
+  const monthlyMap = buildMonthlyMap(year, quarter, month, all)
   for (const inv of periodInvoices || []) {
     if (!inv.issue_date) continue
     const key = inv.issue_date.substring(0, 7)
@@ -174,7 +183,7 @@ async function getStats(year: number, quarter: number | null, month: number | nu
 export default async function AdminDashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; quarter?: string; month?: string }>
+  searchParams: Promise<{ year?: string; quarter?: string; month?: string; all?: string }>
 }) {
   // Auth check
   const authClient = await createServerSupabaseClient()
@@ -183,12 +192,13 @@ export default async function AdminDashboard({
 
   const sp = await searchParams
   const currentYear = new Date().getFullYear()
+  const all = sp.all === '1'
   const year = sp.year ? parseInt(sp.year) : currentYear
   const quarter = sp.quarter ? parseInt(sp.quarter) : null
   const month = sp.month ? parseInt(sp.month) : null
 
   // Data
-  const stats = await getStats(year, quarter, month)
+  const stats = await getStats(year, quarter, month, all)
 
   const margenPct = stats.facturacionTotal > 0
     ? ((stats.margenBruto / stats.facturacionTotal) * 100).toFixed(1)
@@ -196,36 +206,38 @@ export default async function AdminDashboard({
 
   const kpis = [
     {
-      label: 'Pendiente de cobro',
-      value: formatEUR(stats.totalPendienteCobro),
-      sub: `${stats.countPendienteCobro} ${stats.countPendienteCobro === 1 ? 'factura' : 'facturas'} pendientes`,
-      color: stats.totalPendienteCobro > 0 ? 'text-amber-600' : 'text-neutral-900',
+      label: 'Facturación total',
+      value: formatEUR(stats.facturacionTotal),
+      sub: 'Ingresos netos (sin IVA)',
+      color: 'text-neutral-900',
       href: '/admin/facturas',
     },
     {
-      label: 'Facturación total',
-      value: formatEUR(stats.facturacionTotal),
+      label: 'Gastos totales',
+      value: formatEUR(stats.gastosTotal),
+      sub: 'Costes netos (sin IVA)',
       color: 'text-neutral-900',
       href: '/admin/facturas',
     },
     {
       label: 'Margen bruto',
       value: formatEUR(stats.margenBruto),
-      sub: margenPct ? `${margenPct}% sobre facturación` : undefined,
+      sub: margenPct ? `${margenPct}% sobre facturación` : 'Sin ingresos en el periodo',
       color: stats.margenBruto >= 0 ? 'text-green-600' : 'text-red-600',
       href: '/admin/informes',
     },
     {
-      label: 'Pendiente de pago',
-      value: formatEUR(stats.totalPendientePago),
-      sub: `${stats.countPendientePago} ${stats.countPendientePago === 1 ? 'factura' : 'facturas'} por pagar`,
-      color: stats.totalPendientePago > 0 ? 'text-amber-600' : 'text-neutral-900',
+      label: 'Por cobrar',
+      value: formatEUR(stats.totalPendienteCobro),
+      sub: `${stats.countPendienteCobro} ${stats.countPendienteCobro === 1 ? 'factura pendiente' : 'facturas pendientes'}`,
+      color: stats.totalPendienteCobro > 0 ? 'text-amber-600' : 'text-green-600',
       href: '/admin/facturas',
     },
     {
-      label: 'Gastos totales',
-      value: formatEUR(stats.gastosTotal),
-      color: 'text-neutral-900',
+      label: 'Por pagar',
+      value: formatEUR(stats.totalPendientePago),
+      sub: `${stats.countPendientePago} ${stats.countPendientePago === 1 ? 'factura por pagar' : 'facturas por pagar'}`,
+      color: stats.totalPendientePago > 0 ? 'text-amber-600' : 'text-green-600',
       href: '/admin/facturas',
     },
   ]
@@ -241,7 +253,7 @@ export default async function AdminDashboard({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Suspense fallback={null}>
-            <PeriodSelector year={year} quarter={quarter} month={month} />
+            <PeriodSelector year={year} quarter={quarter} month={month} all={all} />
           </Suspense>
           <QuickAddButton />
         </div>
@@ -343,7 +355,7 @@ export default async function AdminDashboard({
       <div className="bg-white border border-neutral-100 rounded">
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-            Leads &mdash; {month ? MONTHS_ES[month-1] : quarter ? `Q${quarter}` : 'Año'} {year}
+            Leads &mdash; {all ? 'Histórico total' : month ? MONTHS_ES[month-1] : quarter ? `Q${quarter}` : 'Año'} {all ? '' : year}
           </h2>
           <Link
             href="/admin/leads"
