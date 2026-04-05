@@ -107,6 +107,8 @@ function whatsappLink(phone: string) {
   return `https://wa.me/${clean}`
 }
 
+type SortField = 'name' | 'email' | 'type' | 'total_facturado' | 'created_at'
+
 /* ───────── Component ───────── */
 
 interface Props {
@@ -122,6 +124,8 @@ export default function ClientsView({ clients: initialClients, projects, invoice
   const [selected, setSelected] = useState<Client | null>(null)
   const [typeFilter, setTypeFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [sortField, setSortField] = useState<SortField>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [activeTab, setActiveTab] = useState('datos')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Client>>({})
@@ -180,6 +184,15 @@ export default function ClientsView({ clients: initialClients, projects, invoice
     return m
   }, [invoices, projectIdToClientId, projectCodeToClientId])
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir(field === 'created_at' || field === 'total_facturado' ? 'desc' : 'asc')
+    }
+  }
+
   const filtered = useMemo(() => {
     let list = clients
     if (typeFilter) list = list.filter((c) => c.type === typeFilter)
@@ -193,8 +206,31 @@ export default function ClientsView({ clients: initialClients, projects, invoice
           c.company_name?.toLowerCase().includes(q)
       )
     }
+
+    list = [...list].sort((a, b) => {
+      let cmp = 0
+      switch (sortField) {
+        case 'name':
+          cmp = (a.name ?? '').localeCompare(b.name ?? '', 'es', { sensitivity: 'base' })
+          break
+        case 'email':
+          cmp = (a.email ?? '').localeCompare(b.email ?? '', 'es', { sensitivity: 'base' })
+          break
+        case 'type':
+          cmp = (a.type ?? '').localeCompare(b.type ?? '')
+          break
+        case 'total_facturado':
+          cmp = (invoiceTotalsByClient[a.id] ?? 0) - (invoiceTotalsByClient[b.id] ?? 0)
+          break
+        case 'created_at':
+          cmp = (a.created_at ?? '').localeCompare(b.created_at ?? '')
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
     return list
-  }, [clients, typeFilter, search])
+  }, [clients, typeFilter, search, sortField, sortDir, invoiceTotalsByClient])
 
   /* ───────── Helpers ───────── */
 
@@ -615,6 +651,12 @@ export default function ClientsView({ clients: initialClients, projects, invoice
         columns={columns}
         data={filtered as Record<string, unknown>[]}
         onRowClick={(row) => openDetail(row as Client)}
+        onHeaderClick={(key) => {
+          const map: Record<string, SortField> = { name: 'name', email: 'email', type: 'type', _total: 'total_facturado' }
+          if (map[key]) handleSort(map[key])
+        }}
+        sortKey={sortField === 'total_facturado' ? '_total' : sortField}
+        sortDir={sortDir}
       />
 
       {/* Detail slide-out panel */}

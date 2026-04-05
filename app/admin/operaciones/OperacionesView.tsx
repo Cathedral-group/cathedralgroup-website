@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+
+type SortField = 'name' | 'status' | 'purchase_price' | 'created_at'
 
 interface FlippingOp {
   id: string
@@ -84,21 +86,64 @@ export default function OperacionesView({ initialData, projects }: Props) {
   const [showNew, setShowNew] = useState(false)
   const [newForm, setNewForm] = useState({ code: '', name: '', status: 'prospecto', address: '', property_type: 'piso', surface_m2: '' })
   const [saving, setSaving] = useState(false)
+  const [sortField, setSortField] = useState<SortField>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir(field === 'created_at' || field === 'purchase_price' ? 'desc' : 'asc')
+    }
+  }
+
+  const sortIcon = (field: SortField) =>
+    sortField === field ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'
+
+  const thCls = (field: SortField, extra = '') =>
+    `text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest cursor-pointer select-none transition-colors ${
+      sortField === field ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'
+    } ${extra}`
 
   const ACTIVE_STATUSES = ['prospecto','comprada','en_reforma','en_venta']
-  const filtered = ops.filter(op => {
-    if (filter === 'activas' && !ACTIVE_STATUSES.includes(op.status)) return false
-    if (filter === 'vendidas' && op.status !== 'vendida') return false
-    if (search) {
-      const q = search.toLowerCase()
-      if (
-        !(op.code ?? '').toLowerCase().includes(q) &&
-        !(op.name ?? '').toLowerCase().includes(q) &&
-        !(op.address ?? '').toLowerCase().includes(q)
-      ) return false
-    }
-    return true
-  })
+
+  const filtered = useMemo(() => {
+    const list = ops.filter(op => {
+      if (filter === 'activas' && !ACTIVE_STATUSES.includes(op.status)) return false
+      if (filter === 'vendidas' && op.status !== 'vendida') return false
+      if (search) {
+        const q = search.toLowerCase()
+        if (
+          !(op.code ?? '').toLowerCase().includes(q) &&
+          !(op.name ?? '').toLowerCase().includes(q) &&
+          !(op.address ?? '').toLowerCase().includes(q)
+        ) return false
+      }
+      return true
+    })
+
+    list.sort((a, b) => {
+      let cmp = 0
+      switch (sortField) {
+        case 'name':
+          cmp = (a.name ?? '').localeCompare(b.name ?? '', 'es', { sensitivity: 'base' })
+          break
+        case 'status':
+          cmp = (a.status ?? '').localeCompare(b.status ?? '')
+          break
+        case 'purchase_price':
+          cmp = (a.purchase_price ?? 0) - (b.purchase_price ?? 0)
+          break
+        case 'created_at':
+          cmp = (a.created_at ?? '').localeCompare(b.created_at ?? '')
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
+    return list
+  }, [ops, filter, search, sortField, sortDir])
 
   const totalActivas = ops.filter(o => ACTIVE_STATUSES.includes(o.status)).length
   const activeOps = ops.filter(o => ACTIVE_STATUSES.includes(o.status))
@@ -199,10 +244,10 @@ export default function OperacionesView({ initialData, projects }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-neutral-100">
-                <th className="text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Operación</th>
+                <th onClick={() => handleSort('name')} className={thCls('name')}>Operación{sortIcon('name')}</th>
                 <th className="text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 hidden md:table-cell">Dirección</th>
-                <th className="text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Estado</th>
-                <th className="text-right px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 hidden sm:table-cell">Precio compra</th>
+                <th onClick={() => handleSort('status')} className={thCls('status')}>Estado{sortIcon('status')}</th>
+                <th onClick={() => handleSort('purchase_price')} className={thCls('purchase_price', 'hidden sm:table-cell text-right')}>Precio compra{sortIcon('purchase_price')}</th>
                 <th className="text-right px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Total invertido</th>
                 <th className="text-right px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Benef. neto</th>
                 <th className="text-right px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">ROI</th>

@@ -116,8 +116,13 @@ function formatDate(d: string | null | undefined): string {
 function isInvalidNum(v: unknown): boolean {
   if (v === null || v === undefined) return false
   if (typeof v === 'number') return false
-  const s = String(v).trim()
-  if (/[,.]/.test(s) && /\d/.test(s) && typeof v === 'string') return true
+  if (typeof v !== 'string') return false
+  const s = v.trim()
+  // Ambiguous: has both comma and dot (e.g. "1.234,56" or "1,234.56")
+  if (/,/.test(s) && /\./.test(s)) return true
+  // Non-parseable as number
+  const n = parseFloat(s.replace(',', '.'))
+  if (isNaN(n)) return true
   return false
 }
 

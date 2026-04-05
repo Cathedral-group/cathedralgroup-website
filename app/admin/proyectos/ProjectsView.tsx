@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import DataTable from '@/components/admin/DataTable'
 import TabPanel from '@/components/admin/TabPanel'
 import ProgressBar from '@/components/admin/ProgressBar'
 import LinkedSelect from '@/components/admin/LinkedSelect'
@@ -73,8 +72,8 @@ interface Phase {
 
 /* ───────── Constants ───────── */
 
-const STATUSES = ['presupuesto', 'en_curso', 'completado', 'cancelado']
-const TYPES = ['reforma', 'interiorismo', 'cambio_uso', 'obra_nueva', 'promocion']
+const STATUSES = ['presupuesto', 'en_curso', 'completado', 'finalizado', 'cancelado']
+const TYPES = ['reforma', 'reforma_cliente', 'interiorismo', 'cambio_uso', 'obra_nueva', 'promocion', 'desarrollo', 'compra_reforma_venta']
 const PHASE_STATUSES = ['pendiente', 'en_curso', 'completado']
 
 const STATUS_STYLES: Record<string, string> = {
@@ -86,10 +85,13 @@ const STATUS_STYLES: Record<string, string> = {
 
 const TYPE_STYLES: Record<string, string> = {
   reforma: 'bg-primary/10 text-primary',
+  reforma_cliente: 'bg-primary/10 text-primary',
   interiorismo: 'bg-purple-50 text-purple-700',
   cambio_uso: 'bg-amber-50 text-amber-700',
   obra_nueva: 'bg-blue-50 text-blue-700',
   promocion: 'bg-green-50 text-green-700',
+  desarrollo: 'bg-blue-50 text-blue-700',
+  compra_reforma_venta: 'bg-orange-50 text-orange-700',
 }
 
 function Badge({ value, styles }: { value: string; styles: Record<string, string> }) {
@@ -118,6 +120,8 @@ function currency(v?: number | null) {
   return v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
+type SortField = 'name' | 'type' | 'status' | 'budget_estimated' | 'start_date' | 'created_at'
+
 /* ───────── Component ───────── */
 
 interface Props {
@@ -135,7 +139,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(new Set())
-  const [sortBy, setSortBy] = useState<string>('code')
+  const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [activeTab, setActiveTab] = useState('general')
   const [saving, setSaving] = useState(false)
@@ -163,6 +167,23 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     return m
   }, [clients])
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir(field === 'start_date' || field === 'created_at' || field === 'budget_estimated' ? 'desc' : 'asc')
+    }
+  }
+
+  const sortIcon = (field: SortField) =>
+    sortField === field ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'
+
+  const thCls = (field: SortField, extra = '') =>
+    `text-left px-6 py-4 text-[10px] font-bold uppercase tracking-widest cursor-pointer select-none transition-colors ${
+      sortField === field ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'
+    } ${extra}`
+
   const filtered = useMemo(() => {
     let list = projects
     if (hiddenStatuses.size > 0) list = list.filter((p) => !hiddenStatuses.has(p.status || 'presupuesto'))
@@ -176,36 +197,32 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
           clientMap[p.client_id || '']?.toLowerCase().includes(q)
       )
     }
-    // Sort
     list = [...list].sort((a, b) => {
-      let va: string | number = ''
-      let vb: string | number = ''
-      if (sortBy === 'code') { va = a.code || ''; vb = b.code || '' }
-      else if (sortBy === 'name') { va = a.name || ''; vb = b.name || '' }
-      else if (sortBy === 'status') { va = a.status || ''; vb = b.status || '' }
-      else if (sortBy === 'type') { va = a.type || ''; vb = b.type || '' }
-      else if (sortBy === 'budget') { va = a.budget_estimated || 0; vb = b.budget_estimated || 0 }
-      else if (sortBy === 'start_date') { va = a.start_date || ''; vb = b.start_date || '' }
-      else if (sortBy === 'margin') {
-        va = financialMap[a.id]?.margin_pct || 0
-        vb = financialMap[b.id]?.margin_pct || 0
+      let cmp = 0
+      switch (sortField) {
+        case 'name':
+          cmp = (a.name ?? '').localeCompare(b.name ?? '', 'es', { sensitivity: 'base' })
+          break
+        case 'type':
+          cmp = (a.type ?? '').localeCompare(b.type ?? '')
+          break
+        case 'status':
+          cmp = (a.status ?? '').localeCompare(b.status ?? '')
+          break
+        case 'budget_estimated':
+          cmp = (a.budget_estimated ?? 0) - (b.budget_estimated ?? 0)
+          break
+        case 'start_date':
+          cmp = (a.start_date ?? '').localeCompare(b.start_date ?? '')
+          break
+        case 'created_at':
+          cmp = (a.created_at ?? '').localeCompare(b.created_at ?? '')
+          break
       }
-      if (va < vb) return sortDir === 'asc' ? -1 : 1
-      if (va > vb) return sortDir === 'asc' ? 1 : -1
-      return 0
+      return sortDir === 'asc' ? cmp : -cmp
     })
     return list
-  }, [projects, statusFilter, search, clientMap, hiddenStatuses, sortBy, sortDir, financialMap])
-
-  function toggleSort(col: string) {
-    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortBy(col); setSortDir('asc') }
-  }
-
-  function SortIcon({ col }: { col: string }) {
-    if (sortBy !== col) return <span className="text-neutral-300 ml-1">↕</span>
-    return <span className="text-primary ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
-  }
+  }, [projects, statusFilter, search, clientMap, hiddenStatuses, sortField, sortDir, financialMap])
 
   /* ───────── Helpers ───────── */
 
@@ -611,23 +628,13 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
         <table className="w-full">
           <thead>
             <tr className="border-b border-neutral-100">
-              {[
-                { key: 'code', label: 'Código' },
-                { key: 'name', label: 'Nombre' },
-                { key: 'type', label: 'Tipo' },
-                { key: 'status', label: 'Estado' },
-                { key: 'budget', label: 'Presupuesto' },
-                { key: 'margin', label: 'Margen' },
-                { key: 'start_date', label: 'Inicio' },
-              ].map(({ key, label }) => (
-                <th
-                  key={key}
-                  onClick={() => toggleSort(key)}
-                  className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400 cursor-pointer hover:text-neutral-700 select-none"
-                >
-                  {label}<SortIcon col={key} />
-                </th>
-              ))}
+              <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Código</th>
+              <th onClick={() => handleSort('name')} className={thCls('name')}>Nombre{sortIcon('name')}</th>
+              <th onClick={() => handleSort('type')} className={thCls('type')}>Tipo{sortIcon('type')}</th>
+              <th onClick={() => handleSort('status')} className={thCls('status')}>Estado{sortIcon('status')}</th>
+              <th onClick={() => handleSort('budget_estimated')} className={thCls('budget_estimated')}>Presupuesto{sortIcon('budget_estimated')}</th>
+              <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Margen</th>
+              <th onClick={() => handleSort('start_date')} className={thCls('start_date')}>Inicio{sortIcon('start_date')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-50">

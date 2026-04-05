@@ -10,9 +10,12 @@ interface DataTableProps {
   columns: Column[]
   data: Record<string, unknown>[]
   onRowClick?: (row: Record<string, unknown>) => void
+  onHeaderClick?: (key: string) => void
+  sortKey?: string
+  sortDir?: 'asc' | 'desc'
 }
 
-export default function DataTable({ columns, data, onRowClick }: DataTableProps) {
+export default function DataTable({ columns, data, onRowClick, onHeaderClick, sortKey, sortDir }: DataTableProps) {
   return (
     <div className="bg-white border border-neutral-100 overflow-hidden">
       <div className="overflow-x-auto">
@@ -22,9 +25,19 @@ export default function DataTable({ columns, data, onRowClick }: DataTableProps)
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="text-left px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400"
+                  onClick={onHeaderClick ? () => onHeaderClick(col.key) : undefined}
+                  className={`text-left px-6 py-4 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                    onHeaderClick
+                      ? `cursor-pointer select-none ${sortKey === col.key ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`
+                      : 'text-neutral-400'
+                  }`}
                 >
                   {col.label}
+                  {onHeaderClick && (
+                    <span className="ml-1">
+                      {sortKey === col.key ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>

@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react'
 import QuoteEditor from './QuoteEditor'
 
+type SortField = 'number' | 'client' | 'total' | 'created_at' | 'status'
+
 interface Quote {
   id?: string
   number: string
@@ -112,6 +114,27 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
   const [statusFilter, setStatusFilter] = useState<string>('todos')
   const [search, setSearch] = useState('')
 
+  // Sort
+  const [sortField, setSortField] = useState<SortField>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir(field === 'created_at' || field === 'total' ? 'desc' : 'asc')
+    }
+  }
+
+  const sortIcon = (field: SortField) =>
+    sortField === field ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'
+
+  const thCls = (field: SortField, extra = '') =>
+    `text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest cursor-pointer select-none transition-colors ${
+      sortField === field ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'
+    } ${extra}`
+
   const clientMap = useMemo(() => {
     const m: Record<string, string> = {}
     clients.forEach((c) => { m[c.id] = c.name })
@@ -125,7 +148,7 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
   }, [projects])
 
   const filtered = useMemo(() => {
-    return data.filter((q) => {
+    const list = data.filter((q) => {
       if (statusFilter !== 'todos' && q.status !== statusFilter) return false
       if (search) {
         const s = search.toLowerCase()
@@ -135,7 +158,34 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
       }
       return true
     })
-  }, [data, statusFilter, search, clientMap])
+
+    list.sort((a, b) => {
+      let cmp = 0
+      switch (sortField) {
+        case 'number':
+          cmp = (a.number ?? '').localeCompare(b.number ?? '', 'es', { numeric: true })
+          break
+        case 'client': {
+          const nameA = a.client_id ? (clientMap[a.client_id] ?? '') : ''
+          const nameB = b.client_id ? (clientMap[b.client_id] ?? '') : ''
+          cmp = nameA.localeCompare(nameB, 'es', { sensitivity: 'base' })
+          break
+        }
+        case 'total':
+          cmp = (a.total ?? 0) - (b.total ?? 0)
+          break
+        case 'created_at':
+          cmp = (a.created_at ?? '').localeCompare(b.created_at ?? '')
+          break
+        case 'status':
+          cmp = (a.status ?? '').localeCompare(b.status ?? '')
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
+    return list
+  }, [data, statusFilter, search, clientMap, sortField, sortDir])
 
   const openNew = () => {
     setEditingQuote(null)
@@ -235,22 +285,13 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
           <table className="w-full">
             <thead>
               <tr className="border-b border-neutral-100">
-                {[
-                  { label: 'Numero', cls: '' },
-                  { label: 'Cliente', cls: '' },
-                  { label: 'Proyecto', cls: 'hidden sm:table-cell' },
-                  { label: 'Total', cls: 'text-right' },
-                  { label: 'Certificado', cls: 'hidden md:table-cell' },
-                  { label: 'Estado', cls: '' },
-                  { label: 'Fecha', cls: 'hidden sm:table-cell' },
-                ].map((h) => (
-                  <th
-                    key={h.label}
-                    className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${h.cls}`}
-                  >
-                    {h.label}
-                  </th>
-                ))}
+                <th onClick={() => handleSort('number')} className={thCls('number')}>Numero{sortIcon('number')}</th>
+                <th onClick={() => handleSort('client')} className={thCls('client')}>Cliente{sortIcon('client')}</th>
+                <th className="hidden sm:table-cell text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Proyecto</th>
+                <th onClick={() => handleSort('total')} className={thCls('total', 'text-right')}>Total{sortIcon('total')}</th>
+                <th className="hidden md:table-cell text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Certificado</th>
+                <th onClick={() => handleSort('status')} className={thCls('status')}>Estado{sortIcon('status')}</th>
+                <th onClick={() => handleSort('created_at')} className={thCls('created_at', 'hidden sm:table-cell')}>Fecha{sortIcon('created_at')}</th>
                 <th className="px-4 py-4"></th>
               </tr>
             </thead>

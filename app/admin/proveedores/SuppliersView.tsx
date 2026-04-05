@@ -3,7 +3,9 @@
 import { useState, useMemo } from 'react'
 import TabPanel from '@/components/admin/TabPanel'
 
-interface Supplier { id?: string; name: string; nif?: string; email?: string; phone?: string; specialty?: string; address?: string; contact_person?: string; bank_account?: string; payment_terms?: string; active?: boolean; iban?: string; notes?: string; [k: string]: unknown }
+type SortField = 'name' | 'specialty' | 'created_at'
+
+interface Supplier { id?: string; name: string; nif?: string; email?: string; phone?: string; specialty?: string; address?: string; contact_person?: string; bank_account?: string; payment_terms?: string; active?: boolean; iban?: string; notes?: string; created_at?: string; [k: string]: unknown }
 interface Invoice { id: string; number?: string; concept?: string; amount_base?: number; vat_amount?: number; amount_total?: number; payment_status?: string; direction?: string; supplier_nif?: string; [k: string]: unknown }
 
 function getNetAmt(inv: Pick<Invoice, 'amount_base' | 'vat_amount' | 'amount_total'>): number {
@@ -37,8 +39,45 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('datos')
   const [saving, setSaving] = useState(false)
+  const [sortField, setSortField] = useState<SortField>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
-  const filtered = useMemo(() => !search ? data : data.filter(s => `${s.name} ${s.specialty ?? ''} ${s.nif ?? ''}`.toLowerCase().includes(search.toLowerCase())), [data, search])
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir(field === 'created_at' ? 'desc' : 'asc')
+    }
+  }
+
+  const sortIcon = (field: SortField) =>
+    sortField === field ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'
+
+  const thCls = (field: SortField, extra = '') =>
+    `text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest cursor-pointer select-none transition-colors ${
+      sortField === field ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'
+    } ${extra}`
+
+  const filtered = useMemo(() => {
+    let list = !search ? data : data.filter(s => `${s.name} ${s.specialty ?? ''} ${s.nif ?? ''}`.toLowerCase().includes(search.toLowerCase()))
+    list = [...list].sort((a, b) => {
+      let cmp = 0
+      switch (sortField) {
+        case 'name':
+          cmp = (a.name ?? '').localeCompare(b.name ?? '', 'es', { sensitivity: 'base' })
+          break
+        case 'specialty':
+          cmp = (a.specialty ?? '').localeCompare(b.specialty ?? '', 'es', { sensitivity: 'base' })
+          break
+        case 'created_at':
+          cmp = (a.created_at ?? '').localeCompare(b.created_at ?? '')
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return list
+  }, [data, search, sortField, sortDir])
   const set = (k: string, v: unknown) => setForm(f => f ? { ...f, [k]: v } : f)
 
   const supplierInv = useMemo(() => form?.nif ? invoices.filter(i => i.supplier_nif === form.nif && i.direction === 'recibida') : [], [form, invoices])
@@ -134,15 +173,13 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
       <div className="bg-white border border-neutral-100 overflow-x-auto">
         <table className="w-full">
           <thead><tr className="border-b border-neutral-100">
-            {[
-              { label: 'Nombre', cls: '' },
-              { label: 'Especialidad', cls: 'hidden sm:table-cell' },
-              { label: 'Contacto', cls: 'hidden lg:table-cell' },
-              { label: 'Teléfono', cls: 'hidden md:table-cell' },
-              { label: 'NIF', cls: 'hidden lg:table-cell' },
-              { label: 'Facturas', cls: 'hidden sm:table-cell' },
-              { label: 'Pendiente', cls: '' },
-            ].map(h => <th key={h.label} className={`text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400 ${h.cls}`}>{h.label}</th>)}
+            <th onClick={() => handleSort('name')} className={thCls('name')}>Nombre{sortIcon('name')}</th>
+            <th onClick={() => handleSort('specialty')} className={`${thCls('specialty')} hidden sm:table-cell`}>Especialidad{sortIcon('specialty')}</th>
+            <th className="hidden lg:table-cell text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Contacto</th>
+            <th className="hidden md:table-cell text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Teléfono</th>
+            <th className="hidden lg:table-cell text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">NIF</th>
+            <th className="hidden sm:table-cell text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Facturas</th>
+            <th className="text-left px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Pendiente</th>
           </tr></thead>
           <tbody className="divide-y divide-neutral-50">
             {filtered.length === 0 ? <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-neutral-400">Sin proveedores</td></tr> :
@@ -179,7 +216,7 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
                     <div><label className={lbl}>NIF/CIF</label><input type="text" value={form.nif || ''} onChange={e => set('nif', e.target.value)} className={inp} /></div>
                     <div><label className={lbl}>Email</label><input type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} className={inp} /></div>
                     <div><label className={lbl}>Teléfono</label><input type="tel" value={form.phone || ''} onChange={e => set('phone', e.target.value)} className={inp} /></div>
-                    <div><label className={lbl}>Especialidad</label><select value={form.specialty || ''} onChange={e => set('specialty', e.target.value)} className={inp}><option value="">Seleccionar</option>{SPECIALTIES.map(s => <option key={s} value={s}>{SPECIALTY_LABELS[s] ?? s}</option>)}</select></div>
+                    <div><label className={lbl}>Especialidad</label><input type="text" value={form.specialty || ''} onChange={e => set('specialty', e.target.value)} className={inp} placeholder="Ej: Reformas, Climatización…" /></div>
                     <div><label className={lbl}>Contacto</label><input type="text" value={form.contact_person || ''} onChange={e => set('contact_person', e.target.value)} className={inp} /></div>
                     <div><label className={lbl}>Dirección</label><input type="text" value={form.address || ''} onChange={e => set('address', e.target.value)} className={inp} /></div>
                     <div><label className={lbl}>IBAN</label><input type="text" value={form.bank_account || ''} onChange={e => set('bank_account', e.target.value)} className={inp} placeholder="ES00 0000 0000 0000 0000 0000" /></div>
