@@ -739,6 +739,20 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
   const body = await request.json()
   const supabase = createAdminSupabaseClient()
+
+  // Upsert support: if _upsert_on_conflict is set, use upsert with ignoreDuplicates
+  if (body._upsert_on_conflict) {
+    const { _upsert_on_conflict, ...payload } = body
+    const { data, error } = await supabase
+      .from(table)
+      .upsert(payload, { onConflict: _upsert_on_conflict, ignoreDuplicates: true })
+      .select()
+      .maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    auditLog(user.email ?? user.id, 'create', table, (data as Record<string, unknown>)?.id as string ?? null, ip)
+    return NextResponse.json({ data })
+  }
+
   const { data, error } = await supabase.from(table).insert(body).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -272,16 +272,40 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     if (!selected) return
     setSaving(true)
     try {
+      const nif = editForm.supplier_nif || null
       const body = {
         id: selected.id,
         ...editForm,
-        supplier_nif: editForm.supplier_nif || null,
+        supplier_nif: nif,
         number: editForm.number || null,
         review_status: status,
         reviewed_at: new Date().toISOString(),
         reviewed_by: 'admin',
         needs_review: false,
       }
+
+      // Auto-crear proveedor si confirmamos y hay NIF que aún no está en la tabla
+      if (status === 'confirmado' && nif) {
+        const supplierName =
+          selected.ai_data?.supplier_name ||
+          (selected as unknown as Record<string, unknown>).empresa as string ||
+          null
+        if (supplierName) {
+          // Intentamos upsert por NIF — si ya existe, no hace nada (onConflict ignore)
+          await fetch('/api/db/suppliers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nif,
+              name: supplierName,
+              ...(selected.ai_data?.supplier_address ? { address: selected.ai_data.supplier_address } : {}),
+              ...(selected.ai_data?.iban_proveedor ? { bank_account: selected.ai_data.iban_proveedor } : {}),
+              _upsert_on_conflict: 'nif',  // ignorar si ya existe
+            }),
+          })
+        }
+      }
+
       const res = await fetch('/api/db/invoices', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
