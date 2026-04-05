@@ -1,6 +1,18 @@
 @import "tailwindcss";
 
 /**
+ * Cathedral Group — Custom theme tokens (Tailwind v4)
+ * tailwind.config.ts is ignored in v4; colors must be defined here as CSS variables.
+ */
+@theme {
+  --color-primary: #B4A898;
+  --color-logo: #9A8D7C;
+  --color-beige-subtle: #D9D0C7;
+  --color-stone-dark: #5A5550;
+  --font-family-display: 'Manrope', sans-serif;
+}
+
+/**
  * Cathedral Group — Custom CSS
  */
 
