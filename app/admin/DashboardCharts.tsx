@@ -25,10 +25,25 @@ interface SourceData {
   value: number
 }
 
+interface ProjectProfData {
+  name: string
+  ingresos: number
+  gastos: number
+  margen: number
+}
+
+interface EstructuraData {
+  name: string
+  value: number
+}
+
 interface Props {
   monthlyData: MonthlyData[]
   invoiceStatus: StatusData[]
   leadSources: SourceData[]
+  projectProfitability: ProjectProfData[]
+  estructuraData: EstructuraData[]
+  estructuraYear: number
 }
 
 const COLORS = ['#B4A898', '#5A5550', '#9A8D7C', '#D9D0C7', '#7A6F64', '#E8E6E3']
@@ -76,7 +91,7 @@ function CashFlowTooltip({ active, payload, label }: CashFlowTooltipProps) {
   )
 }
 
-export default function DashboardCharts({ monthlyData, invoiceStatus, leadSources }: Props) {
+export default function DashboardCharts({ monthlyData, invoiceStatus, leadSources, projectProfitability, estructuraData, estructuraYear }: Props) {
   const totalInvoices = invoiceStatus.reduce((sum, s) => sum + s.value, 0)
 
   // Compute cumulative cash flow from monthly invoice data
@@ -282,6 +297,126 @@ export default function DashboardCharts({ monthlyData, invoiceStatus, leadSource
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      {/* ── 2-column: Rentabilidad por Proyecto + Gastos de Estructura ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* Rentabilidad por proyecto */}
+        <div className="bg-white p-6 border border-neutral-100">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-4">
+            Rentabilidad por Proyecto
+          </h3>
+          {projectProfitability.length === 0 ? (
+            <div className="h-[260px] flex items-center justify-center text-neutral-300 text-sm">
+              Sin facturas vinculadas a proyectos en este periodo
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(260, projectProfitability.length * 56)}>
+              <BarChart
+                data={projectProfitability}
+                layout="vertical"
+                margin={{ top: 0, right: 60, bottom: 0, left: 0 }}
+                barGap={2}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: '#999' }} tickFormatter={formatEUR} axisLine={false} tickLine={false} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: '#555' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={110}
+                  tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 17) + '…' : v}
+                />
+                <Tooltip
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  content={({ active, payload, label }: any) => {
+                    if (!active || !payload?.length) return null
+                    const ingresos = payload.find((p: {dataKey:string}) => p.dataKey === 'ingresos')?.value ?? 0
+                    const gastos = payload.find((p: {dataKey:string}) => p.dataKey === 'gastos')?.value ?? 0
+                    const margen = ingresos - gastos
+                    const pct = ingresos > 0 ? ((margen / ingresos) * 100).toFixed(1) : '—'
+                    return (
+                      <div className="bg-white border border-neutral-200 rounded shadow-lg p-3 text-xs min-w-[180px]">
+                        <p className="font-bold text-neutral-700 mb-2 truncate">{label}</p>
+                        <div className="flex justify-between gap-4"><span className="text-neutral-500">Ingresos</span><span className="font-mono font-bold text-neutral-800">{formatEURFull(ingresos)}</span></div>
+                        <div className="flex justify-between gap-4 mt-1"><span className="text-neutral-500">Gastos</span><span className="font-mono font-bold text-neutral-800">{formatEURFull(gastos)}</span></div>
+                        <div className="flex justify-between gap-4 mt-1 pt-1 border-t border-neutral-100"><span className="text-neutral-500">Margen</span><span className={`font-mono font-bold ${margen >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatEURFull(margen)} ({pct}%)</span></div>
+                      </div>
+                    )
+                  }}
+                />
+                <Bar dataKey="ingresos" name="Ingresos" fill="#B4A898" radius={[0, 2, 2, 0]} maxBarSize={18}>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {projectProfitability.map((entry: any, i: number) => (
+                    <Cell key={i} fill={entry.margen >= 0 ? '#B4A898' : '#D9A5A5'} />
+                  ))}
+                </Bar>
+                <Bar dataKey="gastos" name="Gastos" fill="#5A5550" radius={[0, 2, 2, 0]} maxBarSize={18} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Gastos de estructura por línea */}
+        <div className="bg-white p-6 border border-neutral-100">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-4">
+            Costes Fijos de Estructura — {estructuraYear}
+          </h3>
+          {estructuraData.length === 0 ? (
+            <div className="h-[260px] flex flex-col items-center justify-center text-neutral-300 text-sm gap-2">
+              <span>Sin datos de estructura en {estructuraYear}</span>
+              <span className="text-xs text-neutral-200">Marca facturas como &ldquo;Gasto general de estructura&rdquo; para verlas aquí</span>
+            </div>
+          ) : (
+            (() => {
+              const totalEstructura = estructuraData.reduce((s, d) => s + d.value, 0)
+              return (
+                <>
+                  <div className="flex justify-between items-baseline mb-3">
+                    <span className="text-xs text-neutral-400">Total anual</span>
+                    <span className="text-base font-bold text-neutral-800">{formatEURFull(totalEstructura)}</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={Math.max(220, estructuraData.length * 38)}>
+                    <BarChart
+                      data={estructuraData}
+                      layout="vertical"
+                      margin={{ top: 0, right: 60, bottom: 0, left: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#999' }} tickFormatter={formatEUR} axisLine={false} tickLine={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        tick={{ fontSize: 10, fill: '#555' }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={120}
+                      />
+                      <Tooltip
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        formatter={(value: any) => {
+                          const pct = totalEstructura > 0 ? ((Number(value) / totalEstructura) * 100).toFixed(1) : '0'
+                          return [`${formatEURFull(Number(value))} (${pct}%)`, 'Gasto anual']
+                        }}
+                        contentStyle={{ fontSize: 12, border: '1px solid #e5e5e5' }}
+                      />
+                      <Bar dataKey="value" name="Gasto anual" fill="#9A8D7C" radius={[0, 2, 2, 0]} maxBarSize={20}>
+                        {estructuraData.map((_: EstructuraData, i: number) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
+              )
+            })()
+          )}
+        </div>
+
       </div>
     </div>
   )

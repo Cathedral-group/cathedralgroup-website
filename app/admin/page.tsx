@@ -117,6 +117,9 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     { data: periodLeads },
     { data: docsExpiringSoon },
     { data: docsExpired },
+    projectInvoices,
+    { data: projectsList },
+    { data: estructuraInvoices },
   ] = await Promise.all([
     supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
@@ -131,6 +134,14 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:true}),
     // Documentos ya vencidos (vencimiento pasado, no cancelados)
     supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:false}).limit(10),
+    // Facturas con proyecto para gráfica de rentabilidad
+    fetchAllRows<{direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string}>((sb) =>
+      sb.from('invoices').select('direction,amount_base,vat_amount,amount_total,project_id').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).not('project_id','is',null).gte('issue_date',start).lte('issue_date',end)
+    ),
+    // Lista de proyectos para nombres
+    supabase.from('projects').select('id,name').is('deleted_at',null),
+    // Gastos de estructura — siempre año completo para visión anual
+    supabase.from('invoices').select('linea_estructura,amount_base,vat_amount,amount_total').eq('direction','recibida').eq('es_gasto_general',true).not('linea_estructura','is',null).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',`${year}-01-01`).lte('issue_date',`${year}-12-31`),
   ])
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -191,6 +202,41 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   }
   const leadSources = Object.entries(sourceMap).map(([name,value]) => ({name,value})).sort((a,b) => b.value - a.value)
 
+  // Chart: rentabilidad por proyecto
+  const projById: Record<string,string> = {}
+  for (const p of (projectsList || []) as {id:string;name:string}[]) {
+    projById[p.id] = p.name
+  }
+  const projMap: Record<string,{name:string;ingresos:number;gastos:number}> = {}
+  for (const inv of (projectInvoices || []) as {direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string}[]) {
+    const name = projById[inv.project_id] || inv.project_id
+    if (!projMap[inv.project_id]) projMap[inv.project_id] = { name, ingresos: 0, gastos: 0 }
+    const amt = getNetAmt(inv)
+    if (inv.direction === 'emitida') projMap[inv.project_id].ingresos += amt
+    else projMap[inv.project_id].gastos += amt
+  }
+  const projectProfitability = Object.values(projMap)
+    .map(p => ({ name: p.name, ingresos: Math.round(p.ingresos), gastos: Math.round(p.gastos), margen: Math.round(p.ingresos - p.gastos) }))
+    .filter(p => p.ingresos > 0 || p.gastos > 0)
+    .sort((a,b) => (b.ingresos + b.gastos) - (a.ingresos + a.gastos))
+    .slice(0, 8)
+
+  // Chart: gastos de estructura por línea
+  const ESTRUCTURA_LABELS: Record<string,string> = {
+    nominas:'Nóminas', ss_empresa:'S.S. empresa', internet:'Internet / Telecom',
+    telefono:'Teléfono móvil', renting:'Renting', alquiler_oficina:'Alquiler oficina',
+    seguros:'Seguros', software:'Software', asesoria:'Gestoría / Asesoría',
+    suministros:'Suministros', otros_fijos:'Otros fijos',
+  }
+  const estructuraMap: Record<string,number> = {}
+  for (const inv of (estructuraInvoices || []) as {linea_estructura:string|null;amount_base:number|null;vat_amount:number|null;amount_total:number|null}[]) {
+    if (!inv.linea_estructura) continue
+    estructuraMap[inv.linea_estructura] = (estructuraMap[inv.linea_estructura] || 0) + getNetAmt(inv)
+  }
+  const estructuraData = Object.entries(estructuraMap)
+    .map(([key, value]) => ({ name: ESTRUCTURA_LABELS[key] || key, value: Math.round(value) }))
+    .sort((a,b) => b.value - a.value)
+
   return {
     facturacionTotal, gastosTotal, margenBruto,
     totalPendienteCobro, countPendienteCobro,
@@ -199,6 +245,7 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     cashFlow30Income, cashFlow30Expenses,
     recentLeads: recentLeads || [],
     monthlyData, invoiceStatus, leadSources,
+    projectProfitability, estructuraData, estructuraYear: year,
     docsExpiringSoon: docsExpiringSoon || [],
     docsExpired: docsExpired || [],
   }
@@ -374,6 +421,9 @@ export default async function AdminDashboard({
         monthlyData={stats.monthlyData}
         invoiceStatus={stats.invoiceStatus}
         leadSources={stats.leadSources}
+        projectProfitability={stats.projectProfitability}
+        estructuraData={stats.estructuraData}
+        estructuraYear={stats.estructuraYear}
       />
 
       {/* ── Two-column: IVA + Flujo de Caja ── */}
