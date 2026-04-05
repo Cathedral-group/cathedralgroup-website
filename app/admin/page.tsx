@@ -203,28 +203,36 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   const leadSources = Object.entries(sourceMap).map(([name,value]) => ({name,value})).sort((a,b) => b.value - a.value)
 
   // Chart: rentabilidad por proyecto
+  // Build lookup maps: by UUID, by code, by name (normalised lowercase)
   const projById: Record<string,string> = {}
   const projByCode: Record<string,string> = {}
+  const projByName: Record<string,string> = {}
   for (const p of (projectsList || []) as {id:string;code:string|null;name:string}[]) {
     projById[p.id] = p.name
-    if (p.code) projByCode[p.code] = p.name
+    if (p.code) projByCode[p.code.trim()] = p.name
+    if (p.name) projByName[p.name.trim().toLowerCase()] = p.name
+  }
+  function resolveProjectName(projectId: string|null, proyectoCode: string|null): {key:string;name:string}|null {
+    if (projectId && projById[projectId]) return { key: projectId, name: projById[projectId] }
+    if (proyectoCode) {
+      const c = proyectoCode.trim()
+      const byCode = projByCode[c]
+      if (byCode) return { key: `code:${c}`, name: byCode }
+      const byName = projByName[c.toLowerCase()]
+      if (byName) return { key: `name:${c.toLowerCase()}`, name: byName }
+      // fallback: use the raw value as display name
+      return { key: `raw:${c}`, name: c }
+    }
+    return null
   }
   const projMap: Record<string,{name:string;ingresos:number;gastos:number}> = {}
   for (const inv of (projectInvoices || []) as {direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string|null;proyecto_code:string|null}[]) {
-    let key: string | null = null
-    let name: string | null = null
-    if (inv.project_id) {
-      key = inv.project_id
-      name = projById[inv.project_id] || inv.project_id
-    } else if (inv.proyecto_code) {
-      key = `code:${inv.proyecto_code}`
-      name = projByCode[inv.proyecto_code] || inv.proyecto_code
-    }
-    if (!key || !name) continue
-    if (!projMap[key]) projMap[key] = { name, ingresos: 0, gastos: 0 }
+    const resolved = resolveProjectName(inv.project_id, inv.proyecto_code)
+    if (!resolved) continue
+    if (!projMap[resolved.key]) projMap[resolved.key] = { name: resolved.name, ingresos: 0, gastos: 0 }
     const amt = getNetAmt(inv)
-    if (inv.direction === 'emitida') projMap[key].ingresos += amt
-    else projMap[key].gastos += amt
+    if (inv.direction === 'emitida') projMap[resolved.key].ingresos += amt
+    else projMap[resolved.key].gastos += amt
   }
   const projectProfitability = Object.values(projMap)
     .map(p => ({ name: p.name, ingresos: Math.round(p.ingresos), gastos: Math.round(p.gastos), margen: Math.round(p.ingresos - p.gastos) }))
