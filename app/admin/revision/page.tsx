@@ -24,13 +24,14 @@ export default async function RevisionPage() {
       .is('deleted_at', null)
       .eq('needs_review', true)
       .order('created_at', { ascending: false }),
-    supabase.from('projects').select('code, name').is('deleted_at', null),
+    supabase.from('projects').select('id, code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
   ])
 
   const projects = (projectsRes.data ?? []).map((p) => ({
-    value: p.code,
+    value: p.id,
     label: `${p.code} - ${p.name}`,
+    code: p.code ?? '',
   }))
 
   const suppliers = (suppliersRes.data ?? []).map((s) => ({

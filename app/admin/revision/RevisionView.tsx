@@ -64,6 +64,7 @@ interface ReviewItem {
   review_status: string
   duplicate_reason: string | null
   linked_doc_id: string | null
+  project_id?: string | null
   proyecto_code: string | null
   proyecto_confianza: number | null
   categoria_gasto: string | null
@@ -91,7 +92,7 @@ interface PendingDocument {
 interface RevisionViewProps {
   initialData: ReviewItem[]
   pendingDocuments?: PendingDocument[]
-  projects: { value: string; label: string }[]
+  projects: { value: string; label: string; code?: string }[]
   suppliers: { value: string; label: string }[]
   userEmail?: string
 }
@@ -274,10 +275,15 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
       supplier_nif: item.supplier_nif,
       amount_total: item.amount_total,
       issue_date: item.issue_date,
+      due_date: item.due_date,
+      payment_status: item.payment_status ?? 'pendiente',
+      payment_method: item.payment_method,
+      project_id: item.project_id ?? null,
       proyecto_code: item.proyecto_code,
       categoria_gasto: item.categoria_gasto,
       concept: item.concept,
       es_gasto_general: item.es_gasto_general,
+      es_rectificativa: item.es_rectificativa,
     })
   }
 
@@ -295,14 +301,16 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
         reviewed_at: new Date().toISOString(),
         reviewed_by: userEmail,
         needs_review: false,
+        due_date: editForm.due_date ?? selected.due_date ?? null,
+        payment_status: editForm.payment_status ?? selected.payment_status ?? 'pendiente',
+        payment_method: editForm.payment_method ?? selected.payment_method ?? null,
+        es_rectificativa: editForm.es_rectificativa ?? selected.es_rectificativa ?? false,
         // Persistir campos financieros del item original si no están en editForm
         vat_pct: editForm.vat_pct ?? selected.vat_pct ?? null,
         vat_amount: editForm.vat_amount ?? selected.vat_amount ?? null,
         amount_base: editForm.amount_base ?? selected.amount_base ?? null,
         irpf_rate: editForm.irpf_rate ?? selected.irpf_rate ?? null,
         irpf_amount: editForm.irpf_amount ?? selected.irpf_amount ?? null,
-        due_date: editForm.due_date ?? selected.due_date ?? null,
-        payment_status: editForm.payment_status ?? selected.payment_status ?? 'pendiente',
         // Persistir líneas de factura desde ai_data si existen
         lineas: selected.ai_data?.lineas ?? selected.lineas ?? null,
       }
@@ -732,11 +740,73 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
 
                 <div>
                   <label className="block text-xs text-neutral-500 mb-1">Proyecto</label>
-                  <select value={editForm.proyecto_code || ''} onChange={e => setEditForm(p => ({ ...p, proyecto_code: e.target.value || null }))}
+                  <select
+                    value={editForm.project_id || ''}
+                    onChange={e => {
+                      const id = e.target.value || null
+                      const proj = projects.find(p => p.value === id)
+                      setEditForm(p => ({ ...p, project_id: id, proyecto_code: proj?.code ?? null }))
+                    }}
                     className="w-full border rounded px-3 py-2 text-sm">
                     <option value="">Sin proyecto</option>
                     {projects.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                   </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Categoría gasto</label>
+                    <select value={editForm.categoria_gasto || ''} onChange={e => setEditForm(p => ({ ...p, categoria_gasto: e.target.value || null }))}
+                      className="w-full border rounded px-3 py-2 text-sm">
+                      <option value="">Sin categoría</option>
+                      <option value="material">Material</option>
+                      <option value="mano_de_obra">Mano de obra</option>
+                      <option value="subcontratas">Subcontratas</option>
+                      <option value="alquiler">Alquiler</option>
+                      <option value="servicios">Servicios</option>
+                      <option value="otros">Otros</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Estado pago</label>
+                    <select value={editForm.payment_status || 'pendiente'} onChange={e => setEditForm(p => ({ ...p, payment_status: e.target.value }))}
+                      className="w-full border rounded px-3 py-2 text-sm">
+                      <option value="pendiente">Pendiente</option>
+                      <option value="pagada">Pagada</option>
+                      <option value="cobrada">Cobrada</option>
+                      <option value="vencida">Vencida</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Fecha vencimiento</label>
+                    <input type="date" value={editForm.due_date || ''}
+                      onChange={e => setEditForm(p => ({ ...p, due_date: e.target.value || null }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Forma de pago</label>
+                    <select value={editForm.payment_method || ''} onChange={e => setEditForm(p => ({ ...p, payment_method: e.target.value || null }))}
+                      className="w-full border rounded px-3 py-2 text-sm">
+                      <option value="">Sin especificar</option>
+                      <option value="transferencia">Transferencia</option>
+                      <option value="efectivo">Efectivo</option>
+                      <option value="tarjeta">Tarjeta</option>
+                      <option value="domiciliacion">Domiciliación</option>
+                      <option value="cheque">Cheque</option>
+                      <option value="compensacion">Compensación</option>
+                      <option value="otros">Otros</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input type="checkbox" id="rev-rectificativa" checked={!!editForm.es_rectificativa}
+                    onChange={e => setEditForm(p => ({ ...p, es_rectificativa: e.target.checked }))}
+                    className="rounded border-neutral-300" />
+                  <label htmlFor="rev-rectificativa" className="text-xs text-neutral-600 cursor-pointer">Rectificativa</label>
                 </div>
 
                 <div>
