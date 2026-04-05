@@ -184,6 +184,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
   const [items, setItems] = useState<ReviewItem[]>(initialData)
   const [selected, setSelected] = useState<ReviewItem | null>(null)
   const [category, setCategory] = useState<string>('todos_pendientes')
+  const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<ReviewItem>>({})
 
@@ -226,7 +227,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     return [...normal, ...reenv]
   }
 
-  const filtered = sortItems(
+  const filteredByCategory = sortItems(
     category === 'resueltos'
       ? items.filter(i => ['confirmado', 'rechazado', 'error'].includes(i.review_status))
       : category === 'todos_pendientes'
@@ -237,6 +238,20 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
             ? pending.filter(i => isReenviada(i))
             : pending.filter(i => categorize(i) === category)
   )
+
+  const filtered = search.trim()
+    ? filteredByCategory.filter(i => {
+        const q = search.toLowerCase()
+        return (
+          (i.original_filename ?? '').toLowerCase().includes(q) ||
+          (i.concept ?? '').toLowerCase().includes(q) ||
+          (i.supplier_nif ?? '').toLowerCase().includes(q) ||
+          (i.number ?? '').toLowerCase().includes(q) ||
+          (i.proyecto_code ?? '').toLowerCase().includes(q) ||
+          (i.doc_type ?? '').toLowerCase().includes(q)
+        )
+      })
+    : filteredByCategory
 
   const openItem = (item: ReviewItem) => {
     setSelected(item)
@@ -340,7 +355,20 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
         </div>
       )}
 
-      {/* Category chips */}
+      {/* Search + Category chips */}
+      <div className="flex items-center gap-3 mb-3">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar por archivo, concepto, NIF, proyecto..."
+          className="flex-1 bg-neutral-50 border border-neutral-200 focus:ring-1 focus:ring-primary focus:outline-none px-4 py-2 text-sm"
+        />
+        {search && (
+          <span className="text-xs text-neutral-400 whitespace-nowrap">{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</span>
+        )}
+      </div>
+
       <div className="flex flex-wrap gap-2 mb-4">
         {categories.map(cat => {
           const count = counts[cat.key as keyof typeof counts] || 0

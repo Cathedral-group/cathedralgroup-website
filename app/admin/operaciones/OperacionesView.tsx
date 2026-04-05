@@ -80,14 +80,23 @@ export default function OperacionesView({ initialData, projects }: Props) {
   const router = useRouter()
   const [ops, setOps] = useState<FlippingOp[]>(initialData)
   const [filter, setFilter] = useState<'activas' | 'vendidas' | 'todas'>('todas')
+  const [search, setSearch] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [newForm, setNewForm] = useState({ code: '', name: '', status: 'prospecto', address: '', property_type: 'piso', surface_m2: '' })
   const [saving, setSaving] = useState(false)
 
   const ACTIVE_STATUSES = ['prospecto','comprada','en_reforma','en_venta']
   const filtered = ops.filter(op => {
-    if (filter === 'activas') return ACTIVE_STATUSES.includes(op.status)
-    if (filter === 'vendidas') return op.status === 'vendida'
+    if (filter === 'activas' && !ACTIVE_STATUSES.includes(op.status)) return false
+    if (filter === 'vendidas' && op.status !== 'vendida') return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (
+        !(op.code ?? '').toLowerCase().includes(q) &&
+        !(op.name ?? '').toLowerCase().includes(q) &&
+        !(op.address ?? '').toLowerCase().includes(q)
+      ) return false
+    }
     return true
   })
 
@@ -160,19 +169,28 @@ export default function OperacionesView({ initialData, projects }: Props) {
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 mb-6">
-        {(['todas','activas','vendidas'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
-              filter === f ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-500 hover:border-primary'
-            }`}
-          >
-            {f === 'todas' ? `Todas (${ops.length})` : f === 'activas' ? `Activas (${ops.filter(o => ACTIVE_STATUSES.includes(o.status)).length})` : `Vendidas (${ops.filter(o => o.status === 'vendida').length})`}
-          </button>
-        ))}
+      {/* Filter tabs + search */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="flex gap-2">
+          {(['todas','activas','vendidas'] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                filter === f ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-500 hover:border-primary'
+              }`}
+            >
+              {f === 'todas' ? `Todas (${ops.length})` : f === 'activas' ? `Activas (${ops.filter(o => ACTIVE_STATUSES.includes(o.status)).length})` : `Vendidas (${ops.filter(o => o.status === 'vendida').length})`}
+            </button>
+          ))}
+        </div>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar..."
+          className="bg-neutral-50 border border-neutral-200 focus:ring-1 focus:ring-primary focus:outline-none px-4 py-2 text-sm w-52"
+        />
       </div>
 
       {/* Table */}

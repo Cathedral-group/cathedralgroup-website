@@ -4,24 +4,8 @@ import { useState, useMemo, useEffect } from 'react'
 import InvoiceForm from './InvoiceForm'
 
 type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status' | 'created_at'
-type DocTypeCategory = 'todas' | 'facturas' | 'obra' | 'legal' | 'admin' | 'otros'
 
-const CATEGORY_TYPES: Record<string, string[]> = {
-  facturas: ['factura', 'proforma', 'rectificativa', 'abono', 'ticket', 'justificante_pago'],
-  obra:     ['presupuesto', 'albaran', 'certificado'],
-  legal:    ['contrato', 'escritura', 'nota_simple', 'licencia'],
-  admin:    ['nomina', 'modelo_fiscal', 'seguro', 'informe'],
-  otros:    ['otro'],
-}
-
-const CATEGORY_LABELS: Record<DocTypeCategory, string> = {
-  todas:    'Todas',
-  facturas: 'Facturas',
-  obra:     'Obra',
-  legal:    'Legal',
-  admin:    'Admin',
-  otros:    'Otros',
-}
+const INVOICE_DOC_TYPES = ['factura', 'proforma', 'rectificativa', 'abono', 'ticket', 'justificante_pago']
 
 interface Invoice {
   id?: string
@@ -68,7 +52,6 @@ interface InvoicesViewProps {
   initialData: Invoice[]
   projects: { value: string; label: string }[]
   suppliers: { value: string; label: string }[]
-  defaultCategory?: DocTypeCategory
   pageTitle?: string
 }
 
@@ -155,7 +138,7 @@ function parseSugerido(razones: string[] | null | undefined): { code: string; co
   return null
 }
 
-export default function InvoicesView({ initialData, projects, suppliers, defaultCategory = 'facturas', pageTitle }: InvoicesViewProps) {
+export default function InvoicesView({ initialData, projects, suppliers, pageTitle }: InvoicesViewProps) {
   const [data, setData] = useState<Invoice[]>(initialData)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
@@ -172,7 +155,6 @@ export default function InvoicesView({ initialData, projects, suppliers, default
   const [deduping, setDeduping] = useState(false)
 
   // Filters
-  const [categoryFilter, setCategoryFilter] = useState<DocTypeCategory>(defaultCategory)
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
   const [search, setSearch] = useState('')
@@ -180,6 +162,24 @@ export default function InvoicesView({ initialData, projects, suppliers, default
   // Sort: default by entry date descending
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  // Maps for resolving names — must be defined BEFORE filtered useMemo
+  const supplierMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    suppliers.forEach(s => {
+      const name = s.label.includes(' - ') ? s.label.split(' - ').slice(1).join(' - ') : s.label
+      if (s.value) m[s.value] = name
+    })
+    return m
+  }, [suppliers])
+
+  const projectMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    projects.forEach(p => {
+      if (p.value) m[p.value] = p.label
+    })
+    return m
+  }, [projects])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -200,7 +200,7 @@ export default function InvoicesView({ initialData, projects, suppliers, default
 
   const filtered = useMemo(() => {
     const list = data.filter((inv) => {
-      if (categoryFilter !== 'todas' && !CATEGORY_TYPES[categoryFilter].includes(inv.doc_type)) return false
+      if (!INVOICE_DOC_TYPES.includes(inv.doc_type)) return false
       if (dirFilter !== 'todas' && inv.direction !== dirFilter) return false
       if (statusFilter !== 'todas') {
         if (statusFilter === 'vencida') {
@@ -260,26 +260,8 @@ export default function InvoicesView({ initialData, projects, suppliers, default
     })
 
     return list
-  }, [data, categoryFilter, dirFilter, statusFilter, search, sortField, sortDir])
+  }, [data, dirFilter, statusFilter, search, sortField, sortDir, projectMap])
 
-  // Maps for resolving names from FK references
-  const supplierMap = useMemo(() => {
-    const m: Record<string, string> = {}
-    suppliers.forEach(s => {
-      // label format: "NIF - Name"
-      const name = s.label.includes(' - ') ? s.label.split(' - ').slice(1).join(' - ') : s.label
-      if (s.value) m[s.value] = name
-    })
-    return m
-  }, [suppliers])
-
-  const projectMap = useMemo(() => {
-    const m: Record<string, string> = {}
-    projects.forEach(p => {
-      if (p.value) m[p.value] = p.label  // UUID → "CODE - Name"
-    })
-    return m
-  }, [projects])
 
   const openNew = () => {
     setEditingInvoice(null)
@@ -493,31 +475,17 @@ export default function InvoicesView({ initialData, projects, suppliers, default
         </div>
       </div>
 
-      {/* Category tabs */}
-      <div className="flex gap-1 mb-3 border-b border-neutral-100 pb-3">
-        {(['todas', 'facturas', 'obra', 'legal', 'admin', 'otros'] as const).map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategoryFilter(cat)}
-            className={filterBtnCls(categoryFilter === cat)}
-          >
-            {CATEGORY_LABELS[cat]}
-          </button>
-        ))}
-      </div>
-
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
-        {/* Direction */}
-        <div className="flex gap-1">
+        {/* Direction tabs — primary filter */}
+        <div className="flex gap-1 border-b border-neutral-100 pb-3 w-full">
           {(['todas', 'emitida', 'recibida'] as const).map((v) => (
             <button key={v} onClick={() => setDirFilter(v)} className={filterBtnCls(dirFilter === v)}>
-              {v === 'todas' ? 'Todas' : v === 'emitida' ? 'Cobros' : 'Pagos'}
+              {v === 'todas' ? 'Todas' : v === 'emitida' ? 'Emitidas (Cobros)' : 'Recibidas (Pagos)'}
             </button>
           ))}
         </div>
-
-        <div className="w-px h-6 bg-neutral-200" />
+        <div className="flex flex-wrap items-center gap-4 w-full">
 
         {/* Status */}
         <div className="flex gap-1">
@@ -542,6 +510,7 @@ export default function InvoicesView({ initialData, projects, suppliers, default
         <span className="text-xs text-neutral-400 ml-auto">
           {filtered.length} de {data.length}
         </span>
+        </div>
       </div>
 
       {/* Table */}
