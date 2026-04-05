@@ -26,33 +26,6 @@ function formatDate(dateStr: string | null | undefined): string {
   })
 }
 
-function daysUntil(dateStr: string): number {
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  const target = new Date(dateStr)
-  if (isNaN(target.getTime())) return 999
-  target.setHours(0, 0, 0, 0)
-  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-}
-
-function dueDateColor(days: number): string {
-  if (days < 7) return 'text-red-600'
-  if (days <= 15) return 'text-amber-600'
-  return 'text-green-600'
-}
-
-function dueDateBg(days: number): string {
-  if (days < 7) return 'bg-red-50'
-  if (days <= 15) return 'bg-amber-50'
-  return 'bg-green-50'
-}
-
-function marginColor(margin: number | null | undefined): string {
-  if (margin == null || isNaN(margin)) return 'text-neutral-400'
-  if (margin >= 20) return 'text-green-600'
-  if (margin >= 10) return 'text-amber-600'
-  return 'text-red-600'
-}
 
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
@@ -111,24 +84,20 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   const [
     { data: emitidas },
     { data: recibidas },
-    { count: proyectosActivos },
     pendientesCobro,
     pendientesPago,
     { data: vatData },
-    { data: facturasPorVencer },
-    { data: projectFinancials },
+    { data: cashFlowInvoices },
     { data: recentLeads },
     { data: periodInvoices },
     { data: periodLeads },
   ] = await Promise.all([
     supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
-    supabase.from('projects').select('*',{count:'exact',head:true}).eq('status','en_curso').is('deleted_at',null),
     fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
     fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
     supabase.from('vat_quarterly').select('*').eq('year',year).eq('quarter',vatQuarter).maybeSingle(),
-    supabase.from('invoices').select('id,number,concept,amount_total,due_date,direction').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str).order('due_date',{ascending:true}),
-    supabase.from('project_financials').select('code,name,budget_estimated,sale_price,income_base,expense_base,gross_margin,status').eq('status','en_curso').order('code',{ascending:true}),
+    supabase.from('invoices').select('amount_total,due_date,direction').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str),
     supabase.from('leads').select('id,nombre,email,tipo_proyecto,zona,created_at').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59').order('created_at',{ascending:false}).limit(10),
     supabase.from('invoices').select('amount_base,vat_amount,amount_total,direction,issue_date,payment_status,due_date').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('leads').select('origen').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59'),
@@ -148,8 +117,8 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   const countPendienteCobro = pendientesCobro?.length || 0
   const totalPendientePago = (pendientesPago || []).reduce((s,i) => s + (Number(i.amount_total)||0), 0)
   const countPendientePago = pendientesPago?.length || 0
-  const cashFlow30Income = (facturasPorVencer || []).filter((i: {direction:string}) => i.direction==='emitida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
-  const cashFlow30Expenses = (facturasPorVencer || []).filter((i: {direction:string}) => i.direction==='recibida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
+  const cashFlow30Income = (cashFlowInvoices || []).filter((i: {direction:string}) => i.direction==='emitida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
+  const cashFlow30Expenses = (cashFlowInvoices || []).filter((i: {direction:string}) => i.direction==='recibida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
 
   // Chart: monthly breakdown (use net base amounts, consistent with P&L)
   const monthlyMap = buildMonthlyMap(year, quarter, month)
@@ -193,13 +162,10 @@ async function getStats(year: number, quarter: number | null, month: number | nu
 
   return {
     facturacionTotal, gastosTotal, margenBruto,
-    proyectosActivos: proyectosActivos || 0,
     totalPendienteCobro, countPendienteCobro,
     totalPendientePago, countPendientePago,
     vat: vatData, vatQuarter,
-    facturasPorVencer: (facturasPorVencer || []).slice(0, 15),
     cashFlow30Income, cashFlow30Expenses,
-    projectFinancials: projectFinancials || [],
     recentLeads: recentLeads || [],
     monthlyData, invoiceStatus, leadSources,
   }
@@ -257,13 +223,6 @@ export default async function AdminDashboard({
       href: '/admin/facturas',
     },
     {
-      label: 'Proyectos activos',
-      value: String(stats.proyectosActivos),
-      sub: 'en curso actualmente',
-      color: 'text-neutral-900',
-      href: '/admin/proyectos',
-    },
-    {
       label: 'Gastos totales',
       value: formatEUR(stats.gastosTotal),
       color: 'text-neutral-900',
@@ -289,7 +248,7 @@ export default async function AdminDashboard({
       </div>
 
       {/* ── KPI Cards (clickable) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-10">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-10">
         {kpis.map(({ label, value, color, sub, href }) => (
           <Link
             key={label}
@@ -305,201 +264,6 @@ export default async function AdminDashboard({
             </p>
           </Link>
         ))}
-      </div>
-
-      {/* ── Facturas por vencer ── */}
-      <div className="bg-white border border-neutral-100 rounded mb-10">
-        <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-            Facturas por vencer &mdash; pr&oacute;ximos 30 d&iacute;as
-          </h2>
-          <Link
-            href="/admin/facturas"
-            className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest hover:text-neutral-600 transition-colors"
-          >
-            Ver todas
-          </Link>
-        </div>
-        {stats.facturasPorVencer.length === 0 ? (
-          <div className="p-8 text-center text-sm text-neutral-400">
-            No hay facturas pr&oacute;ximas a vencer
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-                  <th className="text-left px-5 py-3">N&uacute;mero</th>
-                  <th className="text-left px-5 py-3">Concepto</th>
-                  <th className="text-left px-5 py-3">Tipo</th>
-                  <th className="text-right px-5 py-3">Importe</th>
-                  <th className="text-right px-5 py-3">Vencimiento</th>
-                  <th className="text-right px-5 py-3">D&iacute;as</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.facturasPorVencer.map(
-                  (
-                    inv: {
-                      id: string
-                      number: string | null
-                      concept: string | null
-                      amount_total: number | null
-                      due_date: string
-                      direction: string
-                    },
-                    i: number
-                  ) => {
-                    const days = daysUntil(inv.due_date)
-                    return (
-                      <tr
-                        key={inv.id}
-                        className={i % 2 === 1 ? 'bg-neutral-50' : ''}
-                      >
-                        <td className="px-5 py-3 font-medium">
-                          {inv.number || '\u2014'}
-                        </td>
-                        <td className="px-5 py-3 text-neutral-600 max-w-[250px] truncate">
-                          {inv.concept || '\u2014'}
-                        </td>
-                        <td className="px-5 py-3">
-                          <span
-                            className={`inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${
-                              inv.direction === 'emitida'
-                                ? 'bg-blue-50 text-blue-600'
-                                : 'bg-orange-50 text-orange-600'
-                            }`}
-                          >
-                            {inv.direction === 'emitida' ? 'Cobro' : 'Pago'}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-right font-medium">
-                          {formatEUR(inv.amount_total)}
-                        </td>
-                        <td className="px-5 py-3 text-right text-neutral-500">
-                          {formatDate(inv.due_date)}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <span
-                            className={`inline-block text-xs font-bold px-2 py-0.5 rounded ${dueDateBg(days)} ${dueDateColor(days)}`}
-                          >
-                            {days}d
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  }
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Proyectos activos con rentabilidad ── */}
-
-      <div className="bg-white border border-neutral-100 rounded mb-10">
-        <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-            Proyectos activos &mdash; rentabilidad
-          </h2>
-          <Link
-            href="/admin/proyectos"
-            className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest hover:text-neutral-600 transition-colors"
-          >
-            Ver todos
-          </Link>
-        </div>
-        {stats.projectFinancials.length === 0 ? (
-          <div className="p-8 text-center text-sm text-neutral-400">
-            No hay proyectos en curso
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-                  <th className="text-left px-5 py-3">C&oacute;digo</th>
-                  <th className="text-left px-5 py-3">Nombre</th>
-                  <th className="text-right px-5 py-3">Presupuesto</th>
-                  <th className="text-right px-5 py-3">Facturado</th>
-                  <th className="text-right px-5 py-3">Gastado</th>
-                  <th className="text-right px-5 py-3">Margen</th>
-                  <th className="text-right px-5 py-3">Margen %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.projectFinancials.map(
-                  (
-                    p: {
-                      code: string | null
-                      name: string | null
-                      budget_estimated: number | null
-                      sale_price: number | null
-                      income_base: number | null
-                      expense_base: number | null
-                      gross_margin: number | null
-                      status: string
-                    },
-                    i: number
-                  ) => {
-                    const incomeBase = Number(p.income_base) || 0
-                    const marginPct =
-                      incomeBase > 0
-                        ? ((Number(p.gross_margin) || 0) / incomeBase) * 100
-                        : 0
-                    return (
-                      <tr
-                        key={p.code || i}
-                        className={i % 2 === 1 ? 'bg-neutral-50' : ''}
-                      >
-                        <td className="px-5 py-3 font-medium font-mono text-xs">
-                          {p.code || '\u2014'}
-                        </td>
-                        <td className="px-5 py-3 text-neutral-700 max-w-[200px] truncate">
-                          {p.name || '\u2014'}
-                        </td>
-                        <td className="px-5 py-3 text-right text-neutral-500">
-                          {formatEUR(p.budget_estimated ?? p.sale_price)}
-                        </td>
-                        <td className="px-5 py-3 text-right font-medium">
-                          {formatEUR(p.income_base)}
-                        </td>
-                        <td className="px-5 py-3 text-right text-neutral-500">
-                          {formatEUR(p.expense_base)}
-                        </td>
-                        <td className="px-5 py-3 text-right font-medium">
-                          <span
-                            className={
-                              (Number(p.gross_margin) || 0) >= 0
-                                ? 'text-green-600'
-                                : 'text-red-600'
-                            }
-                          >
-                            {formatEUR(p.gross_margin)}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <span
-                            className={`inline-block text-xs font-bold px-2 py-0.5 rounded ${marginColor(marginPct)} ${
-                              marginPct >= 20
-                                ? 'bg-green-50'
-                                : marginPct >= 10
-                                  ? 'bg-amber-50'
-                                  : 'bg-red-50'
-                            }`}
-                          >
-                            {marginPct.toFixed(1)}%
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  }
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       {/* ── Charts ── */}
