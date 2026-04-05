@@ -33,7 +33,6 @@ export default async function FacturasPage() {
       initialData={invoices as any}
       projects={projects}
       suppliers={suppliers}
-      defaultCategory="facturas"
     />
   )
 }

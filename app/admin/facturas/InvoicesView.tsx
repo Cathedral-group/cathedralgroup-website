@@ -53,6 +53,7 @@ interface InvoicesViewProps {
   projects: { value: string; label: string }[]
   suppliers: { value: string; label: string }[]
   pageTitle?: string
+  allTypes?: boolean  // si true, muestra todos los tipos (usado en /archivo)
 }
 
 function formatEur(val: number | null): string {
@@ -138,7 +139,7 @@ function parseSugerido(razones: string[] | null | undefined): { code: string; co
   return null
 }
 
-export default function InvoicesView({ initialData, projects, suppliers, pageTitle }: InvoicesViewProps) {
+export default function InvoicesView({ initialData, projects, suppliers, pageTitle, allTypes = false }: InvoicesViewProps) {
   const [data, setData] = useState<Invoice[]>(initialData)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
@@ -200,7 +201,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
 
   const filtered = useMemo(() => {
     const list = data.filter((inv) => {
-      if (!INVOICE_DOC_TYPES.includes(inv.doc_type)) return false
+      if (!allTypes && !INVOICE_DOC_TYPES.includes(inv.doc_type)) return false
       if (dirFilter !== 'todas' && inv.direction !== dirFilter) return false
       if (statusFilter !== 'todas') {
         if (statusFilter === 'vencida') {
@@ -260,7 +261,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
     })
 
     return list
-  }, [data, dirFilter, statusFilter, search, sortField, sortDir, projectMap])
+  }, [data, dirFilter, statusFilter, search, sortField, sortDir, projectMap, allTypes])
 
 
   const openNew = () => {

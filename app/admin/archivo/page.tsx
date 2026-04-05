@@ -33,7 +33,7 @@ export default async function ArchivoPage() {
       initialData={invoices as any}
       projects={projects}
       suppliers={suppliers}
-      defaultCategory="todas"
+      allTypes
       pageTitle="Archivo"
     />
   )
