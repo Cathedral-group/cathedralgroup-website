@@ -315,12 +315,12 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       nombre: newLead.nombre,
-                      email: newLead.email || null,
+                      email: newLead.email || '',
                       phone: newLead.phone || null,
                       tipo_proyecto: newLead.tipo_proyecto || null,
                       zona: newLead.zona || null,
                       origen: newLead.origen,
-                      mensaje: newLead.mensaje || null,
+                      mensaje: newLead.mensaje || '',
                       lead_status: 'nuevo',
                     }),
                   })
