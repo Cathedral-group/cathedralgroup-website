@@ -76,6 +76,50 @@ function formatDate(d: string | null): string {
   return new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// Detecta si un valor numérico de ai_data es sospechoso (string con comas, etc.)
+function isInvalidNum(v: unknown): boolean {
+  if (v === null || v === undefined) return false
+  if (typeof v === 'number') return false
+  const s = String(v).trim()
+  // Número con coma como miles: "59,917.49" o "59.917,49"
+  if (/[,.]/.test(s) && /\d/.test(s) && typeof v === 'string') return true
+  return false
+}
+
+// Detecta si una fecha de ai_data es inválida ("2025-10-XX", "2025-??-01", etc.)
+function isInvalidDate(v: unknown): boolean {
+  if (!v) return false
+  const s = String(v).trim()
+  if (/[xX?]/.test(s)) return true
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return true
+  return false
+}
+
+// Campo IA con color según validez
+function AiField({ label, value, raw, span2 = false }: {
+  label: string
+  value: string
+  raw?: unknown
+  span2?: boolean
+}) {
+  const invalid = raw !== undefined && (isInvalidNum(raw) || isInvalidDate(raw))
+  const missing = (!value || value === '--') && raw === null
+  const cls = invalid
+    ? 'bg-red-50 text-red-700 border border-red-200 rounded px-1'
+    : missing
+      ? 'text-amber-600'
+      : ''
+  return (
+    <div className={span2 ? 'col-span-2' : ''}>
+      <span className="text-neutral-400">{label}:</span>{' '}
+      <span className={cls}>
+        {invalid ? String(raw) : value}
+        {invalid && <span className="ml-1 text-[9px] font-bold uppercase">⚠ revisar</span>}
+      </span>
+    </div>
+  )
+}
+
 function ConfidenceBadge({ confidence }: { confidence: number | null }) {
   if (confidence === null) return <span className="text-neutral-400 text-xs">--</span>
   const pct = Math.round(confidence * 100)
@@ -403,19 +447,20 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
                   <ConfidenceBadge confidence={selected.ai_confidence} />
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-neutral-400">Tipo:</span> {selected.doc_type}</div>
-                  <div><span className="text-neutral-400">Número:</span> {selected.number || '--'}</div>
-                  <div><span className="text-neutral-400">NIF:</span> {selected.supplier_nif || '--'}</div>
-                  <div><span className="text-neutral-400">Proveedor:</span> {selected.ai_data?.supplier_name || '--'}</div>
-                  <div><span className="text-neutral-400">Base imponible:</span> {selected.ai_data?.amount_base != null ? formatEur(selected.ai_data.amount_base) : '--'}</div>
-                  <div><span className="text-neutral-400">% IVA:</span> {selected.ai_data?.vat_pct != null ? `${selected.ai_data.vat_pct}%` : '--'}</div>
-                  <div><span className="text-neutral-400">IVA (€):</span> {formatEur(selected.vat_amount)}</div>
-                  <div><span className="text-neutral-400">Total:</span> {formatEur(selected.amount_total)}</div>
-                  <div><span className="text-neutral-400">Fecha:</span> {formatDate(selected.issue_date)}</div>
-                  <div><span className="text-neutral-400">Estado pago:</span> {selected.ai_data?.payment_status || '--'}</div>
-                  <div><span className="text-neutral-400">Forma pago:</span> {selected.ai_data?.payment_method || '--'}</div>
-                  <div className="col-span-2"><span className="text-neutral-400">IBAN:</span> <span className="font-mono">{selected.ai_data?.iban_proveedor || '--'}</span></div>
-                  <div className="col-span-2"><span className="text-neutral-400">Concepto:</span> {selected.concept || '--'}</div>
+                  <AiField label="Tipo" value={selected.doc_type} />
+                  <AiField label="Número" value={selected.number || '--'} />
+                  <AiField label="NIF" value={selected.supplier_nif || '--'} raw={selected.ai_data?.supplier_nif ?? null} />
+                  <AiField label="Proveedor" value={selected.ai_data?.supplier_name || '--'} />
+                  <AiField label="Base imponible" value={selected.ai_data?.amount_base != null ? formatEur(Number(selected.ai_data.amount_base)) : '--'} raw={selected.ai_data?.amount_base ?? null} />
+                  <AiField label="% IVA" value={selected.ai_data?.vat_pct != null ? `${selected.ai_data.vat_pct}%` : '--'} raw={selected.ai_data?.vat_pct ?? null} />
+                  <AiField label="IVA (€)" value={formatEur(selected.vat_amount)} raw={selected.ai_data?.vat_amount ?? null} />
+                  <AiField label="Total" value={formatEur(selected.amount_total)} raw={selected.ai_data?.amount_total ?? null} />
+                  <AiField label="Fecha emisión" value={formatDate(selected.issue_date)} raw={selected.ai_data?.issue_date ?? null} />
+                  <AiField label="Fecha venc." value={formatDate(selected.due_date as string | null)} raw={selected.ai_data?.due_date ?? null} />
+                  <AiField label="Estado pago" value={selected.ai_data?.payment_status || '--'} />
+                  <AiField label="Forma pago" value={selected.ai_data?.payment_method || '--'} />
+                  <AiField label="IBAN" value={selected.ai_data?.iban_proveedor || '--'} span2 />
+                  <AiField label="Concepto" value={selected.concept || '--'} span2 />
                 </div>
                 {selected.ai_data?.lineas && selected.ai_data.lineas.length > 0 && (
                   <div className="mt-3 border-t pt-2">
