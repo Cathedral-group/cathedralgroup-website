@@ -11,6 +11,8 @@ interface Invoice {
   amount_total: number | null
   vat_amount: number | null
   categoria_gasto: string | null
+  es_gasto_general: boolean
+  linea_estructura: string | null
   issue_date: string | null
   due_date: string | null
   payment_date: string | null
@@ -39,7 +41,7 @@ export default async function InformesPage() {
     fetchAllRows<Invoice>((sb) =>
       sb
         .from('invoices')
-        .select('id, number, direction, doc_type, amount_base, amount_total, vat_amount, categoria_gasto, issue_date, due_date, payment_date, payment_status, created_at')
+        .select('id, number, direction, doc_type, amount_base, amount_total, vat_amount, categoria_gasto, es_gasto_general, linea_estructura, issue_date, due_date, payment_date, payment_status, created_at')
         .is('deleted_at', null)
         .order('issue_date', { ascending: false })
     ),

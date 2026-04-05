@@ -18,6 +18,8 @@ interface Invoice {
   amount_total: number | null
   vat_amount: number | null
   categoria_gasto: string | null
+  es_gasto_general: boolean
+  linea_estructura: string | null
   issue_date: string | null
   due_date: string | null
   payment_date: string | null
@@ -42,6 +44,7 @@ const TABS = [
   { key: 'pnl', label: 'P&L' },
   { key: 'cashflow', label: 'Flujo de Caja' },
   { key: 'iva', label: 'IVA' },
+  { key: 'estructura', label: 'Estructura' },
 ]
 
 function formatEUR(value: number | null | undefined): string {
@@ -410,6 +413,87 @@ function IvaTab({ vatQuarterly, year }: { vatQuarterly: VatQuarterly[]; year: nu
   )
 }
 
+// ─── Estructura Tab ───
+const LINEA_ESTRUCTURA_LABELS: Record<string, string> = {
+  nominas: 'Nóminas',
+  ss_empresa: 'S.S. empresa',
+  internet: 'Internet / Telecomunicaciones',
+  telefono: 'Teléfono móvil',
+  renting: 'Renting vehículos',
+  alquiler_oficina: 'Alquiler oficina',
+  seguros: 'Seguros',
+  software: 'Software / Suscripciones',
+  asesoria: 'Gestoría / Asesoría',
+  suministros: 'Suministros (luz, agua...)',
+  otros_fijos: 'Otros fijos',
+}
+
+function EstructuraTab({ invoices, year, quarter, month }: { invoices: Invoice[]; year: number; quarter: number | null; month: number | null }) {
+  const rows = useMemo(() => {
+    const filtered = filterByPeriod(invoices, year, quarter, month).filter(
+      (inv) => inv.direction === 'recibida' && inv.es_gasto_general === true && inv.linea_estructura != null
+    )
+
+    const map: Record<string, { count: number; total: number }> = {}
+    filtered.forEach((inv) => {
+      const key = inv.linea_estructura!
+      if (!map[key]) map[key] = { count: 0, total: 0 }
+      map[key].count += 1
+      map[key].total += getNetAmount(inv)
+    })
+
+    return Object.entries(map)
+      .map(([linea, { count, total }]) => ({ linea, count, total }))
+      .sort((a, b) => b.total - a.total)
+  }, [invoices, year, quarter, month])
+
+  if (rows.length === 0) {
+    return (
+      <div className="bg-white border border-neutral-100 rounded p-8 text-center text-sm text-neutral-400">
+        Sin gastos de estructura registrados para este período.
+      </div>
+    )
+  }
+
+  const totalGeneral = rows.reduce((sum, r) => sum + r.total, 0)
+  const totalCount = rows.reduce((sum, r) => sum + r.count, 0)
+
+  return (
+    <div className="bg-white border border-neutral-100 rounded overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 bg-neutral-50">
+              <th className="text-left px-6 py-3">Línea</th>
+              <th className="text-right px-6 py-3">Facturas</th>
+              <th className="text-right px-6 py-3">Media mensual</th>
+              <th className="text-right px-6 py-3">Total anual</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.linea} className={i % 2 === 1 ? 'bg-neutral-50' : ''}>
+                <td className="px-6 py-3 text-neutral-700">{LINEA_ESTRUCTURA_LABELS[row.linea] ?? row.linea}</td>
+                <td className="px-6 py-3 text-right tabular-nums text-neutral-600">{row.count}</td>
+                <td className="px-6 py-3 text-right tabular-nums text-neutral-600">{formatEUR(row.total / 12)}</td>
+                <td className="px-6 py-3 text-right font-medium tabular-nums">{formatEUR(row.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-neutral-300 bg-neutral-50 font-bold">
+              <td className="px-6 py-3 text-neutral-900">Total estructura</td>
+              <td className="px-6 py-3 text-right tabular-nums text-neutral-700">{totalCount}</td>
+              <td className="px-6 py-3 text-right tabular-nums text-neutral-700">{formatEUR(totalGeneral / 12)}</td>
+              <td className="px-6 py-3 text-right tabular-nums text-neutral-900">{formatEUR(totalGeneral)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ───
 export default function ReportsView({ invoices, vatQuarterly }: ReportsViewProps) {
   const [activeTab, setActiveTab] = useState('pnl')
@@ -428,6 +512,7 @@ export default function ReportsView({ invoices, vatQuarterly }: ReportsViewProps
         {activeTab === 'pnl' && <PnLTab invoices={invoices} year={year} quarter={quarter} month={month} />}
         {activeTab === 'cashflow' && <CashFlowTab invoices={invoices} year={year} quarter={quarter} month={month} />}
         {activeTab === 'iva' && <IvaTab vatQuarterly={vatQuarterly} year={year} />}
+        {activeTab === 'estructura' && <EstructuraTab invoices={invoices} year={year} quarter={quarter} month={month} />}
       </TabPanel>
     </div>
   )

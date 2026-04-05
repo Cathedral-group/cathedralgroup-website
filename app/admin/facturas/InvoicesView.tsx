@@ -32,6 +32,8 @@ interface Invoice {
   es_rectificativa: boolean
   numero_factura_original: string | null
   linked_invoice_id?: string | null
+  es_gasto_general?: boolean | null
+  linea_estructura?: string | null
   notes: string | null
   needs_review?: boolean | null
   ai_confidence?: number | null

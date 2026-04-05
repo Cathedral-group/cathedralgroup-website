@@ -30,6 +30,8 @@ interface Invoice {
   es_rectificativa: boolean
   numero_factura_original: string | null
   linked_invoice_id?: string | null
+  es_gasto_general?: boolean
+  linea_estructura?: string | null
   direccion_obra?: string | null
   tipo_operacion_iva?: string | null
   lineas?: { descripcion: string; cantidad?: number | null; precio_unitario?: number | null; importe?: number | null }[] | null
@@ -89,6 +91,8 @@ const DEFAULTS: Invoice = {
   categoria_gasto: null,
   es_rectificativa: false,
   numero_factura_original: null,
+  es_gasto_general: false,
+  linea_estructura: null,
   linked_invoice_id: null,
   direccion_obra: null,
   tipo_operacion_iva: 'nacional',
@@ -674,6 +678,49 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
               </label>
             </div>
           </div>
+          {form.direction === 'recibida' && (
+            <div className="mb-3">
+              <label className="flex items-center gap-3 cursor-pointer p-3">
+                <input
+                  type="checkbox"
+                  checked={!!form.es_gasto_general}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setForm((prev) => ({
+                      ...prev,
+                      es_gasto_general: checked,
+                      linea_estructura: checked ? prev.linea_estructura ?? null : null,
+                    }))
+                  }}
+                  className="rounded border-neutral-300 text-primary focus:ring-primary"
+                />
+                <span className="text-xs font-medium uppercase tracking-wide">Gasto general de estructura</span>
+              </label>
+              {form.es_gasto_general && (
+                <div className="mt-2">
+                  <label className={labelCls}>Línea de estructura</label>
+                  <select
+                    value={form.linea_estructura ?? ''}
+                    onChange={(e) => set('linea_estructura', e.target.value || null)}
+                    className={inputCls}
+                  >
+                    <option value="">Seleccionar línea...</option>
+                    <option value="nominas">Nóminas</option>
+                    <option value="ss_empresa">S.S. empresa</option>
+                    <option value="internet">Internet / Telecomunicaciones</option>
+                    <option value="telefono">Teléfono móvil</option>
+                    <option value="renting">Renting vehículos</option>
+                    <option value="alquiler_oficina">Alquiler oficina</option>
+                    <option value="seguros">Seguros</option>
+                    <option value="software">Software / Suscripciones</option>
+                    <option value="asesoria">Gestoría / Asesoría</option>
+                    <option value="suministros">Suministros (luz, agua...)</option>
+                    <option value="otros_fijos">Otros fijos</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
           {form.es_rectificativa && (
             <div className="space-y-3 col-span-2">
               <div>
