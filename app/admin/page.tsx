@@ -134,12 +134,12 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:true}),
     // Documentos ya vencidos (vencimiento pasado, no cancelados)
     supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:false}).limit(10),
-    // Facturas con proyecto para gráfica de rentabilidad
-    fetchAllRows<{direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string}>((sb) =>
-      sb.from('invoices').select('direction,amount_base,vat_amount,amount_total,project_id').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).not('project_id','is',null).gte('issue_date',start).lte('issue_date',end)
+    // Facturas con proyecto para gráfica de rentabilidad (project_id o proyecto_code)
+    fetchAllRows<{direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string|null;proyecto_code:string|null}>((sb) =>
+      sb.from('invoices').select('direction,amount_base,vat_amount,amount_total,project_id,proyecto_code').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).or('project_id.not.is.null,proyecto_code.not.is.null').gte('issue_date',start).lte('issue_date',end)
     ),
-    // Lista de proyectos para nombres
-    supabase.from('projects').select('id,name').is('deleted_at',null),
+    // Lista de proyectos para nombres (con code para resolver proyecto_code)
+    supabase.from('projects').select('id,code,name').is('deleted_at',null),
     // Gastos de estructura — siempre año completo para visión anual
     supabase.from('invoices').select('linea_estructura,amount_base,vat_amount,amount_total').eq('direction','recibida').eq('es_gasto_general',true).not('linea_estructura','is',null).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',`${year}-01-01`).lte('issue_date',`${year}-12-31`),
   ])
@@ -204,16 +204,27 @@ async function getStats(year: number, quarter: number | null, month: number | nu
 
   // Chart: rentabilidad por proyecto
   const projById: Record<string,string> = {}
-  for (const p of (projectsList || []) as {id:string;name:string}[]) {
+  const projByCode: Record<string,string> = {}
+  for (const p of (projectsList || []) as {id:string;code:string|null;name:string}[]) {
     projById[p.id] = p.name
+    if (p.code) projByCode[p.code] = p.name
   }
   const projMap: Record<string,{name:string;ingresos:number;gastos:number}> = {}
-  for (const inv of (projectInvoices || []) as {direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string}[]) {
-    const name = projById[inv.project_id] || inv.project_id
-    if (!projMap[inv.project_id]) projMap[inv.project_id] = { name, ingresos: 0, gastos: 0 }
+  for (const inv of (projectInvoices || []) as {direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string|null;proyecto_code:string|null}[]) {
+    let key: string | null = null
+    let name: string | null = null
+    if (inv.project_id) {
+      key = inv.project_id
+      name = projById[inv.project_id] || inv.project_id
+    } else if (inv.proyecto_code) {
+      key = `code:${inv.proyecto_code}`
+      name = projByCode[inv.proyecto_code] || inv.proyecto_code
+    }
+    if (!key || !name) continue
+    if (!projMap[key]) projMap[key] = { name, ingresos: 0, gastos: 0 }
     const amt = getNetAmt(inv)
-    if (inv.direction === 'emitida') projMap[inv.project_id].ingresos += amt
-    else projMap[inv.project_id].gastos += amt
+    if (inv.direction === 'emitida') projMap[key].ingresos += amt
+    else projMap[key].gastos += amt
   }
   const projectProfitability = Object.values(projMap)
     .map(p => ({ name: p.name, ingresos: Math.round(p.ingresos), gastos: Math.round(p.gastos), margen: Math.round(p.ingresos - p.gastos) }))
