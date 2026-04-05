@@ -1,9 +1,11 @@
 'use client'
 
+import type { ReactNode } from 'react'
+
 interface Column {
   key: string
   label: string
-  render?: (value: unknown, row: Record<string, unknown>) => React.ReactNode
+  render?: (value: unknown, row: Record<string, unknown>) => ReactNode
 }
 
 interface DataTableProps {
