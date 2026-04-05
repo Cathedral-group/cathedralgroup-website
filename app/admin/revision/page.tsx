@@ -15,7 +15,7 @@ export default async function RevisionPage() {
         .from('invoices')
         .select('*')
         .is('deleted_at', null)
-        .or('needs_review.eq.true,doc_type.eq.otro,review_status.eq.pendiente,ai_confidence.lt.0.7')
+        .or('needs_review.eq.true,doc_type.eq.otro,review_status.eq.pendiente,review_status.eq.revisado,ai_confidence.lt.0.7')
         .order('created_at', { ascending: false })
     ),
     supabase
