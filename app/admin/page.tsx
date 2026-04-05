@@ -49,15 +49,27 @@ function periodRange(year: number, quarter: number | null, month: number | null,
   return { start: `${year}-01-01`, end: `${year}-12-31` }
 }
 
-function buildMonthlyMap(year: number, quarter: number | null, month: number | null, all?: boolean) {
+function buildMonthlyMap(
+  year: number, quarter: number | null, month: number | null, all?: boolean,
+  allInvoices?: Array<{issue_date?: string|null}>
+) {
   const map: Record<string, { ingresos: number; gastos: number }> = {}
   if (all) {
-    // Show last 12 months rolling for "all time" view
+    // Build from actual data range: first invoice month → current month
+    const dates = (allInvoices || [])
+      .map(i => i.issue_date?.substring(0,7))
+      .filter(Boolean) as string[]
     const now = new Date()
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`
+    const maxKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+    const minKey = dates.length > 0 ? dates.reduce((a,b) => a < b ? a : b) : maxKey
+    const [minY, minM] = minKey.split('-').map(Number)
+    const [maxY, maxM] = maxKey.split('-').map(Number)
+    let cy = minY, cm = minM
+    while (cy < maxY || (cy === maxY && cm <= maxM)) {
+      const key = `${cy}-${String(cm).padStart(2,'0')}`
       map[key] = { ingresos: 0, gastos: 0 }
+      cm++
+      if (cm > 12) { cm = 1; cy++ }
     }
   } else if (month) {
     const key = `${year}-${String(month).padStart(2,'0')}`
@@ -139,7 +151,7 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   const cashFlow30Expenses = (cashFlowInvoices || []).filter((i: {direction:string}) => i.direction==='recibida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
 
   // Chart: monthly breakdown (use net base amounts, consistent with P&L)
-  const monthlyMap = buildMonthlyMap(year, quarter, month, all)
+  const monthlyMap = buildMonthlyMap(year, quarter, month, all, periodInvoices || [])
   for (const inv of periodInvoices || []) {
     if (!inv.issue_date) continue
     const key = inv.issue_date.substring(0, 7)
@@ -150,9 +162,10 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     }
   }
   const monthlyData = Object.entries(monthlyMap).map(([key, vals]) => {
-    const [, m] = key.split('-')
+    const [y, m] = key.split('-')
     const margen = vals.ingresos > 0 ? ((vals.ingresos - vals.gastos) / vals.ingresos) * 100 : 0
-    return { month: MONTHS_ES[parseInt(m,10) - 1], ...vals, margen: Math.round(margen * 10) / 10 }
+    const label = all ? `${MONTHS_ES[parseInt(m,10) - 1]} ${y}` : MONTHS_ES[parseInt(m,10) - 1]
+    return { month: label, ...vals, margen: Math.round(margen * 10) / 10 }
   })
 
   // Chart: estado facturas
