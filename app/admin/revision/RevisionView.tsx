@@ -44,6 +44,7 @@ interface ReviewItem {
   direction: string
   number: string | null
   concept: string | null
+  empresa: string | null
   amount_total: number | null
   amount_base: number | null
   vat_amount: number | null
@@ -288,7 +289,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
       if (status === 'confirmado' && nif) {
         const supplierName =
           selected.ai_data?.supplier_name ||
-          (selected as unknown as Record<string, unknown>).empresa as string ||
+          selected.empresa ||
           null
         if (supplierName) {
           // Intentamos upsert por NIF — si ya existe, no hace nada (onConflict ignore)
