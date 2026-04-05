@@ -74,6 +74,7 @@ interface ReviewItem {
   created_at: string
   ai_data?: AiData | null
   ai_razones?: string[] | null
+  lineas?: AiData['lineas'] | null
   [key: string]: unknown
 }
 
@@ -92,6 +93,7 @@ interface RevisionViewProps {
   pendingDocuments?: PendingDocument[]
   projects: { value: string; label: string }[]
   suppliers: { value: string; label: string }[]
+  userEmail?: string
 }
 
 const DOC_TYPES = [
@@ -181,7 +183,7 @@ const DOC_CATEGORY_PATH: Record<string, string> = {
   corporativo: 'corporativo',
 }
 
-export default function RevisionView({ initialData, pendingDocuments = [], projects, suppliers }: RevisionViewProps) {
+export default function RevisionView({ initialData, pendingDocuments = [], projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
   const [items, setItems] = useState<ReviewItem[]>(initialData)
   const [selected, setSelected] = useState<ReviewItem | null>(null)
   const [category, setCategory] = useState<string>('todos_pendientes')
@@ -281,8 +283,18 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
         number: editForm.number || null,
         review_status: status,
         reviewed_at: new Date().toISOString(),
-        reviewed_by: 'admin',
+        reviewed_by: userEmail,
         needs_review: false,
+        // Persistir campos financieros del item original si no están en editForm
+        vat_pct: editForm.vat_pct ?? selected.vat_pct ?? null,
+        vat_amount: editForm.vat_amount ?? selected.vat_amount ?? null,
+        amount_base: editForm.amount_base ?? selected.amount_base ?? null,
+        irpf_rate: editForm.irpf_rate ?? selected.irpf_rate ?? null,
+        irpf_amount: editForm.irpf_amount ?? selected.irpf_amount ?? null,
+        due_date: editForm.due_date ?? selected.due_date ?? null,
+        payment_status: editForm.payment_status ?? selected.payment_status ?? 'pendiente',
+        // Persistir líneas de factura desde ai_data si existen
+        lineas: selected.ai_data?.lineas ?? selected.lineas ?? null,
       }
 
       // Auto-crear proveedor si confirmamos y hay NIF que aún no está en la tabla

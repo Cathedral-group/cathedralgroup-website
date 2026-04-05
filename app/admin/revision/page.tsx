@@ -46,6 +46,7 @@ export default async function RevisionPage() {
       pendingDocuments={(pendingDocs.data ?? []) as any}
       projects={projects}
       suppliers={suppliers}
+      userEmail={data.user.email ?? 'admin'}
     />
   )
 }
