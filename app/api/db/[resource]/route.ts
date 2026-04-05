@@ -17,7 +17,7 @@ async function authCheck() {
 
 function auditLog(
   userEmail: string,
-  action: 'create' | 'update' | 'delete' | 'restore' | 'permanent_delete',
+  action: 'create' | 'update' | 'delete' | 'restore' | 'permanent_delete' | 'permanent_delete_bulk',
   tableName: string,
   recordId: string | null,
   ip: string,
