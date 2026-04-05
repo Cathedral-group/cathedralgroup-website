@@ -86,8 +86,11 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   today.setHours(0, 0, 0, 0)
   const in30 = new Date(today)
   in30.setDate(in30.getDate() + 30)
+  const in15 = new Date(today)
+  in15.setDate(in15.getDate() + 15)
   const todayStr = today.toISOString().split('T')[0]
   const in30Str = in30.toISOString().split('T')[0]
+  const in15Str = in15.toISOString().split('T')[0]
 
   // ── Todas las queries en paralelo ──────────────────────────────────────────
   const [
@@ -100,6 +103,8 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     { data: recentLeads },
     { data: periodInvoices },
     { data: periodLeads },
+    { data: docsExpiringSoon },
+    { data: docsExpired },
   ] = await Promise.all([
     supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
@@ -110,6 +115,10 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('leads').select('id,nombre,email,tipo_proyecto,zona,created_at').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59').order('created_at',{ascending:false}).limit(10),
     supabase.from('invoices').select('amount_base,vat_amount,amount_total,direction,issue_date,payment_status,due_date').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('leads').select('origen').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59'),
+    // Documentos que vencen en los próximos 15 días (siempre, independiente del periodo)
+    supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:true}),
+    // Documentos ya vencidos (vencimiento pasado, no cancelados)
+    supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:false}).limit(10),
   ])
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -177,6 +186,8 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     cashFlow30Income, cashFlow30Expenses,
     recentLeads: recentLeads || [],
     monthlyData, invoiceStatus, leadSources,
+    docsExpiringSoon: docsExpiringSoon || [],
+    docsExpired: docsExpired || [],
   }
 }
 
@@ -258,6 +269,54 @@ export default async function AdminDashboard({
           <QuickAddButton />
         </div>
       </div>
+
+      {/* ── Alertas: documentos por vencer / vencidos ── */}
+      {(stats.docsExpired.length > 0 || stats.docsExpiringSoon.length > 0) && (
+        <div className="mb-8 space-y-2">
+          {/* Vencidos */}
+          {stats.docsExpired.map((doc: {
+            id: string; titulo: string | null; doc_category: string | null
+            doc_type: string; fecha_vencimiento: string; estado: string | null
+          }) => {
+            const days = Math.abs(Math.ceil((new Date(doc.fecha_vencimiento + 'T00:00:00').getTime() - Date.now()) / 86400000))
+            const href = doc.doc_category ? `/admin/documentos/${doc.doc_category}` : '/admin/documentos/escrituras'
+            return (
+              <Link key={doc.id} href={href} className="flex items-center gap-3 bg-red-50 border border-red-200 rounded px-4 py-3 hover:bg-red-100 transition-colors group">
+                <span className="text-red-500 flex-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-red-800">{doc.titulo || doc.doc_type}</span>
+                  <span className="text-xs text-red-500 ml-2 uppercase tracking-wider">{doc.doc_category}</span>
+                </div>
+                <span className="text-xs font-bold text-red-700 whitespace-nowrap">Venció hace {days}d</span>
+                <span className="text-red-400 text-xs group-hover:text-red-600">→</span>
+              </Link>
+            )
+          })}
+          {/* Por vencer en 15 días */}
+          {stats.docsExpiringSoon.map((doc: {
+            id: string; titulo: string | null; doc_category: string | null
+            doc_type: string; fecha_vencimiento: string; estado: string | null
+          }) => {
+            const days = Math.ceil((new Date(doc.fecha_vencimiento + 'T00:00:00').getTime() - Date.now()) / 86400000)
+            const href = doc.doc_category ? `/admin/documentos/${doc.doc_category}` : '/admin/documentos/escrituras'
+            return (
+              <Link key={doc.id} href={href} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded px-4 py-3 hover:bg-amber-100 transition-colors group">
+                <span className="text-amber-500 flex-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-amber-900">{doc.titulo || doc.doc_type}</span>
+                  <span className="text-xs text-amber-600 ml-2 uppercase tracking-wider">{doc.doc_category}</span>
+                </div>
+                <span className="text-xs font-bold text-amber-700 whitespace-nowrap">Vence en {days}d — {new Date(doc.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+                <span className="text-amber-400 text-xs group-hover:text-amber-600">→</span>
+              </Link>
+            )
+          })}
+        </div>
+      )}
 
       {/* ── KPI Cards (clickable) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-10">
