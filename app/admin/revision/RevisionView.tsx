@@ -134,13 +134,18 @@ function isInvalidDate(v: unknown): boolean {
   return false
 }
 
-function AiField({ label, value, raw, span2 = false }: {
+function AiField({ label, value, raw, span2 = false, type = 'text' }: {
   label: string
   value: string
   raw?: unknown
   span2?: boolean
+  type?: 'num' | 'date' | 'text'
 }) {
-  const invalid = raw !== undefined && (isInvalidNum(raw) || isInvalidDate(raw))
+  const invalid = raw !== undefined && raw !== null && (
+    type === 'num' ? isInvalidNum(raw) :
+    type === 'date' ? isInvalidDate(raw) :
+    false
+  )
   const missing = (!value || value === '--') && raw === null
   const cls = invalid
     ? 'bg-red-50 text-red-700 border border-red-200 rounded px-1'
@@ -566,14 +571,14 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
                 <div className="mb-3 pb-3 border-b border-neutral-200">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Importes</p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <AiField label="Base imponible" value={formatEur(ai?.amount_base ?? null)} raw={ai?.amount_base ?? null} />
-                    <AiField label="% IVA" value={ai?.vat_pct != null ? `${ai.vat_pct}%` : '--'} raw={ai?.vat_pct ?? null} />
-                    <AiField label="IVA (€)" value={formatEur(selected.vat_amount)} raw={ai?.vat_amount ?? null} />
-                    <AiField label="Total" value={formatEur(selected.amount_total)} raw={ai?.amount_total ?? null} />
+                    <AiField label="Base imponible" value={formatEur(ai?.amount_base ?? null)} raw={ai?.amount_base ?? null} type="num" />
+                    <AiField label="% IVA" value={ai?.vat_pct != null ? `${ai.vat_pct}%` : '--'} raw={ai?.vat_pct ?? null} type="num" />
+                    <AiField label="IVA (€)" value={formatEur(selected.vat_amount)} raw={ai?.vat_amount ?? null} type="num" />
+                    <AiField label="Total" value={formatEur(selected.amount_total)} raw={ai?.amount_total ?? null} type="num" />
                     {(selected.irpf_rate != null || ai?.irpf_rate != null) && (
                       <>
-                        <AiField label="% IRPF" value={ai?.irpf_rate != null ? `${ai.irpf_rate}%` : '--'} raw={ai?.irpf_rate ?? null} />
-                        <AiField label="IRPF (€)" value={formatEur(selected.irpf_amount ?? ai?.irpf_amount ?? null)} raw={ai?.irpf_amount ?? null} />
+                        <AiField label="% IRPF" value={ai?.irpf_rate != null ? `${ai.irpf_rate}%` : '--'} raw={ai?.irpf_rate ?? null} type="num" />
+                        <AiField label="IRPF (€)" value={formatEur(selected.irpf_amount ?? ai?.irpf_amount ?? null)} raw={ai?.irpf_amount ?? null} type="num" />
                       </>
                     )}
                     {ai?.retencion_porcentaje != null && (
@@ -594,8 +599,8 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
                 <div className="mb-3 pb-3 border-b border-neutral-200">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Fechas y Pago</p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <AiField label="Emisión" value={formatDate(selected.issue_date)} raw={ai?.issue_date ?? null} />
-                    <AiField label="Vencimiento" value={formatDate(selected.due_date)} raw={ai?.due_date ?? null} />
+                    <AiField label="Emisión" value={formatDate(selected.issue_date)} raw={ai?.issue_date ?? null} type="date" />
+                    <AiField label="Vencimiento" value={formatDate(selected.due_date)} raw={ai?.due_date ?? null} type="date" />
                     <AiField label="Estado pago" value={selected.payment_status || ai?.payment_status || '--'} />
                     <AiField label="Forma pago" value={selected.payment_method || ai?.payment_method || '--'} />
                     {ai?.iban_proveedor && <AiField label="IBAN" value={ai.iban_proveedor} span2 />}
