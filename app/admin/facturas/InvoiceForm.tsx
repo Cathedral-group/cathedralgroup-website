@@ -862,7 +862,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
         <div className="space-y-3 pt-4 border-t border-neutral-100">
           <button
             onClick={handleSave}
-            disabled={saving || !form.number || !form.concept}
+            disabled={saving || (!isEdit && (!form.number || !form.concept))}
             className="w-full bg-neutral-900 text-white py-3 text-sm font-bold uppercase tracking-widest hover:bg-primary transition-colors disabled:opacity-50"
           >
             {saving ? '...' : isEdit ? 'Guardar cambios' : 'Crear factura'}
