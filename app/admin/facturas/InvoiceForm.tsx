@@ -112,6 +112,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
   const isEdit = !!invoice?.id
   const [form, setForm] = useState<Invoice>(invoice ?? { ...DEFAULTS })
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [sentAt, setSentAt] = useState<string | null>(invoice?.sent_at ?? null)
@@ -189,6 +190,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
 
   const handleSave = async () => {
     setSaving(true)
+    setSaveError(null)
 
     const payload: Record<string, unknown> = { ...form }
     delete payload.id
@@ -226,7 +228,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
       }
     } catch (err) {
       console.error('handleSave:', err)
-      alert('Error al guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+      setSaveError(err instanceof Error ? err.message : 'Error desconocido')
     } finally {
       setSaving(false)
     }
@@ -860,6 +862,11 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
 
         {/* Actions */}
         <div className="space-y-3 pt-4 border-t border-neutral-100">
+          {saveError && (
+            <div className="bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 rounded">
+              Error al guardar: {saveError}
+            </div>
+          )}
           <button
             onClick={handleSave}
             disabled={saving || (!isEdit && (!form.number || !form.concept))}
