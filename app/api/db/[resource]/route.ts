@@ -782,8 +782,11 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   const table = tableFor(resource)
   if (!table) return NextResponse.json({ error: 'Ruta no válida' }, { status: 404 })
 
-  const { id, ...updates } = await request.json()
+  const body = await request.json()
+  const { id, ...updates } = body
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+
+  console.log(`[PATCH ${table}] id=${id} keys=${Object.keys(updates).join(',')}`)
 
   const supabase = createAdminSupabaseClient()
   const payload = resource === 'quality-coefficients'
@@ -792,9 +795,10 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single()
 
   if (error) {
-    console.error(`[PATCH ${table}] id=${id} error:`, error.message, error.details, error.hint)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error(`[PATCH ${table}] id=${id} error:`, error.message, error.details, error.hint, 'code:', error.code)
+    return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 })
   }
+  console.log(`[PATCH ${table}] id=${id} success, data keys=${data ? Object.keys(data).join(',') : 'null'}`)
   auditLog(user.email ?? user.id, 'update', table, id, ip)
   return NextResponse.json({ ok: true, data })
 }
