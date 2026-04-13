@@ -22,7 +22,7 @@ export default async function RevisionPage() {
       .from('documents')
       .select('*')
       .is('deleted_at', null)
-      .eq('needs_review', true)
+      .or('needs_review.eq.true,doc_type.eq.otro,source.eq.email_automatico')
       .order('created_at', { ascending: false }),
     supabase.from('projects').select('id, code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
