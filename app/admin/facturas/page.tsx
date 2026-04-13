@@ -2,6 +2,8 @@ import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } f
 import { redirect } from 'next/navigation'
 import InvoicesView from './InvoicesView'
 
+export const dynamic = 'force-dynamic'
+
 export default async function FacturasPage() {
   const authClient = await createServerSupabaseClient()
   const { data, error } = await authClient.auth.getUser()

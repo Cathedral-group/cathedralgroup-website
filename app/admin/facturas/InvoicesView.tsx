@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import InvoiceForm from './InvoiceForm'
 
 type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status' | 'created_at'
@@ -142,8 +143,10 @@ function parseSugerido(razones: string[] | null | undefined): { code: string; co
 }
 
 export default function InvoicesView({ initialData, projects, suppliers, pageTitle, allTypes = false }: InvoicesViewProps) {
+  const router = useRouter()
   const [data, setData] = useState<Invoice[]>(initialData)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [savedToast, setSavedToast] = useState(false)
 
   // Sync state when server sends fresh data after router.refresh()
   useEffect(() => {
@@ -299,14 +302,17 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
     setFormOpen(true)
   }
 
-  const handleSaved = (inv: Invoice, isNew: boolean) => {
+  const handleSaved = useCallback((inv: Invoice, isNew: boolean) => {
     if (isNew) {
       setData((prev) => [inv, ...prev])
     } else {
       setData((prev) => prev.map((r) => r.id === inv.id ? inv : r))
     }
     setFormOpen(false)
-  }
+    setSavedToast(true)
+    setTimeout(() => setSavedToast(false), 3000)
+    router.refresh() // Sync server state
+  }, [router])
 
   const handleDeleted = (id: string) => {
     setData((prev) => prev.filter((r) => r.id !== id))
@@ -453,6 +459,12 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
 
   return (
     <div>
+      {/* Save toast */}
+      {savedToast && (
+        <div className="fixed bottom-6 right-6 z-[100] bg-green-600 text-white px-5 py-3 text-sm font-bold uppercase tracking-widest shadow-lg">
+          ✓ Guardado
+        </div>
+      )}
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-medium uppercase tracking-wide">{pageTitle ?? 'Facturas'}</h1>
