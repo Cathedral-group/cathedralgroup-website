@@ -31,12 +31,19 @@ export default async function PortalPage({ params }: Params) {
 
   const { data: quote } = await supabase
     .from('quotes')
-    .select('id, number, created_at, valid_until, total, subtotal, vat_total, project_id, client_id, certifications, status')
+    .select('id, number, created_at, valid_until, total, subtotal, vat_total, project_id, client_id, certifications, status, portal_token_expires_at')
     .eq('portal_token', token)
     .is('deleted_at', null)
     .single()
 
   if (!quote) notFound()
+
+  // Lifecycle-based expiration: portal_token_expires_at is auto-computed by DB triggers
+  // (see migration 20260425190000_portal_token_expiry.sql). Treat expired tokens as 404
+  // to avoid leaking quote existence — same UX as "no encontrado".
+  if (quote.portal_token_expires_at && new Date(quote.portal_token_expires_at) < new Date()) {
+    notFound()
+  }
 
   // Track client view (fire-and-forget, don't block render)
   supabase

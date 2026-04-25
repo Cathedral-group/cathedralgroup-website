@@ -11,12 +11,27 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
 
   const { data: quote, error } = await supabase
     .from('quotes')
-    .select('id, number, created_at, valid_until, total, subtotal, vat_total, project_id, client_id, certifications, status')
+    .select('id, number, created_at, valid_until, total, subtotal, vat_total, project_id, client_id, certifications, status, portal_token_expires_at')
     .eq('portal_token', token)
     .is('deleted_at', null)
     .single()
 
   if (error || !quote) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+
+  // Expiration check (lifecycle-based — fórmula aprobada 2026-04-25):
+  //   borrador/enviado/aceptado-en-obra: portal_token_expires_at = NULL → vivo siempre
+  //   rechazado o proyecto cancelado:    NOW() + 30 días
+  //   proyecto finalizado:                end_date_real + 2 años (post-venta + garantías)
+  // Si expiró, devolver 410 Gone para que el cliente sepa que el link existió pero ya no es válido.
+  if (quote.portal_token_expires_at && new Date(quote.portal_token_expires_at) < new Date()) {
+    return NextResponse.json(
+      {
+        error: 'Este enlace ha expirado',
+        message: 'El enlace al portal de este presupuesto ya no está activo. Contacte con Cathedral Group para reactivarlo si lo necesita.',
+      },
+      { status: 410 }
+    )
+  }
 
   // Fetch client and project info (public-safe fields only)
   let clientName = ''

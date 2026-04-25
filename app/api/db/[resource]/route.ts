@@ -658,11 +658,19 @@ export async function GET(request: NextRequest, ctx: Ctx) {
 
     const portalToken = request.nextUrl.searchParams.get('portal_token')
     if (portalToken) {
-      // Verify token matches this quote (no session required)
+      // Verify token matches this quote AND hasn't expired (lifecycle-based, see migration
+      // 20260425190000_portal_token_expiry.sql). No session required for portal access.
       const supabase = createAdminSupabaseClient()
-      const { data: q } = await supabase.from('quotes').select('portal_token').eq('id', id).single()
+      const { data: q } = await supabase
+        .from('quotes')
+        .select('portal_token, portal_token_expires_at')
+        .eq('id', id)
+        .single()
       if (!q || q.portal_token !== portalToken) {
         return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+      }
+      if (q.portal_token_expires_at && new Date(q.portal_token_expires_at) < new Date()) {
+        return NextResponse.json({ error: 'Enlace expirado' }, { status: 410 })
       }
     } else {
       const user = await authCheck()
