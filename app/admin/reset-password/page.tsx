@@ -54,8 +54,10 @@ export default function ResetPasswordPage() {
       return
     }
 
-    // Success — redirect to admin
-    router.push('/admin')
+    // Tras cambiar la contraseña, invalidar TODAS las sesiones existentes (otros dispositivos,
+    // sesiones del atacante si el enlace fue interceptado, etc.) y forzar re-login con la nueva.
+    await supabase.auth.signOut({ scope: 'global' })
+    router.push('/admin/login?reset=success')
     router.refresh()
   }
 

@@ -148,7 +148,9 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
 
   const handleLogout = async () => {
     const supabase = createClient()
-    await supabase.auth.signOut()
+    // scope: 'global' invalida la sesión en TODOS los dispositivos (no solo este navegador).
+    // Si sospechas compromiso, hacer logout aquí cierra todas las sesiones simultáneamente.
+    await supabase.auth.signOut({ scope: 'global' })
     router.push('/admin/login')
     router.refresh()
   }

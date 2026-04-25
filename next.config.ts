@@ -1,5 +1,31 @@
 import type { NextConfig } from 'next'
 
+// Content Security Policy: limita qué orígenes pueden cargar scripts/imágenes/etc.
+// Mitiga XSS: aunque un atacante inyecte código, el navegador NO ejecutará scripts
+// de dominios no listados ni enviará la cookie de sesión a otros sitios.
+//
+// Orígenes externos permitidos:
+//   - Cloudflare Turnstile (form de contacto): challenges.cloudflare.com
+//   - Supabase (DB + Auth): cpqsnajuypgjjapvbqsr.supabase.co
+//   - Google Fonts: fonts.googleapis.com / fonts.gstatic.com
+//   - Vercel Insights/Analytics: vitals.vercel-insights.com / va.vercel-scripts.com
+//
+// Si añades nuevos servicios externos, actualiza la directiva relevante.
+const CSP_HEADER = [
+  "default-src 'self'",
+  "img-src 'self' data: blob: https://cpqsnajuypgjjapvbqsr.supabase.co",
+  // 'unsafe-inline' es necesario por Next.js (hidrataciones inline). Sin nonces dinámicos.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://va.vercel-scripts.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
+  "frame-src 'self' https://challenges.cloudflare.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ')
+
 const nextConfig: NextConfig = {
   serverExternalPackages: ['gray-matter', 'reading-time'],
   async headers() {
@@ -11,8 +37,10 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
-          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+          { key: 'Content-Security-Policy', value: CSP_HEADER },
+          { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
         ],
       },
     ]

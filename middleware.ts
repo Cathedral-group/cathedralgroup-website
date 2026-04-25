@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isAdminEmail } from '@/lib/auth-allowlist'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -36,6 +37,16 @@ export async function middleware(request: NextRequest) {
   if (error || !data?.user) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/admin/login'
+    return NextResponse.redirect(loginUrl)
+  }
+
+  // Allow-list enforcement: solo emails autorizados (defensa contra signups o usuarios huérfanos)
+  if (!isAdminEmail(data.user.email)) {
+    // Logout y redirect — la sesión es válida pero el email NO está en la allow-list
+    await supabase.auth.signOut()
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/admin/login'
+    loginUrl.searchParams.set('error', 'unauthorized')
     return NextResponse.redirect(loginUrl)
   }
 

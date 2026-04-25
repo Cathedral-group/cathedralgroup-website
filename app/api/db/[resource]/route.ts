@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
+import { isAdminEmail } from '@/lib/auth-allowlist'
 import QRCode from 'qrcode'
 
 function escapeHtml(text: string | null | undefined): string {
@@ -8,10 +9,34 @@ function escapeHtml(text: string | null | undefined): string {
   return String(text).replace(/[&<>"']/g, (m) => map[m])
 }
 
+/**
+ * Verifica que el request tiene una sesión válida con:
+ *   1. Usuario autenticado
+ *   2. Email en la allow-list (`lib/auth-allowlist.ts`)
+ *   3. MFA verificada en esta sesión (AAL2 — Google Authenticator)
+ *
+ * Devuelve `null` si CUALQUIER condición falla. La razón concreta NO se devuelve
+ * al cliente para no facilitar enumeration. Solo se loggea server-side.
+ */
 async function authCheck() {
   const authClient = await createServerSupabaseClient()
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) return null
+
+  // Allow-list de emails: defensa adicional contra usuarios huérfanos
+  if (!isAdminEmail(data.user.email)) {
+    console.warn('[authCheck] email NOT in allow-list:', data.user.email)
+    return null
+  }
+
+  // AAL2: el usuario debe haber verificado MFA en esta sesión.
+  // Sin esto, una cookie robada permitiría operar la API sin TOTP.
+  const { data: aal, error: aalError } = await authClient.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aalError || !aal || aal.currentLevel !== 'aal2') {
+    console.warn('[authCheck] AAL2 not satisfied:', { user: data.user.email, currentLevel: aal?.currentLevel, nextLevel: aal?.nextLevel })
+    return null
+  }
+
   return data.user
 }
 
@@ -786,7 +811,10 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   const { id, ...updates } = body
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
-  console.log(`[PATCH ${table}] id=${id} keys=${Object.keys(updates).join(',')}`)
+  // Verbose logging only in dev — production logs solo errores
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[PATCH ${table}] id=${id} keys=${Object.keys(updates).join(',')}`)
+  }
 
   const supabase = createAdminSupabaseClient()
   const payload = resource === 'quality-coefficients'
@@ -795,10 +823,10 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single()
 
   if (error) {
+    // Loggear server-side con detalle completo (Vercel logs), devolver mensaje genérico al cliente
     console.error(`[PATCH ${table}] id=${id} error:`, error.message, error.details, error.hint, 'code:', error.code)
-    return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 })
+    return NextResponse.json({ error: 'Error al actualizar el registro' }, { status: 500 })
   }
-  console.log(`[PATCH ${table}] id=${id} success, data keys=${data ? Object.keys(data).join(',') : 'null'}`)
   auditLog(user.email ?? user.id, 'update', table, id, ip)
   return NextResponse.json({ ok: true, data })
 }
@@ -810,7 +838,9 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
   const { resource } = await ctx.params
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 
-  // Papelera: permanent delete (single or bulk)
+  // Papelera: permanent delete (single or bulk).
+  // CRÍTICO: solo se permite borrar registros previamente soft-deleted (deleted_at IS NOT NULL).
+  // Esto evita que un atacante con sesión válida borre registros activos vía /api/db/papelera.
   if (resource === 'papelera') {
     const body = await request.json()
     const supabase = createAdminSupabaseClient()
@@ -823,20 +853,40 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
         if (!grouped[item.table]) grouped[item.table] = []
         grouped[item.table].push(item.id)
       }
+      let totalDeleted = 0
       for (const [tbl, ids] of Object.entries(grouped)) {
-        const { error } = await supabase.from(tbl).delete().in('id', ids)
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        // Solo borrar permanentemente registros que YA estén en papelera
+        const { error, count } = await supabase
+          .from(tbl)
+          .delete({ count: 'exact' })
+          .in('id', ids)
+          .not('deleted_at', 'is', null)
+        if (error) {
+          console.error(`[DELETE papelera bulk ${tbl}]`, error.message, error.details)
+          return NextResponse.json({ error: 'Error al vaciar papelera' }, { status: 500 })
+        }
+        totalDeleted += count ?? 0
         auditLog(user.email ?? user.id, 'permanent_delete_bulk', tbl, ids.join(','), ip)
       }
-      return NextResponse.json({ ok: true, deleted: body.items.length })
+      return NextResponse.json({ ok: true, deleted: totalDeleted })
     }
 
     // Single delete: { id, table }
     const { id, table } = body
     if (!id || !table) return NextResponse.json({ error: 'ID y tabla requeridos' }, { status: 400 })
     if (!SOFT_DELETE_TABLES.has(table)) return NextResponse.json({ error: 'Tabla no permitida' }, { status: 400 })
-    const { error } = await supabase.from(table).delete().eq('id', id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    const { error, count } = await supabase
+      .from(table)
+      .delete({ count: 'exact' })
+      .eq('id', id)
+      .not('deleted_at', 'is', null)
+    if (error) {
+      console.error(`[DELETE papelera single ${table}]`, error.message, error.details)
+      return NextResponse.json({ error: 'Error al eliminar el registro' }, { status: 500 })
+    }
+    if (count === 0) {
+      return NextResponse.json({ error: 'El registro no está en la papelera' }, { status: 400 })
+    }
     auditLog(user.email ?? user.id, 'permanent_delete', table, id, ip)
     return NextResponse.json({ ok: true })
   }
