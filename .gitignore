@@ -5,3 +5,6 @@ node_modules/
 out/
 _legacy_html/
 .vercel
+
+# Scripts internos no deben versionarse (pueden contener secretos)
+scripts/
