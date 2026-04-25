@@ -1021,6 +1021,42 @@ export default function QuoteEditor({
               >
                 PDF Presupuesto
               </button>
+              {form.portal_token && (
+                <button
+                  onClick={async () => {
+                    if (!confirm(
+                      '¿Regenerar el token del portal?\n\n' +
+                      'El enlace y QR anterior dejarán de funcionar inmediatamente. ' +
+                      'Tendrás que descargar un PDF nuevo y reenviárselo al cliente con el QR actualizado.\n\n' +
+                      'Usa esto solo si sospechas que el enlace se ha filtrado.'
+                    )) return
+                    try {
+                      const res = await fetch('/api/admin/rotate-portal-token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ quoteId: savedIdRef.current }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok) {
+                        alert('Error: ' + (data.error || 'no se pudo rotar el token'))
+                        return
+                      }
+                      setForm(prev => ({ ...prev, portal_token: data.portalToken }))
+                      alert(
+                        '✅ Token regenerado.\n\n' +
+                        'Nueva URL del portal:\n' + data.portalUrl + '\n\n' +
+                        'Recuerda generar un PDF nuevo y reenviarlo al cliente — el QR del PDF anterior ya no funciona.'
+                      )
+                    } catch (e) {
+                      alert('Error de red: ' + String(e))
+                    }
+                  }}
+                  className="hidden sm:block border border-amber-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-amber-700 hover:border-amber-500 hover:bg-amber-50 transition-colors"
+                  title="Regenerar el token del portal cliente. El enlace anterior dejará de funcionar."
+                >
+                  ↻ Token portal
+                </button>
+              )}
               {form.portal_viewed_at && (
                 <span
                   className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-green-600 bg-green-50 border border-green-200"

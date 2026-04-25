@@ -66,11 +66,38 @@ export default function LoginPage() {
     setError('')
     setSuccess('')
 
-    const supabase = createClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    })
+    // Llama al endpoint proxy que aplica rate-limit server-side (10 intentos / 15min por IP)
+    // y luego valida contra Supabase. Las cookies de sesión se setean automáticamente.
+    let authError: string | null = null
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+      })
+
+      if (res.status === 429) {
+        // Rate-limit server-side hit — respeta el Retry-After
+        const data = await res.json().catch(() => ({}))
+        const retryAfter = (data.retryAfter ?? 900) * 1000
+        const until = Date.now() + retryAfter
+        setLockedUntil(until)
+        sessionStorage.setItem('login_lockout', until.toString())
+        setError(data.error || 'Demasiados intentos. Inténtalo más tarde.')
+        setLoading(false)
+        return
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        authError = data.error || 'Credenciales incorrectas'
+      }
+    } catch {
+      authError = 'Error de conexión. Inténtalo de nuevo.'
+    }
 
     if (authError) {
       const newAttempts = attempts + 1
@@ -81,7 +108,7 @@ export default function LoginPage() {
         sessionStorage.setItem('login_lockout', until.toString())
         setError(`Demasiados intentos. Bloqueado ${Math.ceil(LOCKOUT_MS / 60000)} minutos.`)
       } else {
-        setError(`Credenciales incorrectas (${MAX_ATTEMPTS - newAttempts} intentos restantes)`)
+        setError(`${authError} (${MAX_ATTEMPTS - newAttempts} intentos restantes)`)
       }
       setLoading(false)
       return
@@ -89,7 +116,7 @@ export default function LoginPage() {
 
     setAttempts(0)
     sessionStorage.removeItem('login_lockout')
-    // Log login event (fire-and-forget)
+    // Log login event (fire-and-forget) — registro adicional en admin_audit_log para trazabilidad
     fetch('/api/login-log', { method: 'POST' }).catch(() => {})
     router.push('/admin')
     router.refresh()
