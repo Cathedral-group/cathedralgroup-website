@@ -1,0 +1,68 @@
+# Configuración de gitleaks para Cathedral Group
+# https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+
+title = "Cathedral Group gitleaks config"
+
+# Heredamos las reglas por defecto (detectan AWS, GitHub, Slack, etc.)
+[extend]
+useDefault = true
+
+# Reglas custom para nuestros proveedores
+[[rules]]
+id = "supabase-service-role-jwt"
+description = "Supabase service_role JWT (legacy)"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJ[A-Za-z0-9_-]{50,200}\.[A-Za-z0-9_-]{40,100}'''
+tags = ["supabase", "jwt"]
+
+[[rules]]
+id = "supabase-secret-key-new"
+description = "Supabase secret key (nuevo formato sb_secret_*)"
+regex = '''sb_secret_[A-Za-z0-9_-]{20,}'''
+tags = ["supabase"]
+
+[[rules]]
+id = "supabase-personal-access-token"
+description = "Supabase Personal Access Token (sbp_*)"
+regex = '''sbp_[a-f0-9]{40,50}'''
+tags = ["supabase", "pat"]
+
+[[rules]]
+id = "vercel-token"
+description = "Vercel API token"
+regex = '''vcp_[A-Za-z0-9]{20,}'''
+tags = ["vercel"]
+
+[[rules]]
+id = "cloudflare-token"
+description = "Cloudflare API token"
+regex = '''cfut_[A-Za-z0-9]{30,}'''
+tags = ["cloudflare"]
+
+[[rules]]
+id = "n8n-api-jwt"
+description = "n8n API JWT key"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJzdWIi[A-Za-z0-9_-]{50,300}\.[A-Za-z0-9_-]{40,100}'''
+tags = ["n8n"]
+
+[[rules]]
+id = "postgres-connection-with-password"
+description = "PostgreSQL connection string con password"
+regex = '''postgres(ql)?://[^:\s]+:[^@\s]+@[^/\s]+'''
+tags = ["postgres"]
+
+# Permitir referencias inocuas (placeholders en docs, etc.)
+[allowlist]
+description = "Allowlist global"
+paths = [
+  '''node_modules/.*''',
+  '''\.next/.*''',
+  '''dist/.*''',
+  '''build/.*''',
+  '''\.git/.*''',
+]
+regexes = [
+  '''placeholder''',
+  '''YOUR_[A-Z_]+_HERE''',
+  '''XXXXXXXX''',
+  '''example\.com''',
+]
