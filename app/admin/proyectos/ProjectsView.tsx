@@ -154,7 +154,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [search, setSearch] = useState('')
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(new Set())
   // ─── Patrón coherente Cathedral: 4 modos de vista (igual que Personal y Facturas)
-  const [viewMode, setViewMode] = useState<'estado' | 'tipo' | 'zona' | 'lista'>('estado')
+  const [viewMode, setViewMode] = useState<'estado' | 'tipo' | 'año' | 'lista'>('estado')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [activeTab, setActiveTab] = useState('general')
@@ -274,14 +274,12 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       }
       return { key: prefix, label: map[prefix] || `Tipo ${prefix}` }
     }
-    if (viewMode === 'zona') {
-      // Prefer columna `zona` (futura migración); si no, extraer de address
-      const zonaField = (p as Record<string, unknown>).zona as string | undefined
-      if (zonaField) return { key: zonaField, label: zonaField }
-      // Fallback: penúltimo segmento de address (ej: "Calle X, 5, Madrid" → "5")
-      const parts = (p.address || '').split(',').map((s) => s.trim()).filter(Boolean)
-      const ciudad = parts.slice(-1)[0] || 'Sin zona'
-      return { key: ciudad, label: ciudad }
+    if (viewMode === 'año') {
+      // Extraer año del code (OBR-2024-001 → 2024); si no hay code, usar start_date o created_at
+      const fromCode = (p.code || '').match(/-(\d{4})-/)?.[1]
+      const fromDate = (p.start_date || p.created_at || '').slice(0, 4)
+      const año = fromCode || fromDate || 'Sin año'
+      return { key: año, label: año }
     }
     return { key: 'all', label: 'Todos' }
   }
@@ -656,7 +654,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       {/* ─── Selector de modos (patrón Personal/Facturas: 4 chips) ─── */}
       <div className="flex gap-2 mb-5 flex-wrap items-center">
         <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
-        {(['estado', 'tipo', 'zona', 'lista'] as const).map((mode) => (
+        {(['estado', 'tipo', 'año', 'lista'] as const).map((mode) => (
           <button
             key={mode}
             onClick={() => setViewMode(mode)}
@@ -759,7 +757,11 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
           )}
           {grouped &&
             Object.entries(grouped)
-              .sort((a, b) => a[1].label.localeCompare(b[1].label, 'es'))
+              .sort((a, b) => {
+                // Para "año": orden descendente (2026 → 2024)
+                if (viewMode === 'año') return b[1].label.localeCompare(a[1].label)
+                return a[1].label.localeCompare(b[1].label, 'es')
+              })
               .map(([key, group]) => {
                 const totalImporte = group.items.reduce(
                   (s, p) => s + (Number(p.budget_estimated) || 0),

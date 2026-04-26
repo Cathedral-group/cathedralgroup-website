@@ -83,7 +83,7 @@ export default function OperacionesView({ initialData, projects }: Props) {
   const [ops, setOps] = useState<FlippingOp[]>(initialData)
   const [filter, setFilter] = useState<'activas' | 'vendidas' | 'todas'>('todas')
   // ─── Patrón coherente Cathedral: 4 modos de vista (igual que Personal/Facturas/Proyectos)
-  const [viewMode, setViewMode] = useState<'estado' | 'tipo' | 'zona' | 'lista'>('estado')
+  const [viewMode, setViewMode] = useState<'estado' | 'tipo' | 'año' | 'lista'>('estado')
   const [search, setSearch] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [newForm, setNewForm] = useState({ code: '', name: '', status: 'prospecto', address: '', property_type: 'piso', surface_m2: '' })
@@ -158,11 +158,12 @@ export default function OperacionesView({ initialData, projects }: Props) {
       const k = op.property_type || 'otro'
       return { key: k, label: k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' ') }
     }
-    if (viewMode === 'zona') {
-      // Última parte del address tras la coma (ciudad)
-      const parts = (op.address || '').split(',').map(s => s.trim()).filter(Boolean)
-      const ciudad = parts.slice(-1)[0] || 'Sin zona'
-      return { key: ciudad, label: ciudad }
+    if (viewMode === 'año') {
+      // Año del code (FLIP-2025-001 → 2025) o de purchase_date / created_at
+      const fromCode = (op.code || '').match(/-(\d{4})-/)?.[1]
+      const fromDate = (op.purchase_date || op.created_at || '').slice(0, 4)
+      const año = fromCode || fromDate || 'Sin año'
+      return { key: año, label: año }
     }
     return { key: 'all', label: 'Todos' }
   }
@@ -251,7 +252,7 @@ export default function OperacionesView({ initialData, projects }: Props) {
       {/* ─── Selector de modos (patrón coherente Cathedral) + filtros + buscador ─── */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
-        {(['estado', 'tipo', 'zona', 'lista'] as const).map((mode) => (
+        {(['estado', 'tipo', 'año', 'lista'] as const).map((mode) => (
           <button
             key={mode}
             onClick={() => setViewMode(mode)}
@@ -300,7 +301,10 @@ export default function OperacionesView({ initialData, projects }: Props) {
             </div>
           )}
           {Object.entries(grouped)
-            .sort((a, b) => a[1].label.localeCompare(b[1].label, 'es'))
+            .sort((a, b) => {
+              if (viewMode === 'año') return b[1].label.localeCompare(a[1].label)
+              return a[1].label.localeCompare(b[1].label, 'es')
+            })
             .map(([key, group]) => {
               const totalInversionGrupo = group.items.reduce(
                 (s, op) => s + (calcKpis(op).totalInvertido || 0),
