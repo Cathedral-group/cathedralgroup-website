@@ -165,7 +165,20 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Sistema',
     items: [
-      { label: 'Revisión IA',    href: '/admin/revision',      icon: <IconRevision /> },
+      {
+        label: 'Revisión IA',    href: '/admin/revision',      icon: <IconRevision />,
+        children: [
+          { label: 'Todos pendientes',    href: '/admin/revision' },
+          { label: 'Procesados IA',       href: '/admin/revision?cat=procesados_ia' },
+          { label: 'Duplicados',          href: '/admin/revision?cat=duplicados' },
+          { label: 'No legibles',         href: '/admin/revision?cat=no_legibles' },
+          { label: 'Sin clasificar',      href: '/admin/revision?cat=sin_clasificar' },
+          { label: 'Datos incompletos',   href: '/admin/revision?cat=datos_incompletos' },
+          { label: 'Baja confianza',      href: '/admin/revision?cat=baja_confianza' },
+          { label: 'Reenviadas',          href: '/admin/revision?cat=reenviadas' },
+          { label: 'Resueltos',           href: '/admin/revision?cat=resueltos' },
+        ],
+      },
       { label: 'Sistema',        href: '/admin/sistema',       icon: <IconSistema /> },
       { label: 'Archivo',        href: '/admin/archivo',       icon: <IconArchivo /> },
       { label: 'Papelera',       href: '/admin/papelera',      icon: <IconPapelera /> },

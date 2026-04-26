@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 interface AiData {
   supplier_name?: string
@@ -197,7 +198,14 @@ const DOC_CATEGORY_PATH: Record<string, string> = {
 export default function RevisionView({ initialData, pendingDocuments = [], projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
   const [items, setItems] = useState<ReviewItem[]>(initialData)
   const [selected, setSelected] = useState<ReviewItem | null>(null)
-  const [category, setCategory] = useState<string>('todos_pendientes')
+  // Categoría sincronizada con sidebar drill-down (?cat=...)
+  const searchParams = useSearchParams()
+  const catFromUrl = searchParams?.get('cat') ?? 'todos_pendientes'
+  const [category, setCategory] = useState<string>(catFromUrl)
+  useEffect(() => {
+    const newCat = searchParams?.get('cat') ?? 'todos_pendientes'
+    if (newCat !== category) setCategory(newCat)
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState<Partial<ReviewItem>>({})
