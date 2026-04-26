@@ -14,13 +14,6 @@ type SystemStatus = {
     drive_coverage_pct: number
     last_invoice: { created_at: string; empresa: string | null; amount_total: number | null; hours_ago: number } | null
   }
-  n8n: {
-    configured: boolean
-    general_active: boolean
-    healthcheck_active: boolean
-    last_execution: { id: string; status: string; startedAt: string; stoppedAt: string | null } | null
-    last_error: { id: string; startedAt: string } | null
-  }
 }
 
 function formatES(d: string | null | undefined): string {
@@ -78,20 +71,18 @@ export default function SistemaView() {
     )
   }
 
-  const { supabase, n8n } = status
+  const { supabase } = status
 
-  // Salud global: ¿algo va mal?
+  // Salud inferida de actividad real (sin necesidad de consultar n8n)
   const lastInvoiceHoursAgo = supabase.last_invoice?.hours_ago ?? 9999
   const isWorkingHours = (() => {
     const hour = parseInt(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid', hour: 'numeric', hour12: false }))
     const day = new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid', weekday: 'short' })
     return hour >= 9 && hour <= 21 && day !== 'Sat' && day !== 'Sun'
   })()
+  // Si en horario laboral lleva >4h sin procesar nada → posible problema
   const workflowSilent = isWorkingHours && lastInvoiceHoursAgo > 4
-  // Si n8n no está configurado, NO sabemos si los workflows están activos — no asumir que están mal
-  const n8nKnown = n8n.configured
-  const workflowsHealthyKnown = n8nKnown ? (n8n.general_active && n8n.healthcheck_active) : true
-  const overallOk = workflowsHealthyKnown && supabase.errores_pendientes === 0 && !workflowSilent
+  const overallOk = supabase.errores_pendientes === 0 && !workflowSilent
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
@@ -119,14 +110,18 @@ export default function SistemaView() {
             </p>
             {!overallOk && (
               <ul className="text-xs text-amber-700 mt-1 ml-1 list-disc list-inside">
-                {n8nKnown && !n8n.general_active && <li>Workflow general n8n DESACTIVADO</li>}
-                {n8nKnown && !n8n.healthcheck_active && <li>Workflow Healthcheck n8n desactivado</li>}
-                {supabase.errores_pendientes > 0 && <li>{supabase.errores_pendientes} factura{supabase.errores_pendientes > 1 ? 's' : ''} con error en bandeja</li>}
-                {workflowSilent && <li>Workflow no procesa nada desde hace {lastInvoiceHoursAgo}h en horario laboral</li>}
+                {supabase.errores_pendientes > 0 && (
+                  <li>{supabase.errores_pendientes} factura{supabase.errores_pendientes > 1 ? 's' : ''} con error en bandeja → revisar y reprocesar</li>
+                )}
+                {workflowSilent && (
+                  <li>El workflow no procesa nada desde hace {lastInvoiceHoursAgo}h en horario laboral. Posible: workflow caído, OAuth Gmail caducado, o simplemente no llegan emails con factura. Verificar en n8n console.</li>
+                )}
               </ul>
             )}
-            {!n8nKnown && overallOk && (
-              <p className="text-xs text-green-700 mt-1">Estado n8n no consultable — añade <code className="bg-white px-1 rounded">N8N_API_KEY</code> en Vercel para verlo</p>
+            {overallOk && supabase.last_invoice && (
+              <p className="text-xs text-green-700 mt-1">
+                Última factura procesada hace {supabase.last_invoice.hours_ago}h
+              </p>
             )}
           </div>
         </div>
@@ -178,70 +173,20 @@ export default function SistemaView() {
         </div>
       </section>
 
-      {/* Estado n8n */}
+      {/* Workflows automáticos (descripción, no estado en vivo) */}
       <section className="mb-8">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-4">🤖 Workflows n8n</h2>
-        {!n8n.configured ? (
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-            <p className="text-sm font-semibold text-blue-800 mb-2">ℹ Estado de n8n no consultable desde aquí</p>
-            <p className="text-xs text-blue-700 mb-3">
-              Para ver si los workflows están activos, última ejecución, último error, etc., añade la variable
-              de entorno <code className="bg-white px-1.5 py-0.5 rounded text-[11px]">N8N_API_KEY</code> en Vercel:
-            </p>
-            <ol className="text-xs text-blue-700 list-decimal list-inside space-y-1 mb-3">
-              <li>Vercel → tu proyecto → <strong>Settings</strong> → <strong>Environment Variables</strong></li>
-              <li>Add New → Name: <code>N8N_API_KEY</code> · Value: la API key (en memoria del proyecto)</li>
-              <li>Aplicar a: <strong>Production</strong></li>
-              <li>Redeploy desde Vercel UI o haz un commit cualquiera</li>
-            </ol>
-            <p className="text-xs text-blue-600">
-              Mientras tanto puedes consultar manualmente:&nbsp;
-              <a href="https://n8n.cathedralgroup.es" target="_blank" rel="noreferrer" className="underline font-semibold">n8n.cathedralgroup.es</a>
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-white border border-neutral-200 rounded">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-neutral-800">Workflow General</p>
-                <StatusDot ok={n8n.general_active} />
-              </div>
-              <p className="text-xs text-neutral-500 mb-2">
-                {n8n.general_active ? '✓ Activo (procesa emails entrantes)' : '✗ DESACTIVADO'}
-              </p>
-              {n8n.last_execution && (
-                <div className="mt-3 pt-3 border-t border-neutral-100">
-                  <p className="text-[10px] uppercase tracking-widest text-neutral-400">Última ejecución</p>
-                  <p className="text-xs text-neutral-700 mt-1">
-                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase mr-2 ${
-                      n8n.last_execution.status === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}>{n8n.last_execution.status}</span>
-                    #{n8n.last_execution.id} · {formatES(n8n.last_execution.startedAt)}
-                  </p>
-                </div>
-              )}
-              {n8n.last_error && (
-                <div className="mt-2 pt-2 border-t border-neutral-100">
-                  <p className="text-[10px] uppercase tracking-widest text-red-400">Último error</p>
-                  <p className="text-xs text-red-700 mt-1">#{n8n.last_error.id} · {formatES(n8n.last_error.startedAt)}</p>
-                </div>
-              )}
-            </div>
-            <div className="p-4 bg-white border border-neutral-200 rounded">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-neutral-800">Workflow Healthcheck + Watchdog</p>
-                <StatusDot ok={n8n.healthcheck_active} />
-              </div>
-              <p className="text-xs text-neutral-500 mb-2">
-                {n8n.healthcheck_active ? '✓ Activo (email diario 9:00 + watchdog horario)' : '✗ DESACTIVADO'}
-              </p>
-              <ul className="text-[10px] text-neutral-400 mt-3 list-disc list-inside space-y-0.5">
-                <li>9:00 hora Madrid: email diario con stats</li>
-                <li>Cada hora 8-22h L-V: alerta si workflow general lleva &gt;2h sin actividad</li>
-              </ul>
-            </div>
-          </div>
-        )}
+        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-4">🤖 Automatizaciones activas</h2>
+        <div className="p-4 bg-white border border-neutral-200 rounded text-xs text-neutral-600 leading-relaxed">
+          <p className="mb-2"><strong>Workflow general (n8n)</strong>: cada 5 minutos consulta los 7 buzones de Gmail
+          (d.vieco@, info@, administracion@, jm.lozano@, j.rivera@, cathedralhouseinvest@, cathedralhouseinvestment@).
+          Cuando llega un email con adjunto, lo procesa con GPT-4o, lo sube a Drive y lo inserta en esta base de datos.</p>
+          <p className="mb-2"><strong>Healthcheck diario</strong>: a las 9:00 hora Madrid envía email a d.vieco@ con resumen del día anterior (procesadas, errores, importe total).</p>
+          <p className="mb-3"><strong>Watchdog</strong>: cada hora 8-22 (L-V Madrid) verifica que el workflow general procesó algo en las últimas 2h. Si no, envía alerta automática.</p>
+          <p className="text-neutral-500 italic">
+            La salud arriba se infiere automáticamente de la actividad real registrada en Supabase. Si necesitas ver el detalle interno de los workflows (ejecuciones, errores específicos, configuración), accede directamente a&nbsp;
+            <a href="https://n8n.cathedralgroup.es" target="_blank" rel="noreferrer" className="underline font-semibold text-primary">n8n.cathedralgroup.es</a>
+          </p>
+        </div>
       </section>
 
       <section>
