@@ -195,13 +195,26 @@ export default function PersonalView({ data }: { data: DataBundle }) {
         { name: 'vacaciones_no_disfrutadas_dias', label: 'Días vacaciones no disfrutadas', type: 'number' },
         { name: 'vacaciones_no_disfrutadas_importe', label: 'Importe vacaciones no disfrutadas', type: 'number' },
         { name: 'paga_extra_prorrata', label: 'Paga extra prorrata', type: 'number' },
-        { name: 'indemnizacion_importe', label: 'Indemnización', type: 'number' },
+        { name: 'horas_extra_pendientes', label: 'Horas extra pendientes', type: 'number' },
+        { name: 'indemnizacion_dias_x_anio', label: 'Indemnización días/año (20=objetivo, 33=improcedente)', type: 'number' },
+        { name: 'indemnizacion_importe', label: 'Indemnización importe', type: 'number' },
         { name: 'total_devengado', label: 'TOTAL devengado', type: 'number', required: true },
         { name: 'retencion_irpf', label: 'IRPF retenido', type: 'number' },
+        { name: 'ss_trabajador', label: 'SS trabajador retenido', type: 'number' },
+        { name: 'total_deducciones', label: 'Total deducciones', type: 'number' },
         { name: 'liquido_a_percibir', label: 'LÍQUIDO a percibir', type: 'number', required: true },
         { name: 'documento_pdf_url', label: 'URL PDF finiquito (Drive)' },
         { name: 'firmado', label: 'Firmado por trabajador', type: 'checkbox' },
+        { name: 'no_conforme', label: 'Firmado "no conforme"', type: 'checkbox' },
+        { name: 'fecha_firma', label: 'Fecha firma', type: 'date' },
+        { name: 'presencia_representante', label: 'Presencia representante trabajadores', type: 'checkbox' },
+        { name: 'representante_nombre', label: 'Nombre representante' },
         { name: 'certificado_empresa_url', label: 'URL certificado SEPE Certific@2 (Drive)' },
+        { name: 'fecha_envio_certific2', label: 'Fecha envío Certific@2', type: 'date' },
+        { name: 'fecha_pago', label: 'Fecha pago', type: 'date' },
+        { name: 'importe_pagado', label: 'Importe realmente pagado', type: 'number' },
+        { name: 'iban_destino', label: 'IBAN destino' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
       ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
       {modal === 'agreement' && <SimpleCreateModal title="Convenio colectivo" resource="collective-agreements" fields={[
         { name: 'codigo_boe', label: 'Código BOE' },
@@ -214,25 +227,33 @@ export default function PersonalView({ data }: { data: DataBundle }) {
         { name: 'texto_convenio_url', label: 'URL texto completo (Drive)' },
         { name: 'notes', label: 'Notas', type: 'textarea' },
       ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
-      {modal === 'payment'   && <SimpleCreateModal title="Justificante pago nómina" resource="payroll-payments" employees={data.employees} fields={[
+      {modal === 'payment'   && <SimpleCreateModal title="Justificante pago nómina" resource="payroll-payments" employees={data.employees} payrolls={data.payrolls} fields={[
+        { name: 'payroll_id', label: 'Nómina vinculada (opcional pero recomendado)', type: 'payroll' },
         { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
         { name: 'fecha_transferencia', label: 'Fecha transferencia', type: 'date', required: true },
         { name: 'importe', label: 'Importe', type: 'number', required: true },
         { name: 'iban_origen', label: 'IBAN origen' },
+        { name: 'banco_origen', label: 'Banco origen' },
         { name: 'iban_destino', label: 'IBAN destino' },
+        { name: 'banco_destino', label: 'Banco destino' },
         { name: 'referencia_bancaria', label: 'Referencia bancaria' },
-        { name: 'concepto_transferencia', label: 'Concepto' },
+        { name: 'concepto_transferencia', label: 'Concepto transferencia' },
         { name: 'justificante_pdf_url', label: 'URL justificante (Drive)' },
+        { name: 'recibo_firmado_url', label: 'URL nómina firmada (Drive)' },
+        { name: 'metodo_firma', label: 'Método firma', type: 'select', options: ['presencial','electronica','transferencia'], default: 'transferencia' },
+        { name: 'fecha_firma', label: 'Fecha firma', type: 'date' },
+        { name: 'reconciliado', label: 'Reconciliado con extracto bancario', type: 'checkbox' },
         { name: 'notes', label: 'Notas', type: 'textarea' },
       ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
       {modal === 'modelo145' && <SimpleCreateModal title="Modelo 145 (situación familiar)" resource="employee-family-history" employees={data.employees} fields={[
         { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
         { name: 'fecha_efecto', label: 'Fecha efecto', type: 'date', required: true },
         { name: 'fecha_firma', label: 'Fecha firma', type: 'date' },
-        { name: 'situacion_familiar', label: 'Situación familiar', type: 'select', required: true, options: ['1','2','3'] },
+        { name: 'situacion_familiar', label: 'Situación familiar (1=soltero, 2=casado-cónyuge sin rentas, 3=otros)', type: 'select-int', required: true, options: ['1','2','3'] },
         { name: 'nif_conyuge', label: 'NIF cónyuge' },
         { name: 'conyuge_rentas_superiores_1500', label: 'Cónyuge rentas > 1.500€', type: 'checkbox' },
-        { name: 'discapacidad_grado', label: 'Discapacidad grado', type: 'select', options: ['0','33','65'], default: '0' },
+        { name: 'discapacidad_grado', label: 'Discapacidad grado', type: 'select-int', options: ['0','33','65'], default: '0' },
+        { name: 'discapacidad_movilidad_reducida', label: 'Discapacidad con movilidad reducida', type: 'checkbox' },
         { name: 'movilidad_geografica', label: 'Movilidad geográfica', type: 'checkbox' },
         { name: 'prolongacion_actividad', label: 'Prolongación actividad', type: 'checkbox' },
         { name: 'prestamo_vivienda_anterior_2013', label: 'Préstamo vivienda anterior 2013', type: 'checkbox' },
@@ -930,7 +951,7 @@ function ComplianceWarning({ text }: { text: string }) {
 type FieldDef = {
   name: string
   label: string
-  type?: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'checkbox' | 'employee'
+  type?: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'select-int' | 'checkbox' | 'employee' | 'payroll'
   required?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default?: any
@@ -959,7 +980,7 @@ function ModalShell({ title, onClose, onSubmit, saving, children, error }: { tit
   )
 }
 
-function SimpleCreateModal({ title, resource, fields, employees, onClose, onSaved }: { title: string; resource: string; fields: FieldDef[]; employees?: AnyRow[]; onClose: () => void; onSaved: () => void }) {
+function SimpleCreateModal({ title, resource, fields, employees, payrolls, onClose, onSaved }: { title: string; resource: string; fields: FieldDef[]; employees?: AnyRow[]; payrolls?: AnyRow[]; onClose: () => void; onSaved: () => void }) {
   const initial: AnyRow = {}
   fields.forEach(f => { initial[f.name] = f.default ?? (f.type === 'checkbox' ? false : '') })
   const [form, setForm] = useState<AnyRow>(initial)
@@ -979,6 +1000,7 @@ function SimpleCreateModal({ title, resource, fields, employees, onClose, onSave
           return
         }
         if (f.type === 'number') payload[f.name] = parseFloat(v)
+        else if (f.type === 'select-int') payload[f.name] = parseInt(v, 10)  // CRÍTICO: select integer, evita CHECK constraint fail
         else if (f.type === 'checkbox') payload[f.name] = !!v
         else payload[f.name] = v
       })
@@ -1010,8 +1032,8 @@ function SimpleCreateModal({ title, resource, fields, employees, onClose, onSave
           {f.type === 'textarea' ? (
             <textarea value={form[f.name] || ''} onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.value }))}
               className="w-full border border-neutral-200 rounded px-3 py-2 text-sm" rows={3} />
-          ) : f.type === 'select' ? (
-            <select value={form[f.name] || ''} onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.value }))}
+          ) : f.type === 'select' || f.type === 'select-int' ? (
+            <select value={form[f.name] ?? ''} onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.value }))}
               className="w-full border border-neutral-200 rounded px-3 py-2 text-sm bg-white">
               <option value="">— Seleccionar —</option>
               {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
@@ -1024,6 +1046,16 @@ function SimpleCreateModal({ title, resource, fields, employees, onClose, onSave
               <option value="">— Seleccionar trabajador —</option>
               {(employees || []).map(emp => (
                 <option key={emp.id} value={emp.id}>{emp.nombre} ({emp.nif})</option>
+              ))}
+            </select>
+          ) : f.type === 'payroll' ? (
+            <select value={form[f.name] || ''} onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.value }))}
+              className="w-full border border-neutral-200 rounded px-3 py-2 text-sm bg-white">
+              <option value="">— Sin vincular —</option>
+              {(payrolls || []).map(pay => (
+                <option key={pay.id} value={pay.id}>
+                  {pay.trabajador_nombre} · {['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][pay.periodo_mes]} {pay.periodo_anio} · {(pay.liquido_a_percibir||0).toFixed(2)}€
+                </option>
               ))}
             </select>
           ) : (
@@ -1066,11 +1098,36 @@ function EmployeeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         { name: 'banco', label: 'Banco' },
         { name: 'email', label: 'Email contacto' },
         { name: 'telefono', label: 'Teléfono' },
-        { name: 'situacion_familiar', label: 'Situación familiar (1=soltero, 2=casado-cónyuge sin rentas, 3=otros)', type: 'select', options: ['1','2','3'] },
-        { name: 'discapacidad_grado', label: 'Discapacidad grado', type: 'select', options: ['0','33','65'], default: '0' },
+        { name: 'situacion_familiar', label: 'Situación familiar (1=soltero, 2=casado-cónyuge sin rentas, 3=otros)', type: 'select-int', options: ['1','2','3'] },
+        { name: 'discapacidad_grado', label: 'Discapacidad grado', type: 'select-int', options: ['0','33','65'], default: '0' },
+        { name: 'convenio_colectivo_codigo_boe', label: 'Convenio - Código BOE' },
         { name: 'convenio_colectivo_nombre', label: 'Convenio colectivo aplicable' },
+        { name: 'nivel_salarial_convenio', label: 'Nivel salarial convenio' },
         { name: 'tipo_contrato', label: 'Tipo contrato', type: 'select', options: ['indefinido','temporal','obra','practicas','formacion','relevo','fijo_discontinuo'] },
         { name: 'jornada', label: 'Jornada', type: 'select', options: ['completa','parcial'] },
+        { name: 'horas_semanales', label: 'Horas semanales', type: 'number' },
+        { name: 'departamento', label: 'Departamento' },
+        { name: 'direccion', label: 'Dirección postal' },
+        { name: 'fecha_baja', label: 'Fecha baja (vacío si activo)', type: 'date' },
+        // Mod 145 — flags fiscales que SÍ existen en employees
+        { name: 'nif_conyuge', label: 'NIF cónyuge' },
+        { name: 'conyuge_rentas_superiores_1500', label: 'Cónyuge rentas > 1.500€', type: 'checkbox' },
+        { name: 'discapacidad_movilidad_reducida', label: 'Discapacidad con movilidad reducida', type: 'checkbox' },
+        { name: 'movilidad_geografica', label: 'Movilidad geográfica', type: 'checkbox' },
+        { name: 'prolongacion_actividad', label: 'Prolongación actividad (>65)', type: 'checkbox' },
+        { name: 'prestamo_vivienda_anterior_2013', label: 'Préstamo vivienda anterior 2013', type: 'checkbox' },
+        { name: 'pension_compensatoria_conyuge', label: 'Pensión compensatoria cónyuge (€)', type: 'number' },
+        { name: 'anualidades_alimentos_hijos', label: 'Anualidades alimentos hijos (€)', type: 'number' },
+        { name: 'residencia_ceuta_melilla', label: 'Residencia Ceuta/Melilla', type: 'checkbox' },
+        { name: 'fecha_firma_modelo_145', label: 'Fecha firma Mod. 145', type: 'date' },
+        { name: 'ccc_asignado', label: 'Cuenta cotización asignada (CCC)' },
+        // PRL
+        { name: 'apto_vigilancia_salud_fecha', label: 'Vigilancia salud — última fecha', type: 'date' },
+        { name: 'apto_vigilancia_salud_proxima', label: 'Vigilancia salud — próxima', type: 'date' },
+        { name: 'formacion_prl_fecha', label: 'Formación PRL — fecha', type: 'date' },
+        { name: 'formacion_prl_horas', label: 'Formación PRL — horas', type: 'number' },
+        { name: 'formacion_prl_archivo_url', label: 'Formación PRL — URL certificado (Drive)' },
+        { name: 'clausula_informativa_firmada_fecha', label: 'Cláusula GDPR — fecha firma', type: 'date' },
       ]}
     />
   )
