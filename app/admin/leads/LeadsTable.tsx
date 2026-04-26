@@ -44,10 +44,22 @@ const ORIGENES = [
   'Otro',
 ]
 
+function KpiCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="bg-white border border-neutral-100 px-4 py-3">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className="text-lg font-medium text-neutral-900 mt-0.5">{value}</p>
+      {hint && <p className="text-[10px] text-neutral-400 mt-0.5">{hint}</p>}
+    </div>
+  )
+}
+
 export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const [leads, setLeads] = useState(initialLeads)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [filter, setFilter] = useState('')
+  // ─── Patrón coherente Cathedral: 4 modos
+  const [viewMode, setViewMode] = useState<'estado' | 'origen' | 'zona' | 'lista'>('estado')
   const [search, setSearch] = useState('')
   const [editingNotes, setEditingNotes] = useState('')
   const [converting, setConverting] = useState(false)
@@ -59,6 +71,32 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
   const [updatingOrigen, setUpdatingOrigen] = useState(false)
   const [deletingInline, setDeletingInline] = useState<string | null>(null)
 
+  /* ───────── KPIs (patrón Cathedral) ───────── */
+  const kpis = useMemo(() => {
+    const nuevos = leads.filter(l => (l.lead_status || 'nuevo') === 'nuevo').length
+    const contactados = leads.filter(l => l.lead_status === 'contactado').length
+    const presupuestados = leads.filter(l => l.lead_status === 'presupuestado').length
+    const aceptados = leads.filter(l => l.lead_status === 'aceptado' || l.lead_status === 'completado').length
+    return { total: leads.length, nuevos, contactados, presupuestados, aceptados }
+  }, [leads])
+
+  /* ───────── Agrupación según viewMode ───────── */
+  function leadGroupKey(l: Lead): { key: string; label: string } {
+    if (viewMode === 'estado') {
+      const k = l.lead_status || 'nuevo'
+      return { key: k, label: k.charAt(0).toUpperCase() + k.slice(1) }
+    }
+    if (viewMode === 'origen') {
+      const k = (l as Record<string, unknown>).origen as string || 'sin_origen'
+      return { key: k, label: k === 'sin_origen' ? 'Sin origen' : k }
+    }
+    if (viewMode === 'zona') {
+      const k = (l as Record<string, unknown>).zona as string || 'sin_zona'
+      return { key: k, label: k === 'sin_zona' ? 'Sin zona' : k }
+    }
+    return { key: 'all', label: 'Todos' }
+  }
+
   const filteredLeads = useMemo(() => {
     let result = filter ? leads.filter((l) => (l.lead_status || 'nuevo') === filter) : leads
     if (search) {
@@ -69,6 +107,18 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
     }
     return result
   }, [leads, filter, search])
+
+  const groupedLeads = useMemo(() => {
+    if (viewMode === 'lista') return null
+    const groups: Record<string, { label: string; items: Lead[] }> = {}
+    for (const l of filteredLeads) {
+      const { key, label } = leadGroupKey(l)
+      if (!groups[key]) groups[key] = { label, items: [] }
+      groups[key].items.push(l)
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredLeads, viewMode])
 
   const updateStatus = async (id: string, newStatus: string) => {
     try {
@@ -354,41 +404,113 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
         </div>
       )}
 
-      {/* Status Filters */}
-      <div className="flex gap-3 mb-6 flex-wrap">
-        <button
-          onClick={() => setFilter('')}
-          className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
-            !filter ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
-          }`}
-        >
-          Todos ({leads.length})
-        </button>
-        {STATUSES.map((s) => {
-          const count = leads.filter((l) => (l.lead_status || 'nuevo') === s).length
-          if (count === 0) return null
-          return (
+      {/* ─── KPIs Cathedral ─── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+        <KpiCard label="Leads" value={String(kpis.total)} />
+        <KpiCard label="Nuevos" value={String(kpis.nuevos)} hint="sin contactar" />
+        <KpiCard label="Contactados" value={String(kpis.contactados)} />
+        <KpiCard label="Presupuestados" value={String(kpis.presupuestados)} />
+        <KpiCard label="Aceptados" value={String(kpis.aceptados)} />
+      </div>
+
+      {/* ─── Selector de modos coherente ─── */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
+        {(['estado', 'origen', 'zona', 'lista'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+              viewMode === mode
+                ? 'bg-neutral-900 text-white'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            }`}
+          >
+            Por {mode}
+          </button>
+        ))}
+
+        {viewMode === 'lista' && (
+          <>
+            <div className="w-px h-5 bg-neutral-200 mx-1" />
             <button
-              key={s}
-              onClick={() => setFilter(s)}
+              onClick={() => setFilter('')}
               className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
-                filter === s ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
+                !filter ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
               }`}
             >
-              {s} ({count})
+              Todos ({leads.length})
             </button>
-          )
-        })}
+            {STATUSES.map((s) => {
+              const count = leads.filter((l) => (l.lead_status || 'nuevo') === s).length
+              if (count === 0) return null
+              return (
+                <button
+                  key={s}
+                  onClick={() => setFilter(s)}
+                  className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
+                    filter === s ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
+                  }`}
+                >
+                  {s} ({count})
+                </button>
+              )
+            })}
+          </>
+        )}
+
         <span className="text-xs text-neutral-400 ml-auto self-center">
           {filteredLeads.length} resultados
         </span>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredLeads as Record<string, unknown>[]}
-        onRowClick={(row) => openDetail(row as Lead)}
-      />
+      {/* ─── Vista lista (DataTable original) ─── */}
+      {viewMode === 'lista' && (
+        <DataTable
+          columns={columns}
+          data={filteredLeads as Record<string, unknown>[]}
+          onRowClick={(row) => openDetail(row as Lead)}
+        />
+      )}
+
+      {/* ─── Vista agrupada (estado/origen/zona) ─── */}
+      {viewMode !== 'lista' && groupedLeads && (
+        <div className="space-y-4">
+          {Object.keys(groupedLeads).length === 0 && (
+            <div className="bg-white border border-neutral-100 px-4 py-8 text-center text-sm text-neutral-400">
+              Sin leads
+            </div>
+          )}
+          {Object.entries(groupedLeads)
+            .sort((a, b) => a[1].label.localeCompare(b[1].label, 'es'))
+            .map(([key, group]) => (
+              <div key={key} className="bg-white border border-neutral-100">
+                <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-700">{group.label}</h3>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                      {group.items.length} lead{group.items.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                </div>
+                <div className="divide-y divide-neutral-50">
+                  {group.items.map((l) => (
+                    <div
+                      key={l.id}
+                      onClick={() => openDetail(l)}
+                      className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-3"
+                    >
+                      <span className="text-sm font-medium flex-1 truncate">{l.nombre}</span>
+                      <span className="hidden sm:inline text-xs text-neutral-400 w-40 truncate">{l.email || l.phone || '—'}</span>
+                      <span className="hidden md:inline text-xs text-neutral-500 w-32 truncate">{l.tipo_proyecto || '—'}</span>
+                      <span className="text-xs text-neutral-400 w-24 truncate">{(l as Record<string, unknown>).zona as string || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
 
       {/* Detail panel */}
       {selectedLead && (
