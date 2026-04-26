@@ -37,9 +37,13 @@ interface Invoice {
   linea_estructura?: string | null
   notes: string | null
   needs_review?: boolean | null
+  review_status?: string | null
   ai_confidence?: number | null
   ai_razones?: string[] | null
   source?: string | null
+  email_message_id?: string | null
+  email_account?: string | null
+  file_hash?: string | null
   drive_url?: string | null
   drive_file_id?: string | null
   original_filename?: string | null
@@ -163,7 +167,9 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
   // Filters
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
+  const [reviewFilter, setReviewFilter] = useState<'todos' | 'errores' | 'revision'>('todos')
   const [search, setSearch] = useState('')
+  const [reprocessingId, setReprocessingId] = useState<string | null>(null)
 
   // Sort: default by entry date descending
   const [sortField, setSortField] = useState<SortField>('created_at')
@@ -208,6 +214,8 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
     const list = data.filter((inv) => {
       if (!allTypes && !INVOICE_DOC_TYPES.includes(inv.doc_type)) return false
       if (dirFilter !== 'todas' && inv.direction !== dirFilter) return false
+      if (reviewFilter === 'errores' && inv.review_status !== 'error') return false
+      if (reviewFilter === 'revision' && !inv.needs_review && inv.review_status !== 'error') return false
       if (statusFilter !== 'todas') {
         if (statusFilter === 'vencida') {
           const isVencida = inv.payment_status === 'vencida' ||
@@ -266,7 +274,15 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
     })
 
     return list
-  }, [data, dirFilter, statusFilter, search, sortField, sortDir, projectMap, allTypes])
+  }, [data, dirFilter, statusFilter, reviewFilter, search, sortField, sortDir, projectMap, allTypes])
+
+  // Counts for review/error tabs (independent of other filters except allTypes)
+  const reviewCounts = useMemo(() => {
+    const baseList = data.filter((inv) => allTypes || INVOICE_DOC_TYPES.includes(inv.doc_type))
+    const errores = baseList.filter((inv) => inv.review_status === 'error').length
+    const revision = baseList.filter((inv) => inv.needs_review || inv.review_status === 'error').length
+    return { errores, revision, total: baseList.length }
+  }, [data, allTypes])
 
 
   const openNew = () => {
@@ -452,6 +468,35 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
     }
   }
 
+  const reprocessInvoice = async (inv: Invoice, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!inv.id) return
+    if (!confirm(`¿Reprocesar este documento?\n\nSe eliminará la fila actual y se intentará procesar el email original (${inv.email_account || 'desconocido'}) de nuevo con el workflow.\n\nEsta acción no se puede deshacer.`)) return
+    setReprocessingId(inv.id)
+    try {
+      const res = await fetch('/api/invoices/reprocess', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inv.id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      const result = await res.json()
+      setData((prev) => prev.filter((r) => r.id !== inv.id))
+      const msg = result.workflow_triggered
+        ? `✓ Fila eliminada. El email volverá a procesarse automáticamente en el próximo poll de Gmail (5 min).`
+        : `✓ Fila eliminada. ${result.message || 'Reenvía el email manualmente para reintentar.'}`
+      alert(msg)
+    } catch (err) {
+      console.error('reprocessInvoice:', err)
+      alert('Error al reprocesar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setReprocessingId(null)
+    }
+  }
+
   const filterBtnCls = (active: boolean) =>
     `px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors rounded ${
       active ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-400 hover:text-neutral-600'
@@ -509,6 +554,32 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
               {v === 'todas' ? 'Todas' : v}
             </button>
           ))}
+        </div>
+
+        <div className="w-px h-6 bg-neutral-200" />
+
+        {/* Review / Errores filter */}
+        <div className="flex gap-1">
+          <button
+            onClick={() => setReviewFilter('todos')}
+            className={filterBtnCls(reviewFilter === 'todos')}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setReviewFilter('revision')}
+            className={`${filterBtnCls(reviewFilter === 'revision')} ${reviewCounts.revision > 0 ? '!text-amber-700' : ''}`}
+            title="Facturas que necesitan revisión manual o tienen error de procesado"
+          >
+            ⚠ Revisión {reviewCounts.revision > 0 && <span className="ml-1 px-1 py-0.5 bg-amber-100 text-amber-800 text-[9px] rounded">{reviewCounts.revision}</span>}
+          </button>
+          <button
+            onClick={() => setReviewFilter('errores')}
+            className={`${filterBtnCls(reviewFilter === 'errores')} ${reviewCounts.errores > 0 ? '!text-red-700' : ''}`}
+            title="Documentos que el workflow no pudo procesar — necesitan acción manual o reprocesado"
+          >
+            ❌ Errores {reviewCounts.errores > 0 && <span className="ml-1 px-1 py-0.5 bg-red-100 text-red-800 text-[9px] rounded">{reviewCounts.errores}</span>}
+          </button>
         </div>
 
         <div className="w-px h-6 bg-neutral-200" />
@@ -608,7 +679,15 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <StatusBadge status={inv.payment_status} />
-                        {inv.needs_review && (
+                        {inv.review_status === 'error' && (
+                          <span
+                            className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700"
+                            title={inv.concept || 'Error de procesado'}
+                          >
+                            Error procesado
+                          </span>
+                        )}
+                        {inv.needs_review && inv.review_status !== 'error' && (
                           <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">
                             Revisar
                           </span>
@@ -625,7 +704,17 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        {inv.payment_status === 'pendiente' && (
+                        {inv.review_status === 'error' && (
+                          <button
+                            onClick={(e) => reprocessInvoice(inv, e)}
+                            disabled={reprocessingId === inv.id}
+                            className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-800 whitespace-nowrap disabled:opacity-50"
+                            title="Eliminar y volver a procesar este documento desde el email original"
+                          >
+                            {reprocessingId === inv.id ? '...' : '🔄 Reprocesar'}
+                          </button>
+                        )}
+                        {inv.payment_status === 'pendiente' && inv.review_status !== 'error' && (
                           <button
                             onClick={(e) => { e.stopPropagation(); markAsPaid(inv, e) }}
                             className="text-[10px] font-bold uppercase tracking-widest text-green-600 hover:text-green-800 whitespace-nowrap"
