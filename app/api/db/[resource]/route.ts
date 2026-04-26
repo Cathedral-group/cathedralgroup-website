@@ -58,7 +58,16 @@ function auditLog(
 }
 
 // Resources that support soft delete (deleted_at field)
-const SOFT_DELETE_TABLES = new Set(['leads', 'clients', 'suppliers', 'projects', 'invoices', 'quotes', 'flipping_operations', 'mortgages', 'operation_costs', 'documents'])
+const SOFT_DELETE_TABLES = new Set([
+  'leads', 'clients', 'suppliers', 'projects', 'invoices', 'quotes',
+  'flipping_operations', 'mortgages', 'operation_costs', 'documents',
+  // ─── Personal (sesión 19) ────────────────────────────────────
+  'employees', 'employee_contracts', 'employee_dependents', 'employee_family_situation_history',
+  'payrolls', 'payroll_summaries', 'payroll_payments',
+  'time_records', 'vacation_records', 'leave_permits', 'overtime_records',
+  'it_leaves', 'finiquitos', 'tax_filings', 'ss_filings',
+  'prl_documents', 'equality_pay_register', 'collective_agreements',
+])
 
 // Map URL segment to actual table name
 function tableFor(resource: string): string | null {
@@ -78,6 +87,25 @@ function tableFor(resource: string): string | null {
     'operation-costs': 'operation_costs',
     documents: 'documents',
     papelera: 'papelera', // handled separately
+    // ─── Personal (sesión 19) ──────────────────────────────────
+    employees: 'employees',
+    'employee-contracts': 'employee_contracts',
+    'employee-dependents': 'employee_dependents',
+    'employee-family-history': 'employee_family_situation_history',
+    payrolls: 'payrolls',
+    'payroll-summaries': 'payroll_summaries',
+    'payroll-payments': 'payroll_payments',
+    'time-records': 'time_records',
+    'vacation-records': 'vacation_records',
+    'leave-permits': 'leave_permits',
+    'overtime-records': 'overtime_records',
+    'it-leaves': 'it_leaves',
+    finiquitos: 'finiquitos',
+    'tax-filings': 'tax_filings',
+    'ss-filings': 'ss_filings',
+    'prl-documents': 'prl_documents',
+    'equality-pay-register': 'equality_pay_register',
+    'collective-agreements': 'collective_agreements',
   }
   return map[resource] ?? null
 }

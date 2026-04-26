@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
 const MES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -50,8 +51,10 @@ const SECTIONS: { key: SectionKey; label: string; icon: string }[] = [
 ]
 
 export default function PersonalView({ data }: { data: DataBundle }) {
+  const router = useRouter()
   const [section, setSection] = useState<SectionKey>('resumen')
   const [search, setSearch] = useState('')
+  const [modal, setModal] = useState<null | 'employee' | 'contract' | 'time' | 'vacation' | 'permit' | 'it' | 'tax' | 'ss' | 'prl' | 'finiquito' | 'agreement' | 'payment' | 'modelo145'>(null)
 
   const yearsAvailable = useMemo(() => {
     const ys = new Set<number>()
@@ -106,11 +109,139 @@ export default function PersonalView({ data }: { data: DataBundle }) {
       </div>
 
       {section === 'resumen'      && <SectionResumen data={data} yearFilter={yearFilter} />}
-      {section === 'trabajadores' && <SectionTrabajadores data={data} search={search} yearFilter={yearFilter} />}
-      {section === 'nominas'      && <SectionNominas data={data} search={search} yearFilter={yearFilter} />}
-      {section === 'tiempo'       && <SectionTiempo data={data} search={search} />}
-      {section === 'cumplimiento' && <SectionCumplimiento data={data} yearFilter={yearFilter} />}
-      {section === 'prl'          && <SectionPRL data={data} search={search} />}
+      {section === 'trabajadores' && <SectionTrabajadores data={data} search={search} yearFilter={yearFilter} onCreate={setModal} />}
+      {section === 'nominas'      && <SectionNominas data={data} search={search} yearFilter={yearFilter} onCreate={setModal} />}
+      {section === 'tiempo'       && <SectionTiempo data={data} search={search} onCreate={setModal} />}
+      {section === 'cumplimiento' && <SectionCumplimiento data={data} yearFilter={yearFilter} onCreate={setModal} />}
+      {section === 'prl'          && <SectionPRL data={data} search={search} onCreate={setModal} />}
+
+      {/* MODALES de creación */}
+      {modal === 'employee'  && <EmployeeModal onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'contract'  && <ContractModal employees={data.employees} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'time'      && <TimeRecordModal employees={data.employees} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'vacation'  && <SimpleCreateModal title="Vacaciones" resource="vacation-records" employees={data.employees} fields={[
+        { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
+        { name: 'anio', label: 'Año', type: 'number', required: true, default: new Date().getFullYear() },
+        { name: 'dias_devengados', label: 'Días devengados', type: 'number' },
+        { name: 'dias_disfrutados', label: 'Días disfrutados', type: 'number' },
+        { name: 'fecha_inicio', label: 'Inicio disfrute', type: 'date' },
+        { name: 'fecha_fin', label: 'Fin disfrute', type: 'date' },
+        { name: 'estado', label: 'Estado', type: 'select', options: ['planificado','aprobado','disfrutado','rechazado','liquidado'], default: 'planificado' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'permit'    && <SimpleCreateModal title="Permiso retribuido" resource="leave-permits" employees={data.employees} fields={[
+        { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
+        { name: 'tipo', label: 'Tipo', type: 'select', required: true, options: ['matrimonio','fallecimiento_familiar','accidente_familiar','cuidado_familiar','mudanza','examen','sufragio','lactancia','cuidado_menor_grave_enfermedad','fuerza_mayor','otros'] },
+        { name: 'fecha_inicio', label: 'Inicio', type: 'date', required: true },
+        { name: 'fecha_fin', label: 'Fin', type: 'date', required: true },
+        { name: 'dias_naturales', label: 'Días naturales', type: 'number' },
+        { name: 'parentesco', label: 'Parentesco' },
+        { name: 'motivo_descripcion', label: 'Motivo', type: 'textarea' },
+        { name: 'justificante_url', label: 'URL justificante (Drive)' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'it'        && <SimpleCreateModal title="Baja IT" resource="it-leaves" employees={data.employees} fields={[
+        { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
+        { name: 'contingencia', label: 'Contingencia', type: 'select', required: true, options: ['comun','accidente_trabajo','enfermedad_profesional','maternidad','paternidad','cuidado_menor','riesgo_embarazo','lactancia'] },
+        { name: 'fecha_baja', label: 'Fecha baja', type: 'date', required: true },
+        { name: 'fecha_alta', label: 'Fecha alta', type: 'date' },
+        { name: 'mutua', label: 'Mutua' },
+        { name: 'parte_baja_url', label: 'URL parte baja (Drive)' },
+        { name: 'parte_alta_url', label: 'URL parte alta (Drive)' },
+        { name: 'fecha_envio_red', label: 'Fecha envío Sistema RED', type: 'date' },
+        { name: 'estado', label: 'Estado', type: 'select', options: ['activa','finalizada','prorrogada','agotada'], default: 'activa' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'tax'       && <SimpleCreateModal title="Modelo AEAT presentado" resource="tax-filings" fields={[
+        { name: 'empresa_cif', label: 'CIF empresa', required: true, default: 'B19761915' },
+        { name: 'empresa_nombre', label: 'Empresa', default: 'CATHEDRAL HOUSE INVESTMENT S.L.' },
+        { name: 'modelo', label: 'Modelo', type: 'select', required: true, options: ['111','190','216','296','303','390','347','349','115','180','100','200','202'] },
+        { name: 'ejercicio', label: 'Ejercicio', type: 'number', required: true, default: new Date().getFullYear() },
+        { name: 'periodo', label: 'Periodo', placeholder: 'Q1, Q2, M01, ANUAL...' },
+        { name: 'fecha_presentacion', label: 'Fecha presentación', type: 'date' },
+        { name: 'importe_a_ingresar', label: 'Importe a ingresar', type: 'number' },
+        { name: 'csv_aeat', label: 'CSV verificación AEAT' },
+        { name: 'modelo_pdf_url', label: 'URL PDF modelo (Drive)' },
+        { name: 'estado', label: 'Estado', type: 'select', options: ['pendiente','presentado','complementario','sustitutivo','sancionado'], default: 'presentado' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'ss'        && <SimpleCreateModal title="Liquidación SS (RNT/RLC)" resource="ss-filings" fields={[
+        { name: 'empresa_cif', label: 'CIF', required: true, default: 'B19761915' },
+        { name: 'cuenta_cotizacion', label: 'Cuenta cotización', required: true, default: '28274546366' },
+        { name: 'ejercicio', label: 'Ejercicio', type: 'number', required: true, default: new Date().getFullYear() },
+        { name: 'mes', label: 'Mes (1-12)', type: 'number', required: true },
+        { name: 'fecha_presentacion', label: 'Fecha presentación', type: 'date' },
+        { name: 'fecha_cargo', label: 'Fecha cargo', type: 'date' },
+        { name: 'importe_total', label: 'Importe total', type: 'number' },
+        { name: 'rnt_url', label: 'URL RNT (Drive)' },
+        { name: 'rlc_url', label: 'URL RLC (Drive)' },
+        { name: 'estado', label: 'Estado', type: 'select', options: ['pendiente','presentada','cargada','aplazada','sancionada'], default: 'cargada' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'prl'       && <SimpleCreateModal title="Documento PRL" resource="prl-documents" employees={data.employees} fields={[
+        { name: 'tipo', label: 'Tipo', type: 'select', required: true, options: ['plan_prevencion','evaluacion_riesgos','planificacion_actividad','formacion','vigilancia_salud','accidente','investigacion_accidente','concierto_spa','memoria_anual','auditoria','otros'] },
+        { name: 'titulo', label: 'Título', required: true },
+        { name: 'employee_id', label: 'Trabajador (opcional, vacío = general)', type: 'employee' },
+        { name: 'fecha_documento', label: 'Fecha documento', type: 'date', required: true },
+        { name: 'vigencia_hasta', label: 'Vigencia hasta', type: 'date' },
+        { name: 'realizado_por', label: 'Realizado por (interno/SPA...)' },
+        { name: 'archivo_url', label: 'URL archivo (Drive)' },
+        { name: 'apto', label: 'Apto (vigilancia salud)', type: 'checkbox' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'finiquito' && <SimpleCreateModal title="Finiquito" resource="finiquitos" employees={data.employees} fields={[
+        { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
+        { name: 'fecha_baja', label: 'Fecha baja', type: 'date', required: true },
+        { name: 'causa_baja_codigo', label: 'Código causa baja (SEPE)', placeholder: '51, 52, 54...' },
+        { name: 'causa_baja_descripcion', label: 'Causa baja' },
+        { name: 'salario_pendiente', label: 'Salario pendiente', type: 'number' },
+        { name: 'vacaciones_no_disfrutadas_dias', label: 'Días vacaciones no disfrutadas', type: 'number' },
+        { name: 'vacaciones_no_disfrutadas_importe', label: 'Importe vacaciones no disfrutadas', type: 'number' },
+        { name: 'paga_extra_prorrata', label: 'Paga extra prorrata', type: 'number' },
+        { name: 'indemnizacion_importe', label: 'Indemnización', type: 'number' },
+        { name: 'total_devengado', label: 'TOTAL devengado', type: 'number', required: true },
+        { name: 'retencion_irpf', label: 'IRPF retenido', type: 'number' },
+        { name: 'liquido_a_percibir', label: 'LÍQUIDO a percibir', type: 'number', required: true },
+        { name: 'documento_pdf_url', label: 'URL PDF finiquito (Drive)' },
+        { name: 'firmado', label: 'Firmado por trabajador', type: 'checkbox' },
+        { name: 'certificado_empresa_url', label: 'URL certificado SEPE Certific@2 (Drive)' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'agreement' && <SimpleCreateModal title="Convenio colectivo" resource="collective-agreements" fields={[
+        { name: 'codigo_boe', label: 'Código BOE' },
+        { name: 'nombre', label: 'Nombre convenio', required: true },
+        { name: 'ambito_geografico', label: 'Ámbito geográfico', placeholder: 'Estatal, Madrid...' },
+        { name: 'ambito_funcional', label: 'Ámbito funcional', placeholder: 'Inmobiliarias, Construcción...' },
+        { name: 'vigencia_desde', label: 'Vigente desde', type: 'date' },
+        { name: 'vigencia_hasta', label: 'Vigente hasta', type: 'date' },
+        { name: 'tabla_salarial_url', label: 'URL tabla salarial (Drive)' },
+        { name: 'texto_convenio_url', label: 'URL texto completo (Drive)' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'payment'   && <SimpleCreateModal title="Justificante pago nómina" resource="payroll-payments" employees={data.employees} fields={[
+        { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
+        { name: 'fecha_transferencia', label: 'Fecha transferencia', type: 'date', required: true },
+        { name: 'importe', label: 'Importe', type: 'number', required: true },
+        { name: 'iban_origen', label: 'IBAN origen' },
+        { name: 'iban_destino', label: 'IBAN destino' },
+        { name: 'referencia_bancaria', label: 'Referencia bancaria' },
+        { name: 'concepto_transferencia', label: 'Concepto' },
+        { name: 'justificante_pdf_url', label: 'URL justificante (Drive)' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+      {modal === 'modelo145' && <SimpleCreateModal title="Modelo 145 (situación familiar)" resource="employee-family-history" employees={data.employees} fields={[
+        { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
+        { name: 'fecha_efecto', label: 'Fecha efecto', type: 'date', required: true },
+        { name: 'fecha_firma', label: 'Fecha firma', type: 'date' },
+        { name: 'situacion_familiar', label: 'Situación familiar', type: 'select', required: true, options: ['1','2','3'] },
+        { name: 'nif_conyuge', label: 'NIF cónyuge' },
+        { name: 'conyuge_rentas_superiores_1500', label: 'Cónyuge rentas > 1.500€', type: 'checkbox' },
+        { name: 'discapacidad_grado', label: 'Discapacidad grado', type: 'select', options: ['0','33','65'], default: '0' },
+        { name: 'movilidad_geografica', label: 'Movilidad geográfica', type: 'checkbox' },
+        { name: 'prolongacion_actividad', label: 'Prolongación actividad', type: 'checkbox' },
+        { name: 'prestamo_vivienda_anterior_2013', label: 'Préstamo vivienda anterior 2013', type: 'checkbox' },
+        { name: 'pension_compensatoria_conyuge', label: 'Pensión compensatoria cónyuge', type: 'number' },
+        { name: 'anualidades_alimentos_hijos', label: 'Anualidades alimentos hijos', type: 'number' },
+        { name: 'residencia_ceuta_melilla', label: 'Residencia Ceuta/Melilla', type: 'checkbox' },
+        { name: 'modelo_145_pdf_url', label: 'URL PDF firmado (Drive)' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
+      ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
     </div>
   )
 }
@@ -228,7 +359,10 @@ function SectionResumen({ data, yearFilter }: { data: DataBundle; yearFilter: nu
 // ────────────────────────────────────────────────────────────────
 // SECCIÓN: TRABAJADORES (employees + contratos + dependents + family history)
 // ────────────────────────────────────────────────────────────────
-function SectionTrabajadores({ data, search, yearFilter }: { data: DataBundle; search: string; yearFilter: number | 'todos' }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ModalKey = any
+
+function SectionTrabajadores({ data, search, yearFilter, onCreate }: { data: DataBundle; search: string; yearFilter: number | 'todos'; onCreate: (m: ModalKey) => void }) {
   const [tab, setTab] = useState<'lista' | 'contratos' | 'familia' | 'modelo145'>('lista')
 
   const filtered = data.employees.filter(e => {
@@ -237,14 +371,25 @@ function SectionTrabajadores({ data, search, yearFilter }: { data: DataBundle; s
     return `${e.nombre} ${e.nif} ${e.categoria_profesional || ''} ${e.email || ''}`.toLowerCase().includes(q)
   })
 
+  const createBtn = (label: string, action: ModalKey) => (
+    <button onClick={() => onCreate(action)} className="px-3 py-1.5 bg-primary text-white text-[11px] font-bold uppercase tracking-widest rounded hover:opacity-90">+ {label}</button>
+  )
+
   return (
     <div>
-      <SubTabs value={tab} onChange={setTab} options={[
-        { v: 'lista',     label: `Lista (${filtered.length})` },
-        { v: 'contratos', label: `Contratos (${data.contracts.length})` },
-        { v: 'familia',   label: `Familia (${data.dependents.length})` },
-        { v: 'modelo145', label: `Histórico Mod. 145 (${data.familyHistory.length})` },
-      ]} />
+      <div className="flex items-center justify-between mb-2">
+        <SubTabs value={tab} onChange={setTab} options={[
+          { v: 'lista',     label: `Lista (${filtered.length})` },
+          { v: 'contratos', label: `Contratos (${data.contracts.length})` },
+          { v: 'familia',   label: `Familia (${data.dependents.length})` },
+          { v: 'modelo145', label: `Histórico Mod. 145 (${data.familyHistory.length})` },
+        ]} />
+        <div className="flex gap-2">
+          {tab === 'lista'     && createBtn('Trabajador',      'employee')}
+          {tab === 'contratos' && createBtn('Contrato',        'contract')}
+          {tab === 'modelo145' && createBtn('Modelo 145',      'modelo145')}
+        </div>
+      </div>
 
       {tab === 'lista' && (
         <SimpleTable
@@ -314,7 +459,7 @@ function SectionTrabajadores({ data, search, yearFilter }: { data: DataBundle; s
 // ────────────────────────────────────────────────────────────────
 // SECCIÓN: NÓMINAS (payrolls + payments + summaries)
 // ────────────────────────────────────────────────────────────────
-function SectionNominas({ data, search, yearFilter }: { data: DataBundle; search: string; yearFilter: number | 'todos' }) {
+function SectionNominas({ data, search, yearFilter, onCreate }: { data: DataBundle; search: string; yearFilter: number | 'todos'; onCreate: (m: ModalKey) => void }) {
   const [tab, setTab] = useState<'nominas' | 'pagos' | 'resumenes'>('nominas')
 
   const filteredPayrolls = data.payrolls.filter(p => {
@@ -331,11 +476,18 @@ function SectionNominas({ data, search, yearFilter }: { data: DataBundle; search
 
   return (
     <div>
-      <SubTabs value={tab} onChange={setTab} options={[
-        { v: 'nominas',   label: `Nóminas (${filteredPayrolls.length})` },
-        { v: 'pagos',     label: `Pagos justificados (${filteredPayments.length})` },
-        { v: 'resumenes', label: `Resúmenes mensuales (${filteredSummaries.length})` },
-      ]} />
+      <div className="flex items-center justify-between mb-2">
+        <SubTabs value={tab} onChange={setTab} options={[
+          { v: 'nominas',   label: `Nóminas (${filteredPayrolls.length})` },
+          { v: 'pagos',     label: `Pagos justificados (${filteredPayments.length})` },
+          { v: 'resumenes', label: `Resúmenes mensuales (${filteredSummaries.length})` },
+        ]} />
+        <div className="flex gap-2">
+          {tab === 'pagos' && (
+            <button onClick={() => onCreate('payment')} className="px-3 py-1.5 bg-primary text-white text-[11px] font-bold uppercase tracking-widest rounded hover:opacity-90">+ Justificante pago</button>
+          )}
+        </div>
+      </div>
 
       {tab === 'nominas' && (
         <SimpleTable
@@ -394,18 +546,30 @@ function SectionNominas({ data, search, yearFilter }: { data: DataBundle; search
 // ────────────────────────────────────────────────────────────────
 // SECCIÓN: TIEMPO (jornada + vacaciones + permisos + horas extra + IT)
 // ────────────────────────────────────────────────────────────────
-function SectionTiempo({ data, search }: { data: DataBundle; search: string }) {
+function SectionTiempo({ data, search, onCreate }: { data: DataBundle; search: string; onCreate: (m: ModalKey) => void }) {
   const [tab, setTab] = useState<'jornada' | 'vacaciones' | 'permisos' | 'extras' | 'it'>('jornada')
+
+  const createBtn = (label: string, action: ModalKey) => (
+    <button onClick={() => onCreate(action)} className="px-3 py-1.5 bg-primary text-white text-[11px] font-bold uppercase tracking-widest rounded hover:opacity-90">+ {label}</button>
+  )
 
   return (
     <div>
-      <SubTabs value={tab} onChange={setTab} options={[
-        { v: 'jornada',     label: `Jornada (${data.timeRecords.length})` },
-        { v: 'vacaciones',  label: `Vacaciones (${data.vacations.length})` },
-        { v: 'permisos',    label: `Permisos (${data.permits.length})` },
-        { v: 'extras',      label: `Horas extra (${data.overtime.length})` },
-        { v: 'it',          label: `Bajas IT (${data.itLeaves.length})` },
-      ]} />
+      <div className="flex items-center justify-between mb-2">
+        <SubTabs value={tab} onChange={setTab} options={[
+          { v: 'jornada',     label: `Jornada (${data.timeRecords.length})` },
+          { v: 'vacaciones',  label: `Vacaciones (${data.vacations.length})` },
+          { v: 'permisos',    label: `Permisos (${data.permits.length})` },
+          { v: 'extras',      label: `Horas extra (${data.overtime.length})` },
+          { v: 'it',          label: `Bajas IT (${data.itLeaves.length})` },
+        ]} />
+        <div className="flex gap-2">
+          {tab === 'jornada'    && createBtn('Fichaje',    'time')}
+          {tab === 'vacaciones' && createBtn('Vacaciones', 'vacation')}
+          {tab === 'permisos'   && createBtn('Permiso',    'permit')}
+          {tab === 'it'         && createBtn('Baja IT',    'it')}
+        </div>
+      </div>
 
       {tab === 'jornada' && (
         <div>
@@ -495,22 +659,34 @@ function SectionTiempo({ data, search }: { data: DataBundle; search: string }) {
 // ────────────────────────────────────────────────────────────────
 // SECCIÓN: CUMPLIMIENTO LEGAL (modelos AEAT, SS, finiquitos, igualdad, convenios)
 // ────────────────────────────────────────────────────────────────
-function SectionCumplimiento({ data, yearFilter }: { data: DataBundle; yearFilter: number | 'todos' }) {
+function SectionCumplimiento({ data, yearFilter, onCreate }: { data: DataBundle; yearFilter: number | 'todos'; onCreate: (m: ModalKey) => void }) {
   const [tab, setTab] = useState<'aeat' | 'ss' | 'finiquitos' | 'igualdad' | 'convenios'>('aeat')
 
   const filteredTax = data.taxFilings.filter(t => yearFilter === 'todos' || t.ejercicio === yearFilter)
   const filteredSs = data.ssFilings.filter(s => yearFilter === 'todos' || s.ejercicio === yearFilter)
   const filteredEqu = data.equality.filter(e => yearFilter === 'todos' || e.periodo_anio === yearFilter)
 
+  const createBtn = (label: string, action: ModalKey) => (
+    <button onClick={() => onCreate(action)} className="px-3 py-1.5 bg-primary text-white text-[11px] font-bold uppercase tracking-widest rounded hover:opacity-90">+ {label}</button>
+  )
+
   return (
     <div>
-      <SubTabs value={tab} onChange={setTab} options={[
-        { v: 'aeat',       label: `Modelos AEAT (${filteredTax.length})` },
-        { v: 'ss',         label: `RNT/RLC SS (${filteredSs.length})` },
-        { v: 'finiquitos', label: `Finiquitos (${data.finiquitos.length})` },
-        { v: 'igualdad',   label: `Reg. Retributivo (${filteredEqu.length})` },
-        { v: 'convenios',  label: `Convenios (${data.agreements.length})` },
-      ]} />
+      <div className="flex items-center justify-between mb-2">
+        <SubTabs value={tab} onChange={setTab} options={[
+          { v: 'aeat',       label: `Modelos AEAT (${filteredTax.length})` },
+          { v: 'ss',         label: `RNT/RLC SS (${filteredSs.length})` },
+          { v: 'finiquitos', label: `Finiquitos (${data.finiquitos.length})` },
+          { v: 'igualdad',   label: `Reg. Retributivo (${filteredEqu.length})` },
+          { v: 'convenios',  label: `Convenios (${data.agreements.length})` },
+        ]} />
+        <div className="flex gap-2">
+          {tab === 'aeat'       && createBtn('Modelo AEAT', 'tax')}
+          {tab === 'ss'         && createBtn('Liquidación SS', 'ss')}
+          {tab === 'finiquitos' && createBtn('Finiquito', 'finiquito')}
+          {tab === 'convenios'  && createBtn('Convenio', 'agreement')}
+        </div>
+      </div>
 
       {tab === 'aeat' && (
         <div>
@@ -609,7 +785,7 @@ function SectionCumplimiento({ data, yearFilter }: { data: DataBundle; yearFilte
 // ────────────────────────────────────────────────────────────────
 // SECCIÓN: PRL (Ley 31/1995)
 // ────────────────────────────────────────────────────────────────
-function SectionPRL({ data, search }: { data: DataBundle; search: string }) {
+function SectionPRL({ data, search, onCreate }: { data: DataBundle; search: string; onCreate: (m: ModalKey) => void }) {
   const filtered = data.prl.filter(p => {
     if (!search) return true
     const q = search.toLowerCase()
@@ -618,6 +794,9 @@ function SectionPRL({ data, search }: { data: DataBundle; search: string }) {
 
   return (
     <div>
+      <div className="flex items-center justify-end mb-2">
+        <button onClick={() => onCreate('prl')} className="px-3 py-1.5 bg-primary text-white text-[11px] font-bold uppercase tracking-widest rounded hover:opacity-90">+ Documento PRL</button>
+      </div>
       <ComplianceWarning text="Ley 31/1995. Documentación obligatoria: plan prevención, evaluación riesgos, planificación actividad, formación e información al trabajador, vigilancia de la salud, investigación accidentes. Sanciones graves en caso de accidente sin documentación." />
       <SimpleTable
         rows={filtered}
@@ -741,5 +920,220 @@ function ComplianceWarning({ text }: { text: string }) {
     <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
       <p>📜 <strong>Cumplimiento normativo:</strong> {text}</p>
     </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────
+// MODALES DE CREACIÓN
+// ────────────────────────────────────────────────────────────────
+
+type FieldDef = {
+  name: string
+  label: string
+  type?: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'checkbox' | 'employee'
+  required?: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  default?: any
+  options?: string[]
+  placeholder?: string
+}
+
+function ModalShell({ title, onClose, onSubmit, saving, children, error }: { title: string; onClose: () => void; onSubmit: (e: React.FormEvent) => void; saving: boolean; children: React.ReactNode; error?: string | null }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30" onClick={onClose}>
+      <form onSubmit={onSubmit} className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-white border-b border-neutral-100 px-6 py-4 flex items-center justify-between">
+          <h3 className="text-lg font-bold">{title}</h3>
+          <button type="button" onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-2xl leading-none">×</button>
+        </div>
+        <div className="p-6 space-y-3">
+          {error && <div className="p-3 bg-red-50 border border-red-200 rounded text-xs text-red-700">{error}</div>}
+          {children}
+        </div>
+        <div className="sticky bottom-0 bg-white border-t border-neutral-100 px-6 py-3 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-neutral-600 hover:text-neutral-900">Cancelar</button>
+          <button type="submit" disabled={saving} className="px-4 py-2 bg-primary text-white text-sm font-bold rounded hover:opacity-90 disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function SimpleCreateModal({ title, resource, fields, employees, onClose, onSaved }: { title: string; resource: string; fields: FieldDef[]; employees?: AnyRow[]; onClose: () => void; onSaved: () => void }) {
+  const initial: AnyRow = {}
+  fields.forEach(f => { initial[f.name] = f.default ?? (f.type === 'checkbox' ? false : '') })
+  const [form, setForm] = useState<AnyRow>(initial)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true); setError(null)
+    try {
+      // Limpiar valores vacíos y convertir tipos
+      const payload: AnyRow = {}
+      fields.forEach(f => {
+        const v = form[f.name]
+        if (v === '' || v === null || v === undefined) {
+          if (f.required) throw new Error(`Campo obligatorio: ${f.label}`)
+          return
+        }
+        if (f.type === 'number') payload[f.name] = parseFloat(v)
+        else if (f.type === 'checkbox') payload[f.name] = !!v
+        else payload[f.name] = v
+      })
+
+      const res = await fetch(`/api/db/${resource}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell title={title} onClose={onClose} onSubmit={submit} saving={saving} error={error}>
+      {fields.map(f => (
+        <div key={f.name}>
+          <label className="block text-xs font-semibold text-neutral-600 mb-1">
+            {f.label}{f.required && <span className="text-red-500"> *</span>}
+          </label>
+          {f.type === 'textarea' ? (
+            <textarea value={form[f.name] || ''} onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.value }))}
+              className="w-full border border-neutral-200 rounded px-3 py-2 text-sm" rows={3} />
+          ) : f.type === 'select' ? (
+            <select value={form[f.name] || ''} onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.value }))}
+              className="w-full border border-neutral-200 rounded px-3 py-2 text-sm bg-white">
+              <option value="">— Seleccionar —</option>
+              {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          ) : f.type === 'checkbox' ? (
+            <input type="checkbox" checked={!!form[f.name]} onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.checked }))} className="h-4 w-4" />
+          ) : f.type === 'employee' ? (
+            <select value={form[f.name] || ''} onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.value }))}
+              className="w-full border border-neutral-200 rounded px-3 py-2 text-sm bg-white">
+              <option value="">— Seleccionar trabajador —</option>
+              {(employees || []).map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.nombre} ({emp.nif})</option>
+              ))}
+            </select>
+          ) : (
+            <input type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text'}
+              step={f.type === 'number' ? 'any' : undefined}
+              placeholder={f.placeholder}
+              value={form[f.name] ?? ''}
+              onChange={(e) => setForm(p => ({ ...p, [f.name]: e.target.value }))}
+              className="w-full border border-neutral-200 rounded px-3 py-2 text-sm" />
+          )}
+        </div>
+      ))}
+    </ModalShell>
+  )
+}
+
+// Modal específico empleado (más campos relevantes)
+function EmployeeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  return (
+    <SimpleCreateModal
+      title="Nuevo trabajador"
+      resource="employees"
+      onClose={onClose}
+      onSaved={onSaved}
+      fields={[
+        { name: 'nombre', label: 'Nombre completo (Apellidos, Nombre)', required: true },
+        { name: 'nif', label: 'NIF/NIE', required: true },
+        { name: 'num_afiliacion_ss', label: 'Núm. afiliación SS', placeholder: '32-10249132-85' },
+        { name: 'empresa_actual_cif', label: 'CIF empresa', default: 'B19761915' },
+        { name: 'empresa_actual_nombre', label: 'Empresa', default: 'CATHEDRAL HOUSE INVESTMENT S.L.' },
+        { name: 'categoria_profesional', label: 'Categoría profesional', placeholder: 'NIVEL VIII' },
+        { name: 'grupo_cotizacion', label: 'Grupo cotización (1-11)', type: 'number' },
+        { name: 'epigrafe_at_ep', label: 'Epígrafe AT/EP' },
+        { name: 'codigo_contrato_sepe', label: 'Código contrato SEPE', placeholder: '100, 200, 401...' },
+        { name: 'jornada_porcentaje', label: 'Jornada %', type: 'number', default: 100 },
+        { name: 'fecha_alta', label: 'Fecha alta SS', type: 'date' },
+        { name: 'fecha_antiguedad', label: 'Fecha antigüedad reconocida', type: 'date' },
+        { name: 'centro_trabajo', label: 'Centro de trabajo', placeholder: 'PS Castellana 40' },
+        { name: 'iban', label: 'IBAN para pago nómina' },
+        { name: 'banco', label: 'Banco' },
+        { name: 'email', label: 'Email contacto' },
+        { name: 'telefono', label: 'Teléfono' },
+        { name: 'situacion_familiar', label: 'Situación familiar (1=soltero, 2=casado-cónyuge sin rentas, 3=otros)', type: 'select', options: ['1','2','3'] },
+        { name: 'discapacidad_grado', label: 'Discapacidad grado', type: 'select', options: ['0','33','65'], default: '0' },
+        { name: 'convenio_colectivo_nombre', label: 'Convenio colectivo aplicable' },
+        { name: 'tipo_contrato', label: 'Tipo contrato', type: 'select', options: ['indefinido','temporal','obra','practicas','formacion','relevo','fijo_discontinuo'] },
+        { name: 'jornada', label: 'Jornada', type: 'select', options: ['completa','parcial'] },
+      ]}
+    />
+  )
+}
+
+function ContractModal({ employees, onClose, onSaved }: { employees: AnyRow[]; onClose: () => void; onSaved: () => void }) {
+  return (
+    <SimpleCreateModal
+      title="Nuevo contrato"
+      resource="employee-contracts"
+      employees={employees}
+      onClose={onClose}
+      onSaved={onSaved}
+      fields={[
+        { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
+        { name: 'tipo_contrato', label: 'Tipo de contrato', type: 'select', required: true, options: ['indefinido','temporal','obra','practicas','formacion','relevo','fijo_discontinuo'] },
+        { name: 'codigo_clave_sepe', label: 'Código clave SEPE', placeholder: '100, 200, 401...' },
+        { name: 'modalidad', label: 'Modalidad', type: 'select', options: ['tiempo completo','parcial','fijo discontinuo'] },
+        { name: 'jornada_horas_semanales', label: 'Horas semanales', type: 'number' },
+        { name: 'jornada_porcentaje', label: 'Jornada %', type: 'number', default: 100 },
+        { name: 'fecha_inicio', label: 'Fecha inicio', type: 'date', required: true },
+        { name: 'fecha_fin', label: 'Fecha fin (vacío si indefinido)', type: 'date' },
+        { name: 'fecha_fin_periodo_prueba', label: 'Fin periodo prueba', type: 'date' },
+        { name: 'salario_bruto_anual', label: 'Salario bruto anual', type: 'number' },
+        { name: 'salario_mensual', label: 'Salario mensual', type: 'number' },
+        { name: 'num_pagas', label: 'Nº pagas', type: 'number', default: 14 },
+        { name: 'paga_extra_prorrateada', label: 'Paga extra prorrateada', type: 'checkbox' },
+        { name: 'categoria_profesional', label: 'Categoría profesional' },
+        { name: 'grupo_cotizacion', label: 'Grupo cotización', type: 'number' },
+        { name: 'convenio_aplicable', label: 'Convenio aplicable' },
+        { name: 'centro_trabajo', label: 'Centro trabajo' },
+        { name: 'funciones_descripcion', label: 'Funciones', type: 'textarea' },
+        { name: 'fecha_comunicacion_sepe', label: 'Fecha comunicación SEPE', type: 'date' },
+        { name: 'numero_comunicacion_sepe', label: 'Nº comunicación SEPE' },
+        { name: 'fecha_alta_ss', label: 'Fecha alta SS', type: 'date' },
+        { name: 'pdf_contrato_url', label: 'URL PDF contrato firmado (Drive)' },
+        { name: 'estado', label: 'Estado', type: 'select', options: ['vigente','prorrogado','finalizado','rescindido','novado'], default: 'vigente' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
+      ]}
+    />
+  )
+}
+
+function TimeRecordModal({ employees, onClose, onSaved }: { employees: AnyRow[]; onClose: () => void; onSaved: () => void }) {
+  const today = new Date().toISOString().slice(0, 10)
+  return (
+    <SimpleCreateModal
+      title="Registrar jornada"
+      resource="time-records"
+      employees={employees}
+      onClose={onClose}
+      onSaved={onSaved}
+      fields={[
+        { name: 'employee_id', label: 'Trabajador', type: 'employee', required: true },
+        { name: 'fecha', label: 'Fecha', type: 'date', required: true, default: today },
+        { name: 'hora_entrada', label: 'Hora entrada (HH:MM)', placeholder: '09:00' },
+        { name: 'hora_salida', label: 'Hora salida (HH:MM)', placeholder: '18:00' },
+        { name: 'horas_ordinarias', label: 'Horas ordinarias', type: 'number' },
+        { name: 'horas_extra', label: 'Horas extra', type: 'number', default: 0 },
+        { name: 'horas_nocturnas', label: 'Horas nocturnas', type: 'number', default: 0 },
+        { name: 'fuente', label: 'Fuente', type: 'select', options: ['manual','app_movil','biometrico','tarjeta','importado'], default: 'manual' },
+        { name: 'observaciones', label: 'Observaciones', type: 'textarea' },
+      ]}
+    />
   )
 }
