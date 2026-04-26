@@ -93,6 +93,16 @@ function CertProgressBar({ pct }: { pct: number }) {
   )
 }
 
+function KpiCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="bg-white border border-neutral-100 px-4 py-3">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className="text-lg font-medium text-neutral-900 mt-0.5">{value}</p>
+      {hint && <p className="text-[10px] text-neutral-400 mt-0.5">{hint}</p>}
+    </div>
+  )
+}
+
 function QuoteStatusBadge({ status }: { status: string }) {
   return (
     <span
@@ -113,6 +123,8 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('todos')
   const [search, setSearch] = useState('')
+  // ─── Patrón coherente Cathedral: 4 modos
+  const [viewMode, setViewMode] = useState<'estado' | 'cliente' | 'proyecto' | 'lista'>('estado')
 
   // Sort
   const [sortField, setSortField] = useState<SortField>('created_at')
@@ -187,6 +199,45 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
     return list
   }, [data, statusFilter, search, clientMap, sortField, sortDir])
 
+  /* ───────── KPIs + agrupación (patrón Cathedral) ───────── */
+  const kpis = useMemo(() => {
+    const borrador = data.filter(q => q.status === 'borrador').length
+    const enviado = data.filter(q => q.status === 'enviado').length
+    const aceptado = data.filter(q => q.status === 'aceptado').length
+    const totalAceptados = data.filter(q => q.status === 'aceptado').reduce((s, q) => s + (Number(q.total) || 0), 0)
+    return { total: data.length, borrador, enviado, aceptado, totalAceptados }
+  }, [data])
+
+  function quoteGroupKey(q: Quote): { key: string; label: string } {
+    if (viewMode === 'estado') {
+      const k = q.status || 'borrador'
+      return { key: k, label: k.charAt(0).toUpperCase() + k.slice(1) }
+    }
+    if (viewMode === 'cliente') {
+      const k = q.client_id || 'sin_cliente'
+      const label = q.client_id ? (clientMap[q.client_id] || 'Cliente desconocido') : 'Sin cliente asignado'
+      return { key: k, label }
+    }
+    if (viewMode === 'proyecto') {
+      const k = (q as unknown as Record<string, unknown>).project_id as string || 'sin_proyecto'
+      const label = k === 'sin_proyecto' ? 'Sin proyecto' : (projectMap[k] || 'Proyecto desconocido')
+      return { key: k, label }
+    }
+    return { key: 'all', label: 'Todos' }
+  }
+
+  const grouped = useMemo(() => {
+    if (viewMode === 'lista') return null
+    const groups: Record<string, { label: string; items: Quote[] }> = {}
+    for (const q of filtered) {
+      const { key, label } = quoteGroupKey(q)
+      if (!groups[key]) groups[key] = { label, items: [] }
+      groups[key].items.push(q)
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, viewMode, clientMap, projectMap])
+
   const openNew = () => {
     setEditingQuote(null)
     setEditorOpen(true)
@@ -254,32 +305,54 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4 mb-6">
-        <div className="flex gap-1">
-          {(['todos', 'borrador', 'enviado', 'aceptado', 'rechazado'] as const).map((v) => (
-            <button key={v} onClick={() => setStatusFilter(v)} className={filterBtnCls(statusFilter === v)}>
-              {v === 'todos' ? 'Todos' : v.charAt(0).toUpperCase() + v.slice(1)}
-            </button>
-          ))}
-        </div>
+      {/* ─── KPIs Cathedral ─── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+        <KpiCard label="Presupuestos" value={String(kpis.total)} />
+        <KpiCard label="Borrador" value={String(kpis.borrador)} />
+        <KpiCard label="Enviados" value={String(kpis.enviado)} />
+        <KpiCard label="Aceptados" value={String(kpis.aceptado)} />
+        <KpiCard label="Total aceptado" value={kpis.totalAceptados.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })} />
+      </div>
 
-        <div className="w-px h-6 bg-neutral-200" />
+      {/* ─── Selector de modos coherente ─── */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
+        {(['estado', 'cliente', 'proyecto', 'lista'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+              viewMode === mode
+                ? 'bg-neutral-900 text-white'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            }`}
+          >
+            Por {mode}
+          </button>
+        ))}
+
+        {viewMode === 'lista' && (
+          <>
+            <div className="w-px h-5 bg-neutral-200 mx-1" />
+            {(['todos', 'borrador', 'enviado', 'aceptado', 'rechazado'] as const).map((v) => (
+              <button key={v} onClick={() => setStatusFilter(v)} className={filterBtnCls(statusFilter === v)}>
+                {v === 'todos' ? 'Todos' : v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </>
+        )}
 
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por numero o cliente..."
-          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-56"
+          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-56 ml-auto"
         />
-
-        <span className="text-xs text-neutral-400 ml-auto">
-          {filtered.length} de {data.length}
-        </span>
       </div>
 
-      {/* Table */}
+      {/* ─── Vista lista (tabla original) ─── */}
+      {viewMode === 'lista' && (
       <div className="bg-white border border-neutral-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -346,6 +419,50 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
           </table>
         </div>
       </div>
+      )}
+
+      {/* ─── Vista agrupada (estado/cliente/proyecto) ─── */}
+      {viewMode !== 'lista' && grouped && (
+        <div className="space-y-4">
+          {Object.keys(grouped).length === 0 && (
+            <div className="bg-white border border-neutral-100 px-4 py-8 text-center text-sm text-neutral-400">
+              Sin presupuestos
+            </div>
+          )}
+          {Object.entries(grouped)
+            .sort((a, b) => a[1].label.localeCompare(b[1].label, 'es'))
+            .map(([key, group]) => {
+              const totalGrupo = group.items.reduce((s, q) => s + (Number(q.total) || 0), 0)
+              return (
+                <div key={key} className="bg-white border border-neutral-100">
+                  <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-700">{group.label}</h3>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                        {group.items.length} pres{group.items.length === 1 ? '' : 'es'}
+                      </span>
+                    </div>
+                    <span className="text-xs tabular-nums text-neutral-500">
+                      {totalGrupo.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-neutral-50">
+                    {group.items.map((q) => (
+                      <div key={q.id} onClick={() => openEdit(q)} className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-3">
+                        <span className="text-xs font-mono text-neutral-500 w-32 shrink-0">{q.number || '—'}</span>
+                        <span className="text-sm flex-1 truncate">{q.client_id ? clientMap[q.client_id] : 'Sin cliente'}</span>
+                        <QuoteStatusBadge status={q.status || 'borrador'} />
+                        <span className="text-xs tabular-nums w-24 text-right">
+                          {(q.total || 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+        </div>
+      )}
 
       {/* Editor panel */}
       {editorOpen && (
