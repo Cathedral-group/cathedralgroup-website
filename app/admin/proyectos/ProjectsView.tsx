@@ -132,6 +132,20 @@ interface Props {
   phases: Phase[]
 }
 
+/**
+ * KPI mínimo para la cabecera de la página.
+ * Sigue la paleta cromática Cathedral (sin colorinas, monocromo + acentos suaves).
+ */
+function KpiCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="bg-white border border-neutral-100 px-4 py-3">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className="text-lg font-medium text-neutral-900 mt-0.5">{value}</p>
+      {hint && <p className="text-[10px] text-neutral-400 mt-0.5">{hint}</p>}
+    </div>
+  )
+}
+
 export default function ProjectsView({ projects: initialProjects, clients, financials, invoices: initialInvoices, phases: initialPhases }: Props) {
   const [projects, setProjects] = useState(initialProjects)
   const [allPhases, setAllPhases] = useState(initialPhases)
@@ -139,6 +153,8 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(new Set())
+  // ─── Patrón coherente Cathedral: 4 modos de vista (igual que Personal y Facturas)
+  const [viewMode, setViewMode] = useState<'estado' | 'tipo' | 'zona' | 'lista'>('estado')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [activeTab, setActiveTab] = useState('general')
@@ -223,6 +239,64 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     })
     return list
   }, [projects, statusFilter, search, clientMap, hiddenStatuses, sortField, sortDir, financialMap])
+
+  /* ───────── KPIs (cabecera de la página, patrón Cathedral) ───────── */
+  const kpis = useMemo(() => {
+    const activos = projects.filter((p) => ['en_curso', 'presupuesto'].includes(p.status || 'presupuesto')).length
+    const enCurso = projects.filter((p) => p.status === 'en_curso').length
+    const finalizados = projects.filter((p) => p.status === 'finalizado').length
+    const valorCartera = projects
+      .filter((p) => p.status !== 'cancelado')
+      .reduce((s, p) => s + (Number(p.budget_estimated) || 0), 0)
+    const m2Total = projects.reduce(
+      (s, p) => s + (Number((p as Record<string, unknown>).metros_cuadrados) || 0),
+      0,
+    )
+    return { total: projects.length, activos, enCurso, finalizados, valorCartera, m2Total }
+  }, [projects])
+
+  /* ───────── Agrupación según viewMode ───────── */
+  // Devuelve clave de agrupación para un proyecto según el modo activo.
+  function groupKey(p: Project): { key: string; label: string } {
+    if (viewMode === 'estado') {
+      const k = p.status || 'sin_estado'
+      return { key: k, label: k.replace(/_/g, ' ').toUpperCase() }
+    }
+    if (viewMode === 'tipo') {
+      // El prefijo del code marca el tipo: OBR/FLP/PRO/OBN/CDU
+      const prefix = (p.code || '').split('-')[0] || 'OTRO'
+      const map: Record<string, string> = {
+        OBR: 'Obra / Reforma cliente',
+        FLP: 'Flipping',
+        PRO: 'Promoción',
+        OBN: 'Obra nueva',
+        CDU: 'Cambio de uso',
+      }
+      return { key: prefix, label: map[prefix] || `Tipo ${prefix}` }
+    }
+    if (viewMode === 'zona') {
+      // Prefer columna `zona` (futura migración); si no, extraer de address
+      const zonaField = (p as Record<string, unknown>).zona as string | undefined
+      if (zonaField) return { key: zonaField, label: zonaField }
+      // Fallback: penúltimo segmento de address (ej: "Calle X, 5, Madrid" → "5")
+      const parts = (p.address || '').split(',').map((s) => s.trim()).filter(Boolean)
+      const ciudad = parts.slice(-1)[0] || 'Sin zona'
+      return { key: ciudad, label: ciudad }
+    }
+    return { key: 'all', label: 'Todos' }
+  }
+
+  const grouped = useMemo(() => {
+    if (viewMode === 'lista') return null
+    const groups: Record<string, { label: string; items: Project[] }> = {}
+    for (const p of filtered) {
+      const { key, label } = groupKey(p)
+      if (!groups[key]) groups[key] = { label, items: [] }
+      groups[key].items.push(p)
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, viewMode])
 
   /* ───────── Helpers ───────── */
 
@@ -570,101 +644,176 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
         </div>
       )}
 
-      {/* Status filters + toggle */}
-      <div className="flex gap-3 mb-6 flex-wrap items-center">
-        <button
-          onClick={() => setStatusFilter('')}
-          className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
-            !statusFilter ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
-          }`}
-        >
-          Todos ({projects.length})
-        </button>
-        {STATUSES.map((s) => {
-          const count = projects.filter((p) => (p.status || 'presupuesto') === s).length
-          if (count === 0) return null
-          return (
+      {/* ─── KPIs (patrón coherente Cathedral) ─── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-5">
+        <KpiCard label="Proyectos" value={String(kpis.total)} />
+        <KpiCard label="Activos" value={String(kpis.activos)} hint="presupuesto + en curso" />
+        <KpiCard label="En curso" value={String(kpis.enCurso)} />
+        <KpiCard label="Finalizados" value={String(kpis.finalizados)} />
+        <KpiCard label="Valor cartera" value={currency(kpis.valorCartera) || '—'} hint="excluye cancelados" />
+      </div>
+
+      {/* ─── Selector de modos (patrón Personal/Facturas: 4 chips) ─── */}
+      <div className="flex gap-2 mb-5 flex-wrap items-center">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
+        {(['estado', 'tipo', 'zona', 'lista'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+              viewMode === mode
+                ? 'bg-neutral-900 text-white'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            }`}
+          >
+            Por {mode}
+          </button>
+        ))}
+
+        {/* Filtro adicional por estado, solo visible en modo 'lista' */}
+        {viewMode === 'lista' && (
+          <>
+            <div className="w-px h-5 bg-neutral-200 mx-2" />
             <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
+              onClick={() => setStatusFilter('')}
               className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
-                statusFilter === s ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
+                !statusFilter ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
               }`}
             >
-              {s.replace(/_/g, ' ')} ({count})
+              Todos ({projects.length})
             </button>
-          )
-        })}
-
-        <div className="w-px h-5 bg-neutral-200" />
-
-        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Ocultar:</span>
-        {STATUSES.map((s) => (
-          <label key={`hide-${s}`} className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={hiddenStatuses.has(s)}
-              onChange={(e) => {
-                const next = new Set(hiddenStatuses)
-                if (e.target.checked) next.add(s)
-                else next.delete(s)
-                setHiddenStatuses(next)
-              }}
-              className="accent-primary w-3 h-3"
-            />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-              {s.replace(/_/g, ' ')}
-            </span>
-          </label>
-        ))}
+            {STATUSES.map((s) => {
+              const count = projects.filter((p) => (p.status || 'presupuesto') === s).length
+              if (count === 0) return null
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
+                    statusFilter === s ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
+                  }`}
+                >
+                  {s.replace(/_/g, ' ')} ({count})
+                </button>
+              )
+            })}
+          </>
+        )}
 
         <span className="text-xs text-neutral-400 ml-auto">
           {filtered.length} de {projects.length}
         </span>
       </div>
 
-      {/* Table with sortable headers */}
-      <div className="bg-white border border-neutral-100 overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-neutral-100">
-              <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Código</th>
-              <th onClick={() => handleSort('name')} className={thCls('name')}>Nombre{sortIcon('name')}</th>
-              <th onClick={() => handleSort('type')} className={thCls('type')}>Tipo{sortIcon('type')}</th>
-              <th onClick={() => handleSort('status')} className={thCls('status')}>Estado{sortIcon('status')}</th>
-              <th onClick={() => handleSort('budget_estimated')} className={thCls('budget_estimated')}>Presupuesto{sortIcon('budget_estimated')}</th>
-              <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Margen</th>
-              <th onClick={() => handleSort('start_date')} className={thCls('start_date')}>Inicio{sortIcon('start_date')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-50">
-            {filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-neutral-400">Sin proyectos</td></tr>
-            ) : (
-              filtered.map((p) => {
-                const fin = financialMap[p.id]
-                return (
-                  <tr key={p.id} onClick={() => openDetail(p)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
-                    <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{p.code}</td>
-                    <td className="px-4 py-3 text-sm max-w-[200px] truncate">{p.name}</td>
-                    <td className="px-4 py-3">{p.type && <Badge value={p.type} styles={TYPE_STYLES} />}</td>
-                    <td className="px-4 py-3"><Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} /></td>
-                    <td className="px-4 py-3 text-sm tabular-nums">{currency(p.budget_estimated)}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums">
-                      {fin?.margin_pct != null ? (
-                        <span className={marginColor(fin.margin_pct)}>{fin.margin_pct.toFixed(0)}%</span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap">
-                      {p.start_date ? new Date(p.start_date + 'T00:00:00').toLocaleDateString('es-ES') : '—'}
-                    </td>
-                  </tr>
+      {/* ─── Vista según modo seleccionado ─── */}
+      {viewMode === 'lista' ? (
+        // MODO LISTA: tabla plana ordenable (vista original)
+        <div className="bg-white border border-neutral-100 overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-neutral-100">
+                <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Código</th>
+                <th onClick={() => handleSort('name')} className={thCls('name')}>Nombre{sortIcon('name')}</th>
+                <th onClick={() => handleSort('type')} className={thCls('type')}>Tipo{sortIcon('type')}</th>
+                <th onClick={() => handleSort('status')} className={thCls('status')}>Estado{sortIcon('status')}</th>
+                <th onClick={() => handleSort('budget_estimated')} className={thCls('budget_estimated')}>Presupuesto{sortIcon('budget_estimated')}</th>
+                <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Margen</th>
+                <th onClick={() => handleSort('start_date')} className={thCls('start_date')}>Inicio{sortIcon('start_date')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-50">
+              {filtered.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-neutral-400">Sin proyectos</td></tr>
+              ) : (
+                filtered.map((p) => {
+                  const fin = financialMap[p.id]
+                  return (
+                    <tr key={p.id} onClick={() => openDetail(p)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
+                      <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{p.code}</td>
+                      <td className="px-4 py-3 text-sm max-w-[200px] truncate">{p.name}</td>
+                      <td className="px-4 py-3">{p.type && <Badge value={p.type} styles={TYPE_STYLES} />}</td>
+                      <td className="px-4 py-3"><Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} /></td>
+                      <td className="px-4 py-3 text-sm tabular-nums">{currency(p.budget_estimated)}</td>
+                      <td className="px-4 py-3 text-sm tabular-nums">
+                        {fin?.margin_pct != null ? (
+                          <span className={marginColor(fin.margin_pct)}>{fin.margin_pct.toFixed(0)}%</span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
+                        {p.start_date ? new Date(p.start_date + 'T00:00:00').toLocaleDateString('es-ES') : '—'}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        // MODOS AGRUPADOS (estado / tipo / zona): tarjetas por grupo
+        <div className="space-y-4">
+          {grouped && Object.keys(grouped).length === 0 && (
+            <div className="bg-white border border-neutral-100 px-4 py-8 text-center text-sm text-neutral-400">
+              Sin proyectos
+            </div>
+          )}
+          {grouped &&
+            Object.entries(grouped)
+              .sort((a, b) => a[1].label.localeCompare(b[1].label, 'es'))
+              .map(([key, group]) => {
+                const totalImporte = group.items.reduce(
+                  (s, p) => s + (Number(p.budget_estimated) || 0),
+                  0,
                 )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                return (
+                  <div key={key} className="bg-white border border-neutral-100">
+                    {/* Cabecera del grupo */}
+                    <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-700">
+                          {group.label}
+                        </h3>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                          {group.items.length} proyecto{group.items.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <span className="text-xs tabular-nums text-neutral-500">
+                        {currency(totalImporte)}
+                      </span>
+                    </div>
+                    {/* Filas del grupo */}
+                    <div className="divide-y divide-neutral-50">
+                      {group.items.map((p) => {
+                        const fin = financialMap[p.id]
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => openDetail(p)}
+                            className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-4"
+                          >
+                            <span className="text-xs font-mono text-neutral-500 w-32 shrink-0">
+                              {p.code}
+                            </span>
+                            <span className="text-sm flex-1 truncate">{p.name}</span>
+                            {p.type && <Badge value={p.type} styles={TYPE_STYLES} />}
+                            <Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} />
+                            <span className="text-xs tabular-nums text-neutral-500 w-24 text-right">
+                              {currency(p.budget_estimated)}
+                            </span>
+                            {fin?.margin_pct != null && (
+                              <span className={`text-xs font-medium tabular-nums w-12 text-right ${marginColor(fin.margin_pct)}`}>
+                                {fin.margin_pct.toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+        </div>
+      )}
 
       {/* Detail slide-out panel */}
       {selected && (
