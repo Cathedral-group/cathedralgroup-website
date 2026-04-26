@@ -482,20 +482,61 @@ function SectionTrabajadores({ data, search, yearFilter, onCreate }: { data: Dat
 // ────────────────────────────────────────────────────────────────
 // SECCIÓN: NÓMINAS (payrolls + payments + summaries)
 // ────────────────────────────────────────────────────────────────
+type GroupMode = 'mes' | 'trimestre' | 'trabajador' | 'lista'
+type Payroll = AnyRow
+type Summary = AnyRow
+
 function SectionNominas({ data, search, yearFilter, onCreate }: { data: DataBundle; search: string; yearFilter: number | 'todos'; onCreate: (m: ModalKey) => void }) {
   const [tab, setTab] = useState<'nominas' | 'pagos' | 'resumenes'>('nominas')
+  const [groupMode, setGroupMode] = useState<GroupMode>('mes')
 
-  const filteredPayrolls = data.payrolls.filter(p => {
+  const filteredPayrolls = useMemo(() => data.payrolls.filter(p => {
     if (yearFilter !== 'todos' && p.periodo_anio !== yearFilter) return false
     if (search) {
       const q = search.toLowerCase()
       return `${p.trabajador_nombre} ${p.trabajador_nif} ${p.empresa_nombre}`.toLowerCase().includes(q)
     }
     return true
-  })
+  }), [data.payrolls, yearFilter, search])
 
   const filteredSummaries = data.summaries.filter(s => yearFilter === 'todos' || s.periodo_anio === yearFilter)
   const filteredPayments = data.payments.filter(p => yearFilter === 'todos' || new Date(p.fecha_transferencia).getFullYear() === yearFilter)
+
+  // ─── KPIs anuales ───
+  const kpis = useMemo(() => {
+    return {
+      n_nominas: filteredPayrolls.length,
+      bruto: filteredPayrolls.reduce((s, p) => s + (p.total_devengado || 0), 0),
+      ss_trab: filteredPayrolls.reduce((s, p) => s + (p.ss_total_trabajador || 0), 0),
+      irpf: filteredPayrolls.reduce((s, p) => s + (p.irpf_importe || 0), 0),
+      liquido: filteredPayrolls.reduce((s, p) => s + (p.liquido_a_percibir || 0), 0),
+      ss_empresa: filteredPayrolls.reduce((s, p) => s + (p.ss_total_empresa || 0), 0),
+      coste: filteredPayrolls.reduce((s, p) => s + (p.coste_total_empresa || 0), 0),
+    }
+  }, [filteredPayrolls])
+
+  // ─── Cuadre Modelo 111 (IRPF trimestral) ───
+  const cuadre111 = useMemo(() => {
+    const result: Record<string, { irpf_payrolls: number; irpf_modelo: number | null; coincide: boolean | null }> = {}
+    for (const q of [1, 2, 3, 4]) {
+      const meses = q === 1 ? [1, 2, 3] : q === 2 ? [4, 5, 6] : q === 3 ? [7, 8, 9] : [10, 11, 12]
+      const irpf_payrolls = filteredPayrolls
+        .filter(p => meses.includes(p.periodo_mes))
+        .reduce((s, p) => s + (p.irpf_importe || 0), 0)
+      const modelo111 = data.taxFilings.find(t =>
+        t.modelo === '111' &&
+        t.periodo === `Q${q}` &&
+        (yearFilter === 'todos' || t.ejercicio === yearFilter)
+      )
+      const irpf_modelo = modelo111?.importe_a_ingresar ?? null
+      result[`Q${q}`] = {
+        irpf_payrolls,
+        irpf_modelo,
+        coincide: irpf_modelo !== null ? Math.abs(irpf_payrolls - irpf_modelo) < 1 : null,
+      }
+    }
+    return result
+  }, [filteredPayrolls, data.taxFilings, yearFilter])
 
   return (
     <div>
@@ -513,21 +554,60 @@ function SectionNominas({ data, search, yearFilter, onCreate }: { data: DataBund
       </div>
 
       {tab === 'nominas' && (
-        <SimpleTable
-          rows={filteredPayrolls}
-          empty="Sin nóminas. Llegan automáticamente al reenviar un email con nóminas adjuntas."
-          columns={[
-            { key: 'periodo', label: 'Período', render: (r) => `${MES_NOMBRE[r.periodo_mes]} ${r.periodo_anio}` },
-            { key: 'trabajador_nombre', label: 'Trabajador', render: (r) => <strong>{r.trabajador_nombre}</strong> },
-            { key: 'total_devengado', label: 'Devengado', render: (r) => formatEur(r.total_devengado) },
-            { key: 'ss_total_trabajador', label: 'SS trab.', render: (r) => formatEur(r.ss_total_trabajador) },
-            { key: 'irpf_importe', label: 'IRPF', render: (r) => formatEur(r.irpf_importe) },
-            { key: 'liquido_a_percibir', label: 'Líquido', render: (r) => <strong className="text-green-700">{formatEur(r.liquido_a_percibir)}</strong> },
-            { key: 'coste_total_empresa', label: 'Coste empresa', render: (r) => formatEur(r.coste_total_empresa) },
-            { key: 'payment_status', label: 'Pago', render: (r) => <Badge value={r.payment_status} /> },
-            { key: 'drive_url', label: 'PDF', render: (r) => r.drive_url ? <a href={r.drive_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs">↗</a> : '—' },
-          ]}
-        />
+        <>
+          {/* KPIs anuales */}
+          {filteredPayrolls.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+              <KPI label="Nóminas" value={kpis.n_nominas.toString()} hint={yearFilter === 'todos' ? 'Total' : `${yearFilter}`} />
+              <KPI label="Bruto" value={formatEur(kpis.bruto)} />
+              <KPI label="SS trab." value={formatEur(kpis.ss_trab)} hint="aportación trabajador" />
+              <KPI label="IRPF" value={formatEur(kpis.irpf)} hint="Mod. 111 / 190" highlight />
+              <KPI label="Líquido" value={formatEur(kpis.liquido)} hint="pagado a trabajadores" />
+              <KPI label="Coste empresa" value={formatEur(kpis.coste)} hint="bruto + SS empresa" />
+            </div>
+          )}
+
+          {/* Selector de modo de agrupación */}
+          {filteredPayrolls.length > 0 && (
+            <div className="flex items-center gap-2 mb-4 p-2 bg-neutral-50 rounded">
+              <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-bold mr-2">Ver por:</span>
+              {([
+                { v: 'mes', label: '📅 Mes', hint: 'Pago mensual' },
+                { v: 'trimestre', label: '📊 Trimestre', hint: 'Modelo 111 (IRPF)' },
+                { v: 'trabajador', label: '👤 Trabajador', hint: 'Modelo 190 (anual)' },
+                { v: 'lista', label: '📋 Lista', hint: 'Plana, sin agrupar' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.v}
+                  onClick={() => setGroupMode(opt.v)}
+                  title={opt.hint}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
+                    groupMode === opt.v ? 'bg-primary text-white' : 'bg-white text-neutral-600 hover:bg-neutral-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Vista según modo */}
+          {filteredPayrolls.length === 0 ? (
+            <SimpleTable
+              rows={[]}
+              empty="Sin nóminas. Llegan automáticamente al reenviar un email con nóminas adjuntas."
+              columns={[]}
+            />
+          ) : groupMode === 'mes' ? (
+            <ViewPorMes payrolls={filteredPayrolls} />
+          ) : groupMode === 'trimestre' ? (
+            <ViewPorTrimestre payrolls={filteredPayrolls} cuadre111={cuadre111} />
+          ) : groupMode === 'trabajador' ? (
+            <ViewPorTrabajador payrolls={filteredPayrolls} />
+          ) : (
+            <ViewLista payrolls={filteredPayrolls} />
+          )}
+        </>
       )}
 
       {tab === 'pagos' && (
@@ -563,6 +643,281 @@ function SectionNominas({ data, search, yearFilter, onCreate }: { data: DataBund
         />
       )}
     </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────
+// 4 vistas de nóminas: por mes, trimestre, trabajador, lista
+// ────────────────────────────────────────────────────────────────
+
+function KPI({ label, value, hint, highlight = false }: { label: string; value: string; hint?: string; highlight?: boolean }) {
+  return (
+    <div className={`p-3 rounded border ${highlight ? 'bg-amber-50 border-amber-200' : 'bg-white border-neutral-200'}`}>
+      <p className="text-[9px] uppercase tracking-widest text-neutral-400 mb-1">{label}</p>
+      <p className={`text-base font-bold tabular-nums ${highlight ? 'text-amber-800' : 'text-neutral-800'}`}>{value}</p>
+      {hint && <p className="text-[9px] text-neutral-400 mt-0.5">{hint}</p>}
+    </div>
+  )
+}
+
+function GroupCard({ title, subtitle, totals, children, defaultExpanded = true }: { title: string; subtitle?: string; totals: { liquido: number; irpf: number; coste: number; nominas: number }; children: React.ReactNode; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  return (
+    <div className="border border-neutral-200 rounded mb-3 bg-white">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors text-left"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-neutral-400">{expanded ? '▼' : '▶'}</span>
+          <div>
+            <p className="text-sm font-bold text-neutral-800">{title}</p>
+            {subtitle && <p className="text-[10px] text-neutral-500 mt-0.5">{subtitle}</p>}
+          </div>
+        </div>
+        <div className="flex gap-4 text-xs tabular-nums">
+          <div className="text-right">
+            <p className="text-[9px] uppercase text-neutral-400">Nóminas</p>
+            <p className="font-semibold">{totals.nominas}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] uppercase text-neutral-400">IRPF</p>
+            <p className="font-semibold text-amber-700">{formatEur(totals.irpf)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] uppercase text-neutral-400">Líquido</p>
+            <p className="font-bold text-green-700">{formatEur(totals.liquido)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] uppercase text-neutral-400">Coste empresa</p>
+            <p className="font-semibold">{formatEur(totals.coste)}</p>
+          </div>
+        </div>
+      </button>
+      {expanded && <div className="border-t border-neutral-100 p-3">{children}</div>}
+    </div>
+  )
+}
+
+function PayrollMiniRow({ p }: { p: Payroll }) {
+  return (
+    <tr className="hover:bg-neutral-50">
+      <td className="px-2 py-1.5 text-xs">
+        <strong>{p.trabajador_nombre}</strong>
+        {p.trabajador_categoria && <span className="text-neutral-400 ml-2">{p.trabajador_categoria}</span>}
+      </td>
+      <td className="px-2 py-1.5 text-xs text-right tabular-nums">{formatEur(p.total_devengado)}</td>
+      <td className="px-2 py-1.5 text-xs text-right tabular-nums text-neutral-500">{formatEur(p.ss_total_trabajador)}</td>
+      <td className="px-2 py-1.5 text-xs text-right tabular-nums text-amber-700">{formatEur(p.irpf_importe)}</td>
+      <td className="px-2 py-1.5 text-xs text-right tabular-nums font-bold text-green-700">{formatEur(p.liquido_a_percibir)}</td>
+      <td className="px-2 py-1.5 text-xs text-right tabular-nums">{formatEur(p.coste_total_empresa)}</td>
+      <td className="px-2 py-1.5 text-xs">
+        <Badge value={p.payment_status} />
+      </td>
+      <td className="px-2 py-1.5 text-xs">
+        {p.drive_url ? <a href={p.drive_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">↗ PDF</a> : '—'}
+      </td>
+    </tr>
+  )
+}
+
+function MiniTable({ payrolls }: { payrolls: Payroll[] }) {
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-left text-[9px] uppercase text-neutral-400 border-b border-neutral-100">
+          <th className="px-2 py-1">Trabajador</th>
+          <th className="px-2 py-1 text-right">Bruto</th>
+          <th className="px-2 py-1 text-right">SS trab.</th>
+          <th className="px-2 py-1 text-right">IRPF</th>
+          <th className="px-2 py-1 text-right">Líquido</th>
+          <th className="px-2 py-1 text-right">Coste empresa</th>
+          <th className="px-2 py-1">Pago</th>
+          <th className="px-2 py-1"></th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-neutral-50">
+        {payrolls.map(p => <PayrollMiniRow key={p.id} p={p} />)}
+      </tbody>
+    </table>
+  )
+}
+
+// VISTA POR MES (default — caso de uso "pago mensual")
+function ViewPorMes({ payrolls }: { payrolls: Payroll[] }) {
+  const grouped = useMemo(() => {
+    const groups: Record<string, { mes: number; anio: number; payrolls: Payroll[] }> = {}
+    for (const p of payrolls) {
+      const key = `${p.periodo_anio}-${String(p.periodo_mes).padStart(2,'0')}`
+      if (!groups[key]) groups[key] = { mes: p.periodo_mes, anio: p.periodo_anio, payrolls: [] }
+      groups[key].payrolls.push(p)
+    }
+    return Object.entries(groups).sort(([a],[b]) => b.localeCompare(a))
+  }, [payrolls])
+
+  return (
+    <div>
+      {grouped.map(([key, g]) => {
+        const totals = {
+          nominas: g.payrolls.length,
+          liquido: g.payrolls.reduce((s,p) => s + (p.liquido_a_percibir || 0), 0),
+          irpf: g.payrolls.reduce((s,p) => s + (p.irpf_importe || 0), 0),
+          coste: g.payrolls.reduce((s,p) => s + (p.coste_total_empresa || 0), 0),
+        }
+        return (
+          <GroupCard key={key} title={`${MES_NOMBRE[g.mes]} ${g.anio}`} totals={totals} defaultExpanded>
+            <MiniTable payrolls={g.payrolls.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} />
+          </GroupCard>
+        )
+      })}
+    </div>
+  )
+}
+
+// VISTA POR TRIMESTRE (caso de uso "Modelo 111")
+function ViewPorTrimestre({ payrolls, cuadre111 }: { payrolls: Payroll[]; cuadre111: Record<string, { irpf_payrolls: number; irpf_modelo: number | null; coincide: boolean | null }> }) {
+  const grouped = useMemo(() => {
+    const groups: Record<string, { q: number; anio: number; payrolls: Payroll[] }> = {}
+    for (const p of payrolls) {
+      const q = Math.ceil(p.periodo_mes / 3)
+      const key = `${p.periodo_anio}-Q${q}`
+      if (!groups[key]) groups[key] = { q, anio: p.periodo_anio, payrolls: [] }
+      groups[key].payrolls.push(p)
+    }
+    return Object.entries(groups).sort(([a],[b]) => b.localeCompare(a))
+  }, [payrolls])
+
+  const trimestreNombre = (q: number) => q === 1 ? 'Ene · Feb · Mar' : q === 2 ? 'Abr · May · Jun' : q === 3 ? 'Jul · Ago · Sep' : 'Oct · Nov · Dic'
+
+  return (
+    <div>
+      {grouped.map(([key, g]) => {
+        const totals = {
+          nominas: g.payrolls.length,
+          liquido: g.payrolls.reduce((s,p) => s + (p.liquido_a_percibir || 0), 0),
+          irpf: g.payrolls.reduce((s,p) => s + (p.irpf_importe || 0), 0),
+          coste: g.payrolls.reduce((s,p) => s + (p.coste_total_empresa || 0), 0),
+        }
+        const cuadre = cuadre111[`Q${g.q}`]
+        const subtitle = `${trimestreNombre(g.q)} · ${g.anio}`
+        return (
+          <GroupCard key={key} title={`Trimestre Q${g.q} ${g.anio}`} subtitle={subtitle} totals={totals} defaultExpanded>
+            {cuadre && cuadre.irpf_modelo !== null && (
+              <div className={`mb-3 p-3 rounded text-xs ${cuadre.coincide ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                {cuadre.coincide ? '✅' : '⚠️'} Modelo 111 Q{g.q}: presentado {formatEur(cuadre.irpf_modelo)} · suma nóminas {formatEur(cuadre.irpf_payrolls)}
+                {!cuadre.coincide && <span className="ml-2">— diferencia {formatEur(Math.abs(cuadre.irpf_modelo - cuadre.irpf_payrolls))}</span>}
+              </div>
+            )}
+            {cuadre && cuadre.irpf_modelo === null && cuadre.irpf_payrolls > 0 && (
+              <div className="mb-3 p-3 rounded text-xs bg-amber-50 border border-amber-200 text-amber-800">
+                ⏳ Modelo 111 Q{g.q} pendiente de presentar — IRPF retenido en nóminas: {formatEur(cuadre.irpf_payrolls)}
+              </div>
+            )}
+            {/* Sub-grupos por mes dentro del trimestre */}
+            {(() => {
+              const byMonth: Record<number, Payroll[]> = {}
+              for (const p of g.payrolls) {
+                if (!byMonth[p.periodo_mes]) byMonth[p.periodo_mes] = []
+                byMonth[p.periodo_mes].push(p)
+              }
+              return Object.entries(byMonth).sort(([a],[b]) => parseInt(a) - parseInt(b)).map(([mes, ps]) => (
+                <div key={mes} className="mb-3">
+                  <p className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold mb-1.5">{MES_NOMBRE[parseInt(mes)]}</p>
+                  <MiniTable payrolls={ps.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} />
+                </div>
+              ))
+            })()}
+          </GroupCard>
+        )
+      })}
+    </div>
+  )
+}
+
+// VISTA POR TRABAJADOR (caso de uso "Modelo 190 anual / certificado retenciones")
+function ViewPorTrabajador({ payrolls }: { payrolls: Payroll[] }) {
+  const grouped = useMemo(() => {
+    const groups: Record<string, { nombre: string; nif: string; categoria: string | null; payrolls: Payroll[] }> = {}
+    for (const p of payrolls) {
+      const key = p.trabajador_nif || p.trabajador_nombre
+      if (!groups[key]) groups[key] = { nombre: p.trabajador_nombre, nif: p.trabajador_nif, categoria: p.trabajador_categoria, payrolls: [] }
+      groups[key].payrolls.push(p)
+    }
+    return Object.entries(groups).sort(([,a],[,b]) => a.nombre.localeCompare(b.nombre))
+  }, [payrolls])
+
+  return (
+    <div>
+      {grouped.map(([key, g]) => {
+        const totals = {
+          nominas: g.payrolls.length,
+          liquido: g.payrolls.reduce((s,p) => s + (p.liquido_a_percibir || 0), 0),
+          irpf: g.payrolls.reduce((s,p) => s + (p.irpf_importe || 0), 0),
+          coste: g.payrolls.reduce((s,p) => s + (p.coste_total_empresa || 0), 0),
+        }
+        return (
+          <GroupCard
+            key={key}
+            title={g.nombre}
+            subtitle={`NIF ${g.nif}${g.categoria ? ' · ' + g.categoria : ''}`}
+            totals={totals}
+            defaultExpanded
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-[9px] uppercase text-neutral-400 border-b border-neutral-100">
+                  <th className="px-2 py-1">Período</th>
+                  <th className="px-2 py-1 text-right">Bruto</th>
+                  <th className="px-2 py-1 text-right">SS trab.</th>
+                  <th className="px-2 py-1 text-right">IRPF</th>
+                  <th className="px-2 py-1 text-right">Líquido</th>
+                  <th className="px-2 py-1 text-right">Coste empresa</th>
+                  <th className="px-2 py-1">Pago</th>
+                  <th className="px-2 py-1"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-50">
+                {g.payrolls.sort((a,b) => `${b.periodo_anio}-${b.periodo_mes}`.localeCompare(`${a.periodo_anio}-${a.periodo_mes}`)).map(p => (
+                  <tr key={p.id} className="hover:bg-neutral-50">
+                    <td className="px-2 py-1.5 text-xs">
+                      <strong>{MES_NOMBRE[p.periodo_mes]} {p.periodo_anio}</strong>
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-right tabular-nums">{formatEur(p.total_devengado)}</td>
+                    <td className="px-2 py-1.5 text-xs text-right tabular-nums text-neutral-500">{formatEur(p.ss_total_trabajador)}</td>
+                    <td className="px-2 py-1.5 text-xs text-right tabular-nums text-amber-700">{formatEur(p.irpf_importe)}</td>
+                    <td className="px-2 py-1.5 text-xs text-right tabular-nums font-bold text-green-700">{formatEur(p.liquido_a_percibir)}</td>
+                    <td className="px-2 py-1.5 text-xs text-right tabular-nums">{formatEur(p.coste_total_empresa)}</td>
+                    <td className="px-2 py-1.5 text-xs"><Badge value={p.payment_status} /></td>
+                    <td className="px-2 py-1.5 text-xs">{p.drive_url ? <a href={p.drive_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">↗</a> : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </GroupCard>
+        )
+      })}
+    </div>
+  )
+}
+
+// VISTA LISTA (plana — útil para búsqueda y export)
+function ViewLista({ payrolls }: { payrolls: Payroll[] }) {
+  return (
+    <SimpleTable
+      rows={payrolls.sort((a,b) => `${b.periodo_anio}-${String(b.periodo_mes).padStart(2,'0')}-${a.trabajador_nombre}`.localeCompare(`${a.periodo_anio}-${String(a.periodo_mes).padStart(2,'0')}-${b.trabajador_nombre}`))}
+      empty="Sin nóminas"
+      columns={[
+        { key: 'periodo', label: 'Período', render: (r) => `${MES_NOMBRE[r.periodo_mes]} ${r.periodo_anio}` },
+        { key: 'trabajador_nombre', label: 'Trabajador', render: (r) => <strong>{r.trabajador_nombre}</strong> },
+        { key: 'total_devengado', label: 'Bruto', render: (r) => formatEur(r.total_devengado) },
+        { key: 'ss_total_trabajador', label: 'SS trab.', render: (r) => formatEur(r.ss_total_trabajador) },
+        { key: 'irpf_importe', label: 'IRPF', render: (r) => formatEur(r.irpf_importe) },
+        { key: 'liquido_a_percibir', label: 'Líquido', render: (r) => <strong className="text-green-700">{formatEur(r.liquido_a_percibir)}</strong> },
+        { key: 'coste_total_empresa', label: 'Coste empresa', render: (r) => formatEur(r.coste_total_empresa) },
+        { key: 'payment_status', label: 'Pago', render: (r) => <Badge value={r.payment_status} /> },
+        { key: 'drive_url', label: 'PDF', render: (r) => r.drive_url ? <a href={r.drive_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs">↗</a> : '—' },
+      ]}
+    />
   )
 }
 
