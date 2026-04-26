@@ -1,6 +1,7 @@
 import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import PersonalView from './PersonalView'
+import { batchVerify } from '@/lib/verifier/batch'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,11 +40,18 @@ export default async function PersonalPage() {
     supabase.from('prl_documents').select('*').is('deleted_at', null).order('fecha_documento', { ascending: false }),
   ])
 
+  // ─── Verificador algorítmico: ejecutar sobre nóminas para mostrar badges
+  // visuales en la UI. Es matemática pura → milisegundos por documento.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payrollsArr = ((payrollsRes as any[]) ?? [])
+  const payrollVerifications = batchVerify('nomina', payrollsArr)
+
   return (
     <PersonalView
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data={{
-        payrolls: (payrollsRes as any[]) ?? [],
+        payrolls: payrollsArr,
+        payrollVerifications,
         summaries: (summariesRes as any[]) ?? [],
         employees: (employeesRes.data as any[]) ?? [],
         contracts: (contractsRes.data as any[]) ?? [],

@@ -8,6 +8,8 @@ import {
   IconError, IconHand, IconCamera, IconQuestion, IconEuro, IconExclamation,
   IconCheck, IconHourglass, IconDocument
 } from '@/components/admin/AdminIcons'
+import VerificationBadge from '@/components/admin/VerificationBadge'
+import type { VerificationSummary } from '@/lib/verifier/batch'
 
 const MES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -16,6 +18,7 @@ type AnyRow = Record<string, any>
 
 type DataBundle = {
   payrolls: AnyRow[]
+  payrollVerifications?: Record<string, VerificationSummary>
   summaries: AnyRow[]
   employees: AnyRow[]
   contracts: AnyRow[]
@@ -616,13 +619,13 @@ function SectionNominas({ data, search, yearFilter, onCreate }: { data: DataBund
               columns={[]}
             />
           ) : groupMode === 'mes' ? (
-            <ViewPorMes payrolls={filteredPayrolls} />
+            <ViewPorMes payrolls={filteredPayrolls} verifications={data.payrollVerifications} />
           ) : groupMode === 'trimestre' ? (
-            <ViewPorTrimestre payrolls={filteredPayrolls} cuadre111={cuadre111} />
+            <ViewPorTrimestre payrolls={filteredPayrolls} cuadre111={cuadre111} verifications={data.payrollVerifications} />
           ) : groupMode === 'trabajador' ? (
-            <ViewPorTrabajador payrolls={filteredPayrolls} />
+            <ViewPorTrabajador payrolls={filteredPayrolls} verifications={data.payrollVerifications} />
           ) : (
-            <ViewLista payrolls={filteredPayrolls} />
+            <ViewLista payrolls={filteredPayrolls} verifications={data.payrollVerifications} />
           )}
         </>
       )}
@@ -716,7 +719,7 @@ function GroupCard({ title, subtitle, totals, children, defaultExpanded = true }
   )
 }
 
-function PayrollMiniRow({ p }: { p: Payroll }) {
+function PayrollMiniRow({ p, verification }: { p: Payroll; verification?: VerificationSummary }) {
   return (
     <tr className="hover:bg-neutral-50">
       <td className="px-2 py-1.5 text-xs">
@@ -728,6 +731,9 @@ function PayrollMiniRow({ p }: { p: Payroll }) {
       <td className="px-2 py-1.5 text-xs text-right tabular-nums text-amber-700">{formatEur(p.irpf_importe)}</td>
       <td className="px-2 py-1.5 text-xs text-right tabular-nums font-bold text-green-700">{formatEur(p.liquido_a_percibir)}</td>
       <td className="px-2 py-1.5 text-xs text-right tabular-nums">{formatEur(p.coste_total_empresa)}</td>
+      <td className="px-2 py-1.5 text-xs text-center">
+        <VerificationBadge summary={verification} size="sm" />
+      </td>
       <td className="px-2 py-1.5 text-xs">
         <Badge value={p.payment_status} />
       </td>
@@ -738,7 +744,7 @@ function PayrollMiniRow({ p }: { p: Payroll }) {
   )
 }
 
-function MiniTable({ payrolls }: { payrolls: Payroll[] }) {
+function MiniTable({ payrolls, verifications }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary> }) {
   return (
     <table className="w-full text-xs">
       <thead>
@@ -749,19 +755,20 @@ function MiniTable({ payrolls }: { payrolls: Payroll[] }) {
           <th className="px-2 py-1 text-right">IRPF</th>
           <th className="px-2 py-1 text-right">Líquido</th>
           <th className="px-2 py-1 text-right">Coste empresa</th>
+          <th className="px-2 py-1 text-center" title="Verificación algorítmica">Verif</th>
           <th className="px-2 py-1">Pago</th>
           <th className="px-2 py-1"></th>
         </tr>
       </thead>
       <tbody className="divide-y divide-neutral-50">
-        {payrolls.map(p => <PayrollMiniRow key={p.id} p={p} />)}
+        {payrolls.map(p => <PayrollMiniRow key={p.id} p={p} verification={verifications?.[String(p.id)]} />)}
       </tbody>
     </table>
   )
 }
 
 // VISTA POR MES (default — caso de uso "pago mensual")
-function ViewPorMes({ payrolls }: { payrolls: Payroll[] }) {
+function ViewPorMes({ payrolls, verifications }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary> }) {
   const grouped = useMemo(() => {
     const groups: Record<string, { mes: number; anio: number; payrolls: Payroll[] }> = {}
     for (const p of payrolls) {
@@ -783,7 +790,7 @@ function ViewPorMes({ payrolls }: { payrolls: Payroll[] }) {
         }
         return (
           <GroupCard key={key} title={`${MES_NOMBRE[g.mes]} ${g.anio}`} totals={totals} defaultExpanded>
-            <MiniTable payrolls={g.payrolls.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} />
+            <MiniTable payrolls={g.payrolls.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} verifications={verifications} />
           </GroupCard>
         )
       })}
@@ -792,7 +799,7 @@ function ViewPorMes({ payrolls }: { payrolls: Payroll[] }) {
 }
 
 // VISTA POR TRIMESTRE (caso de uso "Modelo 111")
-function ViewPorTrimestre({ payrolls, cuadre111 }: { payrolls: Payroll[]; cuadre111: Record<string, { irpf_payrolls: number; irpf_modelo: number | null; coincide: boolean | null }> }) {
+function ViewPorTrimestre({ payrolls, cuadre111, verifications }: { payrolls: Payroll[]; cuadre111: Record<string, { irpf_payrolls: number; irpf_modelo: number | null; coincide: boolean | null }>; verifications?: Record<string, VerificationSummary> }) {
   const grouped = useMemo(() => {
     const groups: Record<string, { q: number; anio: number; payrolls: Payroll[] }> = {}
     for (const p of payrolls) {
@@ -844,7 +851,7 @@ function ViewPorTrimestre({ payrolls, cuadre111 }: { payrolls: Payroll[]; cuadre
               return Object.entries(byMonth).sort(([a],[b]) => parseInt(a) - parseInt(b)).map(([mes, ps]) => (
                 <div key={mes} className="mb-3">
                   <p className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold mb-1.5">{MES_NOMBRE[parseInt(mes)]}</p>
-                  <MiniTable payrolls={ps.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} />
+                  <MiniTable payrolls={ps.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} verifications={verifications} />
                 </div>
               ))
             })()}
@@ -856,7 +863,7 @@ function ViewPorTrimestre({ payrolls, cuadre111 }: { payrolls: Payroll[]; cuadre
 }
 
 // VISTA POR TRABAJADOR (caso de uso "Modelo 190 anual / certificado retenciones")
-function ViewPorTrabajador({ payrolls }: { payrolls: Payroll[] }) {
+function ViewPorTrabajador({ payrolls, verifications: _verifications }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary> }) {
   const grouped = useMemo(() => {
     const groups: Record<string, { nombre: string; nif: string; categoria: string | null; payrolls: Payroll[] }> = {}
     for (const p of payrolls) {
@@ -922,7 +929,7 @@ function ViewPorTrabajador({ payrolls }: { payrolls: Payroll[] }) {
 }
 
 // VISTA LISTA (plana — útil para búsqueda y export)
-function ViewLista({ payrolls }: { payrolls: Payroll[] }) {
+function ViewLista({ payrolls, verifications }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary> }) {
   return (
     <SimpleTable
       rows={payrolls.sort((a,b) => `${b.periodo_anio}-${String(b.periodo_mes).padStart(2,'0')}-${a.trabajador_nombre}`.localeCompare(`${a.periodo_anio}-${String(a.periodo_mes).padStart(2,'0')}-${b.trabajador_nombre}`))}
@@ -935,6 +942,7 @@ function ViewLista({ payrolls }: { payrolls: Payroll[] }) {
         { key: 'irpf_importe', label: 'IRPF', render: (r) => formatEur(r.irpf_importe) },
         { key: 'liquido_a_percibir', label: 'Líquido', render: (r) => <strong className="text-green-700">{formatEur(r.liquido_a_percibir)}</strong> },
         { key: 'coste_total_empresa', label: 'Coste empresa', render: (r) => formatEur(r.coste_total_empresa) },
+        { key: 'verificacion', label: 'Verif', render: (r) => <VerificationBadge summary={verifications?.[String(r.id)]} showLabel size="sm" /> },
         { key: 'payment_status', label: 'Pago', render: (r) => <Badge value={r.payment_status} /> },
         { key: 'drive_url', label: 'PDF', render: (r) => r.drive_url ? <a href={r.drive_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs">↗</a> : '—' },
       ]}
