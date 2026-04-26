@@ -368,7 +368,10 @@ export async function GET() {
       all_results: results,
       timestamp: new Date().toISOString(),
     },
-    { status: failed === 0 ? 200 : 500 },
+    {
+      status: failed === 0 ? 200 : 500,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    },
   )
 }
 

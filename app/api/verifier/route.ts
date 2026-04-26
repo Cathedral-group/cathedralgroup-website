@@ -81,14 +81,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = verifyDocument(parsed.data)
-    return NextResponse.json(result, { status: 200 })
+    return NextResponse.json(result, {
+      status: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    })
   } catch (e) {
     return NextResponse.json(
       {
         error: 'Error inesperado en verificador',
         message: e instanceof Error ? e.message : String(e),
       },
-      { status: 500 },
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      },
     )
   }
 }
