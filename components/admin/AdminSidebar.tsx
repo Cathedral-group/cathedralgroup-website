@@ -68,6 +68,9 @@ function IconOperaciones() {
 function IconArchivo() {
   return <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
 }
+function IconSistema() {
+  return <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" /></svg>
+}
 
 /* ── Navigation structure ── */
 const NAV_SECTIONS = [
@@ -117,6 +120,7 @@ const NAV_SECTIONS = [
     label: 'Sistema',
     items: [
       { label: 'Revisión IA',    href: '/admin/revision',      icon: <IconRevision /> },
+      { label: 'Sistema',        href: '/admin/sistema',       icon: <IconSistema /> },
       { label: 'Archivo',        href: '/admin/archivo',       icon: <IconArchivo /> },
       { label: 'Papelera',       href: '/admin/papelera',      icon: <IconPapelera /> },
       { label: 'Configuración',  href: '/admin/configuracion', icon: <IconConfiguracion /> },
@@ -134,9 +138,11 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const router = useRouter()
   const [refreshing, setRefreshing] = useState(false)
   const [revisionCount, setRevisionCount] = useState<number | null>(null)
+  const [errorCount, setErrorCount] = useState<number | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
+    // Revisión IA: needs_review pendiente
     supabase
       .from('invoices')
       .select('id', { count: 'exact', head: true })
@@ -144,6 +150,13 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       .eq('review_status', 'pendiente')
       .is('deleted_at', null)
       .then(({ count }) => { if (count !== null) setRevisionCount(count) })
+    // Errores del workflow: review_status='error' (placeholder de procesado fallido)
+    supabase
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('review_status', 'error')
+      .is('deleted_at', null)
+      .then(({ count }) => { if (count !== null) setErrorCount(count) })
   }, [])
 
   const handleLogout = async () => {
@@ -209,6 +222,7 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
               {section.items.map(({ label, href, icon }) => {
                 const active = isActive(href)
                 const isRevision = href === '/admin/revision'
+                const isFacturas = href === '/admin/facturas'
                 return (
                   <a
                     key={href}
@@ -231,6 +245,14 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
                     {isRevision && revisionCount !== null && revisionCount > 0 && (
                       <span className="ml-auto bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
                         {revisionCount > 99 ? '99+' : revisionCount}
+                      </span>
+                    )}
+                    {isFacturas && errorCount !== null && errorCount > 0 && (
+                      <span
+                        className="ml-auto bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+                        title={`${errorCount} factura${errorCount > 1 ? 's' : ''} con error de procesado — pulsa Facturas y filtra por ❌ Errores`}
+                      >
+                        {errorCount > 99 ? '99+' : errorCount}
                       </span>
                     )}
                   </a>

@@ -500,6 +500,28 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
 
   const markAsPaid = async (inv: Invoice, e: React.MouseEvent) => {
     e.stopPropagation()
+    // Confirmación reforzada si la factura tiene alertas IA pendientes de revisión
+    if (inv.needs_review || inv.review_status === 'error') {
+      const calidadAlert = parseCalidadAlert(inv.ai_razones)
+      const fechaAlert = parseFechaAlert(inv.ai_razones)
+      const importeAlerts = (inv.ai_razones || []).filter(r => r.startsWith('§IMPORTE_'))
+      const alertList: string[] = []
+      if (calidadAlert?.type === 'manuscrito') alertList.push('• ✋ Documento manuscrito (riesgo de error en dígitos)')
+      else if (calidadAlert?.type === 'calidad_baja') alertList.push('• 📷 Calidad de imagen baja')
+      if (calidadAlert?.campos?.length) {
+        for (const c of calidadAlert.campos) {
+          alertList.push(`• ❓ ${c.name}: ${c.valor} (confianza ${(parseFloat(c.conf) * 100).toFixed(0)}%)`)
+        }
+      }
+      if (fechaAlert) alertList.push(`• 📅 ${fechaAlert.reason}`)
+      for (const ir of importeAlerts) {
+        alertList.push(`• 💰 ${ir.replace(/^§IMPORTE_(ERROR|REVISION):/, '')}`)
+      }
+      if (inv.review_status === 'error') alertList.push('• ❌ Documento con error de procesado del workflow')
+      const totalFmt = formatEur(inv.amount_total)
+      const msg = `⚠ Esta factura tiene alertas pendientes de revisión:\n\n${alertList.join('\n') || '• Marcada para revisión por GPT'}\n\n¿Confirmar que quieres marcarla como PAGADA por ${totalFmt}?\n\nVerifica visualmente que los datos extraídos coinciden con el documento original antes de continuar.`
+      if (!confirm(msg)) return
+    }
     const today = new Date().toISOString().slice(0, 10)
     try {
       const res = await fetch('/api/db/invoices', {
