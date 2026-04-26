@@ -20,17 +20,24 @@
 import { validateNIF, validateNIE, validateCIF } from './spanish-id'
 import { validateIBAN } from './iban'
 
-/** Mapeo de carácter erróneo a candidatos correctos. */
+/**
+ * Mapeo de carácter erróneo a candidatos correctos.
+ *
+ * Importante: Z → ['0', '2'] cubre el caso Hipolito (OCR leyó "Z" donde había
+ * un "0") Y la confusión más común "Z↔2". El orden lista primero el candidato
+ * más probable según los errores reales observados en producción.
+ */
 const OCR_CORRECTIONS: Record<string, string[]> = {
   O: ['0'],
   D: ['0'],
+  Q: ['0'],
   I: ['1'],
   l: ['1'],
-  Z: ['2'],
+  Z: ['0', '2'],   // ← caso Hipolito: Z se leyó donde había un 0
   S: ['5'],
   G: ['6'],
   B: ['8'],
-  '0': ['O', 'D'],
+  '0': ['O', 'D', 'Q'],
   '1': ['I'],
   '2': ['Z'],
   '5': ['S'],

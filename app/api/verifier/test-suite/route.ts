@@ -72,14 +72,16 @@ const TESTS: TestCase[] = [
     run: () => validateNIE('X1234567L').valid === true,
   },
   {
-    name: 'NIE válido Y (Y0149420C)',
+    name: 'NIE válido Y (Y0149420A)',
     category: 'NIE',
-    run: () => validateNIE('Y0149420C').valid === true,
+    description: 'Y → 1, 10149420 mod 23 = 3 → letra A',
+    run: () => validateNIE('Y0149420A').valid === true,
   },
   {
-    name: 'NIE Z válido (Z0123456S)',
+    name: 'NIE Z válido (Z0123456C)',
     category: 'NIE',
-    run: () => validateNIE('Z0123456S').valid === true,
+    description: 'Z → 2, 20123456 mod 23 = 20 → letra C',
+    run: () => validateNIE('Z0123456C').valid === true,
   },
   {
     name: 'NIE con letra mala (X1234567A) → debe fallar',
