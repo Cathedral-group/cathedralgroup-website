@@ -31,12 +31,24 @@ function formatDate(d: string) {
   })
 }
 
+function KpiCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="bg-white border border-neutral-100 px-4 py-3">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className="text-lg font-medium text-neutral-900 mt-0.5">{value}</p>
+      {hint && <p className="text-[10px] text-neutral-400 mt-0.5">{hint}</p>}
+    </div>
+  )
+}
+
 export default function PapeleraView({ items: initialItems }: { items: TrashedItem[] }) {
   const [items, setItems] = useState(initialItems)
   const [typeFilter, setTypeFilter] = useState('')
   const [restoring, setRestoring] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [clearingAll, setClearingAll] = useState(false)
+  // ─── Patrón coherente Cathedral: 4 modos
+  const [viewMode, setViewMode] = useState<'tipo' | 'antiguedad' | 'mes' | 'lista'>('tipo')
 
   const types = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -48,6 +60,49 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
     if (!typeFilter) return items
     return items.filter(i => i._type === typeFilter)
   }, [items, typeFilter])
+
+  /* ───────── KPIs (patrón Cathedral) ───────── */
+  const kpis = useMemo(() => {
+    const now = Date.now()
+    const oneDay = 24 * 60 * 60 * 1000
+    const hoy = items.filter(i => now - new Date(i.deleted_at).getTime() < oneDay).length
+    const semana = items.filter(i => now - new Date(i.deleted_at).getTime() < 7 * oneDay).length
+    const mes = items.filter(i => now - new Date(i.deleted_at).getTime() < 30 * oneDay).length
+    return { total: items.length, hoy, semana, mes }
+  }, [items])
+
+  /* ───────── Agrupación según viewMode ───────── */
+  function trashGroupKey(it: TrashedItem): { key: string; label: string } {
+    if (viewMode === 'tipo') {
+      return { key: it._type, label: it._type }
+    }
+    if (viewMode === 'antiguedad') {
+      const days = Math.floor((Date.now() - new Date(it.deleted_at).getTime()) / (24 * 60 * 60 * 1000))
+      if (days < 1) return { key: '1_hoy', label: 'Hoy' }
+      if (days < 7) return { key: '2_semana', label: 'Esta semana' }
+      if (days < 30) return { key: '3_mes', label: 'Este mes' }
+      if (days < 90) return { key: '4_trimestre', label: 'Hace 1-3 meses' }
+      return { key: '5_antiguo', label: 'Más de 3 meses' }
+    }
+    if (viewMode === 'mes') {
+      const d = new Date(it.deleted_at)
+      const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+      return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: `${meses[d.getMonth()]} ${d.getFullYear()}` }
+    }
+    return { key: 'all', label: 'Todos' }
+  }
+
+  const grouped = useMemo(() => {
+    if (viewMode === 'lista') return null
+    const groups: Record<string, { label: string; items: TrashedItem[] }> = {}
+    for (const it of filtered) {
+      const { key, label } = trashGroupKey(it)
+      if (!groups[key]) groups[key] = { label, items: [] }
+      groups[key].items.push(it)
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, viewMode])
 
   const handleRestore = async (item: TrashedItem) => {
     setRestoring(item.id)
@@ -101,30 +156,58 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
 
   return (
     <>
-      {/* Type filters */}
-      <div className="flex gap-3 mb-6 flex-wrap">
-        <button
-          onClick={() => setTypeFilter('')}
-          className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
-            !typeFilter ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
-          }`}
-        >
-          Todos ({items.length})
-        </button>
-        {types.map(({ type, count }) => (
-          <button
-            key={type}
-            onClick={() => setTypeFilter(type)}
-            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
-              typeFilter === type ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
-            }`}
-          >
-            {type} ({count})
-          </button>
-        ))}
+      {/* ─── KPIs Cathedral ─── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <KpiCard label="Total papelera" value={String(kpis.total)} />
+        <KpiCard label="Hoy" value={String(kpis.hoy)} />
+        <KpiCard label="Esta semana" value={String(kpis.semana)} />
+        <KpiCard label="Este mes" value={String(kpis.mes)} />
       </div>
 
-      {filtered.length > 0 && (
+      {/* ─── Selector de modos coherente ─── */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
+        {(['tipo', 'antiguedad', 'mes', 'lista'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+              viewMode === mode
+                ? 'bg-neutral-900 text-white'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            }`}
+          >
+            Por {mode === 'antiguedad' ? 'antigüedad' : mode}
+          </button>
+        ))}
+
+        {viewMode === 'lista' && (
+          <>
+            <div className="w-px h-5 bg-neutral-200 mx-1" />
+            <button
+              onClick={() => setTypeFilter('')}
+              className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
+                !typeFilter ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
+              }`}
+            >
+              Todos ({items.length})
+            </button>
+            {types.map(({ type, count }) => (
+              <button
+                key={type}
+                onClick={() => setTypeFilter(type)}
+                className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
+                  typeFilter === type ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
+                }`}
+              >
+                {type} ({count})
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+
+      {filtered.length > 0 && viewMode === 'lista' && (
         <div className="flex justify-end mb-4">
           <button
             onClick={handleClearAll}
@@ -136,7 +219,9 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {/* ─── Vista lista (tabla original) ─── */}
+      {viewMode === 'lista' && (
+        filtered.length === 0 ? (
         <div className="bg-white border border-neutral-100 p-12 text-center">
           <p className="text-neutral-400 text-sm">La papelera esta vacia</p>
         </div>
@@ -185,6 +270,61 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
             </tbody>
           </table>
           </div>
+        </div>
+      ))}
+
+      {/* ─── Vista agrupada (tipo / antigüedad / mes) ─── */}
+      {viewMode !== 'lista' && grouped && (
+        <div className="space-y-4">
+          {Object.keys(grouped).length === 0 && (
+            <div className="bg-white border border-neutral-100 p-12 text-center">
+              <p className="text-neutral-400 text-sm">La papelera está vacía</p>
+            </div>
+          )}
+          {Object.entries(grouped)
+            .sort((a, b) => {
+              // Para "antiguedad" y "mes": orden lógico por clave (que tiene prefijo numérico o fecha)
+              if (viewMode === 'antiguedad') return a[0].localeCompare(b[0])
+              if (viewMode === 'mes') return b[0].localeCompare(a[0]) // mes desc
+              return a[1].label.localeCompare(b[1].label, 'es')
+            })
+            .map(([key, group]) => (
+              <div key={key} className="bg-white border border-neutral-100">
+                <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-700">{group.label}</h3>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                      {group.items.length} elemento{group.items.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                </div>
+                <div className="divide-y divide-neutral-50">
+                  {group.items.map((it) => (
+                    <div key={`${it._table}-${it.id}`} className="px-4 py-3 flex items-center gap-3 hover:bg-neutral-50 transition-colors">
+                      <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${TYPE_STYLES[it._type] || 'bg-neutral-100 text-neutral-600'}`}>
+                        {it._type}
+                      </span>
+                      <span className="text-sm font-medium flex-1 truncate">{it._label}</span>
+                      <span className="text-xs text-neutral-500 hidden sm:inline">{formatDate(it.deleted_at)}</span>
+                      <button
+                        onClick={() => handleRestore(it)}
+                        disabled={restoring === it.id}
+                        className="text-[10px] font-bold uppercase tracking-widest text-green-600 hover:text-green-800 px-3 py-1 border border-green-200 hover:bg-green-50 transition-colors disabled:opacity-50"
+                      >
+                        {restoring === it.id ? '...' : 'Restaurar'}
+                      </button>
+                      <button
+                        onClick={() => handlePermanentDelete(it)}
+                        disabled={deleting === it.id}
+                        className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:text-red-700 px-3 py-1 border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        {deleting === it.id ? '...' : 'Eliminar'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
         </div>
       )}
     </>
