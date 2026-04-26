@@ -32,6 +32,16 @@ const SPECIALTY_LABELS: Record<string, string> = {
 }
 const TABS = [{ key: 'datos', label: 'Datos' }, { key: 'facturas', label: 'Facturas' }]
 
+function KpiCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="bg-white border border-neutral-100 px-4 py-3">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className="text-lg font-medium text-neutral-900 mt-0.5">{value}</p>
+      {hint && <p className="text-[10px] text-neutral-400 mt-0.5">{hint}</p>}
+    </div>
+  )
+}
+
 export default function SuppliersView({ suppliers: initial, invoices }: { suppliers: Supplier[]; invoices: Invoice[] }) {
   const [data, setData] = useState(initial)
   const [selected, setSelected] = useState<Supplier | null>(null)
@@ -41,6 +51,8 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
   const [saving, setSaving] = useState(false)
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // ─── Patrón coherente Cathedral: 4 modos
+  const [viewMode, setViewMode] = useState<'especialidad' | 'volumen' | 'activos' | 'lista'>('especialidad')
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -78,6 +90,63 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
     })
     return list
   }, [data, search, sortField, sortDir])
+
+  /* ───────── Map: NIF → estadísticas de facturación (cache única) ───────── */
+  const supplierStats = useMemo(() => {
+    const stats: Record<string, { count: number; total: number; pendiente: number }> = {}
+    for (const inv of invoices) {
+      if (inv.direction !== 'recibida' || !inv.supplier_nif) continue
+      const nif = inv.supplier_nif
+      if (!stats[nif]) stats[nif] = { count: 0, total: 0, pendiente: 0 }
+      stats[nif].count += 1
+      stats[nif].total += getNetAmt(inv)
+      if (inv.payment_status === 'pendiente') stats[nif].pendiente += getNetAmt(inv)
+    }
+    return stats
+  }, [invoices])
+
+  /* ───────── KPIs (cabecera Cathedral) ───────── */
+  const kpis = useMemo(() => {
+    const activos = data.filter(s => s.active !== false).length
+    const gastadoTotal = Object.values(supplierStats).reduce((s, st) => s + st.total, 0)
+    const pendienteTotal = Object.values(supplierStats).reduce((s, st) => s + st.pendiente, 0)
+    return { total: data.length, activos, gastadoTotal, pendienteTotal }
+  }, [data, supplierStats])
+
+  /* ───────── Agrupación según viewMode ───────── */
+  function groupKey(s: Supplier): { key: string; label: string } {
+    if (viewMode === 'especialidad') {
+      const k = s.specialty || 'sin_especialidad'
+      return { key: k, label: SPECIALTY_LABELS[k] || k }
+    }
+    if (viewMode === 'volumen') {
+      const total = (s.nif && supplierStats[s.nif]?.total) || 0
+      if (total >= 50000) return { key: '1_top', label: 'Top (>50.000€)' }
+      if (total >= 10000) return { key: '2_alto', label: 'Alto (10.000–50.000€)' }
+      if (total >= 1000) return { key: '3_medio', label: 'Medio (1.000–10.000€)' }
+      if (total > 0) return { key: '4_bajo', label: 'Bajo (<1.000€)' }
+      return { key: '5_sin', label: 'Sin facturas' }
+    }
+    if (viewMode === 'activos') {
+      return s.active === false
+        ? { key: 'inactivos', label: 'Inactivos' }
+        : { key: 'activos', label: 'Activos' }
+    }
+    return { key: 'all', label: 'Todos' }
+  }
+
+  const grouped = useMemo(() => {
+    if (viewMode === 'lista') return null
+    const groups: Record<string, { label: string; items: Supplier[] }> = {}
+    for (const s of filtered) {
+      const { key, label } = groupKey(s)
+      if (!groups[key]) groups[key] = { label, items: [] }
+      groups[key].items.push(s)
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, viewMode, supplierStats])
+
   const set = (k: string, v: unknown) => setForm(f => f ? { ...f, [k]: v } : f)
 
   const supplierInv = useMemo(() => form?.nif ? invoices.filter(i => i.supplier_nif === form.nif && i.direction === 'recibida') : [], [form, invoices])
@@ -165,11 +234,40 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-5">
         <h1 className="text-xl font-medium uppercase tracking-wide">Proveedores</h1>
         <button onClick={openNew} className="bg-neutral-900 text-white px-6 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors">+ Nuevo</button>
       </div>
-      <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-64 mb-6" />
+
+      {/* ─── KPIs (patrón coherente Cathedral) ─── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <KpiCard label="Proveedores" value={String(kpis.total)} />
+        <KpiCard label="Activos" value={String(kpis.activos)} />
+        <KpiCard label="Gastado total" value={formatEur(kpis.gastadoTotal)} />
+        <KpiCard label="Pendiente pago" value={formatEur(kpis.pendienteTotal)} />
+      </div>
+
+      {/* ─── Selector de modos + buscador ─── */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
+        {(['especialidad', 'volumen', 'activos', 'lista'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+              viewMode === mode
+                ? 'bg-neutral-900 text-white'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            }`}
+          >
+            Por {mode}
+          </button>
+        ))}
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-52 ml-auto" />
+      </div>
+
+      {/* ─── Vista lista (tabla original) ─── */}
+      {viewMode === 'lista' && (
       <div className="bg-white border border-neutral-100 overflow-x-auto">
         <table className="w-full">
           <thead><tr className="border-b border-neutral-100">
@@ -184,21 +282,68 @@ export default function SuppliersView({ suppliers: initial, invoices }: { suppli
           <tbody className="divide-y divide-neutral-50">
             {filtered.length === 0 ? <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-neutral-400">Sin proveedores</td></tr> :
             filtered.map(s => {
-              const sInv = invoices.filter(i => i.supplier_nif === s.nif && i.direction === 'recibida')
-              const sPend = sInv.filter(i => i.payment_status === 'pendiente').reduce((sum, i) => sum + getNetAmt(i), 0)
+              const st = (s.nif && supplierStats[s.nif]) || { count: 0, pendiente: 0, total: 0 }
               return (<tr key={s.id} onClick={() => openDetail(s)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
                 <td className="px-4 py-3 text-sm font-medium">{s.name}{s.active === false && <span className="ml-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 bg-neutral-100 px-1.5 py-0.5">Inactivo</span>}</td>
                 <td className="hidden sm:table-cell px-4 py-3"><span className="text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-600 px-2 py-0.5">{s.specialty ? (SPECIALTY_LABELS[s.specialty] ?? s.specialty) : '—'}</span></td>
                 <td className="hidden lg:table-cell px-4 py-3 text-sm text-neutral-500">{s.contact_person || '—'}</td>
                 <td className="hidden md:table-cell px-4 py-3 text-sm">{s.phone || '—'}</td>
                 <td className="hidden lg:table-cell px-4 py-3 text-sm text-neutral-500">{s.nif || '—'}</td>
-                <td className="hidden sm:table-cell px-4 py-3 text-sm">{sInv.length}</td>
-                <td className="px-4 py-3 text-sm font-medium">{sPend > 0 ? <span className="text-amber-600">{formatEur(sPend)}</span> : '—'}</td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm">{st.count}</td>
+                <td className="px-4 py-3 text-sm font-medium">{st.pendiente > 0 ? <span className="text-amber-600">{formatEur(st.pendiente)}</span> : '—'}</td>
               </tr>)
             })}
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* ─── Vista agrupada (modos especialidad/volumen/activos) ─── */}
+      {viewMode !== 'lista' && grouped && (
+        <div className="space-y-4">
+          {Object.keys(grouped).length === 0 && (
+            <div className="bg-white border border-neutral-100 px-4 py-8 text-center text-sm text-neutral-400">
+              Sin proveedores
+            </div>
+          )}
+          {Object.entries(grouped)
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([key, group]) => {
+              const totalGrupo = group.items.reduce((sum, s) => sum + ((s.nif && supplierStats[s.nif]?.total) || 0), 0)
+              return (
+                <div key={key} className="bg-white border border-neutral-100">
+                  <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-700">{group.label}</h3>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                        {group.items.length} prov{group.items.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <span className="text-xs tabular-nums text-neutral-500">{formatEur(totalGrupo)} gastado</span>
+                  </div>
+                  <div className="divide-y divide-neutral-50">
+                    {group.items.map((s) => {
+                      const st = (s.nif && supplierStats[s.nif]) || { count: 0, pendiente: 0, total: 0 }
+                      return (
+                        <div key={s.id} onClick={() => openDetail(s)} className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-3">
+                          <span className="text-sm font-medium flex-1 truncate">{s.name}
+                            {s.active === false && <span className="ml-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 bg-neutral-100 px-1.5 py-0.5">Inactivo</span>}
+                          </span>
+                          <span className="hidden sm:inline text-xs text-neutral-400 w-32 truncate">{s.nif || '—'}</span>
+                          <span className="text-xs text-neutral-500 w-16 text-right tabular-nums">{st.count} fac</span>
+                          <span className="text-xs tabular-nums w-24 text-right">{formatEur(st.total)}</span>
+                          <span className={`text-xs tabular-nums w-24 text-right ${st.pendiente > 0 ? 'text-amber-600 font-medium' : 'text-neutral-300'}`}>
+                            {st.pendiente > 0 ? formatEur(st.pendiente) : '—'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+        </div>
+      )}
 
       {form && (
         <div className="fixed inset-0 z-50 flex justify-end">
