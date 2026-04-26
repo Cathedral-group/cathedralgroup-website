@@ -156,6 +156,35 @@ function parseFechaAlert(razones: string[] | null | undefined): { level: 'error'
   return null
 }
 
+// Parse §CALIDAD_BAJA / §MANUSCRITO / §CAMPO_DUDOSO:campo:conf:valor from ai_razones
+type CalidadAlert = {
+  type: 'calidad_baja' | 'manuscrito' | 'campos_dudosos'
+  reason: string
+  campos?: { name: string; conf: string; valor: string }[]
+}
+function parseCalidadAlert(razones: string[] | null | undefined): CalidadAlert | null {
+  if (!razones) return null
+  let calidadBaja: string | null = null
+  let manuscrito: string | null = null
+  const campos: { name: string; conf: string; valor: string }[] = []
+  for (const r of razones) {
+    if (r.startsWith('§CALIDAD_BAJA:')) calidadBaja = r.replace('§CALIDAD_BAJA:', '')
+    else if (r.startsWith('§MANUSCRITO:')) manuscrito = r.replace('§MANUSCRITO:', '')
+    else if (r.startsWith('§CAMPO_DUDOSO:')) {
+      const parts = r.replace('§CAMPO_DUDOSO:', '').split(':')
+      if (parts.length >= 3) campos.push({ name: parts[0], conf: parts[1], valor: parts.slice(2).join(':') })
+    }
+  }
+  // Prioridad: manuscrito > calidad_baja > campos_dudosos (el más específico va primero)
+  if (manuscrito) return { type: 'manuscrito', reason: manuscrito, campos: campos.length ? campos : undefined }
+  if (calidadBaja) return { type: 'calidad_baja', reason: calidadBaja, campos: campos.length ? campos : undefined }
+  if (campos.length > 0) {
+    const summary = campos.map(c => `${c.name} (${(parseFloat(c.conf) * 100).toFixed(0)}%): ${c.valor}`).join(' | ')
+    return { type: 'campos_dudosos', reason: 'Campos dudosos: ' + summary, campos }
+  }
+  return null
+}
+
 export default function InvoicesView({ initialData, projects, suppliers, pageTitle, allTypes = false }: InvoicesViewProps) {
   const router = useRouter()
   const [data, setData] = useState<Invoice[]>(initialData)
@@ -683,6 +712,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                         <StatusBadge status={inv.payment_status} />
                         {(() => {
                           const fechaAlert = parseFechaAlert(inv.ai_razones)
+                          const calidadAlert = parseCalidadAlert(inv.ai_razones)
                           if (inv.review_status === 'error') {
                             return (
                               <span
@@ -694,12 +724,43 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                             )
                           }
                           if (inv.needs_review) {
+                            // Prioridad de badges: manuscrito > calidad_baja > campos_dudosos > fecha > genérico
+                            if (calidadAlert?.type === 'manuscrito') {
+                              return (
+                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700"
+                                  title={calidadAlert.reason + (calidadAlert.campos ? '\n\nCampos dudosos:\n' + calidadAlert.campos.map(c => `• ${c.name}: ${c.valor} (conf ${(parseFloat(c.conf)*100).toFixed(0)}%)`).join('\n') : '')}>
+                                  ✋ Manuscrito
+                                </span>
+                              )
+                            }
+                            if (calidadAlert?.type === 'calidad_baja') {
+                              return (
+                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700"
+                                  title={calidadAlert.reason + (calidadAlert.campos ? '\n\nCampos dudosos:\n' + calidadAlert.campos.map(c => `• ${c.name}: ${c.valor} (conf ${(parseFloat(c.conf)*100).toFixed(0)}%)`).join('\n') : '')}>
+                                  📷 Mala calidad
+                                </span>
+                              )
+                            }
+                            if (calidadAlert?.type === 'campos_dudosos') {
+                              return (
+                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-yellow-100 text-yellow-700"
+                                  title={calidadAlert.reason}>
+                                  ❓ Datos dudosos
+                                </span>
+                              )
+                            }
+                            if (fechaAlert) {
+                              return (
+                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700"
+                                  title={fechaAlert.reason}>
+                                  📅 Revisar fecha
+                                </span>
+                              )
+                            }
                             return (
-                              <span
-                                className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700"
-                                title={fechaAlert?.reason || 'Revisar'}
-                              >
-                                {fechaAlert ? '📅 Revisar fecha' : 'Revisar'}
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700"
+                                title="Revisar">
+                                Revisar
                               </span>
                             )
                           }
