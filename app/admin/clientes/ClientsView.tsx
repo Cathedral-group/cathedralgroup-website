@@ -118,11 +118,23 @@ interface Props {
   communications: Communication[]
 }
 
+function KpiCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="bg-white border border-neutral-100 px-4 py-3">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className="text-lg font-medium text-neutral-900 mt-0.5">{value}</p>
+      {hint && <p className="text-[10px] text-neutral-400 mt-0.5">{hint}</p>}
+    </div>
+  )
+}
+
 export default function ClientsView({ clients: initialClients, projects, invoices, communications: initialComms }: Props) {
   const [clients, setClients] = useState(initialClients)
   const [comms, setComms] = useState(initialComms)
   const [selected, setSelected] = useState<Client | null>(null)
   const [typeFilter, setTypeFilter] = useState('')
+  // ─── Patrón coherente Cathedral: 4 modos
+  const [viewMode, setViewMode] = useState<'tipo' | 'origen' | 'volumen' | 'lista'>('tipo')
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -231,6 +243,45 @@ export default function ClientsView({ clients: initialClients, projects, invoice
 
     return list
   }, [clients, typeFilter, search, sortField, sortDir, invoiceTotalsByClient])
+
+  /* ───────── KPIs + agrupación (patrón Cathedral) ───────── */
+  const kpis = useMemo(() => {
+    const conProyectos = clients.filter(c => (projectsByClient[c.id] || []).length > 0).length
+    const facturadoTotal = Object.values(invoiceTotalsByClient).reduce((s, v) => s + v, 0)
+    return { total: clients.length, conProyectos, facturadoTotal }
+  }, [clients, projectsByClient, invoiceTotalsByClient])
+
+  function clientGroupKey(c: Client): { key: string; label: string } {
+    if (viewMode === 'tipo') {
+      const k = c.type || 'sin_tipo'
+      return { key: k, label: k.charAt(0).toUpperCase() + k.slice(1) }
+    }
+    if (viewMode === 'origen') {
+      const k = c.source || 'sin_origen'
+      return { key: k, label: k === 'sin_origen' ? 'Sin origen' : k.charAt(0).toUpperCase() + k.slice(1) }
+    }
+    if (viewMode === 'volumen') {
+      const total = invoiceTotalsByClient[c.id] || 0
+      if (total >= 50000) return { key: '1_top', label: 'Top (>50.000€)' }
+      if (total >= 10000) return { key: '2_alto', label: 'Alto (10.000–50.000€)' }
+      if (total >= 1000) return { key: '3_medio', label: 'Medio (1.000–10.000€)' }
+      if (total > 0) return { key: '4_bajo', label: 'Bajo (<1.000€)' }
+      return { key: '5_sin', label: 'Sin facturas emitidas' }
+    }
+    return { key: 'all', label: 'Todos' }
+  }
+
+  const grouped = useMemo(() => {
+    if (viewMode === 'lista') return null
+    const groups: Record<string, { label: string; items: Client[] }> = {}
+    for (const c of filtered) {
+      const { key, label } = clientGroupKey(c)
+      if (!groups[key]) groups[key] = { label, items: [] }
+      groups[key].items.push(c)
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, viewMode, invoiceTotalsByClient])
 
   /* ───────── Helpers ───────── */
 
@@ -620,44 +671,123 @@ export default function ClientsView({ clients: initialClients, projects, invoice
         </div>
       )}
 
-      {/* Type filters */}
-      <div className="flex gap-3 mb-6 flex-wrap">
-        <button
-          onClick={() => setTypeFilter('')}
-          className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
-            !typeFilter ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
-          }`}
-        >
-          Todos ({clients.length})
-        </button>
-        {CLIENT_TYPES.map((t) => {
-          const count = clients.filter((c) => c.type === t).length
-          return (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
-                typeFilter === t ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
-              }`}
-            >
-              {t} ({count})
-            </button>
-          )
-        })}
+      {/* ─── KPIs (patrón Cathedral) ─── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+        <KpiCard label="Clientes" value={String(kpis.total)} />
+        <KpiCard label="Con proyectos" value={String(kpis.conProyectos)} hint="al menos 1 proyecto" />
+        <KpiCard label="Facturado total" value={kpis.facturadoTotal.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })} hint="emitidas a clientes" />
       </div>
 
-      {/* Table */}
-      <DataTable
-        columns={columns}
-        data={filtered as Record<string, unknown>[]}
-        onRowClick={(row) => openDetail(row as Client)}
-        onHeaderClick={(key) => {
-          const map: Record<string, SortField> = { name: 'name', email: 'email', type: 'type', _total: 'total_facturado' }
-          if (map[key]) handleSort(map[key])
-        }}
-        sortKey={sortField === 'total_facturado' ? '_total' : sortField}
-        sortDir={sortDir}
-      />
+      {/* ─── Selector de modos coherente ─── */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
+        {(['tipo', 'origen', 'volumen', 'lista'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+              viewMode === mode
+                ? 'bg-neutral-900 text-white'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            }`}
+          >
+            Por {mode}
+          </button>
+        ))}
+
+        {/* Filtros por tipo solo visibles en modo lista */}
+        {viewMode === 'lista' && (
+          <>
+            <div className="w-px h-5 bg-neutral-200 mx-1" />
+            <button
+              onClick={() => setTypeFilter('')}
+              className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
+                !typeFilter ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
+              }`}
+            >
+              Todos ({clients.length})
+            </button>
+            {CLIENT_TYPES.map((t) => {
+              const count = clients.filter((c) => c.type === t).length
+              if (count === 0) return null
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTypeFilter(t)}
+                  className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 transition-colors ${
+                    typeFilter === t ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-primary'
+                  }`}
+                >
+                  {t} ({count})
+                </button>
+              )
+            })}
+          </>
+        )}
+      </div>
+
+      {/* ─── Tabla (modo lista) ─── */}
+      {viewMode === 'lista' && (
+        <DataTable
+          columns={columns}
+          data={filtered as Record<string, unknown>[]}
+          onRowClick={(row) => openDetail(row as Client)}
+          onHeaderClick={(key) => {
+            const map: Record<string, SortField> = { name: 'name', email: 'email', type: 'type', _total: 'total_facturado' }
+            if (map[key]) handleSort(map[key])
+          }}
+          sortKey={sortField === 'total_facturado' ? '_total' : sortField}
+          sortDir={sortDir}
+        />
+      )}
+
+      {/* ─── Vista agrupada (modos tipo/origen/volumen) ─── */}
+      {viewMode !== 'lista' && grouped && (
+        <div className="space-y-4">
+          {Object.keys(grouped).length === 0 && (
+            <div className="bg-white border border-neutral-100 px-4 py-8 text-center text-sm text-neutral-400">
+              Sin clientes
+            </div>
+          )}
+          {Object.entries(grouped)
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([key, group]) => {
+              const totalGrupo = group.items.reduce((sum, c) => sum + (invoiceTotalsByClient[c.id] || 0), 0)
+              return (
+                <div key={key} className="bg-white border border-neutral-100">
+                  <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-700">{group.label}</h3>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                        {group.items.length} cliente{group.items.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <span className="text-xs tabular-nums text-neutral-500">
+                      {totalGrupo.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })} facturado
+                    </span>
+                  </div>
+                  <div className="divide-y divide-neutral-50">
+                    {group.items.map((c) => {
+                      const numProy = (projectsByClient[c.id] || []).length
+                      const total = invoiceTotalsByClient[c.id] || 0
+                      return (
+                        <div key={c.id} onClick={() => openDetail(c)} className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-3">
+                          <span className="text-sm font-medium flex-1 truncate">{c.name}</span>
+                          <span className="hidden sm:inline text-xs text-neutral-400 w-32 truncate">{c.email || c.phone || '—'}</span>
+                          <span className="hidden md:inline text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-600 px-2 py-0.5">{c.type || '—'}</span>
+                          <span className="text-xs text-neutral-500 w-16 text-right">{numProy} proy</span>
+                          <span className={`text-xs tabular-nums w-24 text-right ${total > 0 ? 'font-medium' : 'text-neutral-300'}`}>
+                            {total > 0 ? total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }) : '—'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+        </div>
+      )}
 
       {/* Detail slide-out panel */}
       {selected && (
