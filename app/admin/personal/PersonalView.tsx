@@ -2,6 +2,12 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  IconChart, IconUsers, IconUser, IconCash, IconClock, IconClipboard, IconShield,
+  IconCalendar, IconList, IconGrid, IconBuilding, IconFolder,
+  IconError, IconHand, IconCamera, IconQuestion, IconEuro, IconExclamation,
+  IconCheck, IconHourglass, IconDocument
+} from '@/components/admin/AdminIcons'
 
 const MES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -41,13 +47,13 @@ function formatDate(d: string | null | undefined): string {
 
 type SectionKey = 'resumen' | 'trabajadores' | 'nominas' | 'tiempo' | 'cumplimiento' | 'prl'
 
-const SECTIONS: { key: SectionKey; label: string; icon: string }[] = [
-  { key: 'resumen',      label: 'Resumen',          icon: '📊' },
-  { key: 'trabajadores', label: 'Trabajadores',     icon: '👥' },
-  { key: 'nominas',      label: 'Nóminas y pagos',  icon: '💰' },
-  { key: 'tiempo',       label: 'Tiempo y permisos',icon: '⏱' },
-  { key: 'cumplimiento', label: 'Cumplimiento legal',icon: '📋' },
-  { key: 'prl',          label: 'PRL',              icon: '🦺' },
+const SECTIONS: { key: SectionKey; label: string; Icon: React.ComponentType<{className?: string}> }[] = [
+  { key: 'resumen',      label: 'Resumen',          Icon: IconChart },
+  { key: 'trabajadores', label: 'Trabajadores',     Icon: IconUsers },
+  { key: 'nominas',      label: 'Nóminas y pagos',  Icon: IconCash },
+  { key: 'tiempo',       label: 'Tiempo y permisos',Icon: IconClock },
+  { key: 'cumplimiento', label: 'Cumplimiento legal',Icon: IconClipboard },
+  { key: 'prl',          label: 'PRL',              Icon: IconShield },
 ]
 
 export default function PersonalView({ data }: { data: DataBundle }) {
@@ -102,13 +108,20 @@ export default function PersonalView({ data }: { data: DataBundle }) {
       </div>
 
       {/* Breadcrumb / título de la sección actual (la navegación principal vive en el sidebar) */}
-      <div className="border-b border-neutral-100 mb-6 pb-3 flex items-center gap-2 text-xs">
-        <span className="text-neutral-400">Personal</span>
-        <span className="text-neutral-300">›</span>
-        <span className="font-bold text-primary">
-          {SECTIONS.find(s => s.key === section)?.icon} {SECTIONS.find(s => s.key === section)?.label}
-        </span>
-      </div>
+      {(() => {
+        const current = SECTIONS.find(s => s.key === section)
+        const CurrentIcon = current?.Icon
+        return (
+          <div className="border-b border-neutral-100 mb-6 pb-3 flex items-center gap-2 text-xs">
+            <span className="text-neutral-400">Personal</span>
+            <span className="text-neutral-300">›</span>
+            <span className="font-bold text-primary inline-flex items-center gap-1.5">
+              {CurrentIcon && <CurrentIcon className="h-3.5 w-3.5" />}
+              {current?.label}
+            </span>
+          </div>
+        )
+      })()}
 
       {section === 'resumen'      && <SectionResumen data={data} yearFilter={yearFilter} />}
       {section === 'trabajadores' && <SectionTrabajadores data={data} search={search} yearFilter={yearFilter} onCreate={setModal} />}
@@ -305,7 +318,7 @@ function SectionResumen({ data, yearFilter }: { data: DataBundle; yearFilter: nu
     <div className="space-y-8">
       {/* KPIs principales */}
       <section>
-        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-3">📊 Indicadores clave</h2>
+        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-3 inline-flex items-center gap-2"><IconChart className="h-3.5 w-3.5" /> Indicadores clave</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           <KPICard label="Trabajadores activos" value={empleadosActivos.length.toString()} />
           <KPICard label="Nóminas año" value={totalNominas.toString()} />
@@ -318,7 +331,7 @@ function SectionResumen({ data, yearFilter }: { data: DataBundle; yearFilter: nu
 
       {/* Compliance status */}
       <section>
-        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-3">✅ Estado de cumplimiento</h2>
+        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-3 inline-flex items-center gap-2"><IconCheck className="h-3.5 w-3.5" /> Estado de cumplimiento</h2>
         <div className="space-y-2">
           {complianceItems.map((item, i) => (
             <div key={i} className={`p-3 rounded border flex items-center justify-between ${item.critico ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
@@ -359,7 +372,7 @@ function SectionResumen({ data, yearFilter }: { data: DataBundle; yearFilter: nu
 
       {/* Tablas auxiliares stats */}
       <section>
-        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-3">📂 Datos almacenados</h2>
+        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-3 inline-flex items-center gap-2"><IconFolder className="h-3.5 w-3.5" /> Datos almacenados</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
           <CountCard label="Contratos" value={data.contracts.length} />
           <CountCard label="Pagos justificados" value={data.payments.length} />
@@ -426,8 +439,8 @@ function SectionTrabajadores({ data, search, yearFilter, onCreate }: { data: Dat
             { key: 'grupo_cotizacion', label: 'Grupo' },
             { key: 'fecha_antiguedad', label: 'Antigüedad', render: (r) => formatDate(r.fecha_antiguedad) },
             { key: 'situacion_familiar', label: 'Sit. fam.', render: (r) => r.situacion_familiar ? `Tipo ${r.situacion_familiar}` : '—' },
-            { key: 'fecha_firma_modelo_145', label: 'Mod. 145', render: (r) => r.fecha_firma_modelo_145 ? '✓' : <span className="text-amber-600">⚠</span> },
-            { key: 'formacion_prl_fecha', label: 'Form. PRL', render: (r) => r.formacion_prl_fecha ? formatDate(r.formacion_prl_fecha) : <span className="text-amber-600">⚠</span> },
+            { key: 'fecha_firma_modelo_145', label: 'Mod. 145', render: (r) => r.fecha_firma_modelo_145 ? <IconCheck className="h-3.5 w-3.5 text-green-600 inline" /> : <IconExclamation className="h-3.5 w-3.5 text-amber-600 inline" /> },
+            { key: 'formacion_prl_fecha', label: 'Form. PRL', render: (r) => r.formacion_prl_fecha ? formatDate(r.formacion_prl_fecha) : <IconExclamation className="h-3.5 w-3.5 text-amber-600 inline" /> },
             { key: 'iban', label: 'IBAN', render: (r) => r.iban ? r.iban.substring(0, 6) + '...' : '—' },
           ]}
         />
@@ -572,22 +585,26 @@ function SectionNominas({ data, search, yearFilter, onCreate }: { data: DataBund
             <div className="flex items-center gap-2 mb-4 p-2 bg-neutral-50 rounded">
               <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-bold mr-2">Ver por:</span>
               {([
-                { v: 'mes', label: '📅 Mes', hint: 'Pago mensual' },
-                { v: 'trimestre', label: '📊 Trimestre', hint: 'Modelo 111 (IRPF)' },
-                { v: 'trabajador', label: '👤 Trabajador', hint: 'Modelo 190 (anual)' },
-                { v: 'lista', label: '📋 Lista', hint: 'Plana, sin agrupar' },
-              ] as const).map(opt => (
-                <button
-                  key={opt.v}
-                  onClick={() => setGroupMode(opt.v)}
-                  title={opt.hint}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
-                    groupMode === opt.v ? 'bg-primary text-white' : 'bg-white text-neutral-600 hover:bg-neutral-100'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+                { v: 'mes',        label: 'Mes',        Icon: IconCalendar, hint: 'Pago mensual' },
+                { v: 'trimestre',  label: 'Trimestre',  Icon: IconChart,    hint: 'Cuadre Modelo 111 (IRPF trimestral)' },
+                { v: 'trabajador', label: 'Trabajador', Icon: IconUser,     hint: 'Modelo 190 anual / certificado retenciones' },
+                { v: 'lista',      label: 'Lista',      Icon: IconList,     hint: 'Plana, sin agrupar — útil para búsqueda' },
+              ] as const).map(opt => {
+                const Ic = opt.Icon
+                return (
+                  <button
+                    key={opt.v}
+                    onClick={() => setGroupMode(opt.v)}
+                    title={opt.hint}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors inline-flex items-center gap-1.5 ${
+                      groupMode === opt.v ? 'bg-primary text-white' : 'bg-white text-neutral-600 hover:bg-neutral-100'
+                    }`}
+                  >
+                    <Ic className="h-3.5 w-3.5" />
+                    {opt.label}
+                  </button>
+                )
+              })}
             </div>
           )}
 
@@ -803,14 +820,18 @@ function ViewPorTrimestre({ payrolls, cuadre111 }: { payrolls: Payroll[]; cuadre
         return (
           <GroupCard key={key} title={`Trimestre Q${g.q} ${g.anio}`} subtitle={subtitle} totals={totals} defaultExpanded>
             {cuadre && cuadre.irpf_modelo !== null && (
-              <div className={`mb-3 p-3 rounded text-xs ${cuadre.coincide ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
-                {cuadre.coincide ? '✅' : '⚠️'} Modelo 111 Q{g.q}: presentado {formatEur(cuadre.irpf_modelo)} · suma nóminas {formatEur(cuadre.irpf_payrolls)}
-                {!cuadre.coincide && <span className="ml-2">— diferencia {formatEur(Math.abs(cuadre.irpf_modelo - cuadre.irpf_payrolls))}</span>}
+              <div className={`mb-3 p-3 rounded text-xs flex items-start gap-2 ${cuadre.coincide ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                {cuadre.coincide ? <IconCheck className="h-4 w-4 flex-shrink-0 mt-0.5" /> : <IconExclamation className="h-4 w-4 flex-shrink-0 mt-0.5" />}
+                <span>
+                  Modelo 111 Q{g.q}: presentado {formatEur(cuadre.irpf_modelo)} · suma nóminas {formatEur(cuadre.irpf_payrolls)}
+                  {!cuadre.coincide && <span className="ml-2">— diferencia {formatEur(Math.abs(cuadre.irpf_modelo - cuadre.irpf_payrolls))}</span>}
+                </span>
               </div>
             )}
             {cuadre && cuadre.irpf_modelo === null && cuadre.irpf_payrolls > 0 && (
-              <div className="mb-3 p-3 rounded text-xs bg-amber-50 border border-amber-200 text-amber-800">
-                ⏳ Modelo 111 Q{g.q} pendiente de presentar — IRPF retenido en nóminas: {formatEur(cuadre.irpf_payrolls)}
+              <div className="mb-3 p-3 rounded text-xs bg-amber-50 border border-amber-200 text-amber-800 flex items-start gap-2">
+                <IconHourglass className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>Modelo 111 Q{g.q} pendiente de presentar — IRPF retenido en nóminas: {formatEur(cuadre.irpf_payrolls)}</span>
               </div>
             )}
             {/* Sub-grupos por mes dentro del trimestre */}

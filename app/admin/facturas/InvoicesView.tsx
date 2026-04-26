@@ -3,6 +3,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import InvoiceForm from './InvoiceForm'
+import {
+  IconError, IconHand, IconCamera, IconQuestion, IconCalendar, IconEuro,
+  IconUser, IconBuilding, IconList,
+} from '@/components/admin/AdminIcons'
 
 type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status' | 'created_at'
 
@@ -219,6 +223,8 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState('')
   const [reprocessingId, setReprocessingId] = useState<string | null>(null)
+  // Modo de agrupación visual (sin romper la tabla, solo ordena + inserta separadores)
+  const [groupMode, setGroupMode] = useState<'lista' | 'mes' | 'proveedor' | 'proyecto'>('lista')
 
   // Sort: default by entry date descending
   const [sortField, setSortField] = useState<SortField>('created_at')
@@ -332,6 +338,78 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
 
     return list
   }, [data, dirFilter, statusFilter, reviewFilter, search, sortField, sortDir, projectMap, allTypes])
+
+  // Filas agrupadas: array de items mixto [groupHeader | invoice].
+  // Se inserta un header cada vez que el grupo cambia. Mantiene el orden interno
+  // del sort actual dentro de cada grupo (re-ordenando por groupKey primero).
+  const MES_NOMBRE_LOCAL = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+  const groupedRows = useMemo(() => {
+    if (groupMode === 'lista') return filtered.map(inv => ({ kind: 'row' as const, inv }))
+    // Calcular groupKey por factura
+    const keyOf = (inv: Invoice): { key: string; label: string } => {
+      if (groupMode === 'mes') {
+        const d = inv.issue_date ? new Date(inv.issue_date + 'T00:00:00') : null
+        if (!d || isNaN(d.getTime())) return { key: 'sin_fecha', label: 'Sin fecha' }
+        return {
+          key: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,
+          label: `${MES_NOMBRE_LOCAL[d.getMonth()+1]} ${d.getFullYear()}`
+        }
+      }
+      if (groupMode === 'proveedor') {
+        const name = inv.empresa || (inv.supplier_nif ? supplierMap[inv.supplier_nif] : null) || '(sin proveedor)'
+        return { key: name.toLowerCase(), label: name }
+      }
+      if (groupMode === 'proyecto') {
+        const code = inv.proyecto_code || (inv.project_id ? projectMap[inv.project_id] : null) || '(sin proyecto)'
+        return { key: code.toLowerCase(), label: code }
+      }
+      return { key: '', label: '' }
+    }
+    // Ordenar por groupKey + luego por sortField original
+    const sorted = [...filtered].sort((a, b) => {
+      const ka = keyOf(a)
+      const kb = keyOf(b)
+      // Para "mes" orden cronológico desc; para otros alfabético
+      const cmp = groupMode === 'mes' ? kb.key.localeCompare(ka.key) : ka.key.localeCompare(kb.key)
+      if (cmp !== 0) return cmp
+      // Mantener sub-orden por created_at desc dentro del grupo
+      return (b.created_at || '').localeCompare(a.created_at || '')
+    })
+    // Insertar headers
+    const out: Array<{ kind: 'header'; key: string; label: string; count: number; total: number } | { kind: 'row'; inv: Invoice }> = []
+    let lastKey = ''
+    let groupItems: Invoice[] = []
+    for (const inv of sorted) {
+      const { key, label } = keyOf(inv)
+      if (key !== lastKey) {
+        if (lastKey && groupItems.length) {
+          // Actualizar el header anterior con totales (busca el último header en out)
+          const lastHeaderIdx = out.findLastIndex(x => x.kind === 'header')
+          if (lastHeaderIdx >= 0 && out[lastHeaderIdx].kind === 'header') {
+            const h = out[lastHeaderIdx] as { kind: 'header'; key: string; label: string; count: number; total: number }
+            h.count = groupItems.length
+            h.total = groupItems.reduce((s, i) => s + (i.amount_total || 0), 0)
+          }
+        }
+        out.push({ kind: 'header', key, label, count: 0, total: 0 })
+        groupItems = []
+        lastKey = key
+      }
+      out.push({ kind: 'row', inv })
+      groupItems.push(inv)
+    }
+    // Cerrar último grupo
+    if (groupItems.length) {
+      const lastHeaderIdx = out.findLastIndex(x => x.kind === 'header')
+      if (lastHeaderIdx >= 0 && out[lastHeaderIdx].kind === 'header') {
+        const h = out[lastHeaderIdx] as { kind: 'header'; key: string; label: string; count: number; total: number }
+        h.count = groupItems.length
+        h.total = groupItems.reduce((s, i) => s + (i.amount_total || 0), 0)
+      }
+    }
+    return out
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, groupMode, supplierMap, projectMap])
 
   // Counts por badge (independent of other filters except allTypes)
   const reviewCounts = useMemo(() => {
@@ -632,21 +710,23 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
         {reviewFilter !== 'todos' && (
           <>
             <span className="text-neutral-300">·</span>
-            <span className="font-semibold text-amber-700">
-              {reviewFilter === 'errores' && '❌ Errores'}
-              {reviewFilter === 'manuscritos' && '✋ Manuscritos'}
-              {reviewFilter === 'mala_calidad' && '📷 Mala calidad'}
-              {reviewFilter === 'datos_dudosos' && '❓ Datos dudosos'}
-              {reviewFilter === 'fecha_alerta' && '📅 Fecha sospechosa'}
-              {reviewFilter === 'importe_alerta' && '💰 Importe sospechoso'}
+            <span className={`font-semibold inline-flex items-center gap-1 ${
+              reviewFilter === 'errores' ? 'text-red-700' : 'text-amber-700'
+            }`}>
+              {reviewFilter === 'errores'        && <><IconError className="h-3 w-3" /> Errores</>}
+              {reviewFilter === 'manuscritos'    && <><IconHand className="h-3 w-3" /> Manuscritos</>}
+              {reviewFilter === 'mala_calidad'   && <><IconCamera className="h-3 w-3" /> Mala calidad</>}
+              {reviewFilter === 'datos_dudosos'  && <><IconQuestion className="h-3 w-3" /> Datos dudosos</>}
+              {reviewFilter === 'fecha_alerta'   && <><IconCalendar className="h-3 w-3" /> Fecha sospechosa</>}
+              {reviewFilter === 'importe_alerta' && <><IconEuro className="h-3 w-3" /> Importe sospechoso</>}
             </span>
           </>
         )}
         <span className="text-neutral-300 ml-auto">{filtered.length} de {data.length}</span>
       </div>
 
-      {/* Filtros secundarios: estado de pago + búsqueda */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      {/* Filtros secundarios: estado de pago + búsqueda + modo agrupación */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="flex gap-1">
           {(['todas', 'pendiente', 'pagada', 'vencida'] as const).map((v) => (
             <button key={v} onClick={() => setStatusFilter(v)} className={filterBtnCls(statusFilter === v)}>
@@ -662,6 +742,32 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
           placeholder="Buscar nº, concepto, empresa, NIF, proyecto..."
           className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm flex-1 min-w-[200px] max-w-md"
         />
+      </div>
+
+      {/* Selector de modo de agrupación */}
+      <div className="flex items-center gap-2 mb-4 p-2 bg-neutral-50 rounded">
+        <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-bold mr-2">Ver por:</span>
+        {([
+          { v: 'lista',     label: 'Lista',     Icon: IconList,     hint: 'Sin agrupar' },
+          { v: 'mes',       label: 'Mes',       Icon: IconCalendar, hint: 'Agrupado por mes de emisión' },
+          { v: 'proveedor', label: 'Proveedor', Icon: IconUser,     hint: 'Agrupado por proveedor / empresa emisora' },
+          { v: 'proyecto',  label: 'Proyecto',  Icon: IconBuilding, hint: 'Agrupado por proyecto / obra' },
+        ] as const).map(opt => {
+          const Ic = opt.Icon
+          return (
+            <button
+              key={opt.v}
+              onClick={() => setGroupMode(opt.v)}
+              title={opt.hint}
+              className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors inline-flex items-center gap-1.5 ${
+                groupMode === opt.v ? 'bg-primary text-white' : 'bg-white text-neutral-600 hover:bg-neutral-100'
+              }`}
+            >
+              <Ic className="h-3.5 w-3.5" />
+              {opt.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Table */}
@@ -684,14 +790,27 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
-              {filtered.length === 0 ? (
+              {groupedRows.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-6 py-8 text-center text-sm text-neutral-400">
                     Sin resultados
                   </td>
                 </tr>
               ) : (
-                filtered.map((inv) => (
+                groupedRows.map((row) => row.kind === 'header' ? (
+                  <tr key={`h-${row.key}`} className="bg-neutral-50">
+                    <td colSpan={10} className="px-4 py-2 text-xs font-bold text-neutral-700 border-y border-neutral-200">
+                      <div className="flex items-center justify-between">
+                        <span className="uppercase tracking-wider">{row.label}</span>
+                        <span className="text-neutral-500 font-normal">
+                          {row.count} factura{row.count !== 1 ? 's' : ''} · {formatEur(row.total)}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (() => {
+                  const inv = row.inv
+                  return (
                   <tr
                     key={inv.id}
                     onClick={() => openEdit(inv)}
@@ -750,10 +869,10 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                           if (inv.review_status === 'error') {
                             return (
                               <span
-                                className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700"
                                 title={fechaAlert?.reason || inv.concept || 'Error de procesado'}
                               >
-                                {fechaAlert ? '📅 Fecha err.' : 'Error procesado'}
+                                {fechaAlert ? <><IconCalendar className="h-3 w-3" /> Fecha err.</> : <><IconError className="h-3 w-3" /> Error</>}
                               </span>
                             )
                           }
@@ -761,33 +880,33 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                             // Prioridad de badges: manuscrito > calidad_baja > campos_dudosos > fecha > genérico
                             if (calidadAlert?.type === 'manuscrito') {
                               return (
-                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700"
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700"
                                   title={calidadAlert.reason + (calidadAlert.campos ? '\n\nCampos dudosos:\n' + calidadAlert.campos.map(c => `• ${c.name}: ${c.valor} (conf ${(parseFloat(c.conf)*100).toFixed(0)}%)`).join('\n') : '')}>
-                                  ✋ Manuscrito
+                                  <IconHand className="h-3 w-3" /> Manuscrito
                                 </span>
                               )
                             }
                             if (calidadAlert?.type === 'calidad_baja') {
                               return (
-                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700"
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700"
                                   title={calidadAlert.reason + (calidadAlert.campos ? '\n\nCampos dudosos:\n' + calidadAlert.campos.map(c => `• ${c.name}: ${c.valor} (conf ${(parseFloat(c.conf)*100).toFixed(0)}%)`).join('\n') : '')}>
-                                  📷 Mala calidad
+                                  <IconCamera className="h-3 w-3" /> Mala calidad
                                 </span>
                               )
                             }
                             if (calidadAlert?.type === 'campos_dudosos') {
                               return (
-                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-yellow-100 text-yellow-700"
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-yellow-100 text-yellow-700"
                                   title={calidadAlert.reason}>
-                                  ❓ Datos dudosos
+                                  <IconQuestion className="h-3 w-3" /> Datos dudosos
                                 </span>
                               )
                             }
                             if (fechaAlert) {
                               return (
-                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700"
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700"
                                   title={fechaAlert.reason}>
-                                  📅 Revisar fecha
+                                  <IconCalendar className="h-3 w-3" /> Revisar fecha
                                 </span>
                               )
                             }
@@ -819,7 +938,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                             className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-800 whitespace-nowrap disabled:opacity-50"
                             title="Eliminar y volver a procesar este documento desde el email original"
                           >
-                            {reprocessingId === inv.id ? '...' : '🔄 Reprocesar'}
+                            {reprocessingId === inv.id ? '...' : '↻ Reprocesar'}
                           </button>
                         )}
                         {inv.payment_status === 'pendiente' && inv.review_status !== 'error' && (
@@ -842,7 +961,8 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                       </div>
                     </td>
                   </tr>
-                ))
+                  )
+                })())
               )}
             </tbody>
           </table>
