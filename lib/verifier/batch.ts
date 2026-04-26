@@ -83,3 +83,52 @@ export function batchVerify(
   }
   return out
 }
+
+/**
+ * Variante específica para la tabla `invoices`: hace el mapeo de nombres de
+ * columnas BD → nombres esperados por el verificador.
+ *
+ *   supplier_nif → emisor_nif
+ *   amount_base  → base_imponible
+ *   vat_pct      → tipo_iva
+ *   vat_amount   → cuota_iva
+ *   amount_total → total
+ *   issue_date   → fecha_emision
+ *   due_date     → fecha_vencimiento
+ */
+export function batchVerifyInvoices(
+  rows: Array<{ id: string | number } & Record<string, unknown>>,
+): Record<string, VerificationSummary> {
+  const out: Record<string, VerificationSummary> = {}
+  for (const row of rows) {
+    try {
+      const docType = (row.doc_type as DocumentType) ?? 'factura'
+      // Mapear campos de invoices al formato del verificador
+      const mapped: Record<string, unknown> = {
+        ...row,
+        emisor_nif: row.supplier_nif ?? null,
+        base_imponible: row.amount_base ?? null,
+        tipo_iva: row.vat_pct ?? null,
+        cuota_iva: row.vat_amount ?? null,
+        total: row.amount_total ?? null,
+        fecha_emision: row.issue_date ?? null,
+        fecha_vencimiento: row.due_date ?? null,
+      }
+      const result = verifyDocument({
+        document_type: docType,
+        fields: mapped,
+      })
+      out[String(row.id)] = summarize(result)
+    } catch {
+      out[String(row.id)] = {
+        status: 'error',
+        needs_review: true,
+        error_count: 1,
+        warning_count: 0,
+        reasons: ['Error inesperado al verificar (excepción interna)'],
+        suggestions: {},
+      }
+    }
+  }
+  return out
+}

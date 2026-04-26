@@ -7,6 +7,8 @@ import {
   IconError, IconHand, IconCamera, IconQuestion, IconCalendar, IconEuro,
   IconUser, IconBuilding, IconList,
 } from '@/components/admin/AdminIcons'
+import VerificationBadge from '@/components/admin/VerificationBadge'
+import type { VerificationSummary } from '@/lib/verifier/batch'
 
 type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status' | 'created_at'
 
@@ -65,6 +67,7 @@ interface InvoicesViewProps {
   suppliers: { value: string; label: string }[]
   pageTitle?: string
   allTypes?: boolean  // si true, muestra todos los tipos (usado en /archivo)
+  verifications?: Record<string, VerificationSummary>  // resultado del verificador algorítmico (server-side)
 }
 
 function formatEur(val: number | null): string {
@@ -189,7 +192,7 @@ function parseCalidadAlert(razones: string[] | null | undefined): CalidadAlert |
   return null
 }
 
-export default function InvoicesView({ initialData, projects, suppliers, pageTitle, allTypes = false }: InvoicesViewProps) {
+export default function InvoicesView({ initialData, projects, suppliers, pageTitle, allTypes = false, verifications }: InvoicesViewProps) {
   const router = useRouter()
   const [data, setData] = useState<Invoice[]>(initialData)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -782,6 +785,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                 <th className={`hidden md:table-cell ${thCls('amount_base')}`} onClick={() => handleSort('amount_base')}>Base{sortIcon('amount_base')}</th>
                 <th className={`hidden md:table-cell ${thCls('vat_amount')}`} onClick={() => handleSort('vat_amount')}>IVA{sortIcon('vat_amount')}</th>
                 <th className={thCls('amount_total')} onClick={() => handleSort('amount_total')}>Total{sortIcon('amount_total')}</th>
+                <th className="px-2 py-4 text-[10px] font-bold uppercase tracking-wider text-neutral-400 text-center" title="Verificación algorítmica">Verif</th>
                 <th className={`hidden sm:table-cell ${thCls('issue_date')}`} onClick={() => handleSort('issue_date')}>Fecha{sortIcon('issue_date')}</th>
                 <th className={`hidden sm:table-cell ${thCls('due_date')}`} onClick={() => handleSort('due_date')} title="* = fecha estimada (issue_date + 21 días)">Vencimiento{sortIcon('due_date')} <span className="text-neutral-300 font-normal">ℹ</span></th>
                 <th className={thCls('payment_status')} onClick={() => handleSort('payment_status')}>Estado{sortIcon('payment_status')}</th>
@@ -792,14 +796,14 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
             <tbody className="divide-y divide-neutral-50">
               {groupedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-sm text-neutral-400">
+                  <td colSpan={11} className="px-6 py-8 text-center text-sm text-neutral-400">
                     Sin resultados
                   </td>
                 </tr>
               ) : (
                 groupedRows.map((row) => row.kind === 'header' ? (
                   <tr key={`h-${row.key}`} className="bg-neutral-50">
-                    <td colSpan={10} className="px-4 py-2 text-xs font-bold text-neutral-700 border-y border-neutral-200">
+                    <td colSpan={11} className="px-4 py-2 text-xs font-bold text-neutral-700 border-y border-neutral-200">
                       <div className="flex items-center justify-between">
                         <span className="uppercase tracking-wider">{row.label}</span>
                         <span className="text-neutral-500 font-normal">
@@ -856,6 +860,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                     <td className="hidden md:table-cell px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.amount_base)}</td>
                     <td className="hidden md:table-cell px-4 py-3 text-sm tabular-nums text-right">{formatEur(inv.vat_amount)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-right font-semibold">{formatEur(inv.amount_total)}</td>
+                    <td className="px-2 py-3 text-center"><VerificationBadge summary={verifications?.[String(inv.id)]} size="sm" /></td>
                     <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">{formatDate(inv.issue_date)}</td>
                     <td className="hidden sm:table-cell px-4 py-3 text-sm whitespace-nowrap">
                       <DueDate date={inv.due_date} status={inv.payment_status} estimated={inv.due_date_estimated} />

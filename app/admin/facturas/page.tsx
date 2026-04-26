@@ -1,6 +1,7 @@
 import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import InvoicesView from './InvoicesView'
+import { batchVerifyInvoices } from '@/lib/verifier/batch'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,12 +30,19 @@ export default async function FacturasPage() {
     label: `${s.nif} - ${s.name}`,
   }))
 
+  // Verificador algorítmico sobre facturas — milisegundos por fila
+  const invoiceVerifications = batchVerifyInvoices(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (invoices as any[]) ?? [],
+  )
+
   return (
     <InvoicesView
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initialData={invoices as any}
       projects={projects}
       suppliers={suppliers}
+      verifications={invoiceVerifications}
     />
   )
 }
