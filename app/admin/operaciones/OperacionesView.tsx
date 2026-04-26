@@ -82,6 +82,8 @@ export default function OperacionesView({ initialData, projects }: Props) {
   const router = useRouter()
   const [ops, setOps] = useState<FlippingOp[]>(initialData)
   const [filter, setFilter] = useState<'activas' | 'vendidas' | 'todas'>('todas')
+  // ─── Patrón coherente Cathedral: 4 modos de vista (igual que Personal/Facturas/Proyectos)
+  const [viewMode, setViewMode] = useState<'estado' | 'tipo' | 'zona' | 'lista'>('estado')
   const [search, setSearch] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [newForm, setNewForm] = useState({ code: '', name: '', status: 'prospecto', address: '', property_type: 'piso', surface_m2: '' })
@@ -144,6 +146,38 @@ export default function OperacionesView({ initialData, projects }: Props) {
 
     return list
   }, [ops, filter, search, sortField, sortDir])
+
+  /* ───────── Agrupación según viewMode (patrón Cathedral) ───────── */
+  function groupKey(op: FlippingOp): { key: string; label: string } {
+    if (viewMode === 'estado') {
+      const k = op.status || 'sin_estado'
+      const map = STATUS_MAP[k]
+      return { key: k, label: map ? map.label : k.replace(/_/g, ' ') }
+    }
+    if (viewMode === 'tipo') {
+      const k = op.property_type || 'otro'
+      return { key: k, label: k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' ') }
+    }
+    if (viewMode === 'zona') {
+      // Última parte del address tras la coma (ciudad)
+      const parts = (op.address || '').split(',').map(s => s.trim()).filter(Boolean)
+      const ciudad = parts.slice(-1)[0] || 'Sin zona'
+      return { key: ciudad, label: ciudad }
+    }
+    return { key: 'all', label: 'Todos' }
+  }
+
+  const grouped = useMemo(() => {
+    if (viewMode === 'lista') return null
+    const groups: Record<string, { label: string; items: FlippingOp[] }> = {}
+    for (const op of filtered) {
+      const { key, label } = groupKey(op)
+      if (!groups[key]) groups[key] = { label, items: [] }
+      groups[key].items.push(op)
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, viewMode])
 
   const totalActivas = ops.filter(o => ACTIVE_STATUSES.includes(o.status)).length
   const activeOps = ops.filter(o => ACTIVE_STATUSES.includes(o.status))
@@ -214,31 +248,113 @@ export default function OperacionesView({ initialData, projects }: Props) {
         </div>
       </div>
 
-      {/* Filter tabs + search */}
+      {/* ─── Selector de modos (patrón coherente Cathedral) + filtros + buscador ─── */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="flex gap-2">
-          {(['todas','activas','vendidas'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                filter === f ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-500 hover:border-primary'
-              }`}
-            >
-              {f === 'todas' ? `Todas (${ops.length})` : f === 'activas' ? `Activas (${ops.filter(o => ACTIVE_STATUSES.includes(o.status)).length})` : `Vendidas (${ops.filter(o => o.status === 'vendida').length})`}
-            </button>
-          ))}
-        </div>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
+        {(['estado', 'tipo', 'zona', 'lista'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+              viewMode === mode
+                ? 'bg-neutral-900 text-white'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            }`}
+          >
+            Por {mode}
+          </button>
+        ))}
+
+        {viewMode === 'lista' && (
+          <>
+            <div className="w-px h-5 bg-neutral-200 mx-1" />
+            {(['todas','activas','vendidas'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  filter === f ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-500 hover:border-primary'
+                }`}
+              >
+                {f === 'todas' ? `Todas (${ops.length})` : f === 'activas' ? `Activas (${ops.filter(o => ACTIVE_STATUSES.includes(o.status)).length})` : `Vendidas (${ops.filter(o => o.status === 'vendida').length})`}
+              </button>
+            ))}
+          </>
+        )}
+
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar..."
-          className="bg-neutral-50 border border-neutral-200 focus:ring-1 focus:ring-primary focus:outline-none px-4 py-2 text-sm w-52"
+          className="bg-neutral-50 border border-neutral-200 focus:ring-1 focus:ring-primary focus:outline-none px-4 py-2 text-sm w-52 ml-auto"
         />
       </div>
 
-      {/* Table */}
+      {/* ─── Vista agrupada (modos estado/tipo/zona) ─── */}
+      {viewMode !== 'lista' && grouped && (
+        <div className="space-y-4">
+          {Object.keys(grouped).length === 0 && (
+            <div className="bg-white border border-neutral-100 px-4 py-8 text-center text-sm text-neutral-400">
+              Sin operaciones
+            </div>
+          )}
+          {Object.entries(grouped)
+            .sort((a, b) => a[1].label.localeCompare(b[1].label, 'es'))
+            .map(([key, group]) => {
+              const totalInversionGrupo = group.items.reduce(
+                (s, op) => s + (calcKpis(op).totalInvertido || 0),
+                0,
+              )
+              return (
+                <div key={key} className="bg-white border border-neutral-100">
+                  <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-700">{group.label}</h3>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                        {group.items.length} op{group.items.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <span className="text-xs tabular-nums text-neutral-500">{eur(totalInversionGrupo)} invertido</span>
+                  </div>
+                  <div className="divide-y divide-neutral-50">
+                    {group.items.map((op) => {
+                      const { totalInvertido, benefNeto, roi } = calcKpis(op)
+                      const st = STATUS_MAP[op.status] ?? STATUS_MAP.prospecto
+                      return (
+                        <div
+                          key={op.id}
+                          onClick={() => router.push(`/admin/operaciones/${op.id}`)}
+                          className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-3"
+                        >
+                          <span className="text-xs font-mono text-neutral-400 w-32 shrink-0">{op.code}</span>
+                          <span className="text-sm flex-1 truncate">{op.name}</span>
+                          <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${st.cls}`}>
+                            {st.label}
+                          </span>
+                          <span className="text-xs tabular-nums text-neutral-500 w-28 text-right">{eur(totalInvertido || null)}</span>
+                          <span className={`text-xs tabular-nums font-bold w-20 text-right ${
+                            benefNeto == null ? 'text-neutral-300' : benefNeto >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {benefNeto != null ? eur(benefNeto) : '—'}
+                          </span>
+                          <span className={`text-xs tabular-nums font-bold w-12 text-right ${
+                            roi == null ? 'text-neutral-300' : roi >= 15 ? 'text-green-600' : roi >= 0 ? 'text-amber-600' : 'text-red-600'
+                          }`}>
+                            {roi != null ? `${roi.toFixed(0)}%` : '—'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+        </div>
+      )}
+
+      {/* ─── Tabla plana (modo lista) ─── */}
+      {viewMode === 'lista' && (
       <div className="bg-white border border-neutral-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -299,6 +415,7 @@ export default function OperacionesView({ initialData, projects }: Props) {
           </table>
         </div>
       </div>
+      )}
 
       {/* New operation modal */}
       {showNew && (
