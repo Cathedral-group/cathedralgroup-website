@@ -287,6 +287,35 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     })
   }
 
+  const reprocessItem = async () => {
+    if (!selected) return
+    if (selected.review_status !== 'error') {
+      alert('Solo se pueden reprocesar documentos con estado "error".')
+      return
+    }
+    if (!confirm(`¿Reprocesar este documento?\n\nSe eliminará el placeholder actual. El email original (${selected.email_account || 'desconocido'}) deberá reenviarse para que el workflow lo procese de nuevo.\n\nEsta acción no se puede deshacer.`)) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/invoices/reprocess', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      const result = await res.json()
+      setItems(prev => prev.filter(i => i.id !== selected.id))
+      setSelected(null)
+      alert(result.message || '✓ Placeholder eliminado. Reenvía el email para reprocesar.')
+    } catch (err) {
+      alert('Error al reprocesar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const saveAndApprove = async (status: 'confirmado' | 'rechazado') => {
     if (!selected) return
     setSaving(true)
@@ -818,15 +847,24 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t">
-                <button onClick={() => saveAndApprove('confirmado')} disabled={saving}
-                  className="flex-1 bg-green-600 text-white py-2.5 rounded font-medium text-sm hover:bg-green-700 disabled:opacity-50">
-                  {saving ? 'Guardando...' : 'Confirmar'}
-                </button>
-                <button onClick={() => saveAndApprove('rechazado')} disabled={saving}
-                  className="flex-1 bg-red-50 text-red-600 py-2.5 rounded font-medium text-sm hover:bg-red-100 disabled:opacity-50">
-                  Rechazar (duplicado)
-                </button>
+              <div className="flex flex-col gap-2 pt-4 border-t">
+                {selected?.review_status === 'error' && (
+                  <button onClick={reprocessItem} disabled={saving}
+                    className="w-full bg-blue-600 text-white py-2.5 rounded font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
+                    title="Eliminar este placeholder y reprocesar el documento desde el email original">
+                    {saving ? 'Procesando...' : '🔄 Reprocesar (eliminar y reintentar)'}
+                  </button>
+                )}
+                <div className="flex gap-3">
+                  <button onClick={() => saveAndApprove('confirmado')} disabled={saving}
+                    className="flex-1 bg-green-600 text-white py-2.5 rounded font-medium text-sm hover:bg-green-700 disabled:opacity-50">
+                    {saving ? 'Guardando...' : 'Confirmar'}
+                  </button>
+                  <button onClick={() => saveAndApprove('rechazado')} disabled={saving}
+                    className="flex-1 bg-red-50 text-red-600 py-2.5 rounded font-medium text-sm hover:bg-red-100 disabled:opacity-50">
+                    Rechazar (duplicado)
+                  </button>
+                </div>
               </div>
             </div>
           </div>

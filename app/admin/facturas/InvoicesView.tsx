@@ -146,6 +146,16 @@ function parseSugerido(razones: string[] | null | undefined): { code: string; co
   return null
 }
 
+// Parse §FECHA_ERROR / §FECHA_REVISION from ai_razones (validación añadida 26/04/2026)
+function parseFechaAlert(razones: string[] | null | undefined): { level: 'error' | 'review'; reason: string } | null {
+  if (!razones) return null
+  for (const r of razones) {
+    if (r.startsWith('§FECHA_ERROR:')) return { level: 'error', reason: r.replace('§FECHA_ERROR:', '') }
+    if (r.startsWith('§FECHA_REVISION:')) return { level: 'review', reason: r.replace('§FECHA_REVISION:', '') }
+  }
+  return null
+}
+
 export default function InvoicesView({ initialData, projects, suppliers, pageTitle, allTypes = false }: InvoicesViewProps) {
   const router = useRouter()
   const [data, setData] = useState<Invoice[]>(initialData)
@@ -167,7 +177,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
   // Filters
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
-  const [reviewFilter, setReviewFilter] = useState<'todos' | 'errores' | 'revision'>('todos')
+  const [reviewFilter, setReviewFilter] = useState<'todos' | 'errores'>('todos')
   const [search, setSearch] = useState('')
   const [reprocessingId, setReprocessingId] = useState<string | null>(null)
 
@@ -215,7 +225,6 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
       if (!allTypes && !INVOICE_DOC_TYPES.includes(inv.doc_type)) return false
       if (dirFilter !== 'todas' && inv.direction !== dirFilter) return false
       if (reviewFilter === 'errores' && inv.review_status !== 'error') return false
-      if (reviewFilter === 'revision' && !inv.needs_review && inv.review_status !== 'error') return false
       if (statusFilter !== 'todas') {
         if (statusFilter === 'vencida') {
           const isVencida = inv.payment_status === 'vencida' ||
@@ -276,12 +285,11 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
     return list
   }, [data, dirFilter, statusFilter, reviewFilter, search, sortField, sortDir, projectMap, allTypes])
 
-  // Counts for review/error tabs (independent of other filters except allTypes)
+  // Count errores tab (independent of other filters except allTypes)
   const reviewCounts = useMemo(() => {
     const baseList = data.filter((inv) => allTypes || INVOICE_DOC_TYPES.includes(inv.doc_type))
     const errores = baseList.filter((inv) => inv.review_status === 'error').length
-    const revision = baseList.filter((inv) => inv.needs_review || inv.review_status === 'error').length
-    return { errores, revision, total: baseList.length }
+    return { errores, total: baseList.length }
   }, [data, allTypes])
 
 
@@ -558,7 +566,8 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
 
         <div className="w-px h-6 bg-neutral-200" />
 
-        {/* Review / Errores filter */}
+        {/* Errores filter — solo placeholders del workflow con review_status='error'.
+            Para revisión general (needs_review, baja confianza, etc.) usar /admin/revision en sidebar. */}
         <div className="flex gap-1">
           <button
             onClick={() => setReviewFilter('todos')}
@@ -567,16 +576,9 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
             Todos
           </button>
           <button
-            onClick={() => setReviewFilter('revision')}
-            className={`${filterBtnCls(reviewFilter === 'revision')} ${reviewCounts.revision > 0 ? '!text-amber-700' : ''}`}
-            title="Facturas que necesitan revisión manual o tienen error de procesado"
-          >
-            ⚠ Revisión {reviewCounts.revision > 0 && <span className="ml-1 px-1 py-0.5 bg-amber-100 text-amber-800 text-[9px] rounded">{reviewCounts.revision}</span>}
-          </button>
-          <button
             onClick={() => setReviewFilter('errores')}
             className={`${filterBtnCls(reviewFilter === 'errores')} ${reviewCounts.errores > 0 ? '!text-red-700' : ''}`}
-            title="Documentos que el workflow no pudo procesar — necesitan acción manual o reprocesado"
+            title="Documentos que el workflow no pudo procesar — necesitan reprocesado"
           >
             ❌ Errores {reviewCounts.errores > 0 && <span className="ml-1 px-1 py-0.5 bg-red-100 text-red-800 text-[9px] rounded">{reviewCounts.errores}</span>}
           </button>
@@ -679,19 +681,30 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <StatusBadge status={inv.payment_status} />
-                        {inv.review_status === 'error' && (
-                          <span
-                            className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700"
-                            title={inv.concept || 'Error de procesado'}
-                          >
-                            Error procesado
-                          </span>
-                        )}
-                        {inv.needs_review && inv.review_status !== 'error' && (
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">
-                            Revisar
-                          </span>
-                        )}
+                        {(() => {
+                          const fechaAlert = parseFechaAlert(inv.ai_razones)
+                          if (inv.review_status === 'error') {
+                            return (
+                              <span
+                                className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700"
+                                title={fechaAlert?.reason || inv.concept || 'Error de procesado'}
+                              >
+                                {fechaAlert ? '📅 Fecha err.' : 'Error procesado'}
+                              </span>
+                            )
+                          }
+                          if (inv.needs_review) {
+                            return (
+                              <span
+                                className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700"
+                                title={fechaAlert?.reason || 'Revisar'}
+                              >
+                                {fechaAlert ? '📅 Revisar fecha' : 'Revisar'}
+                              </span>
+                            )
+                          }
+                          return null
+                        })()}
                         {inv.es_rectificativa && !inv.linked_invoice_id && (
                           <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-violet-100 text-violet-700">
                             Sin vincular
