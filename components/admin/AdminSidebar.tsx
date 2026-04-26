@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
@@ -199,26 +199,45 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const [refreshing, setRefreshing] = useState(false)
   const [revisionCount, setRevisionCount] = useState<number | null>(null)
   const [errorCount, setErrorCount] = useState<number | null>(null)
-  // Drill-down: label del item padre cuyo árbol estamos mostrando
-  const [drillInto, setDrillInto] = useState<string | null>(null)
+  // Drill-down: label del item padre cuyo árbol estamos mostrando.
+  // Inicializado de forma síncrona desde pathname para que en el primer render
+  // ya aparezca el drill correcto sin parpadeo.
+  const [drillInto, setDrillInto] = useState<string | null>(() => {
+    for (const section of NAV_SECTIONS) {
+      for (const item of section.items) {
+        if (item.children && pathname === item.href.split('?')[0]) {
+          return item.label
+        }
+      }
+    }
+    return null
+  })
 
-  // Auto-detectar drill-down según pathname (al recargar la página, mantener vista profunda)
+  // Track de "el usuario cerró voluntariamente el drill estando en este path".
+  // Sin este ref, al pulsar "Volver al menú" el useEffect siguiente reabriría
+  // el drill instantáneamente porque el pathname sigue siendo el mismo.
+  const userClosedAtPathRef = useRef<string | null>(null)
+
+  // Auto-abrir/cerrar drill cuando cambia el pathname (navegación nueva).
+  // No depende de `drillInto` para no entrar en bucle al cerrar manualmente.
   useEffect(() => {
+    // Si el usuario cerró el drill estando en este mismo path, respetarlo
+    if (userClosedAtPathRef.current === pathname) return
+    // Al cambiar de path, resetear el flag de cierre voluntario
+    userClosedAtPathRef.current = null
+
     let foundDrillItem: string | null = null
     for (const section of NAV_SECTIONS) {
       for (const item of section.items) {
-        if (item.children && pathname.startsWith(item.href.split('?')[0])) {
-          // Solo activar drill si el path coincide exactamente (evitar falsos positivos)
-          if (pathname === item.href.split('?')[0]) {
-            foundDrillItem = item.label
-            break
-          }
+        if (item.children && pathname === item.href.split('?')[0]) {
+          foundDrillItem = item.label
+          break
         }
       }
       if (foundDrillItem) break
     }
-    if (foundDrillItem && drillInto === null) setDrillInto(foundDrillItem)
-  }, [pathname, drillInto])
+    setDrillInto(foundDrillItem)
+  }, [pathname])
 
   useEffect(() => {
     const supabase = createClient()
@@ -417,7 +436,12 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
             <div className="py-3 transition-transform duration-200 ease-out animate-slide-in-right">
               {/* Botón ← Volver + título */}
               <button
-                onClick={() => setDrillInto(null)}
+                onClick={() => {
+                  // Marcar que el usuario cerró voluntariamente en este path
+                  // para que el useEffect no lo reabra inmediatamente
+                  userClosedAtPathRef.current = pathname
+                  setDrillInto(null)
+                }}
                 className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50 transition-colors border-b border-neutral-100"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
