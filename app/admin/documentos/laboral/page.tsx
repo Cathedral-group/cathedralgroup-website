@@ -1,28 +1,7 @@
-import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import DocumentsView from '../DocumentsView'
 
-export default async function LaboralPage() {
-  const authClient = await createServerSupabaseClient()
-  const { data, error } = await authClient.auth.getUser()
-  if (error || !data?.user) redirect('/admin/login')
-
-  const supabase = createAdminSupabaseClient()
-
-  const [docsRes, projectsRes] = await Promise.all([
-    supabase
-      .from('documents')
-      .select('*')
-      .eq('doc_category', 'laboral')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('projects')
-      .select('id, code, name')
-      .is('deleted_at', null)
-      .order('code'),
-  ])
-
-  const projects = (projectsRes.data ?? []).map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))
-  return <DocumentsView category="laboral" initialData={docsRes.data ?? []} projects={projects} />
+// La sección "Laboral" se consolidó en /admin/personal (sesión 19-21).
+// Todo (contratos, nóminas, finiquitos, RNT/RLC, PRL) vive ahí con tablas estructuradas.
+export default function LaboralRedirect() {
+  redirect('/admin/personal')
 }

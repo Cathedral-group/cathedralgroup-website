@@ -1,8 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+
+/* ── Types ── */
+type NavItem = {
+  label: string
+  href: string
+  icon?: React.ReactNode
+  children?: NavItem[]      // sub-items para drill-down
+  badge?: 'red' | 'amber' | 'blue'  // color del badge contador (si lo tiene)
+  badgeKey?: 'errors' | 'review'    // qué counter mostrar
+  countKey?: string         // si los hijos tienen contadores dinámicos, key para resolverlos
+}
+type NavSection = {
+  label: string
+  items: NavItem[]
+}
 
 /* ── SVG Icons ── */
 function IconDashboard() {
@@ -75,8 +90,11 @@ function IconPersonal() {
   return <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
 }
 
-/* ── Navigation structure ── */
-const NAV_SECTIONS = [
+/* ── Navigation structure ──
+   Items con `children` activan drill-down: al click, la sidebar
+   muestra solo los hijos con flecha "← Volver".
+   ────────────────────────────────────────────────────────────── */
+const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Principal',
     items: [
@@ -102,8 +120,33 @@ const NAV_SECTIONS = [
   {
     label: 'Finanzas',
     items: [
-      { label: 'Facturas',       href: '/admin/facturas',      icon: <IconFacturas /> },
-      { label: 'Personal',       href: '/admin/personal',      icon: <IconPersonal /> },
+      {
+        label: 'Facturas',       href: '/admin/facturas',      icon: <IconFacturas />,
+        children: [
+          { label: 'Todas',                href: '/admin/facturas' },
+          { label: '· Emitidas (cobros)',  href: '/admin/facturas?direccion=emitida' },
+          { label: '· Recibidas (pagos)',  href: '/admin/facturas?direccion=recibida' },
+          { label: '— Alertas IA —',       href: '#header' },
+          { label: '❌ Errores',           href: '/admin/facturas?alerta=errores',         badge: 'red',   badgeKey: 'errors' },
+          { label: '✋ Manuscritos',       href: '/admin/facturas?alerta=manuscritos' },
+          { label: '📷 Mala calidad',      href: '/admin/facturas?alerta=mala_calidad' },
+          { label: '❓ Datos dudosos',     href: '/admin/facturas?alerta=datos_dudosos' },
+          { label: '📅 Fecha sospechosa',  href: '/admin/facturas?alerta=fecha_alerta' },
+          { label: '💰 Importe sospechoso',href: '/admin/facturas?alerta=importe_alerta' },
+        ],
+      },
+      {
+        label: 'Personal',       href: '/admin/personal',      icon: <IconPersonal />,
+        badge: 'red', badgeKey: 'errors',
+        children: [
+          { label: '📊 Resumen',           href: '/admin/personal' },
+          { label: '👥 Trabajadores',      href: '/admin/personal?seccion=trabajadores' },
+          { label: '💰 Nóminas y pagos',   href: '/admin/personal?seccion=nominas' },
+          { label: '⏱ Tiempo y permisos', href: '/admin/personal?seccion=tiempo' },
+          { label: '📋 Cumplimiento legal',href: '/admin/personal?seccion=cumplimiento' },
+          { label: '🦺 Prevención (PRL)',  href: '/admin/personal?seccion=prl' },
+        ],
+      },
       { label: 'Informes',       href: '/admin/informes',      icon: <IconInformes /> },
     ],
   },
@@ -115,7 +158,6 @@ const NAV_SECTIONS = [
       { label: 'Licencias',      href: '/admin/documentos/licencias',   icon: <IconLicencias /> },
       { label: 'Seguros',        href: '/admin/documentos/seguros',     icon: <IconSeguros /> },
       { label: 'Fiscal',         href: '/admin/documentos/fiscal',      icon: <IconFiscal /> },
-      { label: 'Laboral',        href: '/admin/documentos/laboral',     icon: <IconLaboral /> },
       { label: 'Flota & Gastos', href: '/admin/documentos/flota',       icon: <IconFlota /> },
       { label: 'Corporativo',    href: '/admin/documentos/corporativo', icon: <IconCorporativo /> },
     ],
@@ -139,10 +181,31 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const [refreshing, setRefreshing] = useState(false)
   const [revisionCount, setRevisionCount] = useState<number | null>(null)
   const [errorCount, setErrorCount] = useState<number | null>(null)
+  // Drill-down: label del item padre cuyo árbol estamos mostrando
+  const [drillInto, setDrillInto] = useState<string | null>(null)
+
+  // Auto-detectar drill-down según pathname (al recargar la página, mantener vista profunda)
+  useEffect(() => {
+    let foundDrillItem: string | null = null
+    for (const section of NAV_SECTIONS) {
+      for (const item of section.items) {
+        if (item.children && pathname.startsWith(item.href.split('?')[0])) {
+          // Solo activar drill si el path coincide exactamente (evitar falsos positivos)
+          if (pathname === item.href.split('?')[0]) {
+            foundDrillItem = item.label
+            break
+          }
+        }
+      }
+      if (foundDrillItem) break
+    }
+    if (foundDrillItem && drillInto === null) setDrillInto(foundDrillItem)
+  }, [pathname, drillInto])
 
   useEffect(() => {
     const supabase = createClient()
@@ -181,7 +244,53 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const isActive = (href: string) =>
     href === '/admin'
       ? pathname === '/admin'
-      : pathname.startsWith(href)
+      : pathname.startsWith(href.split('?')[0])
+
+  // ¿El item del sub-menu está activo? Comparar pathname + query strings
+  const isSubItemActive = (href: string): boolean => {
+    if (href === '#header') return false
+    const [pathPart, queryPart] = href.split('?')
+    if (pathname !== pathPart) return false
+    if (!queryPart) {
+      // Item "default" (sin query) — activo solo si NO hay queries específicos
+      const currentParams = searchParams?.toString() ?? ''
+      // Si existe otro item con query que coincide con current, NO marcar default activo
+      if (drilledItem) {
+        const hasOtherMatch = drilledItem.children?.some(c => {
+          const [cPath, cQuery] = c.href.split('?')
+          return cPath === pathPart && cQuery && currentParams.includes(cQuery)
+        })
+        if (hasOtherMatch) return false
+      }
+      return currentParams === '' || !drilledItem?.children?.some(c => c.href.includes('?') && pathname === c.href.split('?')[0])
+    }
+    // Verificar que cada param del href coincide con searchParams
+    const hrefParams = new URLSearchParams(queryPart)
+    for (const [k, v] of hrefParams) {
+      if (searchParams?.get(k) !== v) return false
+    }
+    return true
+  }
+
+  // Item con drill activo (si lo hay)
+  const drilledItem = useMemo(() => {
+    if (!drillInto) return null
+    for (const section of NAV_SECTIONS) {
+      for (const item of section.items) {
+        if (item.label === drillInto) return item
+      }
+    }
+    return null
+  }, [drillInto])
+
+  // Helpers contadores
+  const getBadge = (badgeKey?: string): { count: number; color: string } | null => {
+    if (badgeKey === 'errors' && errorCount !== null && errorCount > 0)
+      return { count: errorCount, color: 'bg-red-500' }
+    if (badgeKey === 'review' && revisionCount !== null && revisionCount > 0)
+      return { count: revisionCount, color: 'bg-amber-500' }
+    return null
+  }
 
   return (
     <>
@@ -217,53 +326,139 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-3 overflow-y-auto">
-          {NAV_SECTIONS.map((section) => (
-            <div key={section.label} className="mb-1">
-              <p className="px-5 pt-3 pb-1 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-300 select-none">
-                {section.label}
-              </p>
-              {section.items.map(({ label, href, icon }) => {
-                const active = isActive(href)
-                const isRevision = href === '/admin/revision'
-                const isFacturas = href === '/admin/facturas'
-                return (
-                  <a
-                    key={href}
-                    href={href}
-                    onClick={() => {
-                      if (onToggle && typeof window !== 'undefined' && window.innerWidth < 768) {
-                        onToggle()
-                      }
-                    }}
-                    className={`flex items-center gap-2.5 px-5 py-2.5 text-sm transition-colors ${
-                      active
-                        ? 'bg-primary/8 text-primary font-semibold border-r-2 border-primary'
-                        : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
-                    }`}
-                  >
-                    <span className={active ? 'text-primary' : 'text-neutral-400'}>
-                      {icon}
-                    </span>
-                    <span className="flex-1">{label}</span>
-                    {isRevision && revisionCount !== null && revisionCount > 0 && (
-                      <span className="ml-auto bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                        {revisionCount > 99 ? '99+' : revisionCount}
+        <nav className="flex-1 overflow-y-auto relative">
+          {/* ─── VISTA PRINCIPAL ─── */}
+          <div
+            className={`py-3 transition-transform duration-200 ease-out ${
+              drilledItem ? '-translate-x-full opacity-0 pointer-events-none absolute inset-0' : 'translate-x-0 opacity-100'
+            }`}
+          >
+            {NAV_SECTIONS.map((section) => (
+              <div key={section.label} className="mb-1">
+                <p className="px-5 pt-3 pb-1 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-300 select-none">
+                  {section.label}
+                </p>
+                {section.items.map((item) => {
+                  const { label, href, icon, children, badgeKey } = item
+                  const isRevision = href === '/admin/revision'
+                  const isFacturas = href === '/admin/facturas'
+                  const active = isActive(href)
+                  const hasChildren = !!(children && children.length > 0)
+                  // Badges legacy + del propio item
+                  const badge = getBadge(badgeKey)
+                  const showRevisionBadge = isRevision && revisionCount !== null && revisionCount > 0
+                  const showFacturasErrorsBadge = isFacturas && !badge && errorCount !== null && errorCount > 0
+                  return (
+                    <a
+                      key={href}
+                      href={hasChildren ? '#' : href}
+                      onClick={(e) => {
+                        if (hasChildren) {
+                          e.preventDefault()
+                          setDrillInto(label)
+                          return
+                        }
+                        if (onToggle && typeof window !== 'undefined' && window.innerWidth < 768) {
+                          onToggle()
+                        }
+                      }}
+                      className={`flex items-center gap-2.5 px-5 py-2.5 text-sm transition-colors ${
+                        active && !hasChildren
+                          ? 'bg-primary/8 text-primary font-semibold border-r-2 border-primary'
+                          : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
+                      }`}
+                    >
+                      <span className={active && !hasChildren ? 'text-primary' : 'text-neutral-400'}>
+                        {icon}
                       </span>
-                    )}
-                    {isFacturas && errorCount !== null && errorCount > 0 && (
-                      <span
-                        className="ml-auto bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
-                        title={`${errorCount} factura${errorCount > 1 ? 's' : ''} con error de procesado — pulsa Facturas y filtra por ❌ Errores`}
-                      >
-                        {errorCount > 99 ? '99+' : errorCount}
-                      </span>
-                    )}
-                  </a>
-                )
-              })}
+                      <span className="flex-1">{label}</span>
+                      {/* Badges */}
+                      {badge && (
+                        <span className={`${badge.color} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none`}>
+                          {badge.count > 99 ? '99+' : badge.count}
+                        </span>
+                      )}
+                      {showRevisionBadge && (
+                        <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                          {revisionCount! > 99 ? '99+' : revisionCount}
+                        </span>
+                      )}
+                      {showFacturasErrorsBadge && (
+                        <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                          {errorCount! > 99 ? '99+' : errorCount}
+                        </span>
+                      )}
+                      {/* Indicador drill-down */}
+                      {hasChildren && (
+                        <span className="text-neutral-300 text-xs">›</span>
+                      )}
+                    </a>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+
+          {/* ─── VISTA DRILL-DOWN ─── */}
+          {drilledItem && (
+            <div className="py-3 transition-transform duration-200 ease-out animate-slide-in-right">
+              {/* Botón ← Volver + título */}
+              <button
+                onClick={() => setDrillInto(null)}
+                className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50 transition-colors border-b border-neutral-100"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>Volver al menú</span>
+              </button>
+
+              {/* Título de la sección */}
+              <div className="px-5 pt-4 pb-2 flex items-center gap-2">
+                <span className="text-primary">{drilledItem.icon}</span>
+                <span className="text-sm font-bold text-neutral-800">{drilledItem.label}</span>
+              </div>
+
+              {/* Sub-items */}
+              <div className="mt-1">
+                {drilledItem.children!.map((child) => {
+                  if (child.href === '#header') {
+                    // Separador visual
+                    return (
+                      <p key={child.label} className="px-5 pt-4 pb-1 text-[9px] font-bold uppercase tracking-[0.15em] text-neutral-300 select-none">
+                        {child.label.replace(/—/g, '').trim()}
+                      </p>
+                    )
+                  }
+                  const childActive = isSubItemActive(child.href)
+                  const cBadge = getBadge(child.badgeKey)
+                  return (
+                    <a
+                      key={child.href + child.label}
+                      href={child.href}
+                      onClick={() => {
+                        if (onToggle && typeof window !== 'undefined' && window.innerWidth < 768) {
+                          onToggle()
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-5 py-2 text-sm transition-colors ${
+                        childActive
+                          ? 'bg-primary/8 text-primary font-semibold border-r-2 border-primary'
+                          : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
+                      }`}
+                    >
+                      <span className="flex-1">{child.label}</span>
+                      {cBadge && (
+                        <span className={`${cBadge.color} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none`}>
+                          {cBadge.count > 99 ? '99+' : cBadge.count}
+                        </span>
+                      )}
+                    </a>
+                  )
+                })}
+              </div>
             </div>
-          ))}
+          )}
         </nav>
 
         {/* Footer */}

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const MES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -52,7 +52,15 @@ const SECTIONS: { key: SectionKey; label: string; icon: string }[] = [
 
 export default function PersonalView({ data }: { data: DataBundle }) {
   const router = useRouter()
-  const [section, setSection] = useState<SectionKey>('resumen')
+  const searchParams = useSearchParams()
+  // Leer ?seccion= del URL — sincroniza con sidebar drill-down
+  const seccionFromUrl = searchParams?.get('seccion') as SectionKey | null
+  const [section, setSection] = useState<SectionKey>(seccionFromUrl ?? 'resumen')
+  // Mantener sincronizado cuando cambia el URL desde sidebar
+  useEffect(() => {
+    if (seccionFromUrl && seccionFromUrl !== section) setSection(seccionFromUrl)
+    if (!seccionFromUrl && section !== 'resumen') setSection('resumen')
+  }, [seccionFromUrl]) // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<null | 'employee' | 'contract' | 'time' | 'vacation' | 'permit' | 'it' | 'tax' | 'ss' | 'prl' | 'finiquito' | 'agreement' | 'payment' | 'modelo145'>(null)
 
@@ -93,19 +101,13 @@ export default function PersonalView({ data }: { data: DataBundle }) {
         </div>
       </div>
 
-      {/* Tabs principales */}
-      <div className="border-b border-neutral-100 flex gap-1 mb-6 overflow-x-auto">
-        {SECTIONS.map(s => (
-          <button
-            key={s.key}
-            onClick={() => setSection(s.key)}
-            className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors whitespace-nowrap ${
-              section === s.key ? 'border-b-2 border-primary text-primary' : 'text-neutral-400 hover:text-neutral-600'
-            }`}
-          >
-            {s.icon} {s.label}
-          </button>
-        ))}
+      {/* Breadcrumb / título de la sección actual (la navegación principal vive en el sidebar) */}
+      <div className="border-b border-neutral-100 mb-6 pb-3 flex items-center gap-2 text-xs">
+        <span className="text-neutral-400">Personal</span>
+        <span className="text-neutral-300">›</span>
+        <span className="font-bold text-primary">
+          {SECTIONS.find(s => s.key === section)?.icon} {SECTIONS.find(s => s.key === section)?.label}
+        </span>
       </div>
 
       {section === 'resumen'      && <SectionResumen data={data} yearFilter={yearFilter} />}

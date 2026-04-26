@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import InvoiceForm from './InvoiceForm'
 
 type SortField = 'number' | 'direction' | 'concept' | 'amount_base' | 'vat_amount' | 'amount_total' | 'issue_date' | 'due_date' | 'payment_status' | 'created_at'
@@ -203,10 +203,20 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
   const [dedupPreview, setDedupPreview] = useState<Invoice[] | null>(null)
   const [deduping, setDeduping] = useState(false)
 
-  // Filters
-  const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>('todas')
+  // Filters — sincronizados con query strings del URL (sidebar drill-down)
+  const searchParams = useSearchParams()
+  const dirFromUrl = (searchParams?.get('direccion') as 'emitida' | 'recibida' | null) ?? 'todas'
+  const alertaFromUrl = (searchParams?.get('alerta') as 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta' | null) ?? 'todos'
+  const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>(dirFromUrl as 'todas' | 'emitida' | 'recibida')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
-  const [reviewFilter, setReviewFilter] = useState<'todos' | 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta'>('todos')
+  const [reviewFilter, setReviewFilter] = useState<'todos' | 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta'>(alertaFromUrl as 'todos' | 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta')
+  // Sync con URL cuando cambia desde sidebar
+  useEffect(() => {
+    const newDir = (searchParams?.get('direccion') as 'emitida' | 'recibida' | null) ?? 'todas'
+    const newAlerta = (searchParams?.get('alerta') as 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta' | null) ?? 'todos'
+    if (newDir !== dirFilter) setDirFilter(newDir as 'todas' | 'emitida' | 'recibida')
+    if (newAlerta !== reviewFilter) setReviewFilter(newAlerta as 'todos' | 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta')
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState('')
   const [reprocessingId, setReprocessingId] = useState<string | null>(null)
 
@@ -611,19 +621,32 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4 mb-6">
-        {/* Direction tabs — primary filter */}
-        <div className="flex gap-1 border-b border-neutral-100 pb-3 w-full">
-          {(['todas', 'emitida', 'recibida'] as const).map((v) => (
-            <button key={v} onClick={() => setDirFilter(v)} className={filterBtnCls(dirFilter === v)}>
-              {v === 'todas' ? 'Todas' : v === 'emitida' ? 'Emitidas (Cobros)' : 'Recibidas (Pagos)'}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-4 w-full">
+      {/* Breadcrumb / vista actual + filtros secundarios.
+          Los filtros principales (dirección + alertas IA) viven ahora en el sidebar drill-down. */}
+      <div className="border-b border-neutral-100 mb-4 pb-3 flex items-center gap-2 text-xs flex-wrap">
+        <span className="text-neutral-400">Facturas</span>
+        <span className="text-neutral-300">›</span>
+        <span className="font-bold text-primary">
+          {dirFilter === 'todas' ? 'Todas' : dirFilter === 'emitida' ? 'Emitidas (cobros)' : 'Recibidas (pagos)'}
+        </span>
+        {reviewFilter !== 'todos' && (
+          <>
+            <span className="text-neutral-300">·</span>
+            <span className="font-semibold text-amber-700">
+              {reviewFilter === 'errores' && '❌ Errores'}
+              {reviewFilter === 'manuscritos' && '✋ Manuscritos'}
+              {reviewFilter === 'mala_calidad' && '📷 Mala calidad'}
+              {reviewFilter === 'datos_dudosos' && '❓ Datos dudosos'}
+              {reviewFilter === 'fecha_alerta' && '📅 Fecha sospechosa'}
+              {reviewFilter === 'importe_alerta' && '💰 Importe sospechoso'}
+            </span>
+          </>
+        )}
+        <span className="text-neutral-300 ml-auto">{filtered.length} de {data.length}</span>
+      </div>
 
-        {/* Status */}
+      {/* Filtros secundarios: estado de pago + búsqueda */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="flex gap-1">
           {(['todas', 'pendiente', 'pagada', 'vencida'] as const).map((v) => (
             <button key={v} onClick={() => setStatusFilter(v)} className={filterBtnCls(statusFilter === v)}>
@@ -631,80 +654,14 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
             </button>
           ))}
         </div>
-
         <div className="w-px h-6 bg-neutral-200" />
-
-        {/* Filtros de alerta IA — granulares por tipo de problema detectado por GPT-4o.
-            Para revisión general manual usar /admin/revision en sidebar. */}
-        <div className="flex flex-wrap gap-1">
-          <button onClick={() => setReviewFilter('todos')} className={filterBtnCls(reviewFilter === 'todos')}>
-            Todos
-          </button>
-          <button
-            onClick={() => setReviewFilter('errores')}
-            disabled={reviewCounts.errores === 0}
-            className={`${filterBtnCls(reviewFilter === 'errores')} ${reviewCounts.errores > 0 ? '!text-red-700' : 'opacity-30 cursor-not-allowed'}`}
-            title="Documentos que el workflow no pudo procesar — necesitan reprocesado"
-          >
-            ❌ Errores{reviewCounts.errores > 0 && <span className="ml-1 px-1 py-0.5 bg-red-100 text-red-800 text-[9px] rounded">{reviewCounts.errores}</span>}
-          </button>
-          <button
-            onClick={() => setReviewFilter('manuscritos')}
-            disabled={reviewCounts.manuscritos === 0}
-            className={`${filterBtnCls(reviewFilter === 'manuscritos')} ${reviewCounts.manuscritos > 0 ? '!text-orange-700' : 'opacity-30 cursor-not-allowed'}`}
-            title="Documentos escritos a mano (alto riesgo de error en dígitos)"
-          >
-            ✋ Manuscrito{reviewCounts.manuscritos > 0 && <span className="ml-1 px-1 py-0.5 bg-orange-100 text-orange-800 text-[9px] rounded">{reviewCounts.manuscritos}</span>}
-          </button>
-          <button
-            onClick={() => setReviewFilter('mala_calidad')}
-            disabled={reviewCounts.mala_calidad === 0}
-            className={`${filterBtnCls(reviewFilter === 'mala_calidad')} ${reviewCounts.mala_calidad > 0 ? '!text-orange-700' : 'opacity-30 cursor-not-allowed'}`}
-            title="Documentos con calidad de imagen baja (escaneo borroso o foto mala)"
-          >
-            📷 Mala calidad{reviewCounts.mala_calidad > 0 && <span className="ml-1 px-1 py-0.5 bg-orange-100 text-orange-800 text-[9px] rounded">{reviewCounts.mala_calidad}</span>}
-          </button>
-          <button
-            onClick={() => setReviewFilter('datos_dudosos')}
-            disabled={reviewCounts.datos_dudosos === 0}
-            className={`${filterBtnCls(reviewFilter === 'datos_dudosos')} ${reviewCounts.datos_dudosos > 0 ? '!text-yellow-700' : 'opacity-30 cursor-not-allowed'}`}
-            title="Algún campo crítico tiene confianza < 75% según GPT"
-          >
-            ❓ Dudosos{reviewCounts.datos_dudosos > 0 && <span className="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-800 text-[9px] rounded">{reviewCounts.datos_dudosos}</span>}
-          </button>
-          <button
-            onClick={() => setReviewFilter('fecha_alerta')}
-            disabled={reviewCounts.fecha_alerta === 0}
-            className={`${filterBtnCls(reviewFilter === 'fecha_alerta')} ${reviewCounts.fecha_alerta > 0 ? '!text-amber-700' : 'opacity-30 cursor-not-allowed'}`}
-            title="Fecha sospechosa (fuera del trimestre/año en curso o probable error OCR)"
-          >
-            📅 Fecha{reviewCounts.fecha_alerta > 0 && <span className="ml-1 px-1 py-0.5 bg-amber-100 text-amber-800 text-[9px] rounded">{reviewCounts.fecha_alerta}</span>}
-          </button>
-          <button
-            onClick={() => setReviewFilter('importe_alerta')}
-            disabled={reviewCounts.importe_alerta === 0}
-            className={`${filterBtnCls(reviewFilter === 'importe_alerta')} ${reviewCounts.importe_alerta > 0 ? '!text-amber-700' : 'opacity-30 cursor-not-allowed'}`}
-            title="Importe sospechoso (alto, negativo, o incoherente con base+iva)"
-          >
-            💰 Importe{reviewCounts.importe_alerta > 0 && <span className="ml-1 px-1 py-0.5 bg-amber-100 text-amber-800 text-[9px] rounded">{reviewCounts.importe_alerta}</span>}
-          </button>
-        </div>
-
-        <div className="w-px h-6 bg-neutral-200" />
-
-        {/* Search */}
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar..."
-          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-56"
+          placeholder="Buscar nº, concepto, empresa, NIF, proyecto..."
+          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm flex-1 min-w-[200px] max-w-md"
         />
-
-        <span className="text-xs text-neutral-400 ml-auto">
-          {filtered.length} de {data.length}
-        </span>
-        </div>
       </div>
 
       {/* Table */}
