@@ -1,4 +1,5 @@
 /**
+ * @deploy-marker 2026-04-28 — forzar redeploy tras 2 commits no detectados
  * GET /api/health/workflow
  *
  * Healthcheck del workflow n8n de procesamiento de emails Cathedral.
@@ -25,6 +26,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /**
+ * @deploy-marker 2026-04-28 — forzar redeploy tras 2 commits no detectados
  * Devuelve la fecha actual en zona Europe/Madrid (donde opera Cathedral).
  */
 function nowMadrid(): Date {
@@ -32,6 +34,7 @@ function nowMadrid(): Date {
 }
 
 /**
+ * @deploy-marker 2026-04-28 — forzar redeploy tras 2 commits no detectados
  * Detecta si una fecha cae en horario laboral en España (Mon-Fri 8:00-20:00).
  */
 function isLaboralHour(d: Date): boolean {
