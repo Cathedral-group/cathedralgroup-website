@@ -1,5 +1,4 @@
 /**
- * @deploy-marker 2026-04-28 — forzar redeploy tras 2 commits no detectados
  * GET /api/health/workflow
  *
  * Healthcheck del workflow n8n de procesamiento de emails Cathedral.
@@ -15,8 +14,10 @@
  *   - 🟡 warning   → 24-48h sin entrada (puede ser fin de semana)
  *   - 🔴 critical  → >48h sin entrada o errores acumulados
  *
- * Lo llama un Vercel Cron cada 30 min (fix #4b) y un widget
- * visual en /admin/sistema (fix #4c).
+ * Lo llama un Vercel Cron diario a las 9:00 UTC (11:00 hora España) y
+ * un widget visual en /admin/sistema. NOTA: Vercel Hobby limita crons a
+ * 1/día — para checks más frecuentes, upgrade a Pro o usar healthcheck
+ * externo (UptimeRobot/BetterUptime).
  */
 
 import { NextResponse } from 'next/server'
@@ -26,7 +27,6 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /**
- * @deploy-marker 2026-04-28 — forzar redeploy tras 2 commits no detectados
  * Devuelve la fecha actual en zona Europe/Madrid (donde opera Cathedral).
  */
 function nowMadrid(): Date {
@@ -34,7 +34,6 @@ function nowMadrid(): Date {
 }
 
 /**
- * @deploy-marker 2026-04-28 — forzar redeploy tras 2 commits no detectados
  * Detecta si una fecha cae en horario laboral en España (Mon-Fri 8:00-20:00).
  */
 function isLaboralHour(d: Date): boolean {

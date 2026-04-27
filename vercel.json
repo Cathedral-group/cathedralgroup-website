@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/cron/workflow-healthcheck",
-      "schedule": "0,30 * * * *"
+      "schedule": "0 9 * * *"
     }
   ]
 }
