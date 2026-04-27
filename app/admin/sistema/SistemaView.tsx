@@ -2,6 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
+type WorkflowHealth = {
+  status: 'ok' | 'warning' | 'critical'
+  reasons: string[]
+  recommendations: string[]
+  stats: {
+    last_doc_at: string | null
+    hours_since_last: number | null
+    count_24h: number
+    count_7d: number
+    errors_24h: number
+  }
+  laboral_hour_now: boolean
+  checked_at: string
+}
+
 type SystemStatus = {
   timestamp: string
   supabase: {
@@ -34,6 +49,7 @@ function StatusDot({ ok, warning = false }: { ok: boolean; warning?: boolean }) 
 
 export default function SistemaView() {
   const [status, setStatus] = useState<SystemStatus | null>(null)
+  const [health, setHealth] = useState<WorkflowHealth | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -41,13 +57,21 @@ export default function SistemaView() {
   const fetchStatus = useCallback(async () => {
     setRefreshing(true)
     try {
-      const res = await fetch('/api/admin/system-status', { cache: 'no-store' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error || `Error ${res.status}`)
+      // Fetch both endpoints in parallel
+      const [statusRes, healthRes] = await Promise.all([
+        fetch('/api/admin/system-status', { cache: 'no-store' }),
+        fetch('/api/health/workflow', { cache: 'no-store' }),
+      ])
+      if (!statusRes.ok) {
+        const body = await statusRes.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${statusRes.status}`)
       }
-      const data = (await res.json()) as SystemStatus
+      const data = (await statusRes.json()) as SystemStatus
       setStatus(data)
+      if (healthRes.ok) {
+        const healthData = (await healthRes.json()) as WorkflowHealth
+        setHealth(healthData)
+      }
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido')
@@ -100,7 +124,62 @@ export default function SistemaView() {
         </button>
       </div>
 
-      {/* Salud global */}
+      {/* ─── Semáforo del workflow (sesión 25) ─── */}
+      {health && (
+        <div className={`mb-6 p-5 rounded-lg border-2 ${
+          health.status === 'ok' ? 'bg-green-50 border-green-300' :
+          health.status === 'warning' ? 'bg-amber-50 border-amber-300' :
+          'bg-red-50 border-red-300'
+        }`}>
+          <div className="flex items-start gap-4">
+            <div className={`mt-1 h-4 w-4 rounded-full ${
+              health.status === 'ok' ? 'bg-green-500' :
+              health.status === 'warning' ? 'bg-amber-500' :
+              'bg-red-500 animate-pulse'
+            }`} />
+            <div className="flex-1">
+              <p className={`text-lg font-bold ${
+                health.status === 'ok' ? 'text-green-800' :
+                health.status === 'warning' ? 'text-amber-800' :
+                'text-red-800'
+              }`}>
+                {health.status === 'ok' ? '🟢 Workflow procesando con normalidad' :
+                 health.status === 'warning' ? '🟡 Atención: revisar workflow' :
+                 '🔴 Workflow PARADO o con problemas graves'}
+              </p>
+              {health.stats.last_doc_at && (
+                <p className="text-xs text-neutral-600 mt-1">
+                  Último doc procesado: hace <strong>{health.stats.hours_since_last?.toFixed(1)}h</strong> ·
+                  &nbsp;Últimas 24h: <strong>{health.stats.count_24h}</strong> docs ·
+                  &nbsp;Últimos 7d: <strong>{health.stats.count_7d}</strong>
+                  {health.stats.errors_24h > 0 && (
+                    <> · <span className="text-red-600 font-bold">{health.stats.errors_24h} errores</span></>
+                  )}
+                </p>
+              )}
+              {health.reasons.length > 0 && (
+                <ul className={`text-xs mt-2 ml-1 list-disc list-inside ${
+                  health.status === 'critical' ? 'text-red-700' : 'text-amber-700'
+                }`}>
+                  {health.reasons.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              )}
+              {health.recommendations.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-current/20">
+                  <p className={`text-[10px] uppercase tracking-widest font-bold mb-1 ${
+                    health.status === 'critical' ? 'text-red-700' : 'text-amber-700'
+                  }`}>Recomendaciones:</p>
+                  <ul className="text-xs text-neutral-700 list-disc list-inside space-y-0.5">
+                    {health.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salud global (cobertura Drive + errores acumulados) */}
       <div className={`mb-8 p-5 rounded-lg border-2 ${overallOk ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
         <div className="flex items-center gap-3">
           <StatusDot ok={overallOk} warning={!overallOk} />

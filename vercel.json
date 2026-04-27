@@ -3,5 +3,11 @@
     "env": {
       "VERCEL_FORCE_NO_BUILD_CACHE": "1"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/workflow-healthcheck",
+      "schedule": "0,30 * * * *"
+    }
+  ]
 }
