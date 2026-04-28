@@ -1,0 +1,146 @@
+name: Backup n8n workflows
+
+# Por qué este workflow existe
+#   Hace export de TODOS los workflows + metadata de credentials de n8n via
+#   su REST API. El export es JSON, comprimido con gzip, enviado al webhook
+#   n8n que lo sube a Drive (ADMINISTRACION/Backups/n8n-workflows/).
+#
+#   Esto NO incluye los valores de las credentials (n8n no los expone via
+#   API por seguridad). Para recovery completo de credentials hace falta
+#   también el backup del volume Docker (ver scripts/backup-n8n-volume.sh).
+#
+# Cómo activarlo
+#   Mismo patrón que backup-db.yml: workflow_dispatch (manual) por defecto.
+#   Para activar el cron diario, descomentar el bloque `schedule:`.
+#
+# Secrets necesarios
+#   N8N_API_URL          — https://n8n.cathedralgroup.es
+#   N8N_API_KEY          — JWT con permisos read sobre /api/v1/workflows
+#                           (mismo valor que ~/.mcp.json N8N_API_KEY)
+#   BACKUP_WEBHOOK_URL   — https://n8n.cathedralgroup.es/webhook/cathedral-backup-db
+#                           (el mismo webhook ahora soporta multi-tipo via
+#                            header X-Backup-Type)
+#   BACKUP_WEBHOOK_TOKEN — Bearer token (mismo que backup-db)
+#
+# Cómo restaurar workflows desde un backup
+#   Ver RECOVERY.md sección "Recovery de n8n workflows"
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Motivo del backup manual (opcional)'
+        required: false
+        default: 'manual run'
+
+  # ⚠️ DESACTIVADO HASTA CONFIRMACIÓN. Para activar:
+  # schedule:
+  #   - cron: '45 2 * * *'  # 04:45 Madrid (CEST), tras backup-db (que corre 04:30)
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Verify tools
+        run: |
+          jq --version
+          curl --version | head -1
+          gzip --version | head -1
+
+      - name: Export n8n workflows + credential metadata
+        env:
+          N8N_API_URL: ${{ secrets.N8N_API_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${N8N_API_URL:-}" ] || [ -z "${N8N_API_KEY:-}" ]; then
+            echo "::error::N8N_API_URL o N8N_API_KEY no configurados"
+            exit 1
+          fi
+
+          mkdir -p /tmp/n8n-export
+          cd /tmp/n8n-export
+
+          # 1. Lista todos los workflows
+          curl -sS -fail \
+            -H "X-N8N-API-KEY: ${N8N_API_KEY}" \
+            "${N8N_API_URL}/api/v1/workflows?limit=200" > workflows-list.json
+          WF_COUNT=$(jq '.data | length' workflows-list.json)
+          echo "Workflows encontrados: ${WF_COUNT}"
+
+          # 2. Para cada workflow, descarga el detalle completo (incluye nodes + parameters + jsCode)
+          mkdir -p workflows
+          jq -r '.data[].id' workflows-list.json | while read WF_ID; do
+            curl -sS -fail \
+              -H "X-N8N-API-KEY: ${N8N_API_KEY}" \
+              "${N8N_API_URL}/api/v1/workflows/${WF_ID}" > "workflows/${WF_ID}.json"
+            WF_NAME=$(jq -r '.name' "workflows/${WF_ID}.json")
+            echo "  ✓ ${WF_ID} — ${WF_NAME}"
+          done
+
+          # 3. Lista credential metadata (n8n NO expone los valores por seguridad — solo
+          #    name + type + id, suficiente para reconstruir las refs en workflows tras restore)
+          # API n8n: GET /credentials no existe en v1 público. Usamos GET /workflows que ya
+          # contiene credentials.{id,name} en cada nodo que las usa. Suficiente para inventario.
+          jq '[.data[] | .nodes[]? | select(.credentials != null) | {workflow: input_filename, node: .name, type: .type, credentials: .credentials}] | unique' \
+            workflows/*.json > credentials-inventory.json 2>/dev/null || \
+            echo '[]' > credentials-inventory.json
+
+          # 4. Empaquetar en un único JSON
+          jq -n \
+            --slurpfile list workflows-list.json \
+            --slurpfile creds credentials-inventory.json \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg n8n_url "${N8N_API_URL}" \
+            '{
+              meta: { generated_at: $generated_at, n8n_url: $n8n_url, workflow_count: ($list[0].data | length) },
+              workflows: [$list[0].data[]],
+              credentials_inventory: $creds[0]
+            }' > /tmp/n8n_export.json
+
+          # Añadir cada workflow detallado
+          jq --slurpfile detailed <(jq -s '.' workflows/*.json) \
+            '.workflows_detailed = $detailed[0]' /tmp/n8n_export.json > /tmp/n8n_export_full.json
+          mv /tmp/n8n_export_full.json /tmp/n8n_export.json
+
+          ls -lh /tmp/n8n_export.json
+          gzip -9 /tmp/n8n_export.json
+          ls -lh /tmp/n8n_export.json.gz
+
+      - name: Upload to n8n webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.BACKUP_WEBHOOK_URL }}
+          WEBHOOK_TOKEN: ${{ secrets.BACKUP_WEBHOOK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK_URL:-}" ] || [ -z "${WEBHOOK_TOKEN:-}" ]; then
+            echo "::error::BACKUP_WEBHOOK_URL o BACKUP_WEBHOOK_TOKEN no configurados"
+            exit 1
+          fi
+          HTTP_CODE=$(curl -sS -o /tmp/n8n_response.json -w "%{http_code}" \
+            -X POST "${WEBHOOK_URL}" \
+            -H "Authorization: Bearer ${WEBHOOK_TOKEN}" \
+            -H "X-Backup-Type: n8n-workflows" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @/tmp/n8n_export.json.gz)
+          echo "n8n response: ${HTTP_CODE}"
+          cat /tmp/n8n_response.json | head -c 2000
+          echo
+          if [ "${HTTP_CODE}" -ge 400 ]; then
+            echo "::error::n8n upload failed with HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+
+      - name: Save export as GitHub artifact (90 days fallback)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n8n_workflows_export_${{ github.run_id }}
+          path: /tmp/n8n_export.json.gz
+          retention-days: 90
+          if-no-files-found: error

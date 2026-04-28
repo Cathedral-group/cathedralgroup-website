@@ -87,6 +87,7 @@ jobs:
           HTTP_CODE=$(curl -sS -o /tmp/n8n_response.json -w "%{http_code}" \
             -X POST "${WEBHOOK_URL}" \
             -H "Authorization: Bearer ${WEBHOOK_TOKEN}" \
+            -H "X-Backup-Type: db" \
             -H "Content-Type: application/octet-stream" \
             --data-binary @/tmp/cathedral_db.dump.gz)
           echo "n8n response code: ${HTTP_CODE}"
