@@ -46,6 +46,28 @@ interface Invoice {
   drive_file_id?: string | null
   original_filename?: string | null
   due_date_estimated?: boolean | null
+  // Receptor del documento (B1 sesión 27)
+  nif_receptor?: string | null
+  nombre_receptor?: string | null
+  direccion_emisor?: string | null
+  // Fiscal avanzado (B1 + previo)
+  inversion_sujeto_pasivo?: boolean | null
+  tipo_retencion?: string | null
+  retencion_porcentaje?: number | null
+  retencion_importe?: number | null
+  codigo_verificacion?: string | null
+  // Documentos relacionados (B1 + previo)
+  num_albaran?: string | null
+  num_contrato?: string | null
+  num_pedido?: string | null
+  // Comerciales (B1 + previo)
+  iban_proveedor?: string | null
+  plazo_pago_dias?: number | null
+  validez_hasta?: string | null
+  periodo_facturacion?: string | null
+  // Idioma + resumen IA (B1 sesión 27)
+  idioma?: string | null
+  resumen_ia?: string | null
 }
 
 interface InvoiceFormProps {
@@ -101,6 +123,23 @@ const DEFAULTS: Invoice = {
   ai_confidence: null,
   ai_razones: null,
   source: null,
+  nif_receptor: null,
+  nombre_receptor: null,
+  direccion_emisor: null,
+  inversion_sujeto_pasivo: null,
+  tipo_retencion: null,
+  retencion_porcentaje: null,
+  retencion_importe: null,
+  codigo_verificacion: null,
+  num_albaran: null,
+  num_contrato: null,
+  num_pedido: null,
+  iban_proveedor: null,
+  plazo_pago_dias: null,
+  validez_hasta: null,
+  periodo_facturacion: null,
+  idioma: null,
+  resumen_ia: null,
 }
 
 function formatEur(val: number | null): string {
@@ -121,6 +160,8 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
   const [creatingSupplier, setCreatingSupplier] = useState(false)
   const [supplierCreated, setSupplierCreated] = useState(false)
   const [lineasOpen, setLineasOpen] = useState(false)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
+  const toggleSection = (key: string) => setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
 
   async function openSendModal() {
     // Try to get client contact from project → client chain
@@ -841,6 +882,291 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
             placeholder="Notas internas..."
           />
         </div>
+
+        {/* 10. Datos extendidos (extracción IA + edición avanzada) */}
+        {(() => {
+          const filledCount = (...vals: unknown[]) =>
+            vals.filter((v) => v !== null && v !== undefined && v !== '' && v !== false).length
+
+          const sections = [
+            {
+              key: 'receptor',
+              title: 'Receptor del documento',
+              filled: filledCount(form.nif_receptor, form.nombre_receptor),
+              total: 2,
+            },
+            {
+              key: 'emisor_extra',
+              title: 'Emisor — dirección completa',
+              filled: filledCount(form.direccion_emisor),
+              total: 1,
+            },
+            {
+              key: 'fiscal_avanzado',
+              title: 'Fiscal avanzado',
+              filled: filledCount(
+                form.inversion_sujeto_pasivo,
+                form.tipo_retencion,
+                form.retencion_porcentaje,
+                form.retencion_importe,
+                form.codigo_verificacion
+              ),
+              total: 5,
+            },
+            {
+              key: 'docs_relacionados',
+              title: 'Documentos relacionados',
+              filled: filledCount(form.num_albaran, form.num_contrato, form.num_pedido),
+              total: 3,
+            },
+            {
+              key: 'comerciales',
+              title: 'Comerciales',
+              filled: filledCount(
+                form.iban_proveedor,
+                form.plazo_pago_dias,
+                form.validez_hasta,
+                form.periodo_facturacion
+              ),
+              total: 4,
+            },
+            {
+              key: 'idioma_resumen',
+              title: 'Idioma y resumen IA',
+              filled: filledCount(form.idioma, form.resumen_ia),
+              total: 2,
+            },
+          ]
+
+          return (
+            <div className={sectionCls}>
+              <p className={sectionTitle}>Datos extendidos</p>
+              <div className="space-y-2">
+                {sections.map((s) => {
+                  const open = !!openSections[s.key]
+                  return (
+                    <div key={s.key} className="border border-neutral-100 rounded">
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(s.key)}
+                        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-neutral-50 transition-colors"
+                      >
+                        <span className="text-xs font-medium text-neutral-700">{s.title}</span>
+                        <span className="flex items-center gap-2">
+                          {s.filled > 0 && (
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                              {s.filled}/{s.total}
+                            </span>
+                          )}
+                          <span className="text-neutral-400 text-sm">{open ? '▲' : '▼'}</span>
+                        </span>
+                      </button>
+                      {open && (
+                        <div className="px-3 py-3 border-t border-neutral-100 bg-neutral-50/50">
+                          {s.key === 'receptor' && (
+                            <div className="space-y-3">
+                              <div>
+                                <label className={labelCls}>NIF/CIF receptor</label>
+                                <input
+                                  type="text"
+                                  value={form.nif_receptor ?? ''}
+                                  onChange={(e) => set('nif_receptor', e.target.value || null)}
+                                  className={inputCls}
+                                  placeholder="Ej: B19761915"
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Nombre receptor</label>
+                                <input
+                                  type="text"
+                                  value={form.nombre_receptor ?? ''}
+                                  onChange={(e) => set('nombre_receptor', e.target.value || null)}
+                                  className={inputCls}
+                                  placeholder="Ej: Cathedral Group SL"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {s.key === 'emisor_extra' && (
+                            <div>
+                              <label className={labelCls}>Dirección del emisor</label>
+                              <input
+                                type="text"
+                                value={form.direccion_emisor ?? ''}
+                                onChange={(e) => set('direccion_emisor', e.target.value || null)}
+                                className={inputCls}
+                                placeholder="Domicilio fiscal del emisor"
+                              />
+                            </div>
+                          )}
+                          {s.key === 'fiscal_avanzado' && (
+                            <div className="space-y-3">
+                              <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!form.inversion_sujeto_pasivo}
+                                  onChange={(e) => set('inversion_sujeto_pasivo', e.target.checked)}
+                                  className="rounded border-neutral-300 text-primary focus:ring-primary"
+                                />
+                                <span className="text-xs font-medium">Inversión del sujeto pasivo</span>
+                              </label>
+                              <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                  <label className={labelCls}>Tipo retención</label>
+                                  <input
+                                    type="text"
+                                    value={form.tipo_retencion ?? ''}
+                                    onChange={(e) => set('tipo_retencion', e.target.value || null)}
+                                    className={inputCls}
+                                    placeholder="IRPF, alquiler..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Retención %</label>
+                                  <input
+                                    type="number"
+                                    value={form.retencion_porcentaje ?? ''}
+                                    onChange={(e) =>
+                                      set('retencion_porcentaje', e.target.value ? Number(e.target.value) : null)
+                                    }
+                                    className={inputCls}
+                                    step="0.01"
+                                  />
+                                </div>
+                                <MoneyInput
+                                  label="Retención €"
+                                  value={form.retencion_importe ?? null}
+                                  onChange={(v) => set('retencion_importe', v)}
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Código de verificación</label>
+                                <input
+                                  type="text"
+                                  value={form.codigo_verificacion ?? ''}
+                                  onChange={(e) => set('codigo_verificacion', e.target.value || null)}
+                                  className={inputCls}
+                                  placeholder="CSV / código fiscal del documento"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {s.key === 'docs_relacionados' && (
+                            <div className="grid grid-cols-3 gap-3">
+                              <div>
+                                <label className={labelCls}>Nº albarán</label>
+                                <input
+                                  type="text"
+                                  value={form.num_albaran ?? ''}
+                                  onChange={(e) => set('num_albaran', e.target.value || null)}
+                                  className={inputCls}
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Nº contrato</label>
+                                <input
+                                  type="text"
+                                  value={form.num_contrato ?? ''}
+                                  onChange={(e) => set('num_contrato', e.target.value || null)}
+                                  className={inputCls}
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Nº pedido</label>
+                                <input
+                                  type="text"
+                                  value={form.num_pedido ?? ''}
+                                  onChange={(e) => set('num_pedido', e.target.value || null)}
+                                  className={inputCls}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {s.key === 'comerciales' && (
+                            <div className="space-y-3">
+                              <div>
+                                <label className={labelCls}>IBAN proveedor</label>
+                                <input
+                                  type="text"
+                                  value={form.iban_proveedor ?? ''}
+                                  onChange={(e) => set('iban_proveedor', e.target.value || null)}
+                                  className={inputCls}
+                                  placeholder="ES00 0000 0000 0000 0000 0000"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className={labelCls}>Plazo pago (días)</label>
+                                  <input
+                                    type="number"
+                                    value={form.plazo_pago_dias ?? ''}
+                                    onChange={(e) =>
+                                      set('plazo_pago_dias', e.target.value ? Number(e.target.value) : null)
+                                    }
+                                    className={inputCls}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Válido hasta</label>
+                                  <input
+                                    type="date"
+                                    value={form.validez_hasta ?? ''}
+                                    onChange={(e) => set('validez_hasta', e.target.value || null)}
+                                    className={inputCls}
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className={labelCls}>Período facturación</label>
+                                <input
+                                  type="text"
+                                  value={form.periodo_facturacion ?? ''}
+                                  onChange={(e) => set('periodo_facturacion', e.target.value || null)}
+                                  className={inputCls}
+                                  placeholder="Ej: Marzo 2026, Q1 2026..."
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {s.key === 'idioma_resumen' && (
+                            <div className="space-y-3">
+                              <div>
+                                <label className={labelCls}>Idioma del documento</label>
+                                <select
+                                  value={form.idioma ?? ''}
+                                  onChange={(e) => set('idioma', e.target.value || null)}
+                                  className={inputCls}
+                                >
+                                  <option value="">Sin especificar</option>
+                                  <option value="es">Español</option>
+                                  <option value="en">Inglés</option>
+                                  <option value="fr">Francés</option>
+                                  <option value="de">Alemán</option>
+                                  <option value="pt">Portugués</option>
+                                  <option value="it">Italiano</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className={labelCls}>Resumen IA</label>
+                                <textarea
+                                  value={form.resumen_ia ?? ''}
+                                  onChange={(e) => set('resumen_ia', e.target.value || null)}
+                                  rows={3}
+                                  className={inputCls}
+                                  placeholder="Resumen generado por la IA..."
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Supplier suggestion banner */}
         {showSupplierSuggestion && (
