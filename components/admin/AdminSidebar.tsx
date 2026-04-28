@@ -178,6 +178,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Baja confianza',      href: '/admin/revision?cat=baja_confianza' },
           { label: 'Reenviadas',          href: '/admin/revision?cat=reenviadas' },
           { label: 'Huérfanos persistentes', href: '/admin/revision?cat=huerfanos_persistentes', badge: 'red', badgeKey: 'orphans' },
+          { label: 'Documentos pendientes', href: '/admin/revision?cat=documentos_pendientes' },
           { label: 'Resueltos',           href: '/admin/revision?cat=resueltos' },
         ],
       },

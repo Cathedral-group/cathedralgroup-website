@@ -213,6 +213,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
   const [items, setItems] = useState<ReviewItem[]>(initialData)
   const [orphans, setOrphans] = useState<OrphanEmail[]>(initialOrphans)
   const [selected, setSelected] = useState<ReviewItem | null>(null)
+  const [selectedDoc, setSelectedDoc] = useState<PendingDocument | null>(null)
   const [orphanBusy, setOrphanBusy] = useState<number | null>(null)
   // Categoría sincronizada con sidebar drill-down (?cat=...)
   const searchParams = useSearchParams()
@@ -257,6 +258,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
     baja_confianza: pending.filter(i => categorize(i) === 'baja_confianza').length,
     reenviadas: pending.filter(i => categorize(i) === 'reenviadas').length,
     huerfanos_persistentes: orphans.length,
+    documentos_pendientes: pendingDocuments.length,
     resueltos: items.filter(i => ['confirmado', 'rechazado', 'error'].includes(i.review_status)).length,
   }
 
@@ -418,6 +420,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
     { key: 'baja_confianza', label: 'Baja confianza', color: 'bg-yellow-100 text-yellow-700' },
     { key: 'reenviadas', label: 'Reenviadas', color: 'bg-neutral-200 text-neutral-500' },
     { key: 'huerfanos_persistentes', label: 'Huérfanos persistentes', color: 'bg-red-100 text-red-700' },
+    { key: 'documentos_pendientes', label: 'Documentos pendientes', color: 'bg-violet-100 text-violet-700' },
     { key: 'resueltos', label: 'Resueltos', color: 'bg-green-100 text-green-700' },
   ]
 
@@ -456,42 +459,9 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-neutral-800">Revisión</h1>
         <p className="text-sm text-neutral-500 mt-1">
-          {counts.todos_pendientes} facturas pendientes · {counts.procesados_ia} procesadas por IA · {pendingDocuments.length} documentos
+          {counts.todos_pendientes} facturas pendientes · {counts.procesados_ia} procesadas por IA · {counts.documentos_pendientes} documentos · {counts.huerfanos_persistentes} huérfanos
         </p>
       </div>
-
-      {/* Documentos pendientes */}
-      {pendingDocuments.length > 0 && (
-        <div className="mb-6 border border-violet-200 bg-violet-50 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-violet-600 mb-3">
-            Documentos pendientes de revisión ({pendingDocuments.length})
-          </p>
-          <div className="space-y-2">
-            {pendingDocuments.map(doc => {
-              const path = DOC_CATEGORY_PATH[doc.doc_category ?? ''] ?? 'escrituras'
-              return (
-                <a key={doc.id} href={`/admin/documentos/${path}`}
-                  className="flex items-center justify-between bg-white border border-violet-100 px-3 py-2 hover:border-violet-300 transition-colors">
-                  <div>
-                    <span className="text-sm font-medium text-neutral-800">{doc.titulo || doc.doc_type}</span>
-                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-violet-500 bg-violet-100 px-1.5 py-0.5 rounded">
-                      {doc.doc_type}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {doc.ai_confidence !== null && (
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${(doc.ai_confidence as number) >= 0.8 ? 'bg-green-100 text-green-700' : (doc.ai_confidence as number) >= 0.5 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                        {Math.round((doc.ai_confidence as number) * 100)}%
-                      </span>
-                    )}
-                    <span className="text-[10px] text-neutral-400">Ver →</span>
-                  </div>
-                </a>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Search + Category chips */}
       <div className="flex items-center gap-3 mb-3">
@@ -522,6 +492,68 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
           )
         })}
       </div>
+
+      {/* Tabla documentos pendientes */}
+      {category === 'documentos_pendientes' && (
+        <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden">
+          <div className="px-4 py-3 bg-violet-50 border-b border-violet-100 text-xs text-violet-700">
+            <strong>Documentos pendientes de revisión:</strong> filas de la tabla <code>documents</code> (escrituras, contratos, licencias, seguros, fiscal, laboral, flota, corporativo) detectadas por IA pero sin clasificar/titular. Click en una fila para ver datos extraídos.
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-neutral-50 border-b">
+                  <th className="text-left p-3 font-medium text-neutral-600">Título / Tipo</th>
+                  <th className="text-left p-3 font-medium text-neutral-600">Categoría</th>
+                  <th className="text-center p-3 font-medium text-neutral-600">IA</th>
+                  <th className="text-left p-3 font-medium text-neutral-600">Fecha</th>
+                  <th className="text-right p-3 font-medium text-neutral-600">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingDocuments.map(doc => (
+                  <tr key={doc.id} onClick={() => setSelectedDoc(doc)}
+                    className="border-b cursor-pointer hover:bg-neutral-50">
+                    <td className="p-3">
+                      <div className="text-sm font-medium text-neutral-800">{doc.titulo || `(sin título)`}</div>
+                      <div className="text-[11px] text-neutral-400 mt-0.5">
+                        <span className="inline-block px-2 py-0.5 rounded bg-neutral-100 text-neutral-600 font-bold uppercase">{doc.doc_type}</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-xs">
+                      {doc.doc_category ? (
+                        <span className="inline-block px-2 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px] font-bold uppercase">{doc.doc_category}</span>
+                      ) : (
+                        <span className="text-neutral-400">--</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center"><ConfidenceBadge confidence={doc.ai_confidence} /></td>
+                    <td className="p-3 text-xs">{formatDate(doc.created_at)}</td>
+                    <td className="p-3 text-right">
+                      {(doc.drive_url as string | undefined) && (
+                        <a href={doc.drive_url as string} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="text-xs text-blue-600 hover:underline mr-2">Drive ↗</a>
+                      )}
+                      <button onClick={e => { e.stopPropagation(); setSelectedDoc(doc) }}
+                        className="text-xs bg-violet-600 text-white px-2.5 py-1 rounded hover:bg-violet-700">
+                        Ver detalle
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {pendingDocuments.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-neutral-400">
+                      No hay documentos pendientes ✓
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Tabla huérfanos persistentes */}
       {category === 'huerfanos_persistentes' && (
@@ -597,7 +629,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
       )}
 
       {/* Table */}
-      {category !== 'huerfanos_persistentes' && (
+      {category !== 'huerfanos_persistentes' && category !== 'documentos_pendientes' && (
       <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -673,6 +705,52 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
           </table>
         </div>
       </div>
+      )}
+
+      {/* Slide-out panel para documento seleccionado (de tabla 'documents') */}
+      {selectedDoc && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedDoc(null)} />
+          <div className="relative w-full max-w-lg bg-white shadow-xl overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold">{selectedDoc.titulo || '(sin título)'}</h2>
+                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-violet-100 text-violet-700">{selectedDoc.doc_type}</span>
+              </div>
+              <button onClick={() => setSelectedDoc(null)} className="text-neutral-400 hover:text-neutral-600 text-xl">&times;</button>
+            </div>
+            <div className="p-4 space-y-4 text-sm">
+              {(selectedDoc.resumen_ia as string | undefined) && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-1">Resumen IA</p>
+                  <p className="text-blue-900 leading-relaxed">{selectedDoc.resumen_ia as string}</p>
+                </div>
+              )}
+              <div className="bg-neutral-50 rounded p-3 grid grid-cols-2 gap-2 text-xs">
+                <div><span className="text-neutral-400">Categoría:</span> {selectedDoc.doc_category as string || '--'}</div>
+                <div><span className="text-neutral-400">Confianza:</span> <ConfidenceBadge confidence={selectedDoc.ai_confidence} /></div>
+                <div><span className="text-neutral-400">Origen:</span> {selectedDoc.source as string || '--'}</div>
+                <div><span className="text-neutral-400">Fecha doc:</span> {formatDate(selectedDoc.fecha_documento as string)}</div>
+                <div className="col-span-2 break-all"><span className="text-neutral-400">Original:</span> {selectedDoc.original_filename as string || '--'}</div>
+                {(selectedDoc.drive_url as string | undefined) && (
+                  <div className="col-span-2"><a href={selectedDoc.drive_url as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver en Google Drive →</a></div>
+                )}
+              </div>
+              {(selectedDoc.datos_extraidos as object | undefined) && (
+                <div className="bg-neutral-50 rounded p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Datos extraídos por IA</p>
+                  <pre className="text-[11px] overflow-x-auto max-h-64">{JSON.stringify(selectedDoc.datos_extraidos, null, 2)}</pre>
+                </div>
+              )}
+              {(selectedDoc.texto_completo as string | undefined) && (
+                <details className="bg-neutral-50 rounded p-3">
+                  <summary className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 cursor-pointer">Texto completo (extracción OCR)</summary>
+                  <pre className="text-[11px] overflow-x-auto whitespace-pre-wrap mt-2 max-h-96">{selectedDoc.texto_completo as string}</pre>
+                </details>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Slide-out detail panel */}
