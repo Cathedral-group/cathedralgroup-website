@@ -80,14 +80,36 @@ interface Props {
   projects: { value: string; label: string }[]
 }
 
+type ViewMode = 'tipo' | 'estado' | 'año' | 'lista'
+
+const ESTADO_LABELS: Record<string, string> = {
+  vigente: 'Vigentes',
+  pendiente: 'Pendientes',
+  presentado: 'Presentados',
+  vencido: 'Vencidos',
+  cancelado: 'Cancelados',
+  caducado: 'Caducados',
+  sin_estado: 'Sin estado',
+}
+
+function KpiCard({ label, value, hint, accent }: { label: string; value: string; hint?: string; accent?: 'amber' | 'red' }) {
+  const accentCls = accent === 'red' ? 'text-red-600' : accent === 'amber' ? 'text-amber-600' : 'text-neutral-900'
+  return (
+    <div className="bg-white border border-neutral-100 px-4 py-3">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">{label}</p>
+      <p className={`text-lg font-medium mt-0.5 ${accentCls}`}>{value}</p>
+      {hint && <p className="text-[10px] text-neutral-400 mt-0.5">{hint}</p>}
+    </div>
+  )
+}
+
 export default function DocumentsView({ category, initialData, projects }: Props) {
   const config = CONFIG_MAP[category] ?? ESCRITURAS_CONFIG
   const [data, setData] = useState<Document[]>(initialData)
   const [selected, setSelected] = useState<Document | null>(null)
   const [form, setForm] = useState<Document | null>(null)
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('todos')
-  const [estadoFilter, setEstadoFilter] = useState<string>('todos')
+  const [viewMode, setViewMode] = useState<ViewMode>('tipo')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -97,8 +119,6 @@ export default function DocumentsView({ category, initialData, projects }: Props
 
   const filtered = useMemo(() => {
     return data.filter(d => {
-      if (typeFilter !== 'todos' && d.doc_type !== typeFilter) return false
-      if (estadoFilter !== 'todos' && d.estado !== estadoFilter) return false
       if (search) {
         const q = search.toLowerCase()
         const hay = [d.titulo, d.partes, d.proyecto_code, d.original_filename, d.resumen_ia,
@@ -107,7 +127,55 @@ export default function DocumentsView({ category, initialData, projects }: Props
       }
       return true
     })
-  }, [data, typeFilter, estadoFilter, search])
+  }, [data, search])
+
+  /* ───────── KPIs (patrón coherente Cathedral) ───────── */
+  const kpis = useMemo(() => {
+    const vigentes = data.filter(d => d.estado === 'vigente').length
+    const proximos = data.filter(d => {
+      if (!d.fecha_vencimiento || d.estado === 'cancelado') return false
+      const days = daysUntil(d.fecha_vencimiento)
+      return days !== null && days >= 0 && days <= 30
+    }).length
+    const vencidos = data.filter(d => {
+      if (!d.fecha_vencimiento || d.estado === 'cancelado') return false
+      const days = daysUntil(d.fecha_vencimiento)
+      return days !== null && days < 0
+    }).length
+    return { total: data.length, vigentes, proximos, vencidos }
+  }, [data])
+
+  /* ───────── Agrupación según viewMode ───────── */
+  function groupKey(d: Document): { key: string; label: string; sortKey: string } {
+    if (viewMode === 'tipo') {
+      const k = d.doc_type || 'sin_tipo'
+      const cfg = config.docTypes.find(t => t.value === k)
+      return { key: k, label: cfg?.label ?? k, sortKey: cfg?.label ?? k }
+    }
+    if (viewMode === 'estado') {
+      const k = d.estado || 'sin_estado'
+      return { key: k, label: ESTADO_LABELS[k] ?? k, sortKey: k }
+    }
+    if (viewMode === 'año') {
+      const ref = d.fecha_documento || d.fecha_vencimiento
+      if (!ref) return { key: 'sin_fecha', label: 'Sin fecha', sortKey: '0000' }
+      const year = ref.slice(0, 4)
+      return { key: year, label: year, sortKey: `9999-${9999 - parseInt(year)}` }
+    }
+    return { key: 'all', label: 'Todos', sortKey: 'all' }
+  }
+
+  const grouped = useMemo(() => {
+    if (viewMode === 'lista') return null
+    const groups: Record<string, { label: string; sortKey: string; items: Document[] }> = {}
+    for (const d of filtered) {
+      const { key, label, sortKey } = groupKey(d)
+      if (!groups[key]) groups[key] = { label, sortKey, items: [] }
+      groups[key].items.push(d)
+    }
+    return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, viewMode, config])
 
   const openNew = () => {
     setSelected(null)
@@ -167,11 +235,6 @@ export default function DocumentsView({ category, initialData, projects }: Props
     }
   }
 
-  const filterBtn = (active: boolean) =>
-    `px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors rounded ${
-      active ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-400 hover:text-neutral-600'
-    }`
-
   const vencimientosProximos = data.filter(d => {
     if (!d.fecha_vencimiento || d.estado === 'cancelado') return false
     const days = daysUntil(d.fecha_vencimiento)
@@ -181,11 +244,19 @@ export default function DocumentsView({ category, initialData, projects }: Props
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-5">
         <h1 className="text-xl font-medium uppercase tracking-wide">{config.title}</h1>
         <button onClick={openNew} className="bg-neutral-900 text-white px-6 py-2.5 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors">
           + Nuevo
         </button>
+      </div>
+
+      {/* ─── KPIs (patrón coherente Cathedral) ─── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <KpiCard label="Documentos" value={String(kpis.total)} />
+        <KpiCard label="Vigentes" value={String(kpis.vigentes)} />
+        <KpiCard label="Vencen ≤30d" value={String(kpis.proximos)} accent={kpis.proximos > 0 ? 'amber' : undefined} />
+        <KpiCard label="Vencidos" value={String(kpis.vencidos)} accent={kpis.vencidos > 0 ? 'red' : undefined} />
       </div>
 
       {/* Alerta vencimientos próximos */}
@@ -199,33 +270,31 @@ export default function DocumentsView({ category, initialData, projects }: Props
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        {/* Type filter */}
-        <div className="flex gap-1 flex-wrap">
-          <button onClick={() => setTypeFilter('todos')} className={filterBtn(typeFilter === 'todos')}>Todos</button>
-          {config.docTypes.map(t => (
-            <button key={t.value} onClick={() => setTypeFilter(t.value)} className={filterBtn(typeFilter === t.value)}>{t.label}</button>
-          ))}
-        </div>
-        <div className="w-px h-6 bg-neutral-200 hidden sm:block" />
-        {/* Estado filter */}
-        <div className="flex gap-1">
-          {['todos', 'vigente', 'pendiente', 'presentado', 'vencido', 'cancelado'].map(e => (
-            <button key={e} onClick={() => setEstadoFilter(e)} className={filterBtn(estadoFilter === e)}>
-              {e === 'todos' ? 'Todos' : e}
-            </button>
-          ))}
-        </div>
-        <div className="w-px h-6 bg-neutral-200 hidden sm:block" />
+      {/* ─── Selector de modos + buscador ─── */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-1">Vista:</span>
+        {(['tipo', 'estado', 'año', 'lista'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
+              viewMode === mode
+                ? 'bg-neutral-900 text-white'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            }`}
+          >
+            {mode === 'lista' ? 'Lista' : `Por ${mode}`}
+          </button>
+        ))}
         <input
           type="text" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar..." className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-52"
+          placeholder="Buscar..."
+          className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-52 ml-auto"
         />
-        <span className="text-xs text-neutral-400 ml-auto">{filtered.length} de {data.length}</span>
       </div>
 
-      {/* Table */}
+      {/* ─── Vista lista (tabla) ─── */}
+      {viewMode === 'lista' && (
       <div className="bg-white border border-neutral-100 overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -309,6 +378,77 @@ export default function DocumentsView({ category, initialData, projects }: Props
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* ─── Vista agrupada (modos tipo/estado/año) ─── */}
+      {viewMode !== 'lista' && grouped && (
+        <div className="space-y-4">
+          {Object.keys(grouped).length === 0 && (
+            <div className="bg-white border border-neutral-100 px-4 py-8 text-center text-sm text-neutral-400">
+              Sin documentos
+            </div>
+          )}
+          {Object.entries(grouped)
+            .sort((a, b) => a[1].sortKey.localeCompare(b[1].sortKey))
+            .map(([key, group]) => {
+              const totalImporte = group.items.reduce((sum, d) => sum + (d.importe ?? 0), 0)
+              return (
+                <div key={key} className="bg-white border border-neutral-100">
+                  <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-700">{group.label}</h3>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                        {group.items.length} doc{group.items.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    {totalImporte > 0 && (
+                      <span className="text-xs tabular-nums text-neutral-500">{formatEur(totalImporte)}</span>
+                    )}
+                  </div>
+                  <div className="divide-y divide-neutral-50">
+                    {group.items.map((doc) => {
+                      const days = daysUntil(doc.fecha_vencimiento)
+                      const tipoLabel = config.docTypes.find(t => t.value === doc.doc_type)?.label ?? doc.doc_type
+                      return (
+                        <div
+                          key={doc.id}
+                          onClick={() => openEdit(doc)}
+                          className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{doc.titulo || '—'}</p>
+                            <p className="text-[10px] text-neutral-400 uppercase tracking-wider mt-0.5">
+                              {viewMode !== 'tipo' && <span>{tipoLabel}</span>}
+                              {doc.proyecto_code && <span className="ml-2 text-violet-500">{doc.proyecto_code}</span>}
+                              {doc.needs_review && <span className="ml-2 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Revisar</span>}
+                            </p>
+                          </div>
+                          <span className="hidden sm:inline text-xs tabular-nums text-neutral-500 w-24 text-right">
+                            {doc.importe != null ? formatEur(doc.importe) : '—'}
+                          </span>
+                          <span className="hidden md:inline text-xs w-32 text-right">
+                            {viewMode === 'estado'
+                              ? (doc.fecha_documento
+                                  ? new Date(doc.fecha_documento + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+                                  : '—')
+                              : <EstadoBadge estado={doc.estado} />}
+                          </span>
+                          <span className="text-xs w-28 text-right">
+                            {days != null ? (
+                              <span className={days < 0 ? 'text-red-600 font-semibold' : days < 15 ? 'text-red-500' : days < 30 ? 'text-amber-500' : 'text-green-600'}>
+                                {formatDate(doc.fecha_vencimiento)}
+                              </span>
+                            ) : <span className="text-neutral-300">—</span>}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+        </div>
+      )}
 
       {/* Slide-out form panel */}
       {form && (
