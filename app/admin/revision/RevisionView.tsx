@@ -90,9 +90,23 @@ interface PendingDocument {
   [key: string]: unknown
 }
 
+interface OrphanEmail {
+  id: number
+  message_id: string
+  gmail_account: string
+  subject: string | null
+  from_address: string | null
+  received_at: string | null
+  attempt_count: number
+  last_attempt_at: string | null
+  last_error: string | null
+  created_at: string
+}
+
 interface RevisionViewProps {
   initialData: ReviewItem[]
   pendingDocuments?: PendingDocument[]
+  initialOrphans?: OrphanEmail[]
   projects: { value: string; label: string; code?: string }[]
   suppliers: { value: string; label: string }[]
   userEmail?: string
@@ -195,9 +209,11 @@ const DOC_CATEGORY_PATH: Record<string, string> = {
   corporativo: 'corporativo',
 }
 
-export default function RevisionView({ initialData, pendingDocuments = [], projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
+export default function RevisionView({ initialData, pendingDocuments = [], initialOrphans = [], projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
   const [items, setItems] = useState<ReviewItem[]>(initialData)
+  const [orphans, setOrphans] = useState<OrphanEmail[]>(initialOrphans)
   const [selected, setSelected] = useState<ReviewItem | null>(null)
+  const [orphanBusy, setOrphanBusy] = useState<number | null>(null)
   // Categoría sincronizada con sidebar drill-down (?cat=...)
   const searchParams = useSearchParams()
   const catFromUrl = searchParams?.get('cat') ?? 'todos_pendientes'
@@ -240,6 +256,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     datos_incompletos: pending.filter(i => categorize(i) === 'datos_incompletos').length,
     baja_confianza: pending.filter(i => categorize(i) === 'baja_confianza').length,
     reenviadas: pending.filter(i => categorize(i) === 'reenviadas').length,
+    huerfanos_persistentes: orphans.length,
     resueltos: items.filter(i => ['confirmado', 'rechazado', 'error'].includes(i.review_status)).length,
   }
 
@@ -400,8 +417,37 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
     { key: 'datos_incompletos', label: 'Datos incompletos', color: 'bg-blue-100 text-blue-700' },
     { key: 'baja_confianza', label: 'Baja confianza', color: 'bg-yellow-100 text-yellow-700' },
     { key: 'reenviadas', label: 'Reenviadas', color: 'bg-neutral-200 text-neutral-500' },
+    { key: 'huerfanos_persistentes', label: 'Huérfanos persistentes', color: 'bg-red-100 text-red-700' },
     { key: 'resueltos', label: 'Resueltos', color: 'bg-green-100 text-green-700' },
   ]
+
+  const ignoreOrphan = async (id: number) => {
+    if (!confirm('¿Marcar este huérfano como ignorado?\n\nEl cron auditor no volverá a intentar reprocesarlo automáticamente.')) return
+    setOrphanBusy(id)
+    try {
+      const res = await fetch(`/api/audit/email-coverage/${id}/ignore`, { method: 'POST' })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      setOrphans(prev => prev.filter(o => o.id !== id))
+    } catch (err) {
+      alert('Error: ' + (err instanceof Error ? err.message : 'desconocido'))
+    } finally {
+      setOrphanBusy(null)
+    }
+  }
+
+  const retryOrphan = async (id: number) => {
+    if (!confirm('¿Reintentar este huérfano?\n\nEl próximo ciclo del cron auditor (n8n) volverá a intentar inyectarlo en el workflow.')) return
+    setOrphanBusy(id)
+    try {
+      const res = await fetch(`/api/audit/email-coverage/${id}/retry`, { method: 'POST' })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      setOrphans(prev => prev.filter(o => o.id !== id))
+    } catch (err) {
+      alert('Error: ' + (err instanceof Error ? err.message : 'desconocido'))
+    } finally {
+      setOrphanBusy(null)
+    }
+  }
 
   const ai = selected?.ai_data
 
@@ -477,7 +523,81 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
         })}
       </div>
 
+      {/* Tabla huérfanos persistentes */}
+      {category === 'huerfanos_persistentes' && (
+        <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden">
+          <div className="px-4 py-3 bg-red-50 border-b border-red-100 text-xs text-red-700">
+            <strong>Huérfanos persistentes:</strong> emails con adjunto detectados en Gmail que el workflow no procesó tras 2 reintentos automáticos.
+            Decide manualmente si reintentar o ignorar.
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-neutral-50 border-b">
+                  <th className="text-left p-3 font-medium text-neutral-600">Cuenta</th>
+                  <th className="text-left p-3 font-medium text-neutral-600">Asunto</th>
+                  <th className="text-left p-3 font-medium text-neutral-600">De</th>
+                  <th className="text-left p-3 font-medium text-neutral-600">Recibido</th>
+                  <th className="text-center p-3 font-medium text-neutral-600">Intentos</th>
+                  <th className="text-left p-3 font-medium text-neutral-600">Último error</th>
+                  <th className="text-right p-3 font-medium text-neutral-600">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orphans.map(o => (
+                  <tr key={o.id} className="border-b hover:bg-neutral-50">
+                    <td className="p-3 text-xs font-mono text-neutral-600">{o.gmail_account}</td>
+                    <td className="p-3 text-xs">
+                      <div className="max-w-[280px] truncate">{o.subject || '(sin asunto)'}</div>
+                      <div className="text-[10px] text-neutral-400 font-mono mt-0.5">{o.message_id}</div>
+                    </td>
+                    <td className="p-3 text-xs">
+                      <div className="max-w-[180px] truncate">{o.from_address || '--'}</div>
+                    </td>
+                    <td className="p-3 text-xs">{formatDate(o.received_at)}</td>
+                    <td className="p-3 text-center">
+                      <span className="inline-block px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold">
+                        {o.attempt_count}
+                      </span>
+                    </td>
+                    <td className="p-3 text-[11px] text-neutral-500">
+                      <div className="max-w-[200px] truncate">{o.last_error || '--'}</div>
+                    </td>
+                    <td className="p-3 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => retryOrphan(o.id)}
+                        disabled={orphanBusy === o.id}
+                        className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded hover:bg-blue-700 disabled:opacity-50 mr-1"
+                        title="Resetear contador y reintentar en el próximo ciclo del cron"
+                      >
+                        🔁 Reintentar
+                      </button>
+                      <button
+                        onClick={() => ignoreOrphan(o.id)}
+                        disabled={orphanBusy === o.id}
+                        className="text-xs bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded hover:bg-neutral-200 disabled:opacity-50"
+                        title="No volver a intentar"
+                      >
+                        Ignorar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {orphans.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-neutral-400">
+                      No hay huérfanos persistentes ✓ El cron auditor está cubriendo todos los emails detectados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
+      {category !== 'huerfanos_persistentes' && (
       <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -553,6 +673,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], proje
           </table>
         </div>
       </div>
+      )}
 
       {/* Slide-out detail panel */}
       {selected && (

@@ -9,7 +9,7 @@ export default async function RevisionPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const [pending, pendingDocs, projectsRes, suppliersRes] = await Promise.all([
+  const [pending, pendingDocs, projectsRes, suppliersRes, orphansRes] = await Promise.all([
     fetchAllRows((sb) =>
       sb
         .from('invoices')
@@ -26,6 +26,15 @@ export default async function RevisionPage() {
       .order('created_at', { ascending: false }),
     supabase.from('projects').select('id, code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
+    // Huérfanos persistentes detectados por el cron auditor n8n.
+    // Tolera ausencia de tabla (migración pendiente de aplicar) → array vacío.
+    supabase
+      .from('email_audit_attempts')
+      .select('id, message_id, gmail_account, subject, from_address, received_at, attempt_count, last_attempt_at, last_error, created_at')
+      .eq('status', 'persistent_orphan')
+      .order('received_at', { ascending: false, nullsFirst: false })
+      .limit(500)
+      .then((r) => r, () => ({ data: [], error: null })),
   ])
 
   const projects = (projectsRes.data ?? []).map((p) => ({
@@ -45,6 +54,8 @@ export default async function RevisionPage() {
       initialData={pending as any}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       pendingDocuments={(pendingDocs.data ?? []) as any}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      initialOrphans={(orphansRes.data ?? []) as any}
       projects={projects}
       suppliers={suppliers}
       userEmail={data.user.email ?? 'admin'}

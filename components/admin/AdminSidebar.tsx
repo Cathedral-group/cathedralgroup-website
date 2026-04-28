@@ -11,7 +11,7 @@ type NavItem = {
   icon?: React.ReactNode
   children?: NavItem[]      // sub-items para drill-down
   badge?: 'red' | 'amber' | 'blue'  // color del badge contador (si lo tiene)
-  badgeKey?: 'errors' | 'review'    // qué counter mostrar
+  badgeKey?: 'errors' | 'review' | 'orphans'    // qué counter mostrar
   countKey?: string         // si los hijos tienen contadores dinámicos, key para resolverlos
 }
 type NavSection = {
@@ -167,6 +167,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       {
         label: 'Revisión IA',    href: '/admin/revision',      icon: <IconRevision />,
+        badge: 'red', badgeKey: 'orphans',
         children: [
           { label: 'Todos pendientes',    href: '/admin/revision' },
           { label: 'Procesados IA',       href: '/admin/revision?cat=procesados_ia' },
@@ -176,6 +177,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Datos incompletos',   href: '/admin/revision?cat=datos_incompletos' },
           { label: 'Baja confianza',      href: '/admin/revision?cat=baja_confianza' },
           { label: 'Reenviadas',          href: '/admin/revision?cat=reenviadas' },
+          { label: 'Huérfanos persistentes', href: '/admin/revision?cat=huerfanos_persistentes', badge: 'red', badgeKey: 'orphans' },
           { label: 'Resueltos',           href: '/admin/revision?cat=resueltos' },
         ],
       },
@@ -199,6 +201,7 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const [refreshing, setRefreshing] = useState(false)
   const [revisionCount, setRevisionCount] = useState<number | null>(null)
   const [errorCount, setErrorCount] = useState<number | null>(null)
+  const [orphanCount, setOrphanCount] = useState<number | null>(null)
   // Drill-down: label del item padre cuyo árbol estamos mostrando.
   // Inicializado de forma síncrona desde pathname para que en el primer render
   // ya aparezca el drill correcto sin parpadeo.
@@ -256,6 +259,15 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       .eq('review_status', 'error')
       .is('deleted_at', null)
       .then(({ count }) => { if (count !== null) setErrorCount(count) })
+    // Huérfanos persistentes: emails detectados que el cron auditor no pudo
+    // reprocesar. Tolera ausencia de tabla (migración pendiente) → null silencioso.
+    supabase
+      .from('email_audit_attempts')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'persistent_orphan')
+      .then(({ count, error: err }) => {
+        if (!err && count !== null) setOrphanCount(count)
+      })
   }, [])
 
   const handleLogout = async () => {
@@ -321,6 +333,8 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       return { count: errorCount, color: 'bg-red-500' }
     if (badgeKey === 'review' && revisionCount !== null && revisionCount > 0)
       return { count: revisionCount, color: 'bg-amber-500' }
+    if (badgeKey === 'orphans' && orphanCount !== null && orphanCount > 0)
+      return { count: orphanCount, color: 'bg-red-500' }
     return null
   }
 
