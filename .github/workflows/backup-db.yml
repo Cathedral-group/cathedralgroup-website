@@ -1,0 +1,117 @@
+name: Backup BD Supabase
+
+# Por qué este workflow existe
+#   Hace pg_dump en formato custom comprimido (restaurable a la perfección
+#   con pg_restore) y lo envía al webhook n8n que lo sube a Drive
+#   (ADMINISTRACION/Backups/Supabase/) aplicando política de retention:
+#   30 diarios + 52 semanales + ∞ mensuales.
+#
+# Cómo activarlo
+#   1. Verificar que los GitHub Secrets están configurados (ver sección
+#      "Secrets necesarios" más abajo).
+#   2. Quitar el comentario al bloque `schedule:` para que corra automáticamente.
+#      Mientras esté comentado, solo se ejecuta manualmente desde la UI de
+#      GitHub Actions (workflow_dispatch).
+#
+# Cómo restaurar un backup
+#   Ver scripts/restore-db.sh
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Motivo del backup manual (opcional)'
+        required: false
+        default: 'manual run'
+
+  # ⚠️ DESACTIVADO HASTA CONFIRMACIÓN. Para activar el cron diario, descomentar:
+  # schedule:
+  #   - cron: '30 2 * * *'  # 04:30 Europe/Madrid (CEST=UTC+2) en verano,
+  #                          # 03:30 en invierno (CET=UTC+1). Tras cron auditor.
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Install postgresql-client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client gzip
+
+      - name: Verify Postgres tools
+        run: |
+          pg_dump --version
+          gzip --version | head -1
+
+      - name: Create dump
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::SUPABASE_DATABASE_URL no configurado"
+            exit 1
+          fi
+          # pg_dump --format=custom: formato binario, compresible, restaurable
+          # con pg_restore (parcial o completo). El estándar Postgres.
+          # --no-owner, --no-acl: evita problemas al restaurar a otra BD donde
+          #   los roles/usuarios no coincidan.
+          pg_dump \
+            --format=custom \
+            --no-owner \
+            --no-acl \
+            --verbose \
+            --file=/tmp/cathedral_db.dump \
+            "${DATABASE_URL}" 2>&1 | tail -20
+          ls -lh /tmp/cathedral_db.dump
+          # Comprimir
+          gzip -9 /tmp/cathedral_db.dump
+          ls -lh /tmp/cathedral_db.dump.gz
+          echo "DUMP_SIZE=$(stat -c %s /tmp/cathedral_db.dump.gz)" >> $GITHUB_ENV
+
+      - name: Upload to n8n webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.BACKUP_WEBHOOK_URL }}
+          WEBHOOK_TOKEN: ${{ secrets.BACKUP_WEBHOOK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK_URL:-}" ] || [ -z "${WEBHOOK_TOKEN:-}" ]; then
+            echo "::error::BACKUP_WEBHOOK_URL o BACKUP_WEBHOOK_TOKEN no configurados"
+            exit 1
+          fi
+          HTTP_CODE=$(curl -sS -o /tmp/n8n_response.json -w "%{http_code}" \
+            -X POST "${WEBHOOK_URL}" \
+            -H "Authorization: Bearer ${WEBHOOK_TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @/tmp/cathedral_db.dump.gz)
+          echo "n8n response code: ${HTTP_CODE}"
+          echo "n8n response body:"
+          cat /tmp/n8n_response.json | head -c 2000
+          echo
+          if [ "${HTTP_CODE}" -ge 400 ]; then
+            echo "::error::n8n upload failed with HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+
+      # Mantenemos el dump como artifact por si el upload a Drive falló pero
+      # GitHub se enteró tarde. Retention 7 días = backup secundario gratuito.
+      - name: Save dump as GitHub Actions artifact (90 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cathedral_db_dump_${{ github.run_id }}
+          path: /tmp/cathedral_db.dump.gz
+          retention-days: 90
+          if-no-files-found: error
+
+# Secrets necesarios (configurar via Settings → Secrets and variables → Actions):
+#   SUPABASE_DATABASE_URL — connection string Postgres directa (NO pooler).
+#                           Valor exacto en cathedral-credentials.md.
+#   BACKUP_WEBHOOK_URL    — https://n8n.cathedralgroup.es/webhook/cathedral-backup-db
+#   BACKUP_WEBHOOK_TOKEN  — Bearer token del header Authorization (mismo que la
+#                           credencial n8n "Cathedral Backup Webhook Auth")
