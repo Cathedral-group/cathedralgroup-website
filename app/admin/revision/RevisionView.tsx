@@ -930,9 +930,11 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
                     <select value={editForm.payment_status || 'pendiente'} onChange={e => setEditForm(p => ({ ...p, payment_status: e.target.value }))}
                       className="w-full border rounded px-3 py-2 text-sm">
                       <option value="pendiente">Pendiente</option>
-                      <option value="pagada">Pagada</option>
-                      <option value="cobrada">Cobrada</option>
+                      <option value="pagada">Pagada (recibida)</option>
+                      <option value="cobrada">Cobrada (emitida)</option>
                       <option value="vencida">Vencida</option>
+                      <option value="parcial">Parcial</option>
+                      <option value="cancelada">Cancelada</option>
                     </select>
                   </div>
                 </div>

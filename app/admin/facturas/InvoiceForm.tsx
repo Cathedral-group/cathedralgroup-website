@@ -561,9 +561,11 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
                 className={inputCls}
               >
                 <option value="pendiente">Pendiente</option>
-                <option value="pagada">Pagada</option>
+                <option value="pagada">Pagada (recibida)</option>
+                <option value="cobrada">Cobrada (emitida)</option>
                 <option value="vencida">Vencida</option>
                 <option value="parcial">Parcial</option>
+                <option value="cancelada">Cancelada</option>
               </select>
             </div>
             <div>
@@ -579,6 +581,8 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
                 <option value="tarjeta">Tarjeta</option>
                 <option value="efectivo">Efectivo</option>
                 <option value="cheque">Cheque</option>
+                <option value="compensacion">Compensación</option>
+                <option value="otros">Otros</option>
               </select>
             </div>
           </div>
