@@ -90,6 +90,35 @@ interface PendingDocument {
   [key: string]: unknown
 }
 
+interface PendingQuote {
+  id: string
+  number: string | null
+  empresa: string | null
+  supplier_nif: string | null
+  supplier_id: string | null
+  project_id: string | null
+  proyecto_code: string | null
+  concept: string | null
+  direccion_obra: string | null
+  issue_date: string | null
+  valid_until: string | null
+  total: number | null
+  subtotal: number | null
+  vat_total: number | null
+  ai_confidence: number | null
+  needs_review: boolean
+  review_status: string
+  original_filename: string | null
+  drive_url: string | null
+  notes: string | null
+  resumen_ia: string | null
+  ai_data?: AiData | null
+  ai_razones?: string[] | null
+  items?: AiData['lineas'] | null
+  created_at: string
+  [key: string]: unknown
+}
+
 interface OrphanEmail {
   id: number
   message_id: string
@@ -106,6 +135,7 @@ interface OrphanEmail {
 interface RevisionViewProps {
   initialData: ReviewItem[]
   pendingDocuments?: PendingDocument[]
+  pendingQuotes?: PendingQuote[]
   initialOrphans?: OrphanEmail[]
   projects: { value: string; label: string; code?: string }[]
   suppliers: { value: string; label: string }[]
@@ -209,11 +239,18 @@ const DOC_CATEGORY_PATH: Record<string, string> = {
   corporativo: 'corporativo',
 }
 
-export default function RevisionView({ initialData, pendingDocuments = [], initialOrphans = [], projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
+export default function RevisionView({ initialData, pendingDocuments = [], pendingQuotes = [], initialOrphans = [], projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
   const [items, setItems] = useState<ReviewItem[]>(initialData)
+  const [docs, setDocs] = useState<PendingDocument[]>(pendingDocuments)
+  const [quotes, setQuotes] = useState<PendingQuote[]>(pendingQuotes)
   const [orphans, setOrphans] = useState<OrphanEmail[]>(initialOrphans)
   const [selected, setSelected] = useState<ReviewItem | null>(null)
   const [selectedDoc, setSelectedDoc] = useState<PendingDocument | null>(null)
+  const [selectedQuote, setSelectedQuote] = useState<PendingQuote | null>(null)
+  const [editDoc, setEditDoc] = useState<Partial<PendingDocument>>({})
+  const [editQuote, setEditQuote] = useState<Partial<PendingQuote>>({})
+  const [savingDoc, setSavingDoc] = useState(false)
+  const [savingQuote, setSavingQuote] = useState(false)
   const [orphanBusy, setOrphanBusy] = useState<number | null>(null)
   // Categoría sincronizada con sidebar drill-down (?cat=...)
   const searchParams = useSearchParams()
@@ -258,7 +295,8 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
     baja_confianza: pending.filter(i => categorize(i) === 'baja_confianza').length,
     reenviadas: pending.filter(i => categorize(i) === 'reenviadas').length,
     huerfanos_persistentes: orphans.length,
-    documentos_pendientes: pendingDocuments.length,
+    documentos_pendientes: docs.length,
+    presupuestos_recibidos: quotes.length,
     resueltos: items.filter(i => ['confirmado', 'rechazado', 'error'].includes(i.review_status)).length,
   }
 
@@ -410,6 +448,118 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
     }
   }
 
+  const openDoc = (doc: PendingDocument) => {
+    setSelectedDoc(doc)
+    setEditDoc({
+      titulo: doc.titulo,
+      doc_type: doc.doc_type,
+      doc_category: doc.doc_category,
+      fecha_documento: (doc.fecha_documento as string | null | undefined) ?? null,
+      proyecto_code: (doc.proyecto_code as string | null | undefined) ?? null,
+      project_id: (doc.project_id as string | null | undefined) ?? null,
+      notes: (doc.notes as string | null | undefined) ?? null,
+    })
+  }
+
+  const saveDoc = async (status: 'confirmado' | 'rechazado') => {
+    if (!selectedDoc) return
+    setSavingDoc(true)
+    try {
+      const body = {
+        id: selectedDoc.id,
+        ...editDoc,
+        review_status: status,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: userEmail,
+        needs_review: false,
+      }
+      const res = await fetch('/api/db/documents', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setDocs(prev => prev.filter(d => d.id !== selectedDoc.id))
+        setSelectedDoc(null)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert('Error al guardar: ' + (err.error || `Error ${res.status}`))
+      }
+    } finally {
+      setSavingDoc(false)
+    }
+  }
+
+  const openQuote = (q: PendingQuote) => {
+    setSelectedQuote(q)
+    setEditQuote({
+      number: q.number,
+      empresa: q.empresa,
+      supplier_nif: q.supplier_nif,
+      project_id: q.project_id,
+      proyecto_code: q.proyecto_code,
+      concept: q.concept,
+      direccion_obra: q.direccion_obra,
+      issue_date: q.issue_date,
+      valid_until: q.valid_until,
+      total: q.total,
+      subtotal: q.subtotal,
+      vat_total: q.vat_total,
+      notes: q.notes,
+    })
+  }
+
+  const saveQuote = async (status: 'confirmado' | 'rechazado') => {
+    if (!selectedQuote) return
+    setSavingQuote(true)
+    try {
+      const nif = (editQuote.supplier_nif as string | null | undefined) || null
+      const body = {
+        id: selectedQuote.id,
+        ...editQuote,
+        supplier_nif: nif,
+        number: editQuote.number || null,
+        review_status: status,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: userEmail,
+        needs_review: false,
+      }
+
+      // Auto-crear proveedor si confirmamos y hay NIF nuevo
+      if (status === 'confirmado' && nif) {
+        const supplierName = selectedQuote.ai_data?.supplier_name || selectedQuote.empresa || null
+        if (supplierName) {
+          await fetch('/api/db/suppliers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nif,
+              name: supplierName,
+              ...(selectedQuote.ai_data?.supplier_address ? { address: selectedQuote.ai_data.supplier_address } : {}),
+              ...(selectedQuote.ai_data?.iban_proveedor ? { bank_account: selectedQuote.ai_data.iban_proveedor } : {}),
+              _upsert_on_conflict: 'nif',
+            }),
+          })
+        }
+      }
+
+      const res = await fetch('/api/db/quotes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setQuotes(prev => prev.filter(q => q.id !== selectedQuote.id))
+        setSelectedQuote(null)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert('Error al guardar: ' + (err.error || `Error ${res.status}`))
+      }
+    } finally {
+      setSavingQuote(false)
+    }
+  }
+
   const categories: { key: string; label: string; color: string }[] = [
     { key: 'todos_pendientes', label: 'Todos pendientes', color: 'bg-amber-100 text-amber-700' },
     { key: 'procesados_ia', label: 'Procesados IA', color: 'bg-blue-100 text-blue-700' },
@@ -421,6 +571,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
     { key: 'reenviadas', label: 'Reenviadas', color: 'bg-neutral-200 text-neutral-500' },
     { key: 'huerfanos_persistentes', label: 'Huérfanos persistentes', color: 'bg-red-100 text-red-700' },
     { key: 'documentos_pendientes', label: 'Documentos pendientes', color: 'bg-violet-100 text-violet-700' },
+    { key: 'presupuestos_recibidos', label: 'Presupuestos recibidos', color: 'bg-cyan-100 text-cyan-700' },
     { key: 'resueltos', label: 'Resueltos', color: 'bg-green-100 text-green-700' },
   ]
 
@@ -511,8 +662,8 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
                 </tr>
               </thead>
               <tbody>
-                {pendingDocuments.map(doc => (
-                  <tr key={doc.id} onClick={() => setSelectedDoc(doc)}
+                {docs.map(doc => (
+                  <tr key={doc.id} onClick={() => openDoc(doc)}
                     className="border-b cursor-pointer hover:bg-neutral-50">
                     <td className="p-3">
                       <div className="text-sm font-medium text-neutral-800">{doc.titulo || `(sin título)`}</div>
@@ -535,18 +686,81 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
                           onClick={e => e.stopPropagation()}
                           className="text-xs text-blue-600 hover:underline mr-2">Drive ↗</a>
                       )}
-                      <button onClick={e => { e.stopPropagation(); setSelectedDoc(doc) }}
+                      <button onClick={e => { e.stopPropagation(); openDoc(doc) }}
                         className="text-xs bg-violet-600 text-white px-2.5 py-1 rounded hover:bg-violet-700">
-                        Ver detalle
+                        Revisar
                       </button>
                     </td>
                   </tr>
                 ))}
-                {pendingDocuments.length === 0 && (
+                {docs.length === 0 && (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-neutral-400">
                       No hay documentos pendientes ✓
                     </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tabla presupuestos recibidos */}
+      {category === 'presupuestos_recibidos' && (
+        <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden">
+          <div className="px-4 py-3 bg-cyan-50 border-b border-cyan-100 text-xs text-cyan-700">
+            <strong>Presupuestos recibidos:</strong> filas de la tabla <code>quotes</code> con <code>direction=&apos;recibida&apos;</code> detectadas por IA. Confirma o rechaza cada presupuesto.
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-neutral-50 border-b">
+                  <th className="text-left p-3 font-medium text-neutral-600">Archivo / Concepto</th>
+                  <th className="text-left p-3 font-medium text-neutral-600">Proveedor</th>
+                  <th className="text-right p-3 font-medium text-neutral-600">Total</th>
+                  <th className="text-center p-3 font-medium text-neutral-600">IA</th>
+                  <th className="text-center p-3 font-medium text-neutral-600">Estado</th>
+                  <th className="text-left p-3 font-medium text-neutral-600">Emisión</th>
+                  <th className="text-right p-3 font-medium text-neutral-600">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotes.map(q => (
+                  <tr key={q.id} onClick={() => openQuote(q)}
+                    className="border-b cursor-pointer hover:bg-neutral-50">
+                    <td className="p-3">
+                      <div className="max-w-[220px] truncate text-xs font-mono">{q.original_filename || '--'}</div>
+                      {q.concept && (
+                        <div className="max-w-[220px] truncate text-[11px] text-neutral-400 mt-0.5">{q.concept}</div>
+                      )}
+                    </td>
+                    <td className="p-3 text-xs">
+                      <div>{q.ai_data?.supplier_name || q.empresa || q.supplier_nif || '--'}</div>
+                      {q.supplier_nif && (
+                        <div className="text-neutral-400 font-mono text-[10px]">{q.supplier_nif}</div>
+                      )}
+                    </td>
+                    <td className="p-3 text-right font-mono text-xs">{formatEur(q.total)}</td>
+                    <td className="p-3 text-center"><ConfidenceBadge confidence={q.ai_confidence} /></td>
+                    <td className="p-3 text-center"><ReviewBadge status={q.review_status} /></td>
+                    <td className="p-3 text-xs">{formatDate(q.issue_date)}</td>
+                    <td className="p-3 text-right">
+                      {q.drive_url && (
+                        <a href={q.drive_url} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="text-xs text-blue-600 hover:underline mr-2">Drive ↗</a>
+                      )}
+                      <button onClick={e => { e.stopPropagation(); openQuote(q) }}
+                        className="text-xs bg-cyan-600 text-white px-2.5 py-1 rounded hover:bg-cyan-700">
+                        Revisar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {quotes.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-neutral-400">No hay presupuestos pendientes ✓</td>
                   </tr>
                 )}
               </tbody>
@@ -629,7 +843,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
       )}
 
       {/* Table */}
-      {category !== 'huerfanos_persistentes' && category !== 'documentos_pendientes' && (
+      {category !== 'huerfanos_persistentes' && category !== 'documentos_pendientes' && category !== 'presupuestos_recibidos' && (
       <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -714,7 +928,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
           <div className="relative w-full max-w-lg bg-white shadow-xl overflow-y-auto">
             <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between z-10">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold">{selectedDoc.titulo || '(sin título)'}</h2>
+                <h2 className="text-lg font-bold">Revisar documento</h2>
                 <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-violet-100 text-violet-700">{selectedDoc.doc_type}</span>
               </div>
               <button onClick={() => setSelectedDoc(null)} className="text-neutral-400 hover:text-neutral-600 text-xl">&times;</button>
@@ -727,20 +941,18 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
                 </div>
               )}
               <div className="bg-neutral-50 rounded p-3 grid grid-cols-2 gap-2 text-xs">
-                <div><span className="text-neutral-400">Categoría:</span> {selectedDoc.doc_category as string || '--'}</div>
                 <div><span className="text-neutral-400">Confianza:</span> <ConfidenceBadge confidence={selectedDoc.ai_confidence} /></div>
                 <div><span className="text-neutral-400">Origen:</span> {selectedDoc.source as string || '--'}</div>
-                <div><span className="text-neutral-400">Fecha doc:</span> {formatDate(selectedDoc.fecha_documento as string)}</div>
                 <div className="col-span-2 break-all"><span className="text-neutral-400">Original:</span> {selectedDoc.original_filename as string || '--'}</div>
                 {(selectedDoc.drive_url as string | undefined) && (
                   <div className="col-span-2"><a href={selectedDoc.drive_url as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver en Google Drive →</a></div>
                 )}
               </div>
               {(selectedDoc.datos_extraidos as object | undefined) && (
-                <div className="bg-neutral-50 rounded p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Datos extraídos por IA</p>
-                  <pre className="text-[11px] overflow-x-auto max-h-64">{JSON.stringify(selectedDoc.datos_extraidos, null, 2)}</pre>
-                </div>
+                <details className="bg-neutral-50 rounded p-3">
+                  <summary className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 cursor-pointer">Datos extraídos por IA</summary>
+                  <pre className="text-[11px] overflow-x-auto max-h-64 mt-2">{JSON.stringify(selectedDoc.datos_extraidos, null, 2)}</pre>
+                </details>
               )}
               {(selectedDoc.texto_completo as string | undefined) && (
                 <details className="bg-neutral-50 rounded p-3">
@@ -748,6 +960,249 @@ export default function RevisionView({ initialData, pendingDocuments = [], initi
                   <pre className="text-[11px] overflow-x-auto whitespace-pre-wrap mt-2 max-h-96">{selectedDoc.texto_completo as string}</pre>
                 </details>
               )}
+
+              {/* Edit form */}
+              <div className="space-y-3 pt-2 border-t">
+                <p className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Corregir / Clasificar</p>
+
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1">Título</label>
+                  <input type="text" value={(editDoc.titulo as string) || ''}
+                    onChange={e => setEditDoc(p => ({ ...p, titulo: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Tipo</label>
+                    <select value={(editDoc.doc_type as string) || ''} onChange={e => setEditDoc(p => ({ ...p, doc_type: e.target.value }))}
+                      className="w-full border rounded px-3 py-2 text-sm">
+                      {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Categoría</label>
+                    <select value={(editDoc.doc_category as string) || ''} onChange={e => setEditDoc(p => ({ ...p, doc_category: e.target.value || null }))}
+                      className="w-full border rounded px-3 py-2 text-sm">
+                      <option value="">Sin categoría</option>
+                      <option value="legal">Legal (escrituras, contratos, licencias)</option>
+                      <option value="seguros">Seguros</option>
+                      <option value="fiscal">Fiscal</option>
+                      <option value="laboral">Laboral</option>
+                      <option value="flota">Flota</option>
+                      <option value="corporativo">Corporativo</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Fecha del documento</label>
+                    <input type="date" value={(editDoc.fecha_documento as string) || ''}
+                      onChange={e => setEditDoc(p => ({ ...p, fecha_documento: e.target.value || null }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Proyecto</label>
+                    <select value={(editDoc.project_id as string) || ''}
+                      onChange={e => {
+                        const id = e.target.value || null
+                        const proj = projects.find(p => p.value === id)
+                        setEditDoc(p => ({ ...p, project_id: id, proyecto_code: proj?.code ?? null }))
+                      }}
+                      className="w-full border rounded px-3 py-2 text-sm">
+                      <option value="">Sin proyecto</option>
+                      {projects.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1">Notas</label>
+                  <textarea value={(editDoc.notes as string) || ''}
+                    onChange={e => setEditDoc(p => ({ ...p, notes: e.target.value }))}
+                    rows={2}
+                    className="w-full border rounded px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t">
+                <button onClick={() => saveDoc('confirmado')} disabled={savingDoc}
+                  className="flex-1 bg-green-600 text-white py-2.5 rounded font-medium text-sm hover:bg-green-700 disabled:opacity-50">
+                  {savingDoc ? 'Guardando...' : 'Confirmar'}
+                </button>
+                <button onClick={() => saveDoc('rechazado')} disabled={savingDoc}
+                  className="flex-1 bg-red-50 text-red-600 py-2.5 rounded font-medium text-sm hover:bg-red-100 disabled:opacity-50">
+                  Rechazar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-out panel para presupuesto recibido */}
+      {selectedQuote && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedQuote(null)} />
+          <div className="relative w-full max-w-lg bg-white shadow-xl overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold">Revisar presupuesto</h2>
+                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-cyan-100 text-cyan-700">recibido</span>
+              </div>
+              <button onClick={() => setSelectedQuote(null)} className="text-neutral-400 hover:text-neutral-600 text-xl">&times;</button>
+            </div>
+
+            <div className="p-4 space-y-4 text-sm">
+              {selectedQuote.resumen_ia && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-1">Resumen IA</p>
+                  <p className="text-blue-900 leading-relaxed">{selectedQuote.resumen_ia}</p>
+                </div>
+              )}
+
+              <div className="bg-neutral-50 rounded-lg p-3">
+                <p className="text-xs text-neutral-500 mb-1">Archivo original</p>
+                <p className="text-sm font-mono break-all">{selectedQuote.original_filename || 'Sin nombre'}</p>
+                {selectedQuote.drive_url && (
+                  <a href={selectedQuote.drive_url} target="_blank" rel="noopener noreferrer"
+                    className="inline-block mt-2 text-xs text-blue-600 hover:underline">Ver en Google Drive →</a>
+                )}
+              </div>
+
+              {/* Líneas */}
+              {(selectedQuote.items || selectedQuote.ai_data?.lineas) && (selectedQuote.items || selectedQuote.ai_data?.lineas)!.length > 0 && (
+                <div className="bg-neutral-50 rounded-lg p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+                    Líneas ({(selectedQuote.items || selectedQuote.ai_data?.lineas)!.length})
+                  </p>
+                  <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                    {(selectedQuote.items || selectedQuote.ai_data?.lineas)!.map((l, i) => (
+                      <div key={i} className="flex justify-between text-xs bg-white rounded px-2 py-1.5 border border-neutral-100">
+                        <span className="text-neutral-700 flex-1 min-w-0 pr-2 break-words">{l.descripcion || '—'}</span>
+                        <div className="shrink-0 text-right text-neutral-400 whitespace-nowrap">
+                          {l.cantidad != null && <span className="mr-1">×{l.cantidad}</span>}
+                          {l.precio_unitario != null && <span className="mr-1 text-[10px]">{formatEur(l.precio_unitario)}/u</span>}
+                          <span className="font-medium text-neutral-700">{formatEur(l.importe ?? l.total ?? null)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Edit form */}
+              <div className="space-y-3 pt-2 border-t">
+                <p className="text-xs font-bold text-neutral-600 uppercase tracking-wider">Corregir / Clasificar</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Empresa</label>
+                    <input type="text" value={(editQuote.empresa as string) || ''}
+                      onChange={e => setEditQuote(p => ({ ...p, empresa: e.target.value }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">NIF proveedor</label>
+                    <input type="text" value={(editQuote.supplier_nif as string) || ''}
+                      onChange={e => setEditQuote(p => ({ ...p, supplier_nif: e.target.value }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Número</label>
+                    <input type="text" value={(editQuote.number as string) || ''}
+                      onChange={e => setEditQuote(p => ({ ...p, number: e.target.value }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Total</label>
+                    <input type="number" step="0.01" value={(editQuote.total as number | null) ?? ''}
+                      onChange={e => setEditQuote(p => ({ ...p, total: parseFloat(e.target.value) || 0 }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Subtotal</label>
+                    <input type="number" step="0.01" value={(editQuote.subtotal as number | null) ?? ''}
+                      onChange={e => setEditQuote(p => ({ ...p, subtotal: parseFloat(e.target.value) || 0 }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">IVA total</label>
+                    <input type="number" step="0.01" value={(editQuote.vat_total as number | null) ?? ''}
+                      onChange={e => setEditQuote(p => ({ ...p, vat_total: parseFloat(e.target.value) || 0 }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Fecha emisión</label>
+                    <input type="date" value={(editQuote.issue_date as string) || ''}
+                      onChange={e => setEditQuote(p => ({ ...p, issue_date: e.target.value || null }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Validez hasta</label>
+                    <input type="date" value={(editQuote.valid_until as string) || ''}
+                      onChange={e => setEditQuote(p => ({ ...p, valid_until: e.target.value || null }))}
+                      className="w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1">Proyecto</label>
+                  <select value={(editQuote.project_id as string) || ''}
+                    onChange={e => {
+                      const id = e.target.value || null
+                      const proj = projects.find(p => p.value === id)
+                      setEditQuote(p => ({ ...p, project_id: id, proyecto_code: proj?.code ?? null }))
+                    }}
+                    className="w-full border rounded px-3 py-2 text-sm">
+                    <option value="">Sin proyecto</option>
+                    {projects.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1">Concepto</label>
+                  <input type="text" value={(editQuote.concept as string) || ''}
+                    onChange={e => setEditQuote(p => ({ ...p, concept: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm" />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1">Dirección obra</label>
+                  <input type="text" value={(editQuote.direccion_obra as string) || ''}
+                    onChange={e => setEditQuote(p => ({ ...p, direccion_obra: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm" />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1">Notas</label>
+                  <textarea value={(editQuote.notes as string) || ''}
+                    onChange={e => setEditQuote(p => ({ ...p, notes: e.target.value }))}
+                    rows={2}
+                    className="w-full border rounded px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t">
+                <button onClick={() => saveQuote('confirmado')} disabled={savingQuote}
+                  className="flex-1 bg-green-600 text-white py-2.5 rounded font-medium text-sm hover:bg-green-700 disabled:opacity-50">
+                  {savingQuote ? 'Guardando...' : 'Confirmar'}
+                </button>
+                <button onClick={() => saveQuote('rechazado')} disabled={savingQuote}
+                  className="flex-1 bg-red-50 text-red-600 py-2.5 rounded font-medium text-sm hover:bg-red-100 disabled:opacity-50">
+                  Rechazar
+                </button>
+              </div>
             </div>
           </div>
         </div>

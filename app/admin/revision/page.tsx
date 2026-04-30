@@ -9,7 +9,7 @@ export default async function RevisionPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const [pending, pendingDocs, projectsRes, suppliersRes, orphansRes] = await Promise.all([
+  const [pending, pendingDocs, pendingQuotes, projectsRes, suppliersRes, orphansRes] = await Promise.all([
     fetchAllRows((sb) =>
       sb
         .from('invoices')
@@ -22,7 +22,14 @@ export default async function RevisionPage() {
       .from('documents')
       .select('*')
       .is('deleted_at', null)
-      .or('needs_review.eq.true,doc_type.eq.otro,source.eq.email_automatico')
+      .or('needs_review.eq.true,doc_type.eq.otro,source.eq.email_automatico,source.eq.drive_retroactivo')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('quotes')
+      .select('*')
+      .is('deleted_at', null)
+      .eq('direction', 'recibida')
+      .or('needs_review.eq.true,review_status.eq.pendiente,review_status.eq.revisado,review_status.eq.error,ai_confidence.lt.0.7')
       .order('created_at', { ascending: false }),
     supabase.from('projects').select('id, code, name').is('deleted_at', null),
     supabase.from('suppliers').select('nif, name').is('deleted_at', null),
@@ -54,6 +61,8 @@ export default async function RevisionPage() {
       initialData={pending as any}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       pendingDocuments={(pendingDocs.data ?? []) as any}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pendingQuotes={(pendingQuotes.data ?? []) as any}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initialOrphans={(orphansRes.data ?? []) as any}
       projects={projects}
