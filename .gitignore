@@ -6,8 +6,10 @@ out/
 _legacy_html/
 .vercel
 
-# Scripts internos no deben versionarse (pueden contener secretos)
-scripts/
+# Scripts internos: versionados a partir de sesión 31 (Y11 punch-list).
+# Convención: NUNCA hardcodear secretos en estos scripts — leer SIEMPRE de
+# env vars. gitleaks pre-commit verifica el commit. Mantener .env y .env.local
+# fuera del repo (líneas 3-4 arriba).
 
 # Backups locales de workflows n8n (sesión 28-30)
 backups/

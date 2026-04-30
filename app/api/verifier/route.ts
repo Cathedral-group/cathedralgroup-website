@@ -7,8 +7,12 @@
  *
  * Lo llama n8n después del nodo extractor, ANTES de insertar en BD.
  *
+ * AUTH (sesión 31): protegido con `Authorization: Bearer <AUDIT_CRON_SECRET>`.
+ * En n8n usar la credencial `dfTYu6xcyozU4BOs` (Cathedral Audit Cron Header Auth).
+ *
  * USO desde n8n (HTTP Request node):
  *   POST https://cathedralgroup.es/api/verifier
+ *   Header: Authorization: Bearer <AUDIT_CRON_SECRET>
  *   Body JSON: { "document_type": "factura", "fields": { ... } }
  *
  * Respuesta:
@@ -29,6 +33,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { verifyDocument } from '@/lib/verifier'
 import type { DocumentType } from '@/lib/verifier/types'
+
+function authCheck(request: NextRequest): boolean {
+  const expected = process.env.AUDIT_CRON_SECRET
+  if (!expected) return false
+  const authHeader = request.headers.get('authorization') ?? ''
+  return authHeader === `Bearer ${expected}`
+}
 
 const VALID_DOC_TYPES: DocumentType[] = [
   'factura',
@@ -58,6 +69,10 @@ const RequestSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  if (!authCheck(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   let body: unknown
   try {
     body = await request.json()
