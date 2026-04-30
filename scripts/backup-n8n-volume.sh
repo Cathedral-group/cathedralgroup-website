@@ -61,12 +61,17 @@ tar -czf "$TMP_FILE" -C /var/lib/docker/volumes n8n_data 2>/dev/null
 ls -lh "$TMP_FILE"
 
 echo "[$(date -Iseconds)] Enviando al webhook"
+# Sesión 30 fix: usar `-T file` con `-X POST` para hacer upload en streaming.
+# `--data-binary @file` y `--data-binary @-` cargan TODO el archivo en RAM
+# antes de enviar → out of memory con archivos >1 GB en host CX21 (4 GB RAM).
+# `-T` lee y envía el archivo en chunks, sin cargar nada en memoria.
 HTTP_CODE=$(curl -sS -o /tmp/n8n-backup/response.json -w "%{http_code}" \
-  -X POST "$BACKUP_WEBHOOK_URL" \
+  -X POST \
+  -T "$TMP_FILE" \
+  "$BACKUP_WEBHOOK_URL" \
   -H "Authorization: Bearer $BACKUP_WEBHOOK_TOKEN" \
   -H "X-Backup-Type: n8n-volume" \
-  -H "Content-Type: application/octet-stream" \
-  --data-binary @"$TMP_FILE")
+  -H "Content-Type: application/octet-stream")
 
 echo "[$(date -Iseconds)] HTTP $HTTP_CODE"
 cat /tmp/n8n-backup/response.json | head -c 500
