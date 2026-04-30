@@ -8,3 +8,6 @@ _legacy_html/
 
 # Scripts internos no deben versionarse (pueden contener secretos)
 scripts/
+
+# Backups locales de workflows n8n (sesión 28-30)
+backups/
