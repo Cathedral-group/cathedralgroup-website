@@ -33,9 +33,9 @@ on:
         required: false
         default: 'manual run'
 
-  # ⚠️ DESACTIVADO HASTA CONFIRMACIÓN. Para activar:
-  # schedule:
-  #   - cron: '45 2 * * *'  # 04:45 Madrid (CEST), tras backup-db (que corre 04:30)
+  # ✅ ACTIVADO sesión 30 (30/04/2026). Schedule diario activo:
+  schedule:
+    - cron: '45 2 * * *'  # 04:45 Madrid (CEST), tras backup-db (que corre 04:30)
 
 permissions:
   contents: read

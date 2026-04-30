@@ -24,10 +24,10 @@ on:
         required: false
         default: 'manual run'
 
-  # ⚠️ DESACTIVADO HASTA CONFIRMACIÓN. Para activar el cron diario, descomentar:
-  # schedule:
-  #   - cron: '30 2 * * *'  # 04:30 Europe/Madrid (CEST=UTC+2) en verano,
-  #                          # 03:30 en invierno (CET=UTC+1). Tras cron auditor.
+  # ✅ ACTIVADO sesión 30 (30/04/2026). Schedule diario activo:
+  schedule:
+    - cron: '30 2 * * *'  # 04:30 Europe/Madrid (CEST=UTC+2) en verano,
+                          # 03:30 en invierno (CET=UTC+1). Tras cron auditor.
 
 permissions:
   contents: read
