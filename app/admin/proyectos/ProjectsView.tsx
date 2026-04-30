@@ -838,6 +838,20 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               </button>
             </div>
 
+            {/* Acceso rápido vista de documentos del proyecto */}
+            <div className="mb-4 flex flex-wrap gap-2">
+              <a href={`/admin/proyectos/${selected.code}/documentos`}
+                className="text-xs bg-neutral-900 text-white px-3 py-2 rounded hover:bg-neutral-700">
+                📄 Ver documentos del proyecto
+              </a>
+              {selected.drive_folder_url && (
+                <a href={selected.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded hover:bg-blue-100">
+                  📁 Carpeta Drive ↗
+                </a>
+              )}
+            </div>
+
             {/* Quick status change */}
             <div className="mb-4">
               <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">Estado</p>
