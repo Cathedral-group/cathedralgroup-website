@@ -142,10 +142,34 @@ interface RevisionViewProps {
   userEmail?: string
 }
 
+// Sincronizado con CHECK constraint invoices.doc_type (cathedral-all.md)
 const DOC_TYPES = [
-  'factura', 'proforma', 'ticket', 'albaran', 'certificado', 'presupuesto',
-  'contrato', 'nota_simple', 'escritura', 'licencia', 'informe', 'nomina',
-  'modelo_fiscal', 'seguro', 'rectificativa', 'abono', 'justificante_pago', 'otro',
+  'factura', 'proforma', 'ticket', 'albaran', 'certificado', 'certificacion',
+  'presupuesto', 'contrato', 'nota_simple', 'escritura', 'licencia', 'informe',
+  'nomina', 'modelo_fiscal', 'seguro', 'rectificativa', 'abono',
+  'justificante_pago', 'otro',
+]
+
+// Sincronizado con CHECK constraint invoices.categoria_gasto (18 valores, ampliado sesión 28)
+const CATEGORIAS_GASTO: { value: string; label: string }[] = [
+  { value: 'material', label: 'Material' },
+  { value: 'mano_de_obra', label: 'Mano de obra' },
+  { value: 'subcontratas', label: 'Subcontratas' },
+  { value: 'alquiler', label: 'Alquiler' },
+  { value: 'servicios', label: 'Servicios' },
+  { value: 'comunidad_propietarios', label: 'Comunidad de propietarios' },
+  { value: 'suministros', label: 'Suministros (luz/agua/gas/internet)' },
+  { value: 'seguros', label: 'Seguros' },
+  { value: 'financiero', label: 'Financiero (intereses/comisiones)' },
+  { value: 'tributos_locales', label: 'Tributos locales (IBI/IAE)' },
+  { value: 'notaria_registro', label: 'Notaría / Registro' },
+  { value: 'mobiliario_decoracion', label: 'Mobiliario / Decoración' },
+  { value: 'marketing_publicidad', label: 'Marketing / Publicidad' },
+  { value: 'desplazamientos_dietas', label: 'Desplazamientos / Dietas' },
+  { value: 'software_oficina', label: 'Software / Oficina' },
+  { value: 'gestoria_asesoria', label: 'Gestoría / Asesoría' },
+  { value: 'comisiones_intermediacion', label: 'Comisiones / Intermediación' },
+  { value: 'otros', label: 'Otros' },
 ]
 
 function formatEur(val: number | null | undefined): string {
@@ -1450,12 +1474,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                     <select value={editForm.categoria_gasto || ''} onChange={e => setEditForm(p => ({ ...p, categoria_gasto: e.target.value || null }))}
                       className="w-full border rounded px-3 py-2 text-sm">
                       <option value="">Sin categoría</option>
-                      <option value="material">Material</option>
-                      <option value="mano_de_obra">Mano de obra</option>
-                      <option value="subcontratas">Subcontratas</option>
-                      <option value="alquiler">Alquiler</option>
-                      <option value="servicios">Servicios</option>
-                      <option value="otros">Otros</option>
+                      {CATEGORIAS_GASTO.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
                   </div>
                   <div>
