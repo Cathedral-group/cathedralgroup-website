@@ -57,7 +57,14 @@ TMP_FILE="/tmp/n8n-backup/n8n_volume_${TS}.tar.gz"
 mkdir -p /tmp/n8n-backup
 
 echo "[$(date -Iseconds)] Comprimiendo $VOLUME_PATH → $TMP_FILE"
-tar -czf "$TMP_FILE" -C /var/lib/docker/volumes n8n_data 2>/dev/null
+# Sesión 8/05/2026 fix: excluir /storage (12GB de binary files PDFs que ya
+# están en Drive — redundantes para recovery). Solo backupeamos el "núcleo":
+# database.sqlite + config + nodes. ~1.5GB sin compresión → ~500MB comprimido.
+# Si en el futuro hace falta restaurar binary files también, ya están en Drive.
+tar -czf "$TMP_FILE" -C /var/lib/docker/volumes \
+  --exclude='n8n_data/_data/storage' \
+  --exclude='n8n_data/_data/n8nEventLog*' \
+  n8n_data 2>/dev/null
 ls -lh "$TMP_FILE"
 
 echo "[$(date -Iseconds)] Enviando al webhook"
