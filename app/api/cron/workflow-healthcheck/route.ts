@@ -11,18 +11,32 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+
+// Comparación timing-safe del Bearer token. Evita que un atacante pueda
+// inferir caracteres correctos midiendo tiempos de respuesta (`===` corta
+// en el primer mismatch, timingSafeEqual tarda lo mismo siempre).
+function safeEqualBearer(actualHeader: string | null, expectedSecret: string): boolean {
+  if (!actualHeader || !expectedSecret) return false
+  const expectedHeader = `Bearer ${expectedSecret}`
+  const a = Buffer.from(actualHeader)
+  const b = Buffer.from(expectedHeader)
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
 
 export async function GET(request: NextRequest) {
   // Verificación de origen Vercel Cron (solo en producción)
   const isProd = process.env.NODE_ENV === 'production'
   const cronHeader = request.headers.get('x-vercel-cron')
   const authHeader = request.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET
   const isLegit =
     cronHeader === '1' ||
-    authHeader === `Bearer ${process.env.CRON_SECRET || '__no_secret_set__'}`
+    (cronSecret ? safeEqualBearer(authHeader, cronSecret) : false)
 
   if (isProd && !isLegit) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
