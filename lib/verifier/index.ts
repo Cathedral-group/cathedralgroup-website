@@ -147,12 +147,9 @@ function validatePayrollSpecific(fields: PayrollFields): FieldValidation[] {
   const validations: FieldValidation[] = []
   validations.push(...validatePayrollMath(fields))
   // Coherencia mes ↔ trimestre si llega declarado
-  if (fields.periodo_mes && (fields as Record<string, unknown>).modelo_111_trimestre) {
+  if (fields.periodo_mes && fields.modelo_111_trimestre) {
     validations.push(
-      validateTrimestreCoherence(
-        fields.periodo_mes,
-        (fields as Record<string, unknown>).modelo_111_trimestre,
-      ),
+      validateTrimestreCoherence(fields.periodo_mes, fields.modelo_111_trimestre),
     )
   }
   return validations

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminSidebar from './AdminSidebar'
 
@@ -8,12 +8,22 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const router = useRouter()
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleRefresh = () => {
     setRefreshing(true)
     router.refresh()
-    setTimeout(() => setRefreshing(false), 1500)
+    // Limpiar timer anterior si el usuario click rápido varias veces
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    refreshTimerRef.current = setTimeout(() => setRefreshing(false), 1500)
   }
+
+  // Cleanup del timer al unmount (evita setState en componente desmontado)
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    }
+  }, [])
 
   // Set bg on html+body so the neutral-50 covers the full scrollable area (including horizontal overflow)
   useEffect(() => {

@@ -107,5 +107,7 @@ export interface PayrollFields {
   total_deducciones?: number | null
   liquido_a_percibir?: number | null
   iban?: string | null
+  /** Trimestre fiscal declarado (Q1/Q2/Q3/Q4). Validado contra periodo_mes. */
+  modelo_111_trimestre?: string | null
   [k: string]: unknown
 }

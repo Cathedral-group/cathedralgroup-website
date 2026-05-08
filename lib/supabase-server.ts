@@ -54,9 +54,11 @@ export async function fetchAllRows<T = Record<string, unknown>>(
 ): Promise<T[]> {
   const all: T[] = []
   let from = 0
+  // Fix 8/05/2026: cliente fuera del loop. Antes se creaba uno por iteración
+  // (memoria + conexiones desperdiciadas innecesariamente).
+  const supabase = createAdminSupabaseClient()
 
   while (true) {
-    const supabase = createAdminSupabaseClient()
     const { data, error } = await buildQuery(supabase).range(from, from + pageSize - 1)
 
     if (error) {

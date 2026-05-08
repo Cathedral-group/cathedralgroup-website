@@ -22,11 +22,14 @@ export const ADMIN_ALLOWED_EMAILS = [
 
 /**
  * Verifica si un email tiene permiso de admin.
- * Comparación case-insensitive.
+ * Comparación case-insensitive + trim de whitespace defensivo
+ * (Supabase auth puede entregar el email con espacios trailing si se filtró
+ * desde input no sanitizado en algún flujo).
  */
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false
+  const normalized = email.trim().toLowerCase()
   return ADMIN_ALLOWED_EMAILS.includes(
-    email.toLowerCase() as (typeof ADMIN_ALLOWED_EMAILS)[number]
+    normalized as (typeof ADMIN_ALLOWED_EMAILS)[number]
   )
 }

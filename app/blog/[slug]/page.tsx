@@ -34,8 +34,16 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     .filter((p) => p.slug !== slug && (p.category === post.category || p.tags.some((t) => post.tags.includes(t))))
     .slice(0, 2)
 
-  // Parse markdown content into HTML (simple approach)
-  const contentHtml = post.content
+  // Parse markdown content into HTML (simple approach).
+  // Defensa XSS: escapar `<` `>` `&` en la fuente ANTES de aplicar las regex
+  // que añaden tags HTML válidos. Aunque hoy el contenido es estático del
+  // filesystem (no input usuario), evita que un post comprometido o un
+  // futuro flujo CMS pueda inyectar scripts.
+  const safeSource = post.content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  const contentHtml = safeSource
     .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium mt-8 mb-3">$1</h3>')
     .replace(/^## (.*$)/gm, '<h2 class="text-xl font-medium mt-10 mb-4">$1</h2>')
     .replace(/^\*\*(.*?)\*\*/gm, '<strong>$1</strong>')
