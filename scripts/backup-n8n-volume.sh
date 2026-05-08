@@ -65,13 +65,16 @@ echo "[$(date -Iseconds)] Enviando al webhook"
 # `--data-binary @file` y `--data-binary @-` cargan TODO el archivo en RAM
 # antes de enviar → out of memory con archivos >1 GB en host CX21 (4 GB RAM).
 # `-T` lee y envía el archivo en chunks, sin cargar nada en memoria.
+# Sesión 8/05/2026 fix: Content-Type debe ser application/gzip (no octet-stream).
+# n8n webhook con binaryData:true no parsea octet-stream con chunked transfer (-T)
+# como binary → workflow recibe (no binary) y Drive Upload falla en silencio.
 HTTP_CODE=$(curl -sS -o /tmp/n8n-backup/response.json -w "%{http_code}" \
   -X POST \
   -T "$TMP_FILE" \
   "$BACKUP_WEBHOOK_URL" \
   -H "Authorization: Bearer $BACKUP_WEBHOOK_TOKEN" \
   -H "X-Backup-Type: n8n-volume" \
-  -H "Content-Type: application/octet-stream")
+  -H "Content-Type: application/gzip")
 
 echo "[$(date -Iseconds)] HTTP $HTTP_CODE"
 cat /tmp/n8n-backup/response.json | head -c 500

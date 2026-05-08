@@ -67,7 +67,7 @@ jobs:
           cd /tmp/n8n-export
 
           # 1. Lista todos los workflows
-          curl -sS -fail \
+          curl -sS --fail \
             -H "X-N8N-API-KEY: ${N8N_API_KEY}" \
             "${N8N_API_URL}/api/v1/workflows?limit=200" > workflows-list.json
           WF_COUNT=$(jq '.data | length' workflows-list.json)
@@ -76,7 +76,7 @@ jobs:
           # 2. Para cada workflow, descarga el detalle completo (incluye nodes + parameters + jsCode)
           mkdir -p workflows
           jq -r '.data[].id' workflows-list.json | while read WF_ID; do
-            curl -sS -fail \
+            curl -sS --fail \
               -H "X-N8N-API-KEY: ${N8N_API_KEY}" \
               "${N8N_API_URL}/api/v1/workflows/${WF_ID}" > "workflows/${WF_ID}.json"
             WF_NAME=$(jq -r '.name' "workflows/${WF_ID}.json")
@@ -122,11 +122,13 @@ jobs:
             echo "::error::BACKUP_WEBHOOK_URL o BACKUP_WEBHOOK_TOKEN no configurados"
             exit 1
           fi
+          # Content-Type: application/gzip — n8n webhook con binaryData:true no
+          # parsea octet-stream como binary; gzip sí (verificado 8/05/2026).
           HTTP_CODE=$(curl -sS -o /tmp/n8n_response.json -w "%{http_code}" \
             -X POST "${WEBHOOK_URL}" \
             -H "Authorization: Bearer ${WEBHOOK_TOKEN}" \
             -H "X-Backup-Type: n8n-workflows" \
-            -H "Content-Type: application/octet-stream" \
+            -H "Content-Type: application/gzip" \
             --data-binary @/tmp/n8n_export.json.gz)
           echo "n8n response: ${HTTP_CODE}"
           cat /tmp/n8n_response.json | head -c 2000
