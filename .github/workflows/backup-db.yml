@@ -52,7 +52,10 @@ jobs:
 
       - name: Verify Postgres tools
         run: |
-          pg_dump --version
+          # Usar pg_dump 17 explícito (Ubuntu update-alternatives mantiene pg16
+          # como /usr/bin/pg_dump por defecto aunque tengamos pg17 instalado).
+          PG17_DUMP=/usr/lib/postgresql/17/bin/pg_dump
+          $PG17_DUMP --version
           gzip --version | head -1
 
       - name: Create dump
@@ -68,7 +71,7 @@ jobs:
           # con pg_restore (parcial o completo). El estándar Postgres.
           # --no-owner, --no-acl: evita problemas al restaurar a otra BD donde
           #   los roles/usuarios no coincidan.
-          pg_dump \
+          /usr/lib/postgresql/17/bin/pg_dump \
             --format=custom \
             --no-owner \
             --no-acl \
@@ -91,11 +94,14 @@ jobs:
             echo "::error::BACKUP_WEBHOOK_URL o BACKUP_WEBHOOK_TOKEN no configurados"
             exit 1
           fi
+          # Sanitizar trailing whitespace/newlines (defensivo)
+          WEBHOOK_URL_CLEAN=$(printf '%s' "${WEBHOOK_URL}" | tr -d '\r\n ')
+          WEBHOOK_TOKEN_CLEAN=$(printf '%s' "${WEBHOOK_TOKEN}" | tr -d '\r\n ')
           # Content-Type: application/gzip — n8n webhook con binaryData:true no
           # parsea octet-stream como binary; gzip sí (verificado 8/05/2026).
           HTTP_CODE=$(curl -sS -o /tmp/n8n_response.json -w "%{http_code}" \
-            -X POST "${WEBHOOK_URL}" \
-            -H "Authorization: Bearer ${WEBHOOK_TOKEN}" \
+            -X POST "${WEBHOOK_URL_CLEAN}" \
+            -H "Authorization: Bearer ${WEBHOOK_TOKEN_CLEAN}" \
             -H "X-Backup-Type: db" \
             -H "Content-Type: application/gzip" \
             --data-binary @/tmp/cathedral_db.dump.gz)

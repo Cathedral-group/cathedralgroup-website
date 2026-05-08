@@ -122,11 +122,19 @@ jobs:
             echo "::error::BACKUP_WEBHOOK_URL o BACKUP_WEBHOOK_TOKEN no configurados"
             exit 1
           fi
+          # Debug longitudes (sin exponer valores; secrets se redactan)
+          echo "WEBHOOK_URL length: ${#WEBHOOK_URL}"
+          echo "WEBHOOK_TOKEN length: ${#WEBHOOK_TOKEN}"
+          # Sanitizar trailing whitespace/newlines (defensivo)
+          WEBHOOK_URL_CLEAN=$(printf '%s' "${WEBHOOK_URL}" | tr -d '\r\n ')
+          WEBHOOK_TOKEN_CLEAN=$(printf '%s' "${WEBHOOK_TOKEN}" | tr -d '\r\n ')
+          echo "WEBHOOK_URL_CLEAN length: ${#WEBHOOK_URL_CLEAN}"
+          echo "WEBHOOK_TOKEN_CLEAN length: ${#WEBHOOK_TOKEN_CLEAN}"
           # Content-Type: application/gzip — n8n webhook con binaryData:true no
           # parsea octet-stream como binary; gzip sí (verificado 8/05/2026).
           HTTP_CODE=$(curl -sS -o /tmp/n8n_response.json -w "%{http_code}" \
-            -X POST "${WEBHOOK_URL}" \
-            -H "Authorization: Bearer ${WEBHOOK_TOKEN}" \
+            -X POST "${WEBHOOK_URL_CLEAN}" \
+            -H "Authorization: Bearer ${WEBHOOK_TOKEN_CLEAN}" \
             -H "X-Backup-Type: n8n-workflows" \
             -H "Content-Type: application/gzip" \
             --data-binary @/tmp/n8n_export.json.gz)
