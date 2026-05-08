@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,10 @@ function authCronCheck(request: NextRequest): boolean {
   const expected = process.env.AUDIT_CRON_SECRET
   if (!expected) return false
   const authHeader = request.headers.get('authorization') ?? ''
-  return authHeader === `Bearer ${expected}`
+  // Comparación timing-safe: evita inferir el secret midiendo tiempos de respuesta.
+  const expectedHeader = `Bearer ${expected}`
+  if (authHeader.length !== expectedHeader.length) return false
+  return timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedHeader))
 }
 
 export async function GET(request: NextRequest) {

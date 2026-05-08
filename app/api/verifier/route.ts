@@ -30,6 +30,7 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { verifyDocument } from '@/lib/verifier'
 import type { DocumentType } from '@/lib/verifier/types'
@@ -38,7 +39,13 @@ function authCheck(request: NextRequest): boolean {
   const expected = process.env.AUDIT_CRON_SECRET
   if (!expected) return false
   const authHeader = request.headers.get('authorization') ?? ''
-  return authHeader === `Bearer ${expected}`
+  // Comparación timing-safe: evita que un atacante infiera el secret midiendo
+  // tiempos de respuesta (`===` corta en el primer mismatch).
+  const expectedHeader = `Bearer ${expected}`
+  if (authHeader.length !== expectedHeader.length) return false
+  const a = Buffer.from(authHeader)
+  const b = Buffer.from(expectedHeader)
+  return timingSafeEqual(a, b)
 }
 
 const VALID_DOC_TYPES: DocumentType[] = [
