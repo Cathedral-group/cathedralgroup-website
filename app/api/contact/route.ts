@@ -125,11 +125,16 @@ export async function POST(request: Request) {
     }
     // If no token at all (widget didn't load), allow — other filters still protect
 
-    // Supabase insert
-    const supabaseUrl = process.env.SUPABASE_URL
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    // Supabase insert — usar anon/publishable key (NO service_role).
+    // La tabla `leads` tiene RLS policy `Allow insert for everyone` (WITH CHECK true)
+    // que autoriza INSERT desde anon. Auditoría 8/05/2026 detectó que estábamos
+    // usando service_role para insert público, mala práctica de defensa en profundidad
+    // (si la key se filtrara, atacante tendría poder total sobre BD). Anon solo puede
+    // insertar en tablas con policy permisiva — superficie de ataque mínima.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-    if (!supabaseUrl || !serviceKey) {
+    if (!supabaseUrl || !anonKey) {
       return NextResponse.json({ error: 'Faltan variables Supabase' }, { status: 500 })
     }
 
@@ -137,8 +142,8 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
         Prefer: 'return=representation',
       },
       body: JSON.stringify([
