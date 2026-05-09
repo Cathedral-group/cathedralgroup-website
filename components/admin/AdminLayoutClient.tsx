@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminSidebar from './AdminSidebar'
+import NotificationBanner from './NotificationBanner'
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -72,6 +73,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
 
       {/* Main content */}
       <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-8 md:ml-56">
+        <NotificationBanner />
         {children}
       </main>
     </>
