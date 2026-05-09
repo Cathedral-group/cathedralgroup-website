@@ -171,6 +171,12 @@ return {
     moneda: parsed.moneda || 'EUR',
     nif_receptor: parsed.nif_receptor || null,
     nombre_receptor: parsed.nombre_receptor || null,
+    // V3 (sesión 9/05/2026 noche tarde): datos del cliente para tabla 'clients' (emitidas)
+    cliente_direccion: parsed.cliente_direccion || null,
+    cliente_ciudad: parsed.cliente_ciudad || null,
+    cliente_telefono: parsed.cliente_telefono || null,
+    cliente_email: parsed.cliente_email || null,
+    cliente_tipo: parsed.cliente_tipo || null,
     direccion_emisor: parsed.direccion_emisor || null,
     direccion_obra: parsed.direccion_obra || null,
     forma_pago: parsed.forma_pago || null,
