@@ -135,11 +135,21 @@ interface OrphanEmail {
   created_at: string
 }
 
+interface ForensicData {
+  score: number | null
+  pdf_alerts: string[] | null
+  email_alerts: string[] | null
+  numeracion_alerts: string[] | null
+  duplicados_alerts: string[] | null
+  decision: string | null
+}
+
 interface RevisionViewProps {
   initialData: ReviewItem[]
   pendingDocuments?: PendingDocument[]
   pendingQuotes?: PendingQuote[]
   initialOrphans?: OrphanEmail[]
+  forensicByInvoice?: Record<string, ForensicData>
   projects: { value: string; label: string; code?: string }[]
   suppliers: { value: string; label: string }[]
   userEmail?: string
@@ -276,6 +286,23 @@ function ProviderBadge({ provider }: { provider: string | null | undefined }) {
   )
 }
 
+function ForensicBadge({ data }: { data: ForensicData | undefined | null }) {
+  if (!data || data.score == null) return <span className="text-neutral-400 text-[10px]">--</span>
+  const score = data.score
+  const totalAlerts =
+    (data.pdf_alerts?.length ?? 0) +
+    (data.email_alerts?.length ?? 0) +
+    (data.numeracion_alerts?.length ?? 0) +
+    (data.duplicados_alerts?.length ?? 0)
+  const color = score >= 80 ? 'bg-green-100 text-green-700' : score >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+  const tooltip = totalAlerts > 0 ? `Score forensic ${score}/100 — ${totalAlerts} alerta(s)` : `Score forensic ${score}/100`
+  return (
+    <span title={tooltip} className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${color}`}>
+      🛡️ {score}{totalAlerts > 0 ? ` ⚠${totalAlerts}` : ''}
+    </span>
+  )
+}
+
 const DOC_CATEGORY_PATH: Record<string, string> = {
   legal: 'escrituras',
   seguros: 'seguros',
@@ -285,7 +312,7 @@ const DOC_CATEGORY_PATH: Record<string, string> = {
   corporativo: 'corporativo',
 }
 
-export default function RevisionView({ initialData, pendingDocuments = [], pendingQuotes = [], initialOrphans = [], projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
+export default function RevisionView({ initialData, pendingDocuments = [], pendingQuotes = [], initialOrphans = [], forensicByInvoice = {}, projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
   const [items, setItems] = useState<ReviewItem[]>(initialData)
   const [docs, setDocs] = useState<PendingDocument[]>(pendingDocuments)
   const [quotes, setQuotes] = useState<PendingQuote[]>(pendingQuotes)
@@ -905,6 +932,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 <th className="text-right p-3 font-medium text-neutral-600">Importe</th>
                 <th className="text-center p-3 font-medium text-neutral-600">IA</th>
                 <th className="text-center p-3 font-medium text-neutral-600">Modelo</th>
+                <th className="text-center p-3 font-medium text-neutral-600">Forensic</th>
                 <th className="text-center p-3 font-medium text-neutral-600">Estado</th>
                 <th className="text-left p-3 font-medium text-neutral-600">Motivo</th>
                 <th className="text-left p-3 font-medium text-neutral-600">Fecha</th>
@@ -939,6 +967,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                   <td className="p-3 text-right font-mono text-xs">{formatEur(item.amount_total)}</td>
                   <td className="p-3 text-center"><ConfidenceBadge confidence={item.ai_confidence} /></td>
                   <td className="p-3 text-center"><ProviderBadge provider={item.ai_provider} /></td>
+                  <td className="p-3 text-center"><ForensicBadge data={forensicByInvoice[item.id]} /></td>
                   <td className="p-3 text-center"><ReviewBadge status={item.review_status} /></td>
                   <td className="p-3">
                     {(() => {
@@ -1287,6 +1316,52 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                   <p className="text-sm text-blue-900 leading-relaxed">{ai.resumen_ia}</p>
                 </div>
               )}
+
+              {/* Forensic alerts — si hay score */}
+              {forensicByInvoice[selected.id] && forensicByInvoice[selected.id].score != null && (() => {
+                const f = forensicByInvoice[selected.id]
+                const score = f.score!
+                const colorBg = score >= 80 ? 'bg-green-50 border-green-200' : score >= 50 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'
+                const colorText = score >= 80 ? 'text-green-700' : score >= 50 ? 'text-amber-700' : 'text-red-700'
+                const sections: { title: string; items: string[] | null }[] = [
+                  { title: 'PDF', items: f.pdf_alerts },
+                  { title: 'Email', items: f.email_alerts },
+                  { title: 'Numeración', items: f.numeracion_alerts },
+                  { title: 'Duplicados', items: f.duplicados_alerts },
+                ]
+                const hasAny = sections.some((s) => (s.items?.length ?? 0) > 0)
+                return (
+                  <div className={`${colorBg} border rounded-lg p-3`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className={`text-[10px] font-bold uppercase tracking-widest ${colorText}`}>Score Forensic</p>
+                      <span className={`text-lg font-bold ${colorText}`}>🛡️ {score}/100</span>
+                    </div>
+                    {hasAny ? (
+                      <div className="space-y-2 mt-2">
+                        {sections.map((s) =>
+                          (s.items?.length ?? 0) > 0 ? (
+                            <div key={s.title}>
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{s.title}</p>
+                              <ul className="list-disc list-inside text-xs text-neutral-700 mt-0.5">
+                                {s.items!.map((alert, i) => (
+                                  <li key={i} className="leading-snug">{alert}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null,
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-neutral-500">Sin alertas detectadas</p>
+                    )}
+                    {f.decision && (
+                      <p className="text-[10px] mt-2 text-neutral-500">
+                        Decisión revisor: <span className="font-bold uppercase">{f.decision}</span>
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* File info */}
               <div className="bg-neutral-50 rounded-lg p-3">

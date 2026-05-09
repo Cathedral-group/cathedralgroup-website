@@ -9,7 +9,7 @@ export default async function RevisionPage() {
 
   const supabase = createAdminSupabaseClient()
 
-  const [pending, pendingDocs, pendingQuotes, projectsRes, suppliersRes, orphansRes] = await Promise.all([
+  const [pending, pendingDocs, pendingQuotes, projectsRes, suppliersRes, orphansRes, forensicRes] = await Promise.all([
     fetchAllRows((sb) =>
       sb
         .from('invoices')
@@ -42,6 +42,11 @@ export default async function RevisionPage() {
       .order('received_at', { ascending: false, nullsFirst: false })
       .limit(500)
       .then((r) => r, () => ({ data: [], error: null })),
+    // Score forensic por factura. Tolera ausencia de tabla → array vacío.
+    supabase
+      .from('factura_forensic')
+      .select('invoice_id, score, pdf_alerts, email_alerts, numeracion_alerts, duplicados_alerts, decision')
+      .then((r) => r, () => ({ data: [], error: null })),
   ])
 
   const projects = (projectsRes.data ?? []).map((p) => ({
@@ -55,6 +60,28 @@ export default async function RevisionPage() {
     label: `${s.nif} - ${s.name}`,
   }))
 
+  // Mapear score forensic por invoice_id para lookup rápido en RevisionView
+  const forensicByInvoice: Record<string, {
+    score: number | null
+    pdf_alerts: string[] | null
+    email_alerts: string[] | null
+    numeracion_alerts: string[] | null
+    duplicados_alerts: string[] | null
+    decision: string | null
+  }> = {}
+  for (const f of (forensicRes.data ?? [])) {
+    if (f?.invoice_id) {
+      forensicByInvoice[f.invoice_id as string] = {
+        score: f.score ?? null,
+        pdf_alerts: f.pdf_alerts ?? null,
+        email_alerts: f.email_alerts ?? null,
+        numeracion_alerts: f.numeracion_alerts ?? null,
+        duplicados_alerts: f.duplicados_alerts ?? null,
+        decision: f.decision ?? null,
+      }
+    }
+  }
+
   return (
     <RevisionView
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,6 +92,7 @@ export default async function RevisionPage() {
       pendingQuotes={(pendingQuotes.data ?? []) as any}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initialOrphans={(orphansRes.data ?? []) as any}
+      forensicByInvoice={forensicByInvoice}
       projects={projects}
       suppliers={suppliers}
       userEmail={data.user.email ?? 'admin'}
