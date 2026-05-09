@@ -454,6 +454,42 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
     }
   }
 
+  const [quickConfirming, setQuickConfirming] = useState<string | null>(null)
+
+  const quickConfirm = async (item: ReviewItem) => {
+    if (quickConfirming) return
+    setQuickConfirming(item.id)
+    try {
+      const res = await fetch('/api/db/invoices', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: item.id,
+          review_status: 'confirmado',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: userEmail,
+          needs_review: false,
+        }),
+      })
+      if (res.ok) {
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === item.id
+              ? { ...i, review_status: 'confirmado', needs_review: false }
+              : i,
+          ),
+        )
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(`Error: ${err.error ?? res.statusText}`)
+      }
+    } catch (e) {
+      alert(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setQuickConfirming(null)
+    }
+  }
+
   const saveAndApprove = async (status: 'confirmado' | 'rechazado') => {
     if (!selected) return
     setSaving(true)
@@ -968,7 +1004,24 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                   <td className="p-3 text-center"><ConfidenceBadge confidence={item.ai_confidence} /></td>
                   <td className="p-3 text-center"><ProviderBadge provider={item.ai_provider} /></td>
                   <td className="p-3 text-center"><ForensicBadge data={forensicByInvoice[item.id]} /></td>
-                  <td className="p-3 text-center"><ReviewBadge status={item.review_status} /></td>
+                  <td className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <ReviewBadge status={item.review_status} />
+                      {item.review_status !== 'confirmado' && item.review_status !== 'rechazado' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            quickConfirm(item)
+                          }}
+                          disabled={quickConfirming === item.id}
+                          title="Confirmar revisión sin abrir panel"
+                          className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50 text-xs font-bold"
+                        >
+                          {quickConfirming === item.id ? '…' : '✓'}
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-3">
                     {(() => {
                       const cat = categorize(item)
