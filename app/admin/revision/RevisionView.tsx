@@ -61,6 +61,7 @@ interface ReviewItem {
   original_filename: string | null
   drive_url: string | null
   ai_confidence: number | null
+  ai_provider: string | null
   needs_review: boolean
   review_status: string
   duplicate_reason: string | null
@@ -86,6 +87,7 @@ interface PendingDocument {
   doc_type: string
   doc_category: string | null
   ai_confidence: number | null
+  ai_provider: string | null
   created_at: string
   [key: string]: unknown
 }
@@ -106,6 +108,7 @@ interface PendingQuote {
   subtotal: number | null
   vat_total: number | null
   ai_confidence: number | null
+  ai_provider: string | null
   needs_review: boolean
   review_status: string
   original_filename: string | null
@@ -250,6 +253,25 @@ function ReviewBadge({ status }: { status: string }) {
   return (
     <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${map[status] ?? 'bg-neutral-100 text-neutral-500'}`}>
       {status}
+    </span>
+  )
+}
+
+function ProviderBadge({ provider }: { provider: string | null | undefined }) {
+  if (!provider) return <span className="text-neutral-400 text-[10px]">--</span>
+  const map: Record<string, string> = {
+    'gemini': 'bg-violet-100 text-violet-700',
+    'gpt-4o': 'bg-emerald-100 text-emerald-700',
+    'mistral': 'bg-orange-100 text-orange-700',
+  }
+  const label: Record<string, string> = {
+    'gemini': 'Gemini',
+    'gpt-4o': 'GPT-4o',
+    'mistral': 'Mistral',
+  }
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${map[provider] ?? 'bg-neutral-100 text-neutral-500'}`}>
+      {label[provider] ?? provider}
     </span>
   )
 }
@@ -681,6 +703,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                   <th className="text-left p-3 font-medium text-neutral-600">Título / Tipo</th>
                   <th className="text-left p-3 font-medium text-neutral-600">Categoría</th>
                   <th className="text-center p-3 font-medium text-neutral-600">IA</th>
+                  <th className="text-center p-3 font-medium text-neutral-600">Modelo</th>
                   <th className="text-left p-3 font-medium text-neutral-600">Fecha</th>
                   <th className="text-right p-3 font-medium text-neutral-600">Acciones</th>
                 </tr>
@@ -703,6 +726,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                       )}
                     </td>
                     <td className="p-3 text-center"><ConfidenceBadge confidence={doc.ai_confidence} /></td>
+                    <td className="p-3 text-center"><ProviderBadge provider={doc.ai_provider} /></td>
                     <td className="p-3 text-xs">{formatDate(doc.created_at)}</td>
                     <td className="p-3 text-right">
                       {(doc.drive_url as string | undefined) && (
@@ -719,7 +743,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 ))}
                 {docs.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-neutral-400">
+                    <td colSpan={6} className="p-8 text-center text-neutral-400">
                       No hay documentos pendientes ✓
                     </td>
                   </tr>
@@ -744,6 +768,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                   <th className="text-left p-3 font-medium text-neutral-600">Proveedor</th>
                   <th className="text-right p-3 font-medium text-neutral-600">Total</th>
                   <th className="text-center p-3 font-medium text-neutral-600">IA</th>
+                  <th className="text-center p-3 font-medium text-neutral-600">Modelo</th>
                   <th className="text-center p-3 font-medium text-neutral-600">Estado</th>
                   <th className="text-left p-3 font-medium text-neutral-600">Emisión</th>
                   <th className="text-right p-3 font-medium text-neutral-600">Acciones</th>
@@ -767,6 +792,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                     </td>
                     <td className="p-3 text-right font-mono text-xs">{formatEur(q.total)}</td>
                     <td className="p-3 text-center"><ConfidenceBadge confidence={q.ai_confidence} /></td>
+                    <td className="p-3 text-center"><ProviderBadge provider={q.ai_provider} /></td>
                     <td className="p-3 text-center"><ReviewBadge status={q.review_status} /></td>
                     <td className="p-3 text-xs">{formatDate(q.issue_date)}</td>
                     <td className="p-3 text-right">
@@ -784,7 +810,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 ))}
                 {quotes.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-neutral-400">No hay presupuestos pendientes ✓</td>
+                    <td colSpan={8} className="p-8 text-center text-neutral-400">No hay presupuestos pendientes ✓</td>
                   </tr>
                 )}
               </tbody>
@@ -878,6 +904,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 <th className="text-left p-3 font-medium text-neutral-600">Proveedor</th>
                 <th className="text-right p-3 font-medium text-neutral-600">Importe</th>
                 <th className="text-center p-3 font-medium text-neutral-600">IA</th>
+                <th className="text-center p-3 font-medium text-neutral-600">Modelo</th>
                 <th className="text-center p-3 font-medium text-neutral-600">Estado</th>
                 <th className="text-left p-3 font-medium text-neutral-600">Motivo</th>
                 <th className="text-left p-3 font-medium text-neutral-600">Fecha</th>
@@ -911,6 +938,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                   </td>
                   <td className="p-3 text-right font-mono text-xs">{formatEur(item.amount_total)}</td>
                   <td className="p-3 text-center"><ConfidenceBadge confidence={item.ai_confidence} /></td>
+                  <td className="p-3 text-center"><ProviderBadge provider={item.ai_provider} /></td>
                   <td className="p-3 text-center"><ReviewBadge status={item.review_status} /></td>
                   <td className="p-3">
                     {(() => {
