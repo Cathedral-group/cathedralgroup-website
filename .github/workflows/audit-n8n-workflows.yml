@@ -1,0 +1,85 @@
+name: Audit n8n workflows
+
+# Por qué este workflow existe
+#   Ejecuta scripts/audit-n8n-workflows.sh diariamente sobre los workflows
+#   en producción y reporta hits. Detecta 3 anti-patrones que han causado
+#   bugs silenciosos en producción:
+#     1. Expresiones {{...}} sin prefijo `=` (literal en lugar de evaluada)
+#     2. neverError:true en monitors/healthchecks o nodos write críticos
+#     3. Hardcoded secrets (sb_secret_, sk-, AIzaSy, AQ.Ab, Bearer eyJ)
+#
+#   Si el script detecta hits → el job falla → GitHub manda notificación
+#   por email a los committers del repo (configurado en notification settings
+#   personales de cada usuario).
+#
+# Cuándo se ejecuta
+#   - Manual: workflow_dispatch
+#   - Cron diario: 06:00 Madrid (después de los backups que corren 04:30-05:00)
+#   - Push: cuando se modifica el script o este workflow (validación rápida)
+#
+# Secrets necesarios
+#   N8N_API_URL  — https://n8n.cathedralgroup.es
+#   N8N_API_KEY  — JWT (mismo que backup-n8n-workflows)
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: '0 4 * * *'  # 06:00 Madrid (CEST), tras backups
+
+  push:
+    paths:
+      - 'scripts/audit-n8n-workflows.sh'
+      - '.github/workflows/audit-n8n-workflows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tools
+        run: |
+          jq --version
+          curl --version | head -1
+
+      - name: Run audit
+        env:
+          N8N_URL: ${{ secrets.N8N_API_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${N8N_URL:-}" ] || [ -z "${N8N_API_KEY:-}" ]; then
+            echo "::error::N8N_API_URL o N8N_API_KEY no configurados"
+            exit 2
+          fi
+          chmod +x scripts/audit-n8n-workflows.sh
+
+          # Texto legible para los logs
+          ./scripts/audit-n8n-workflows.sh || EXIT=$?
+          EXIT=${EXIT:-0}
+
+          echo ""
+          echo "── JSON output (para artifact) ──"
+          ./scripts/audit-n8n-workflows.sh --json > /tmp/audit-result.json || true
+          cat /tmp/audit-result.json | jq '.'
+
+          if [ "$EXIT" -ne 0 ]; then
+            echo "::error::Auditoría n8n encontró hits — revisar log"
+            exit "$EXIT"
+          fi
+
+      - name: Upload audit result as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-result-${{ github.run_id }}
+          path: /tmp/audit-result.json
+          retention-days: 30
+          if-no-files-found: ignore
