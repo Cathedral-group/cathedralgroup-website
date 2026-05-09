@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface CoberturaMetrics {
   supplier_nif_pct?: number
@@ -98,10 +98,44 @@ function KPI({ label, value, color = 'text-neutral-700' }: { label: string; valu
   )
 }
 
+interface SystemHealth {
+  checked_at: string
+  overall_status: 'healthy' | 'degraded' | 'critical'
+  components: {
+    forensic_rpcs: { ok: number; failed: number; results: { rpc_name: string; ok: boolean }[] }
+    workflows: { active: number; total: number; names: string[] }
+    last_eval_snapshot: { run_at: string | null; total: number | null; minutes_ago: number | null }
+    exceptions_pending: { count: number; oldest_minutes: number | null }
+    backup_recent: { count_24h: number }
+  }
+  alerts: string[]
+}
+
 export default function EvalView({ snapshot7, snapshot30, snapshot365, history }: Props) {
   const [window, setWindow] = useState<7 | 30 | 365>(30)
   const [refreshing, setRefreshing] = useState(false)
   const [snaps, setSnaps] = useState({ 7: snapshot7, 30: snapshot30, 365: snapshot365 })
+  const [health, setHealth] = useState<SystemHealth | null>(null)
+  const [healthLoading, setHealthLoading] = useState(false)
+
+  const loadHealth = async () => {
+    setHealthLoading(true)
+    try {
+      const res = await fetch('/api/health/system')
+      if (res.ok) {
+        const data = (await res.json()) as SystemHealth
+        setHealth(data)
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setHealthLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadHealth()
+  }, [])
 
   const current = snaps[window]
   const cob = current?.cobertura_campos ?? {}
@@ -176,6 +210,85 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
             Persistir snapshot
           </button>
         </div>
+
+        {/* Health overview */}
+        {health && (
+          <div className={`rounded-lg border p-4 mb-6 ${
+            health.overall_status === 'healthy' ? 'bg-green-50 border-green-200' :
+            health.overall_status === 'degraded' ? 'bg-amber-50 border-amber-200' :
+            'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                  health.overall_status === 'healthy' ? 'text-green-700' :
+                  health.overall_status === 'degraded' ? 'text-amber-700' :
+                  'text-red-700'
+                }`}>
+                  Health del sistema
+                </span>
+                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  health.overall_status === 'healthy' ? 'bg-green-100 text-green-700' :
+                  health.overall_status === 'degraded' ? 'bg-amber-100 text-amber-700' :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {health.overall_status}
+                </span>
+              </div>
+              <button
+                onClick={loadHealth}
+                disabled={healthLoading}
+                className="text-xs text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+              >
+                {healthLoading ? '…' : '↻ Re-check'}
+              </button>
+            </div>
+            <div className="grid grid-cols-5 gap-3 text-sm">
+              <div>
+                <p className="text-[10px] uppercase text-neutral-400">RPCs forensic</p>
+                <p className={`font-mono font-bold ${health.components.forensic_rpcs.failed > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {health.components.forensic_rpcs.ok}/{health.components.forensic_rpcs.ok + health.components.forensic_rpcs.failed}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-neutral-400">Workflows activos</p>
+                <p className={`font-mono font-bold ${health.components.workflows.active < 6 ? 'text-amber-600' : 'text-green-600'}`}>
+                  {health.components.workflows.active}/{health.components.workflows.total}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-neutral-400">Último eval</p>
+                <p className="font-mono text-xs">
+                  {health.components.last_eval_snapshot.minutes_ago != null
+                    ? `${Math.round(health.components.last_eval_snapshot.minutes_ago / 60)}h`
+                    : '--'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-neutral-400">Exceptions abiertas</p>
+                <p className={`font-mono font-bold ${health.components.exceptions_pending.count > 50 ? 'text-red-600' : health.components.exceptions_pending.count > 10 ? 'text-amber-600' : 'text-green-600'}`}>
+                  {health.components.exceptions_pending.count}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-neutral-400">Backups 24h</p>
+                <p className={`font-mono font-bold ${health.components.backup_recent.count_24h === 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                  {health.components.backup_recent.count_24h}
+                </p>
+              </div>
+            </div>
+            {health.alerts.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-current opacity-70">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-1">Alertas activas</p>
+                <ul className="text-xs space-y-0.5 list-disc list-inside">
+                  {health.alerts.map((a, i) => (
+                    <li key={i}>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {!current || current.total === 0 ? (
           <div className="bg-white rounded-lg border border-neutral-200 p-8 text-center text-neutral-500">
