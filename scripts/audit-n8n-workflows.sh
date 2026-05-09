@@ -156,6 +156,74 @@ for f in "$WORK_DIR"/*.json; do
   ' "$f" 2>/dev/null >> "$HITS_FILE" || true
 done
 
+# Detector 4: HTTP nodes que pueden cortar el flujo silenciosamente
+#
+# La regla: cuando un HTTP request devuelve 0 items, n8n NO ejecuta el siguiente
+# nodo a menos que el HTTP tenga `alwaysOutputData: true`. Esto causa que ramas
+# enteras del workflow se corten cuando una query Supabase legítimamente devuelve
+# vacío (no hay duplicados, no hay match, etc.).
+#
+# Caso real (9/05/2026): la cascada multi-provider Gemini→GPT-4o nunca había
+# llegado al INSERT en producción porque DOS nodos HTTP (Check Anti-Bucle GPT
+# y Buscar Fuzzy Match) cortaban el flujo cuando devolvían 0 items.
+#
+# Heurística: HTTP node con método GET y URL parametrizada con expresión n8n
+# (={{...}}) que NO tenga alwaysOutputData=true. Excluir INSERT/UPDATE/DELETE
+# (esos no se cortan por 0 results).
+for f in "$WORK_DIR"/*.json; do
+  [ "$(basename "$f")" = "list.json" ] || [ "$(basename "$f")" = "hits.jsonl" ] || \
+  jq -c --arg wf_id "$(basename "$f" .json)" '
+    .name as $wf_name |
+    .nodes[] |
+    select(.type == "n8n-nodes-base.httpRequest") |
+    select((.parameters.method // "GET") == "GET") |
+    select((.parameters.url // "") | startswith("=")) |
+    select(.alwaysOutputData != true) |
+    {
+      detector: "http_get_without_alwaysOutputData",
+      severity: "medium",
+      workflow_id: $wf_id,
+      workflow_name: $wf_name,
+      node_name: .name,
+      node_type: "httpRequest",
+      field_path: "alwaysOutputData",
+      value_preview: ((.alwaysOutputData // "null") | tostring),
+      reason: "GET con URL dinámica sin alwaysOutputData — corta el flujo silenciosamente al devolver 0 items"
+    }
+  ' "$f" 2>/dev/null >> "$HITS_FILE" || true
+done
+
+# Detector 5: HTTP nodes con predefinedCredentialType pero sin nodeCredentialType
+#
+# Cuando se usa authentication=predefinedCredentialType, n8n requiere también
+# nodeCredentialType para identificar el tipo (openAiApi, anthropicApi, etc.).
+# Sin él, el nodo falla en runtime con "Cannot read properties of undefined (reading 'status')".
+#
+# Caso real (9/05/2026): mi PUT atómico al General omitió nodeCredentialType
+# en Llamar GPT-4o Visión → toda invocación al fallback fallaba antes de pegarse
+# a OpenAI.
+for f in "$WORK_DIR"/*.json; do
+  [ "$(basename "$f")" = "list.json" ] || [ "$(basename "$f")" = "hits.jsonl" ] || \
+  jq -c --arg wf_id "$(basename "$f" .json)" '
+    .name as $wf_name |
+    .nodes[] |
+    select(.type == "n8n-nodes-base.httpRequest") |
+    select(.parameters.authentication == "predefinedCredentialType") |
+    select((.parameters.nodeCredentialType // null) == null) |
+    {
+      detector: "predefinedCredentialType_without_nodeCredentialType",
+      severity: "high",
+      workflow_id: $wf_id,
+      workflow_name: $wf_name,
+      node_name: .name,
+      node_type: "httpRequest",
+      field_path: "parameters.nodeCredentialType",
+      value_preview: "missing",
+      reason: "predefinedCredentialType requiere nodeCredentialType — el nodo falla en runtime sin él"
+    }
+  ' "$f" 2>/dev/null >> "$HITS_FILE" || true
+done
+
 # Detector 3: hardcoded secrets (sb_secret_, sk-, AIzaSy, sQP*, Bearer eyJ, AQ.Ab)
 for f in "$WORK_DIR"/*.json; do
   [ "$(basename "$f")" = "list.json" ] || [ "$(basename "$f")" = "hits.jsonl" ] || \
