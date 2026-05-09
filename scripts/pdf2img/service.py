@@ -27,7 +27,125 @@ MAX_IMAGE_DIM = 2048                         # límite OpenAI Vision (más grand
 
 @app.route('/health')
 def health():
-    return jsonify({'ok': True, 'pages_limit': PDF_PAGES_LIMIT, 'dpi': PDF_DPI, 'jpeg_quality': JPEG_QUALITY, 'max_dim': MAX_IMAGE_DIM})
+    return jsonify({'ok': True, 'pages_limit': PDF_PAGES_LIMIT, 'dpi': PDF_DPI, 'jpeg_quality': JPEG_QUALITY, 'max_dim': MAX_IMAGE_DIM, 'features': ['convert', 'normalize-image', 'forensic']})
+
+
+@app.route('/forensic', methods=['POST'])
+def forensic():
+    """Análisis forense de PDF: metadata + EOF count + signatures + xref count.
+    Body: {pdf_b64}
+    Returns: {alerts: [...], metadata: {...}, eof_count, has_signature, num_objects, ...}
+    """
+    body = request.get_json(silent=True) or {}
+    b64 = body.get('pdf_b64', '')
+    if not b64:
+        return jsonify({'error': 'missing pdf_b64'}), 400
+    try:
+        pdf_bytes = base64.b64decode(b64)
+    except Exception as e:
+        return jsonify({'error': 'invalid base64: ' + str(e)}), 400
+
+    alerts = []
+    result = {
+        'alerts': alerts,
+        'metadata': {},
+        'eof_count': 0,
+        'has_signature': False,
+        'num_objects': 0,
+        'num_pages': 0,
+        'is_encrypted': False,
+        'pdf_version': None,
+    }
+
+    # 1) EOF count (incremental updates) — bytes-level, no requiere lib
+    eof_count = pdf_bytes.count(b'%%EOF')
+    result['eof_count'] = eof_count
+    if eof_count > 1:
+        alerts.append(f'PDF_INCREMENTAL_UPDATES: {eof_count} marcadores %%EOF (esperado 1 para factura nueva)')
+
+    # 2) Análisis con PyMuPDF
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype='pdf')
+        result['is_encrypted'] = doc.is_encrypted
+        try:
+            result['pdf_version'] = doc.metadata.get('format', '') if doc.metadata else None
+        except Exception:
+            result['pdf_version'] = None
+        result['num_pages'] = doc.page_count
+        try:
+            result['num_objects'] = doc.xref_length()
+        except Exception:
+            result['num_objects'] = 0
+
+        # Metadata standard
+        meta = doc.metadata or {}
+        result['metadata'] = {
+            'producer': meta.get('producer'),
+            'creator': meta.get('creator'),
+            'author': meta.get('author'),
+            'title': meta.get('title'),
+            'creationDate': meta.get('creationDate'),
+            'modDate': meta.get('modDate'),
+            'subject': meta.get('subject'),
+        }
+
+        # Detectar dates manipuladas
+        cd = meta.get('creationDate', '')
+        md = meta.get('modDate', '')
+        if cd and md:
+            # Format PDF: D:YYYYMMDDHHmmSS+ZZ'00'
+            try:
+                cd_parsed = cd[2:16] if cd.startswith('D:') else cd[:14]
+                md_parsed = md[2:16] if md.startswith('D:') else md[:14]
+                if md_parsed < cd_parsed:
+                    alerts.append('METADATA_DATE_INCONSISTENCY: ModDate anterior a CreationDate (manipulación)')
+                # Si ModDate > CreationDate por más de 1 día, sospechoso
+                if cd_parsed[:8] != md_parsed[:8] and len(cd_parsed) >= 8 and len(md_parsed) >= 8:
+                    delta_days = abs(int(md_parsed[:8]) - int(cd_parsed[:8]))
+                    if delta_days > 7:
+                        alerts.append(f'METADATA_LATE_MODIFICATION: PDF modificado más tarde de su creación (diferencia días en fecha)')
+            except Exception:
+                pass
+
+        # Producer sospechoso (herramientas de edición común)
+        prod = (meta.get('producer') or '').lower()
+        suspicious_producers = ['ilovepdf', 'smallpdf', 'pdf24', 'sejda', 'pdfescape', 'pdfsam']
+        for s in suspicious_producers:
+            if s in prod:
+                alerts.append(f'METADATA_EDITING_TOOL: Producer "{prod}" sugiere edición con herramienta de retoque')
+                break
+
+        # 3) Detectar firmas digitales
+        for page in doc:
+            for widget in page.widgets() or []:
+                if widget.field_type == fitz.PDF_WIDGET_TYPE_SIGNATURE:
+                    result['has_signature'] = True
+                    break
+            if result['has_signature']:
+                break
+
+        doc.close()
+    except Exception as e:
+        alerts.append(f'PDF_PARSE_ERROR: {str(e)[:150]}')
+        traceback.print_exc(file=sys.stderr)
+
+    # Score interno simple (más alerts = peor)
+    if not alerts:
+        result['score'] = 100
+    else:
+        # Pondera por severidad
+        severity_score = 100
+        for a in alerts:
+            if 'INCONSISTENCY' in a or 'INCREMENTAL_UPDATES' in a:
+                severity_score -= 25
+            elif 'EDITING_TOOL' in a or 'LATE_MODIFICATION' in a:
+                severity_score -= 15
+            else:
+                severity_score -= 5
+        result['score'] = max(0, severity_score)
+
+    return jsonify(result)
+
 
 def _render_page_to_jpeg_b64(page):
     """Render a PDF page to JPEG with high quality and bounded dimensions."""

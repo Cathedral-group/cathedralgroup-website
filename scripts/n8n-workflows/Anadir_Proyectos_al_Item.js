@@ -33,11 +33,12 @@ presupuestosList.forEach(q => {
   }
 });
 
-// Build enriched projects
+// Build enriched projects (V3: + codigo_corto + presupuestos)
 const proyectosList = Array.isArray(proyectosRaw) ? proyectosRaw : [];
 const proyectos_activos = proyectosList.map(p => ({
   id: p.id,
   code: p.code,
+  codigo_corto: p.codigo_corto || null,  // V3: buyer reference que puede aparecer en facturas
   name: p.name,
   address: p.address || null,
   status: p.status,
@@ -47,6 +48,8 @@ const proyectos_activos = proyectosList.map(p => ({
   description: p.description || null,
   client: p.client_id ? (clienteMap[p.client_id] || null) : null,
   presupuestos: quotesByProject[p.id] || [],
+  presupuesto_inicial: p.presupuesto_inicial || null,
+  presupuesto_revisado: p.presupuesto_revisado || null,
 }));
 
 console.log(`[Añadir Proyectos al Item] Contexto cargado: ${proyectos_activos.length} proyectos, ${clientesList.length} clientes, ${presupuestosList.length} presupuestos`);

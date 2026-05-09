@@ -18,10 +18,11 @@ const emailContext = [
 const proyectos_activos = item.proyectos_activos || [];
 const clientes_activos  = item.clientes_activos  || [];
 
-// Format project list with all available data
+// Format project list with all available data (V3: + codigo_corto buyer reference)
 const proyectosContext = proyectos_activos.length > 0
   ? proyectos_activos.map(p => {
       const lines = [`• ${p.code} — ${p.name}`];
+      if (p.codigo_corto)   lines.push(`  Código corto / buyer reference: ${p.codigo_corto} (puede aparecer en factura como "Su pedido", "Vuestra ref.", "Obra")`);
       if (p.address)        lines.push(`  Dirección: ${p.address}`);
       if (p.client?.name)   lines.push(`  Cliente: ${p.client.name}${p.client.nif_cif ? ' (NIF: '+p.client.nif_cif+')' : ''}`);
       if (p.start_date || p.end_date_planned)
