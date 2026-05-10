@@ -87,16 +87,18 @@ export default async function PortalTrabajadorPage({ params }: Params) {
       .gte('fecha', desde)
       .is('deleted_at', null)
       .order('fecha', { ascending: false }),
+    // Cargar asignaciones de los últimos 7 días (para que al cambiar día en selector
+    // se pre-rellene el proyecto correcto)
     supabase
       .from('worker_assignments')
       .select(
-        `id, project_id, jornada_esperada_horas, notas,
+        `id, fecha, project_id, jornada_esperada_horas, notas,
          project:project_id (id, code, name)`,
       )
       .eq('employee_id', employeeId)
-      .eq('fecha', today)
-      .is('deleted_at', null)
-      .maybeSingle(),
+      .gte('fecha', desde)
+      .lte('fecha', today)
+      .is('deleted_at', null),
     supabase.rpc('get_worker_dashboard_stats', { p_employee_id: employeeId }),
     supabase
       .from('worker_portal_access')
@@ -126,7 +128,7 @@ export default async function PortalTrabajadorPage({ params }: Params) {
       projects={projectsRes.data ?? []}
       parteHoy={parteHoyRes.data ?? null}
       ultimosDias={ultimosDiasRes.data ?? []}
-      assignmentHoy={assignmentRes.data ?? null}
+      assignments={assignmentRes.data ?? []}
       stats={statsRes.data ?? null}
       overtimeBalance={overtimeBalanceRes.data ?? null}
       consent={consent}
