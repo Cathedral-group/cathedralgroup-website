@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import ActiveCompanyBadge from './ActiveCompanyBadge'
 
 /* ── Types ── */
 type NavItem = {
@@ -106,6 +107,10 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Principal',
     items: [
       { label: 'Dashboard',      href: '/admin',               icon: <IconDashboard /> },
+      {
+        label: 'Grupo',          href: '/admin/grupo',         icon: <IconCorporativo />,
+        description: 'Empresas del grupo (multi-SL): Cathedral House Investment + futuras SL hermanas',
+      },
     ],
   },
   {
@@ -426,6 +431,9 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
             </svg>
           </button>
         </div>
+
+        {/* Active company badge (F3.5 — Bloque 0 multi-empresa) */}
+        <ActiveCompanyBadge />
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto relative">
