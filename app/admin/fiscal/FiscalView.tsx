@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 type Filing = {
   id: string
@@ -66,6 +66,15 @@ const fmtDate = (iso: string | null) =>
 const fmtMoney = (n: number | null | undefined) =>
   n == null ? '—' : `${Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
+type BankAccount = {
+  id: string
+  iban: string
+  bic_swift: string | null
+  bank_name: string | null
+  account_alias: string | null
+  account_holder_nombre: string | null
+}
+
 export default function FiscalView({
   activeCompanyId: _activeCompanyId,
   company,
@@ -87,6 +96,65 @@ export default function FiscalView({
   const [generating, setGenerating] = useState(false)
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // SEPA state
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [sepaYear, setSepaYear] = useState(stats.currentYear)
+  const [sepaMonth, setSepaMonth] = useState(new Date().getMonth() + 1)
+  const [sepaAccountId, setSepaAccountId] = useState<string>('')
+  const [sepaSubmitting, setSepaSubmitting] = useState(false)
+  const [sepaError, setSepaError] = useState<string | null>(null)
+  const [sepaSuccess, setSepaSuccess] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/bank-accounts', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { accounts: [] }))
+      .then((j) => setBankAccounts(j.accounts ?? []))
+      .catch(() => {})
+  }, [])
+
+  const handleSepaPayroll = async () => {
+    if (!sepaAccountId) {
+      setSepaError('Selecciona una cuenta bancaria deudora')
+      return
+    }
+    setSepaSubmitting(true)
+    setSepaError(null)
+    setSepaSuccess(null)
+    try {
+      const res = await fetch('/api/sepa/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: sepaYear,
+          month: sepaMonth,
+          debtor_account_id: sepaAccountId,
+        }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || `HTTP ${res.status}`)
+      }
+      // Es XML, descargar
+      const xml = await res.text()
+      const count = res.headers.get('X-SEPA-Count') ?? '?'
+      const total = res.headers.get('X-SEPA-Total-Amount') ?? '?'
+      const blob = new Blob([xml], { type: 'application/xml' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `cathedral_nominas_${sepaYear}-${String(sepaMonth).padStart(2, '0')}.xml`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setSepaSuccess(`✓ XML descargado: ${count} nómina(s) por ${Number(total).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €. Súbelo al portal del banco.`)
+    } catch (e) {
+      setSepaError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSepaSubmitting(false)
+    }
+  }
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -209,6 +277,94 @@ export default function FiscalView({
         )}
 
         {draft && <DraftDisplay draft={draft} />}
+      </section>
+
+      {/* B11 — Pagos SEPA masivos */}
+      <section className="bg-white border border-neutral-100 rounded-lg p-5 mb-6">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-3">
+          💸 Pagos SEPA masivos
+        </h2>
+        <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
+          Genera un XML SEPA Pain.001 con todos los pagos pendientes del mes.
+          Súbelo al portal del banco para ejecutar la transferencia masiva en una operación.
+        </p>
+
+        {bankAccounts.length === 0 ? (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded text-xs">
+            ⚠ No hay cuentas bancarias registradas para esta empresa. Añade una desde
+            <strong className="mx-1">/admin/configuracion → Bancos</strong>
+            antes de poder generar SEPA.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Año</label>
+              <input
+                type="number"
+                min={2020}
+                max={2100}
+                value={sepaYear}
+                onChange={(e) => setSepaYear(parseInt(e.target.value || '0', 10))}
+                className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Mes</label>
+              <select
+                value={sepaMonth}
+                onChange={(e) => setSepaMonth(parseInt(e.target.value, 10))}
+                className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {new Date(2000, m - 1, 1).toLocaleDateString('es-ES', { month: 'long' })}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Cuenta deudora</label>
+              <select
+                value={sepaAccountId}
+                onChange={(e) => setSepaAccountId(e.target.value)}
+                className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+              >
+                <option value="">— Selecciona —</option>
+                {bankAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.account_alias || acc.bank_name || acc.iban.slice(-8)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={handleSepaPayroll}
+                disabled={sepaSubmitting || !sepaAccountId}
+                className="w-full bg-primary text-white px-4 py-2 rounded text-sm font-semibold hover:bg-[#5A5550] transition-colors disabled:opacity-50"
+              >
+                {sepaSubmitting ? 'Generando…' : '💸 Descargar XML nóminas'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {sepaError && (
+          <div className="mt-3 bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded text-xs">
+            {sepaError}
+          </div>
+        )}
+        {sepaSuccess && (
+          <div className="mt-3 bg-green-50 border border-green-200 text-green-800 px-3 py-2 rounded text-xs">
+            {sepaSuccess}
+          </div>
+        )}
+
+        <p className="mt-3 text-[11px] text-neutral-400">
+          También disponible: <code className="bg-neutral-100 px-1">POST /api/sepa/invoices</code> para
+          batch de facturas seleccionadas (máx 200 por XML). Documentado en{' '}
+          <code className="bg-neutral-100 px-1">docs/CHANGELOG_2026_05_10.md</code>.
+        </p>
       </section>
 
       {/* Próximos vencimientos */}
