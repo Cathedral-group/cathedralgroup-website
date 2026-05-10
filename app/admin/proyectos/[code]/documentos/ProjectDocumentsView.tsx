@@ -207,10 +207,18 @@ export default function ProjectDocumentsView({ project, invoices, quotes, docume
               {project.zona && <span className="mr-2">{project.zona}</span>}
             </p>
           </div>
-          {project.drive_folder_url && (
-            <a href={project.drive_folder_url} target="_blank" rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:underline">📁 Carpeta Drive del proyecto →</a>
-          )}
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/admin/proyectos/${project.code}/mano-de-obra`}
+              className="text-xs text-stone-700 underline hover:text-stone-900"
+            >
+              Mano de obra interna →
+            </Link>
+            {project.drive_folder_url && (
+              <a href={project.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline">📁 Carpeta Drive del proyecto →</a>
+            )}
+          </div>
         </div>
       </div>
 
