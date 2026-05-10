@@ -45,6 +45,7 @@ interface Props {
   mondayIso: string
   holidays: Holiday[]
   jornadas: JornadaDia[]
+  vista: 'semana' | 'mes'
 }
 
 const DOW_LABEL = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
@@ -58,6 +59,22 @@ function shiftWeek(mondayIso: string, weeks: number): string {
   const d = new Date(mondayIso + 'T00:00:00')
   d.setDate(d.getDate() + weeks * 7)
   return d.toISOString().slice(0, 10)
+}
+
+function shiftMonth(anyDayIso: string, months: number): string {
+  // Devuelve YYYY-MM del mes desplazado relativo al mes que cubre el rango
+  const d = new Date(anyDayIso + 'T00:00:00')
+  // Apuntar al día 15 del mes para evitar problemas de overflow
+  const target = new Date(d.getFullYear(), d.getMonth() + months, 15)
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`
+}
+
+function monthLabel(firstIso: string): string {
+  // El "mes" de la vista es el mes del día 15 del rango (mayor cobertura)
+  const d = new Date(firstIso + 'T00:00:00')
+  // Avanzar al día 15
+  d.setDate(15)
+  return d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
 }
 
 function dayLabel(iso: string): string {
@@ -77,6 +94,7 @@ export default function CuadranteView({
   mondayIso,
   holidays,
   jornadas,
+  vista,
 }: Props) {
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
   const [editing, setEditing] = useState<{ employeeId: string; fecha: string } | null>(null)
@@ -195,32 +213,80 @@ export default function CuadranteView({
       </div>
 
       <div className="mx-auto max-w-7xl px-6 py-6">
-        {/* Navegación semanas */}
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-stone-200 bg-white p-3">
+        {/* Toggle vista */}
+        <div className="mb-3 inline-flex rounded-lg border border-stone-300 p-0.5">
           <Link
-            href={`/admin/personal/cuadrante?semana=${shiftWeek(mondayIso, -1)}`}
-            className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
+            href="/admin/personal/cuadrante?vista=semana"
+            className={`rounded-md px-3 py-1 text-xs transition ${
+              vista === 'semana' ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'
+            }`}
           >
-            ← Semana anterior
+            Vista semana
           </Link>
-          <span className="text-sm font-medium">
-            Semana del {days[0]} al {days[6]}
-          </span>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/admin/personal/cuadrante"
-              className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
-            >
-              Esta semana
-            </Link>
-            <Link
-              href={`/admin/personal/cuadrante?semana=${shiftWeek(mondayIso, 1)}`}
-              className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
-            >
-              Semana siguiente →
-            </Link>
-          </div>
+          <Link
+            href="/admin/personal/cuadrante?vista=mes"
+            className={`rounded-md px-3 py-1 text-xs transition ${
+              vista === 'mes' ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'
+            }`}
+          >
+            Vista mes
+          </Link>
         </div>
+
+        {/* Navegación */}
+        {vista === 'semana' ? (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-stone-200 bg-white p-3">
+            <Link
+              href={`/admin/personal/cuadrante?vista=semana&semana=${shiftWeek(mondayIso, -1)}`}
+              className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
+            >
+              ← Semana anterior
+            </Link>
+            <span className="text-sm font-medium">
+              Semana del {days[0]} al {days[days.length - 1]}
+            </span>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/admin/personal/cuadrante?vista=semana"
+                className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
+              >
+                Esta semana
+              </Link>
+              <Link
+                href={`/admin/personal/cuadrante?vista=semana&semana=${shiftWeek(mondayIso, 1)}`}
+                className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
+              >
+                Semana siguiente →
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-stone-200 bg-white p-3">
+            <Link
+              href={`/admin/personal/cuadrante?vista=mes&mes=${shiftMonth(days[0], -1)}`}
+              className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
+            >
+              ← Mes anterior
+            </Link>
+            <span className="text-sm font-medium">
+              {monthLabel(days[0])} {/* Mes que cubre la mayor parte */}
+            </span>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/admin/personal/cuadrante?vista=mes"
+                className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
+              >
+                Este mes
+              </Link>
+              <Link
+                href={`/admin/personal/cuadrante?vista=mes&mes=${shiftMonth(days[0], 1)}`}
+                className="rounded px-3 py-1.5 text-sm hover:bg-stone-100"
+              >
+                Mes siguiente →
+              </Link>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
@@ -240,27 +306,36 @@ export default function CuadranteView({
                   <th className="sticky left-0 bg-stone-50 px-4 py-2.5 min-w-[180px]">
                     Trabajador
                   </th>
-                  {days.map((d, i) => {
+                  {days.map((d) => {
                     const holiday = holidayByDate.get(d)
                     const horas = jornadaByDate.get(d) ?? 0
+                    const dt = new Date(d + 'T00:00:00')
+                    const dow = dt.getDay() // 0=dom...6=sab
+                    const labelIdx = dow === 0 ? 6 : dow - 1
+                    const isWeekend = dow === 0 || dow === 6
+                    const cellMin = vista === 'mes' ? 'min-w-[60px]' : 'min-w-[110px]'
                     return (
                       <th
                         key={d}
-                        className={`px-3 py-2.5 text-center min-w-[110px] ${
+                        className={`px-2 py-2 text-center ${cellMin} ${
                           isToday(d) ? 'bg-amber-50 text-amber-900' : ''
-                        } ${i >= 5 ? 'bg-stone-100' : ''} ${
+                        } ${isWeekend ? 'bg-stone-100' : ''} ${
                           holiday ? 'bg-rose-50 text-rose-900' : ''
                         }`}
                         title={holiday?.nombre ?? ''}
                       >
-                        <div className="text-[10px]">{DOW_LABEL[i]}</div>
-                        <div className="text-base font-medium">{dayLabel(d)}</div>
+                        <div className="text-[10px]">{DOW_LABEL[labelIdx]}</div>
+                        <div className={vista === 'mes' ? 'text-xs font-medium' : 'text-base font-medium'}>{dayLabel(d)}</div>
                         {holiday ? (
-                          <div className="text-[9px] mt-0.5 truncate" style={{ maxWidth: '110px' }}>
-                            {holiday.nombre}
-                          </div>
+                          vista === 'semana' && (
+                            <div className="text-[9px] mt-0.5 truncate" style={{ maxWidth: '110px' }}>
+                              {holiday.nombre}
+                            </div>
+                          )
                         ) : (
-                          <div className="text-[9px] mt-0.5 text-stone-500">{horas}h</div>
+                          vista === 'semana' && (
+                            <div className="text-[9px] mt-0.5 text-stone-500">{horas}h</div>
+                          )
                         )}
                       </th>
                     )

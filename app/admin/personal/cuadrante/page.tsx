@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 import CuadranteView from './CuadranteView'
 
-type SP = { semana?: string }
+type SP = { semana?: string; mes?: string; vista?: 'semana' | 'mes' }
 
 export default async function CuadrantePage({
   searchParams,
@@ -15,26 +15,65 @@ export default async function CuadrantePage({
   if (authError || !userData?.user) redirect('/admin/login')
 
   const sp = await searchParams
-  // Calcular lunes de la semana objetivo (sp.semana en formato YYYY-MM-DD = lunes)
-  let monday: Date
-  if (sp.semana && /^\d{4}-\d{2}-\d{2}$/.test(sp.semana)) {
-    monday = new Date(sp.semana + 'T00:00:00')
-  } else {
-    monday = new Date()
-    const day = monday.getDay() // 0=dom, 1=lun, ..., 6=sab
-    const offset = day === 0 ? -6 : 1 - day
-    monday.setDate(monday.getDate() + offset)
-  }
-  monday.setHours(0, 0, 0, 0)
+  const vista = sp.vista === 'mes' ? 'mes' : 'semana'
 
-  const days: string[] = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    days.push(d.toISOString().slice(0, 10))
+  let days: string[] = []
+  let desde: string
+  let hasta: string
+
+  if (vista === 'mes') {
+    // Vista mensual: del lunes de la primera semana al domingo de la última
+    let firstOfMonth: Date
+    if (sp.mes && /^\d{4}-\d{2}$/.test(sp.mes)) {
+      const [y, m] = sp.mes.split('-').map(Number)
+      firstOfMonth = new Date(y, m - 1, 1)
+    } else {
+      const now = new Date()
+      firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    }
+    const lastOfMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 0)
+
+    // Lunes de la semana del primer día
+    const startMon = new Date(firstOfMonth)
+    const sd = startMon.getDay()
+    const sOffset = sd === 0 ? -6 : 1 - sd
+    startMon.setDate(startMon.getDate() + sOffset)
+    startMon.setHours(0, 0, 0, 0)
+
+    // Domingo de la semana del último día
+    const endSun = new Date(lastOfMonth)
+    const ed = endSun.getDay()
+    const eOffset = ed === 0 ? 0 : 7 - ed
+    endSun.setDate(endSun.getDate() + eOffset)
+    endSun.setHours(0, 0, 0, 0)
+
+    let cur = new Date(startMon)
+    while (cur <= endSun) {
+      days.push(cur.toISOString().slice(0, 10))
+      cur.setDate(cur.getDate() + 1)
+    }
+    desde = days[0]
+    hasta = days[days.length - 1]
+  } else {
+    // Vista semanal (default): lunes a domingo
+    let monday: Date
+    if (sp.semana && /^\d{4}-\d{2}-\d{2}$/.test(sp.semana)) {
+      monday = new Date(sp.semana + 'T00:00:00')
+    } else {
+      monday = new Date()
+      const day = monday.getDay()
+      const offset = day === 0 ? -6 : 1 - day
+      monday.setDate(monday.getDate() + offset)
+    }
+    monday.setHours(0, 0, 0, 0)
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday)
+      d.setDate(monday.getDate() + i)
+      days.push(d.toISOString().slice(0, 10))
+    }
+    desde = days[0]
+    hasta = days[6]
   }
-  const desde = days[0]
-  const hasta = days[6]
 
   const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
@@ -95,6 +134,7 @@ export default async function CuadrantePage({
       mondayIso={desde}
       holidays={holidaysRes.data ?? []}
       jornadas={jornadasRes}
+      vista={vista}
     />
   )
 }

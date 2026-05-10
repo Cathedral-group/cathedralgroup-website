@@ -28,6 +28,7 @@ interface TimeRecord {
   observaciones: string | null
   fuente: string | null
   registrado_por: string | null
+  foto_avance_url?: string | null
   employee: EmployeeRef | EmployeeRef[] | null
   project: ProjectRef | ProjectRef[] | null
 }
@@ -433,8 +434,8 @@ export default function DietarioView({
                   <th className="px-4 py-2.5 text-right">H. Ord</th>
                   <th className="px-4 py-2.5 text-right">H. Ext</th>
                   <th className="px-4 py-2.5 text-right">H. Noc</th>
-                  <th className="px-4 py-2.5 text-right">Total</th>
-                  <th className="px-4 py-2.5">Fuente</th>
+                  <th className="px-4 py-2.5 text-right">Total</th>                  <th className="px-4 py-2.5">Fuente</th>
+                  <th className="px-4 py-2.5">Foto</th>
                   <th className="px-4 py-2.5">Acciones</th>
                 </tr>
               </thead>
@@ -500,6 +501,24 @@ export default function DietarioView({
                         {totalHoras(r).toFixed(2)}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-stone-500">{r.fuente ?? '—'}</td>
+                      <td className="px-4 py-2.5">
+                        {r.foto_avance_url ? (
+                          <a
+                            href={r.foto_avance_url}
+                            target="_blank"
+                            rel="noopener"
+                            title="Foto avance del día"
+                          >
+                            <img
+                              src={r.foto_avance_url}
+                              alt=""
+                              className="h-10 w-10 rounded border border-stone-200 object-cover hover:opacity-80"
+                            />
+                          </a>
+                        ) : (
+                          <span className="text-xs text-stone-300">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5">
                         {!isEditing && (
                           <button

@@ -163,6 +163,12 @@ export default function PortalTrabajadorView({
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Foto avance opcional
+  const [fotoAvanceFile, setFotoAvanceFile] = useState<File | null>(null)
+  const [fotoAvancePreview, setFotoAvancePreview] = useState<string | null>(null)
+  const [fotoAvanceUploading, setFotoAvanceUploading] = useState(false)
+  const [fotoAvanceAttachmentId, setFotoAvanceAttachmentId] = useState<string | null>(null)
+
   // Cola offline
   const [pendingCount, setPendingCount] = useState<number>(0)
   const [isOnline, setIsOnline] = useState<boolean>(true)
@@ -228,6 +234,32 @@ export default function PortalTrabajadorView({
     }
   }, [refreshPending, tryDrain])
 
+  async function uploadFotoAvance(file: File) {
+    setFotoAvanceUploading(true)
+    setError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('doc_type', 'foto_obra')
+      if (projectId) fd.append('project_id', projectId)
+      const res = await fetch(`/api/portal/trabajador/${token}/upload-receipt`, {
+        method: 'POST',
+        body: fd,
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error ?? 'No se pudo subir la foto')
+        return
+      }
+      setFotoAvanceAttachmentId(json.attachment.id)
+      setFotoAvancePreview(json.preview_url)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setFotoAvanceUploading(false)
+    }
+  }
+
   async function aceptarConsent() {
     setAcceptingConsent(true)
     setConsentError(null)
@@ -291,6 +323,7 @@ export default function PortalTrabajadorView({
       horas_nocturnas: horasNoc,
       horas_extra_modo: horasExt > 0 ? horasExtraModo : undefined,
       observaciones: observaciones.trim() || undefined,
+      foto_avance_attachment_id: fotoAvanceAttachmentId ?? undefined,
       ...geoData,
     }
 
@@ -670,6 +703,54 @@ export default function PortalTrabajadorView({
               placeholder="¿Qué has hecho hoy? ej: solado planta 2…"
               className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
             />
+          </div>
+
+          {/* Foto avance opcional */}
+          <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+            <label className="block text-xs uppercase tracking-wider text-stone-500">
+              📸 Foto avance del día <span className="text-stone-400">(opcional)</span>
+            </label>
+            <p className="mt-1 text-xs text-stone-500">
+              Útil para clientes y como prueba de tu trabajo. Solo se ve desde admin.
+            </p>
+            {fotoAvancePreview ? (
+              <div className="mt-2">
+                <img
+                  src={fotoAvancePreview}
+                  alt="Avance"
+                  className="h-32 w-auto rounded border border-stone-200 object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFotoAvanceFile(null)
+                    setFotoAvancePreview(null)
+                    setFotoAvanceAttachmentId(null)
+                  }}
+                  className="mt-1 text-xs text-red-600 hover:text-red-800"
+                >
+                  Quitar foto
+                </button>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic"
+                capture="environment"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0]
+                  if (!f) return
+                  setFotoAvanceFile(f)
+                  setFotoAvancePreview(URL.createObjectURL(f))
+                  await uploadFotoAvance(f)
+                }}
+                disabled={fotoAvanceUploading}
+                className="mt-2 block w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-stone-200 file:px-3 file:py-1 file:text-sm hover:file:bg-stone-300 disabled:opacity-50"
+              />
+            )}
+            {fotoAvanceUploading && (
+              <p className="mt-1 text-xs text-blue-700">Subiendo foto…</p>
+            )}
           </div>
 
           {/* Firma digital — checkbox legal */}

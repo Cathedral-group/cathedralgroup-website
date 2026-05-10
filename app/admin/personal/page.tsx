@@ -1,6 +1,7 @@
 import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import PersonalView from './PersonalView'
+import WorkerAlertsBanner from '@/components/admin/WorkerAlertsBanner'
 import { batchVerify } from '@/lib/verifier/batch'
 import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
@@ -157,7 +158,11 @@ export default async function PersonalPage() {
   }
 
   return (
-    <PersonalView
+    <>
+      <div className="mx-auto max-w-7xl px-6 pt-4">
+        <WorkerAlertsBanner />
+      </div>
+      <PersonalView
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data={{
         payrolls: payrollsArr,
@@ -183,5 +188,6 @@ export default async function PersonalPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any}
     />
+    </>
   )
 }

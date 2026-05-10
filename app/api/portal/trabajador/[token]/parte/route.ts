@@ -35,6 +35,7 @@ interface ParteBody {
   geo_lat?: number
   geo_lng?: number
   geo_accuracy?: number
+  foto_avance_attachment_id?: string | null
 }
 
 export async function POST(
@@ -146,6 +147,22 @@ export async function POST(
     geofenceStatus = 'no_data'
   }
 
+  // Foto avance opcional: validar attachment del propio trabajador
+  let fotoAvancePath: string | null = null
+  if (body.foto_avance_attachment_id) {
+    const { data: att } = await supabase
+      .from('worker_attachments')
+      .select('storage_path, storage_bucket, employee_id, doc_type')
+      .eq('id', body.foto_avance_attachment_id)
+      .eq('employee_id', employeeId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (!att) {
+      return NextResponse.json({ error: 'Foto avance no válida' }, { status: 400 })
+    }
+    fotoAvancePath = att.storage_path
+  }
+
   // UPSERT por (employee_id, fecha) — UNIQUE existente
   const { data: existing } = await supabase
     .from('time_records')
@@ -176,6 +193,7 @@ export async function POST(
         device_geo_accuracy_m: geoAcc,
         geofence_distance_m: geofenceDistance,
         geofence_status: geofenceStatus,
+        foto_avance_path: fotoAvancePath,
       })
       .eq('id', existing.id)
       .select()
