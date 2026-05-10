@@ -98,10 +98,18 @@ jobs:
           [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ] && SHA_MATCH="true"
           SIZE_MATCH="false"
           [ "$ACTUAL_SIZE" = "$EXPECTED_SIZE" ] && SIZE_MATCH="true"
-          # GPG packets (verifica estructura PGP sin descifrar)
+          # GPG packets (verifica estructura PGP sin descifrar). GPG 2.4+ usa
+          # "aead encrypted packet"; versiones anteriores "encrypted data packet";
+          # también aceptamos "encrypted integrity protected packet" (legacy).
           GPG_OK="false"
-          if gpg --list-packets "$FILE" 2>&1 | grep -q "encrypted data packet"; then
+          PACKETS=$(gpg --list-packets "$FILE" 2>&1 || true)
+          if echo "$PACKETS" | grep -qE ":(aead encrypted|encrypted data|encrypted integrity protected) packet:" \
+             && echo "$PACKETS" | grep -q ":pubkey enc packet:"; then
             GPG_OK="true"
+          fi
+          # Verificación adicional: el comando `file` debería identificar PGP
+          if ! file "$FILE" | grep -qiE "PGP|encrypted"; then
+            GPG_OK="false"
           fi
           echo "sha_match=$SHA_MATCH" >> $GITHUB_OUTPUT
           echo "size_match=$SIZE_MATCH" >> $GITHUB_OUTPUT
