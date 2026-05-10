@@ -271,12 +271,135 @@ export default function SistemaView() {
       <section>
         <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-4">🔗 Enlaces útiles</h2>
         <div className="flex flex-wrap gap-2">
+          <a href="/admin/eval" className="px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs rounded">→ Eval (métricas)</a>
+          <a href="/admin/forensic" className="px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs rounded">→ Forensic</a>
           <a href="/admin/facturas" className="px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs rounded">→ Bandeja de Errores</a>
           <a href="/admin/revision" className="px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs rounded">→ Revisión IA</a>
           <a href="https://n8n.cathedralgroup.es" target="_blank" rel="noreferrer" className="px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs rounded">↗ n8n Console</a>
         </div>
       </section>
+
+      <OperationsActions />
     </div>
+  )
+}
+
+function OperationsActions() {
+  const [running, setRunning] = useState<string | null>(null)
+  const [result, setResult] = useState<{ action: string; ok: boolean; message: string; duration_ms: number } | null>(null)
+
+  const run = async (action: string, label: string) => {
+    if (running) return
+    if (!confirm(`Ejecutar acción operativa: ${label}?`)) return
+    setRunning(action)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const json = await res.json()
+      if (res.ok && json.ok) {
+        const summary = (() => {
+          if (action === 'force_eval_snapshot') {
+            const total = json.result?.snapshot?.total ?? '?'
+            return `OK · snapshot ${total} facturas`
+          }
+          if (action === 'cleanup_idempotency') {
+            return `OK · ${json.result?.deleted_count ?? 0} rows eliminadas`
+          }
+          if (action === 'recalculate_costs') {
+            return `OK · ${json.result?.updated_count ?? 0} actualizadas, total ${json.result?.total_cost_eur ?? 0}€`
+          }
+          if (action === 'forensic_rpcs_check') {
+            const failed = json.result?.failed_count ?? 0
+            return failed > 0 ? `⚠️ ${failed} RPC(s) con error` : `OK · 7/7 RPCs healthy`
+          }
+          if (action === 'create_test_notification') {
+            return `OK · notification creada (ver banner)`
+          }
+          return 'OK'
+        })()
+        setResult({ action, ok: true, message: summary, duration_ms: json.duration_ms })
+      } else {
+        setResult({ action, ok: false, message: json.error ?? 'error desconocido', duration_ms: json.duration_ms ?? 0 })
+      }
+    } catch (e) {
+      setResult({ action, ok: false, message: e instanceof Error ? e.message : String(e), duration_ms: 0 })
+    } finally {
+      setRunning(null)
+    }
+  }
+
+  const ACTIONS: { key: string; label: string; description: string; danger?: boolean }[] = [
+    {
+      key: 'force_eval_snapshot',
+      label: '📊 Forzar snapshot eval',
+      description: 'Crea un snapshot de métricas y lo persiste en eval_runs (normalmente 04:30 Madrid)',
+    },
+    {
+      key: 'forensic_rpcs_check',
+      label: '🛡️ Test 7 RPCs forensic',
+      description: 'Ejecuta forensic_rpcs_healthcheck y reporta cualquier fallo',
+    },
+    {
+      key: 'recalculate_costs',
+      label: '💰 Recalcular cost_eur IA',
+      description: 'Recalcula coste de filas ai_usage_log con cost_eur=NULL usando ai_pricing_table',
+    },
+    {
+      key: 'cleanup_idempotency',
+      label: '🧹 Limpiar webhook_idempotency',
+      description: 'Borra rows >24h (normalmente cron cada 6h)',
+    },
+    {
+      key: 'create_test_notification',
+      label: '🔔 Notif de prueba',
+      description: 'Crea notificación info para verificar que el banner funciona',
+    },
+  ]
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-4">⚙️ Acciones operativas</h2>
+      <p className="text-xs text-neutral-500 mb-4 max-w-3xl">
+        Ejecuciones manuales que normalmente corren en cron (eval diario 04:30, health 6h, cleanup 6h).
+        Útiles para diagnóstico inmediato sin esperar al siguiente run programado.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {ACTIONS.map((a) => (
+          <button
+            key={a.key}
+            onClick={() => run(a.key, a.label)}
+            disabled={running !== null}
+            className={`text-left p-3 rounded border transition-colors ${
+              a.danger
+                ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                : 'bg-white border-neutral-200 hover:bg-neutral-50'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <p className="font-bold text-sm">{a.label}</p>
+            <p className="text-[11px] text-neutral-500 mt-1 leading-snug">{a.description}</p>
+            {running === a.key && (
+              <p className="text-[10px] uppercase tracking-widest text-blue-600 mt-2">Ejecutando…</p>
+            )}
+          </button>
+        ))}
+      </div>
+      {result && (
+        <div
+          className={`mt-4 p-3 rounded border ${
+            result.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
+          }`}
+        >
+          <p className="text-xs font-bold">
+            {result.ok ? '✓' : '✗'} {result.action} · {result.duration_ms}ms
+          </p>
+          <p className="text-sm mt-1">{result.message}</p>
+        </div>
+      )}
+    </section>
   )
 }
 
