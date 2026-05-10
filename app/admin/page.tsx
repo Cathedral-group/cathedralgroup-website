@@ -6,6 +6,7 @@ import CashFlowBar from '@/components/admin/CashFlowBar'
 import QuickAddButton from '@/components/admin/QuickAddButton'
 import PeriodSelector from '@/components/admin/PeriodSelector'
 import SystemHealthCompact from '@/components/admin/SystemHealthCompact'
+import FiscalCalendarCompact from '@/components/admin/FiscalCalendarCompact'
 import DashboardCharts from './DashboardCharts'
 
 function formatEUR(value: number | null | undefined): string {
@@ -352,6 +353,9 @@ export default async function AdminDashboard({
 
       {/* Salud del sistema — widget compacto enlazado a /admin/eval */}
       <SystemHealthCompact />
+
+      {/* Calendario fiscal AEAT — modelos pendientes / vencidos */}
+      <FiscalCalendarCompact />
 
       {/* ── Alertas: documentos por vencer / vencidos ── */}
       {(stats.docsExpired.length > 0 || stats.docsExpiringSoon.length > 0) && (() => {
