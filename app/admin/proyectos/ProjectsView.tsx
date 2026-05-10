@@ -1137,13 +1137,18 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   const hasGeo = !!locationMap[p.id]
                   return (
                     <tr key={p.id} onClick={() => openDetail(p)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">
-                        <span title={hasGeo ? 'Ubicación configurada' : 'Sin ubicación — los fichajes aquí no validan posición'}>
-                          {hasGeo ? '📍🟢' : '📍🔴'}
-                        </span>{' '}
-                        {p.code}
+                      <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{p.code}</td>
+                      <td className="px-4 py-3 text-sm max-w-[280px]">
+                        <span className="truncate">{p.name}</span>
+                        {!hasGeo && (
+                          <span
+                            className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 whitespace-nowrap"
+                            title="Los fichajes en este proyecto no podrán validar ubicación"
+                          >
+                            Sin ubicación
+                          </span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-sm max-w-[200px] truncate">{p.name}</td>
                       <td className="px-4 py-3">{p.type && <Badge value={p.type} styles={TYPE_STYLES} />}</td>
                       <td className="px-4 py-3"><Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} /></td>
                       <td className="px-4 py-3 text-sm tabular-nums">{currency(p.budget_estimated)}</td>
@@ -1210,12 +1215,19 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                             className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-4"
                           >
                             <span className="text-xs font-mono text-neutral-500 w-32 shrink-0">
-                              <span title={hasGeo ? 'Ubicación configurada' : 'Sin ubicación — los fichajes aquí no validan posición'}>
-                                {hasGeo ? '📍🟢' : '📍🔴'}
-                              </span>{' '}
                               {p.code}
                             </span>
-                            <span className="text-sm flex-1 truncate">{p.name}</span>
+                            <span className="text-sm flex-1 min-w-0 flex items-center gap-2">
+                              <span className="truncate">{p.name}</span>
+                              {!hasGeo && (
+                                <span
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 whitespace-nowrap shrink-0"
+                                  title="Los fichajes en este proyecto no podrán validar ubicación"
+                                >
+                                  Sin ubicación
+                                </span>
+                              )}
+                            </span>
                             {p.type && <Badge value={p.type} styles={TYPE_STYLES} />}
                             <Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} />
                             <span className="text-xs tabular-nums text-neutral-500 w-24 text-right">
@@ -1309,7 +1321,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
             <TabPanel
               tabs={[
                 { key: 'general', label: 'General' },
-                { key: 'ubicacion', label: locationMap[selected.id] ? '📍 Ubicación' : '📍 Ubicación ⚠' },
+                { key: 'ubicacion', label: 'Ubicación' },
                 { key: 'fases', label: 'Fases' },
                 { key: 'facturas', label: 'Facturas' },
                 { key: 'documentos', label: 'Documentos' },
