@@ -51,7 +51,7 @@ export async function GET(
   const { data: parteHoy } = await supabase
     .from('time_records')
     .select(
-      'id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, observaciones, fuente',
+      'id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, observaciones, fuente, worker_signed_at, hash_registro',
     )
     .eq('employee_id', employeeId)
     .eq('fecha', today)
@@ -67,12 +67,38 @@ export async function GET(
     .from('time_records')
     .select(
       `id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, observaciones,
+       worker_signed_at,
        project:project_id (code, name)`,
     )
     .eq('employee_id', employeeId)
     .gte('fecha', desde)
     .is('deleted_at', null)
     .order('fecha', { ascending: false })
+
+  // Asignación del cuadrante para hoy (si admin la creó)
+  const { data: assignmentHoy } = await supabase
+    .from('worker_assignments')
+    .select(
+      `id, project_id, jornada_esperada_horas, notas,
+       project:project_id (id, code, name)`,
+    )
+    .eq('employee_id', employeeId)
+    .eq('fecha', today)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  // Acumulados día/semana/mes
+  const { data: stats } = await supabase.rpc('get_worker_dashboard_stats', {
+    p_employee_id: employeeId,
+  })
+
+  // Estado consentimiento RGPD del token activo
+  const { data: tokenInfo } = await supabase
+    .from('worker_portal_access')
+    .select('consent_accepted_at, consent_text_version')
+    .eq('token', token)
+    .is('revoked_at', null)
+    .maybeSingle()
 
   return NextResponse.json({
     employee: {
@@ -82,6 +108,13 @@ export async function GET(
     parte_hoy: parteHoy ?? null,
     ultimos_dias: ultimosDias ?? [],
     projects: projects ?? [],
+    assignment_hoy: assignmentHoy ?? null,
+    stats: stats ?? null,
+    consent: {
+      accepted_at: tokenInfo?.consent_accepted_at ?? null,
+      text_version: tokenInfo?.consent_text_version ?? null,
+      current_version: 'v1-2026-05',
+    },
   })
 }
 

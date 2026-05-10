@@ -108,7 +108,6 @@ export async function POST(
     }
   }
 
-  const employeeEmail = validation.employee_email ?? null
   const registradoPor = `portal:${validation.employee_nombre ?? employeeId}`
 
   // UPSERT por (employee_id, fecha) — UNIQUE existente
@@ -120,6 +119,8 @@ export async function POST(
     .is('deleted_at', null)
     .maybeSingle()
 
+  const nowIso = new Date().toISOString()
+
   if (existing) {
     const { data, error } = await supabase
       .from('time_records')
@@ -130,8 +131,9 @@ export async function POST(
         horas_nocturnas: hNoc,
         observaciones: body.observaciones ?? null,
         fuente: 'app_movil',
-        modificado_at: new Date().toISOString(),
+        modificado_at: nowIso,
         modificado_por: registradoPor,
+        worker_signed_at: nowIso,
       })
       .eq('id', existing.id)
       .select()
@@ -154,6 +156,7 @@ export async function POST(
       observaciones: body.observaciones ?? null,
       fuente: 'app_movil',
       registrado_por: registradoPor,
+      worker_signed_at: nowIso,
     })
     .select()
     .single()

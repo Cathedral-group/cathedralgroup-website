@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 
 interface ProjectRef {
   id: string
@@ -19,10 +20,41 @@ interface ParteRow {
   horas_nocturnas: number | null
   observaciones: string | null
   fuente?: string | null
+  worker_signed_at?: string | null
   project?:
     | { code: string; name?: string | null }
     | { code: string; name?: string | null }[]
     | null
+}
+
+interface AssignmentHoy {
+  id: string
+  project_id: string | null
+  jornada_esperada_horas: number | null
+  notas: string | null
+  project?:
+    | { id: string; code: string; name?: string | null }
+    | { id: string; code: string; name?: string | null }[]
+    | null
+}
+
+interface Stats {
+  today: string
+  week_start: string
+  month_start: string
+  month_end: string
+  horas_hoy: number
+  horas_semana: number
+  horas_mes: number
+  dias_apuntados_mes: number
+  dias_pendientes_mes: number
+}
+
+interface ConsentState {
+  accepted_at: string | null
+  text_version: string | null
+  current_version: string
+  needs_acceptance: boolean
 }
 
 interface Props {
@@ -32,6 +64,9 @@ interface Props {
   projects: ProjectRef[]
   parteHoy: ParteRow | null
   ultimosDias: ParteRow[]
+  assignmentHoy: AssignmentHoy | null
+  stats: Stats | null
+  consent: ConsentState
 }
 
 function totalHoras(r: ParteRow): number {
@@ -42,10 +77,23 @@ function totalHoras(r: ParteRow): number {
   )
 }
 
-function singleProj(p: ParteRow['project']): { code: string; name?: string | null } | null {
+function singleProj<T>(p: T | T[] | null | undefined): T | null {
   if (!p) return null
   return Array.isArray(p) ? (p[0] ?? null) : p
 }
+
+const CONSENT_TEXT = `INFORMACIÓN BÁSICA SOBRE PROTECCIÓN DE DATOS
+
+• Responsable: Cathedral Group (la empresa que te tiene contratado).
+• Finalidad: gestionar tu registro de jornada laboral conforme al art. 34.9 del Estatuto de los Trabajadores y el Real Decreto-Ley 8/2019.
+• Legitimación: cumplimiento de obligación legal e interés legítimo del empresario.
+• Datos tratados: tu nombre, NIF, horas trabajadas, proyecto donde trabajas, observaciones que tú escribes, hora de envío del parte y dirección IP.
+• Conservación: 4 años (período legal de consulta de Inspección de Trabajo).
+• Destinatarios: solo personal autorizado de Cathedral Group y la Inspección de Trabajo si lo requiere.
+• Derechos: acceder, rectificar, suprimir, oponerte y portabilidad escribiendo a la dirección que la empresa te facilite.
+• Más información: solicítala a la administración de la empresa.
+
+Al aceptar declaras que has leído y entendido esta información.`
 
 export default function PortalTrabajadorView({
   token,
@@ -54,20 +102,69 @@ export default function PortalTrabajadorView({
   projects,
   parteHoy,
   ultimosDias,
+  assignmentHoy,
+  stats,
+  consent,
 }: Props) {
+  // Cláusula RGPD: si necesita aceptación, modal bloqueante
+  const [showConsent, setShowConsent] = useState<boolean>(consent.needs_acceptance)
+  const [acceptingConsent, setAcceptingConsent] = useState(false)
+  const [consentError, setConsentError] = useState<string | null>(null)
+
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
   const yesterdayStr = yesterday.toISOString().slice(0, 10)
 
+  // Pre-rellenar con asignación cuadrante si existe y parteHoy aún no
+  const assignProj = singleProj(assignmentHoy?.project)
+  const defaultProjectId =
+    parteHoy?.project_id ??
+    assignmentHoy?.project_id ??
+    ''
+
+  const defaultJornada =
+    Number(parteHoy?.horas_ordinarias ?? assignmentHoy?.jornada_esperada_horas ?? 8)
+
   const [fecha, setFecha] = useState<string>(today)
-  const [projectId, setProjectId] = useState<string>(parteHoy?.project_id ?? '')
-  const [horasOrd, setHorasOrd] = useState<number>(Number(parteHoy?.horas_ordinarias ?? 8))
+  const [projectId, setProjectId] = useState<string>(defaultProjectId)
+  const [horasOrd, setHorasOrd] = useState<number>(defaultJornada)
   const [horasExt, setHorasExt] = useState<number>(Number(parteHoy?.horas_extra ?? 0))
   const [horasNoc, setHorasNoc] = useState<number>(Number(parteHoy?.horas_nocturnas ?? 0))
   const [observaciones, setObservaciones] = useState<string>(parteHoy?.observaciones ?? '')
+  const [confirmaVeracidad, setConfirmaVeracidad] = useState(false)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (showConsent) document.body.style.overflow = 'hidden'
+    else document.body.style.overflow = ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showConsent])
+
+  async function aceptarConsent() {
+    setAcceptingConsent(true)
+    setConsentError(null)
+    try {
+      const res = await fetch(`/api/portal/trabajador/${token}/consent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: consent.current_version }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setConsentError(json.error ?? 'No se pudo registrar la aceptación')
+      } else {
+        setShowConsent(false)
+      }
+    } catch (e) {
+      setConsentError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setAcceptingConsent(false)
+    }
+  }
 
   async function guardar() {
     setSaving(true)
@@ -91,7 +188,9 @@ export default function PortalTrabajadorView({
         setError(json.error ?? 'No se pudo guardar')
       } else {
         setSuccess(
-          json.action === 'created' ? 'Parte registrado correctamente' : 'Parte actualizado',
+          json.action === 'created'
+            ? 'Parte registrado y firmado correctamente'
+            : 'Parte actualizado y firmado',
         )
         setTimeout(() => window.location.reload(), 1200)
       }
@@ -104,23 +203,111 @@ export default function PortalTrabajadorView({
 
   const total = horasOrd + horasExt + horasNoc
 
+  // Modal cláusula RGPD bloqueante (primer acceso)
+  if (showConsent) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/70 p-4">
+        <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
+          <h2 className="text-lg font-medium text-stone-900">Antes de empezar</h2>
+          <p className="mt-1 text-sm text-stone-600">
+            Lee esta información sobre el tratamiento de tus datos. Solo tienes que aceptarla la
+            primera vez.
+          </p>
+          <div className="mt-3 max-h-64 overflow-y-auto rounded border border-stone-200 bg-stone-50 p-3 text-xs text-stone-700 whitespace-pre-line">
+            {CONSENT_TEXT}
+          </div>
+          {consentError && (
+            <div className="mt-3 rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">
+              ⚠️ {consentError}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={aceptarConsent}
+            disabled={acceptingConsent}
+            className="mt-4 w-full rounded-lg bg-stone-900 px-4 py-3 text-base font-medium text-white hover:bg-stone-800 disabled:opacity-50"
+          >
+            {acceptingConsent ? 'Guardando…' : 'He leído y acepto'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
       {/* Saludo */}
-      <div className="mb-5 rounded-lg border border-stone-200 bg-white p-4">
+      <div className="mb-4 rounded-lg border border-stone-200 bg-white p-4">
         <div className="text-xs uppercase tracking-wider text-stone-500">Bienvenido</div>
-        <div className="mt-1 text-lg font-medium text-stone-900">
-          {employee.nombre.trim()}
-        </div>
-        <div className="mt-1 text-xs text-stone-500">
-          Apunta tus horas de trabajo del día. Solo tú puedes ver y editar tus partes desde este link.
-        </div>
+        <div className="mt-1 text-lg font-medium text-stone-900">{employee.nombre.trim()}</div>
       </div>
+
+      {/* Acumulados */}
+      {stats && (
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          <div className="rounded-lg border border-stone-200 bg-white p-3 text-center">
+            <div className="text-[10px] uppercase tracking-wider text-stone-500">Hoy</div>
+            <div className="mt-1 text-xl font-light tabular-nums">
+              {Number(stats.horas_hoy).toFixed(1)}<span className="text-sm text-stone-400">h</span>
+            </div>
+          </div>
+          <div className="rounded-lg border border-stone-200 bg-white p-3 text-center">
+            <div className="text-[10px] uppercase tracking-wider text-stone-500">Semana</div>
+            <div className="mt-1 text-xl font-light tabular-nums">
+              {Number(stats.horas_semana).toFixed(1)}<span className="text-sm text-stone-400">h</span>
+            </div>
+          </div>
+          <div className="rounded-lg border border-stone-200 bg-white p-3 text-center">
+            <div className="text-[10px] uppercase tracking-wider text-stone-500">Mes</div>
+            <div className="mt-1 text-xl font-light tabular-nums">
+              {Number(stats.horas_mes).toFixed(0)}<span className="text-sm text-stone-400">h</span>
+            </div>
+            {stats.dias_pendientes_mes > 0 && (
+              <div className="mt-1 text-[10px] text-amber-700">
+                {stats.dias_pendientes_mes} día{stats.dias_pendientes_mes > 1 ? 's' : ''} sin parte
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Asignación del cuadrante */}
+      {assignmentHoy && assignProj && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <div className="text-xs uppercase tracking-wider text-emerald-900">
+            Asignación de hoy
+          </div>
+          <div className="mt-1 font-medium text-emerald-900">
+            {assignProj.code}
+            {assignProj.name ? ` · ${assignProj.name}` : ''}
+          </div>
+          {assignmentHoy.jornada_esperada_horas && (
+            <div className="text-xs text-emerald-800">
+              Jornada esperada: {Number(assignmentHoy.jornada_esperada_horas)} h
+            </div>
+          )}
+          {assignmentHoy.notas && (
+            <div className="mt-1 text-xs text-emerald-800">{assignmentHoy.notas}</div>
+          )}
+        </div>
+      )}
+
+      {/* Estado parte hoy: si ya hay y está firmado */}
+      {parteHoy?.worker_signed_at && (
+        <div className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+          ✓ Parte de hoy firmado a las{' '}
+          {new Date(parteHoy.worker_signed_at).toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+          . Puedes editarlo si te has equivocado.
+        </div>
+      )}
 
       {/* Form parte */}
       <div className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-medium uppercase tracking-wider text-stone-700">
-          {parteHoy ? 'Editar parte de hoy' : 'Registrar parte'}
+          {parteHoy ? 'Editar parte' : 'Registrar parte'}
         </h2>
 
         <div className="mt-4 space-y-3">
@@ -165,7 +352,9 @@ export default function PortalTrabajadorView({
               ))}
             </select>
             <p className="mt-1 text-xs text-stone-500">
-              Si no estás seguro o has trabajado en oficina/almacén, déjalo vacío.
+              {assignmentHoy
+                ? 'Te he pre-rellenado el proyecto de tu cuadrante. Cámbialo si has trabajado en otro.'
+                : 'Si no estás seguro o has trabajado en oficina/almacén, déjalo vacío.'}
             </p>
           </div>
 
@@ -229,6 +418,20 @@ export default function PortalTrabajadorView({
             />
           </div>
 
+          {/* Firma digital — checkbox legal */}
+          <label className="flex items-start gap-2 rounded-lg border border-stone-300 bg-stone-50 p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={confirmaVeracidad}
+              onChange={(e) => setConfirmaVeracidad(e.target.checked)}
+              className="mt-0.5 h-5 w-5 cursor-pointer"
+            />
+            <span className="text-stone-700">
+              <strong>Confirmo</strong> que las horas y proyecto son correctos. Al guardar quedará
+              registrado con mi nombre, fecha y hora.
+            </span>
+          </label>
+
           {error && (
             <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
               ⚠️ {error}
@@ -243,12 +446,28 @@ export default function PortalTrabajadorView({
           <button
             type="button"
             onClick={guardar}
-            disabled={saving || total === 0}
+            disabled={saving || total === 0 || !confirmaVeracidad}
             className="w-full rounded-lg bg-stone-900 px-4 py-3 text-base font-medium text-white transition hover:bg-stone-800 disabled:opacity-50"
           >
-            {saving ? 'Guardando…' : parteHoy ? 'Actualizar parte' : 'Guardar parte'}
+            {saving
+              ? 'Guardando…'
+              : !confirmaVeracidad
+                ? 'Marca la casilla para firmar y guardar'
+                : parteHoy
+                  ? 'Actualizar y firmar parte'
+                  : 'Firmar y guardar parte'}
           </button>
         </div>
+      </div>
+
+      {/* Acceso histórico */}
+      <div className="mb-4">
+        <Link
+          href={`/portal/trabajador/${token}/historial`}
+          className="block rounded-lg border border-stone-200 bg-white p-3 text-center text-sm text-stone-700 hover:bg-stone-50"
+        >
+          📅 Ver mis horas del mes
+        </Link>
       </div>
 
       {/* Últimos 7 días */}
@@ -273,13 +492,18 @@ export default function PortalTrabajadorView({
                     <span className="font-mono text-xs text-stone-500">{r.fecha}</span>
                     <span className="tabular-nums font-medium">{totalHoras(r).toFixed(2)} h</span>
                   </div>
-                  <div className="mt-1 text-stone-700">
+                  <div className="mt-1 flex items-center gap-2 text-stone-700">
                     {proj ? (
                       <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
                         {proj.code}
                       </span>
                     ) : (
                       <span className="text-xs text-stone-400">— sin proyecto —</span>
+                    )}
+                    {r.worker_signed_at && (
+                      <span className="text-xs text-emerald-700" title="Parte firmado">
+                        ✓ firmado
+                      </span>
                     )}
                   </div>
                   {r.observaciones && (
