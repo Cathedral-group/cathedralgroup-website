@@ -37,6 +37,7 @@ interface ParteRow {
 
 interface AssignmentHoy {
   id: string
+  fecha?: string
   project_id: string | null
   jornada_esperada_horas: number | null
   notas: string | null
@@ -82,7 +83,7 @@ interface Props {
   projects: ProjectRef[]
   parteHoy: ParteRow | null
   ultimosDias: ParteRow[]
-  assignmentHoy: AssignmentHoy | null
+  assignments: AssignmentHoy[]
   stats: Stats | null
   overtimeBalance: OvertimeBalance | null
   consent: ConsentState
@@ -121,7 +122,7 @@ export default function PortalTrabajadorView({
   projects,
   parteHoy,
   ultimosDias,
-  assignmentHoy,
+  assignments,
   stats,
   overtimeBalance,
   consent,
@@ -131,74 +132,21 @@ export default function PortalTrabajadorView({
   const [acceptingConsent, setAcceptingConsent] = useState(false)
   const [consentError, setConsentError] = useState<string | null>(null)
 
-  // Últimos 7 días: lista [{iso, label}] del más reciente al más antiguo
-  const last7Days: { iso: string; label: string }[] = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today)
-    d.setDate(d.getDate() - i)
-    const iso = d.toISOString().slice(0, 10)
-    let label: string
-    if (i === 0) label = 'Hoy'
-    else if (i === 1) label = 'Ayer'
-    else {
-      label = d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' })
-    }
-    last7Days.push({ iso, label })
-  }
-
-  // Pre-rellenar con asignación cuadrante si existe y parteHoy aún no
+  // Asignación de hoy (para banner verde) y proyecto pre-asignado para fichaje rápido
+  const assignmentHoy = assignments.find((a) => a.fecha === today) ?? null
   const assignProj = singleProj(assignmentHoy?.project)
-  const defaultProjectId =
-    parteHoy?.project_id ??
-    assignmentHoy?.project_id ??
-    ''
+  const projectIdHoy = parteHoy?.project_id ?? assignmentHoy?.project_id ?? ''
 
-  // Jornada esperada hoy (de stats RPC, calculada desde calendario laboral)
+  // Jornada esperada hoy
   const jornadaEsperadaHoy = Number(
     stats?.jornada_esperada_hoy ?? assignmentHoy?.jornada_esperada_horas ?? 9,
   )
 
-  const defaultJornada = Number(
-    parteHoy?.horas_ordinarias ?? jornadaEsperadaHoy,
-  )
-
-  const [fecha, setFecha] = useState<string>(today)
-  const [projectId, setProjectId] = useState<string>(defaultProjectId)
-  const [horasOrd, setHorasOrd] = useState<string>(
-    parteHoy?.horas_ordinarias != null ? String(parteHoy.horas_ordinarias) : '',
-  )
-  const [horasExt, setHorasExt] = useState<string>(
-    parteHoy?.horas_extra != null && Number(parteHoy.horas_extra) > 0
-      ? String(parteHoy.horas_extra)
-      : '',
-  )
-  const [horasNoc, setHorasNoc] = useState<string>(
-    parteHoy?.horas_nocturnas != null && Number(parteHoy.horas_nocturnas) > 0
-      ? String(parteHoy.horas_nocturnas)
-      : '',
-  )
-
-  const horasOrdNum = parseFloat(horasOrd) || 0
-  const horasExtNum = parseFloat(horasExt) || 0
-  const horasNocNum = parseFloat(horasNoc) || 0
-  const [horasExtraModo, setHorasExtraModo] = useState<'compensar' | 'pagar'>(
-    parteHoy?.horas_extra_modo ?? 'compensar',
-  )
-  const [observaciones, setObservaciones] = useState<string>(parteHoy?.observaciones ?? '')
-  const [confirmaVeracidad, setConfirmaVeracidad] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  // Foto avance opcional
-  const [fotoAvanceFile, setFotoAvanceFile] = useState<File | null>(null)
-  const [fotoAvancePreview, setFotoAvancePreview] = useState<string | null>(null)
-  const [fotoAvanceUploading, setFotoAvanceUploading] = useState(false)
-  const [fotoAvanceAttachmentId, setFotoAvanceAttachmentId] = useState<string | null>(null)
-
   // Fichaje entrada/salida
   const [fichando, setFichando] = useState(false)
   const [fichajeMsg, setFichajeMsg] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const horaEntrada = parteHoy?.hora_entrada
   const horaSalida = parteHoy?.hora_salida
 
@@ -267,6 +215,28 @@ export default function PortalTrabajadorView({
     }
   }, [refreshPending, tryDrain])
 
+  async function aceptarConsent() {
+    setAcceptingConsent(true)
+    setConsentError(null)
+    try {
+      const res = await fetch(`/api/portal/trabajador/${token}/consent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: consent.current_version }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setConsentError(json.error ?? 'No se pudo registrar la aceptación')
+      } else {
+        setShowConsent(false)
+      }
+    } catch (e) {
+      setConsentError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setAcceptingConsent(false)
+    }
+  }
+
   async function fichar(tipo: 'entrada' | 'salida') {
     setFichando(true)
     setFichajeMsg(null)
@@ -306,7 +276,7 @@ export default function PortalTrabajadorView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipo,
-          project_id: tipo === 'entrada' ? projectId || null : undefined,
+          project_id: tipo === 'entrada' ? projectIdHoy || null : undefined,
           ...geoData,
         }),
       })
@@ -334,155 +304,6 @@ export default function PortalTrabajadorView({
     }
   }
 
-  async function uploadFotoAvance(file: File) {
-    setFotoAvanceUploading(true)
-    setError(null)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('doc_type', 'foto_obra')
-      if (projectId) fd.append('project_id', projectId)
-      const res = await fetch(`/api/portal/trabajador/${token}/upload-receipt`, {
-        method: 'POST',
-        body: fd,
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        setError(json.error ?? 'No se pudo subir la foto')
-        return
-      }
-      setFotoAvanceAttachmentId(json.attachment.id)
-      setFotoAvancePreview(json.preview_url)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error de red')
-    } finally {
-      setFotoAvanceUploading(false)
-    }
-  }
-
-  async function aceptarConsent() {
-    setAcceptingConsent(true)
-    setConsentError(null)
-    try {
-      const res = await fetch(`/api/portal/trabajador/${token}/consent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version: consent.current_version }),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        setConsentError(json.error ?? 'No se pudo registrar la aceptación')
-      } else {
-        setShowConsent(false)
-      }
-    } catch (e) {
-      setConsentError(e instanceof Error ? e.message : 'Error de red')
-    } finally {
-      setAcceptingConsent(false)
-    }
-  }
-
-  async function guardar() {
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
-
-    // Geo opcional, best-effort sin bloquear
-    let geoData: { geo_lat?: number; geo_lng?: number; geo_accuracy?: number } = {}
-    if (typeof navigator !== 'undefined' && navigator.geolocation && projectId) {
-      try {
-        await new Promise<void>((resolve) => {
-          const timer = setTimeout(() => resolve(), 2000)
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              clearTimeout(timer)
-              geoData = {
-                geo_lat: pos.coords.latitude,
-                geo_lng: pos.coords.longitude,
-                geo_accuracy: Math.round(pos.coords.accuracy),
-              }
-              resolve()
-            },
-            () => {
-              clearTimeout(timer)
-              resolve()
-            },
-            { timeout: 1500, maximumAge: 60000 },
-          )
-        })
-      } catch {
-        // ignorar
-      }
-    }
-
-    const payload = {
-      fecha,
-      project_id: projectId || null,
-      horas_ordinarias: horasOrdNum,
-      horas_extra: horasExtNum,
-      horas_nocturnas: horasNocNum,
-      horas_extra_modo: horasExtNum > 0 ? horasExtraModo : undefined,
-      observaciones: observaciones.trim() || undefined,
-      foto_avance_attachment_id: fotoAvanceAttachmentId ?? undefined,
-      ...geoData,
-    }
-
-    // Si offline, encolar directamente
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      try {
-        await enqueueParte({ token, payload })
-        await refreshPending()
-        setSuccess(
-          'Sin conexión: parte guardado en este móvil. Se enviará automáticamente cuando vuelva la red.',
-        )
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'No se pudo guardar localmente')
-      } finally {
-        setSaving(false)
-      }
-      return
-    }
-
-    try {
-      const res = await fetch(`/api/portal/trabajador/${token}/parte`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        setError(json.error ?? 'No se pudo guardar')
-      } else {
-        let msg =
-          json.action === 'created'
-            ? 'Parte registrado y firmado correctamente'
-            : 'Parte actualizado y firmado'
-        if (horasExtNum > 0 && horasExtraModo === 'compensar') {
-          const saldoAcum = Number(overtimeBalance?.saldo_horas ?? 0) + horasExtNum
-          msg += `. +${horasExtNum}h al banco (saldo: ${saldoAcum > 0 ? '+' : ''}${saldoAcum.toFixed(1)}h)`
-        } else if (horasExtNum > 0 && horasExtraModo === 'pagar') {
-          msg += `. +${horasExtNum}h se pagarán en nómina`
-        }
-        setSuccess(msg)
-        setTimeout(() => window.location.reload(), 1800)
-      }
-    } catch (e) {
-      // Error de red — encolar para reintento automático
-      try {
-        await enqueueParte({ token, payload })
-        await refreshPending()
-        setSuccess(
-          'Conexión perdida: parte guardado en este móvil. Se enviará automáticamente cuando vuelva la red.',
-        )
-      } catch {
-        setError(e instanceof Error ? e.message : 'Error de red')
-      }
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const total = horasOrdNum + horasExtNum + horasNocNum
 
   // Modal cláusula RGPD bloqueante (primer acceso)
   if (showConsent) {
@@ -705,260 +526,16 @@ export default function PortalTrabajadorView({
         </p>
       </div>
 
-      {/* Form parte */}
-      <div className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-stone-700">
-          {parteHoy ? 'Editar parte' : 'Registrar parte'}
-        </h2>
 
-        <div className="mt-4 space-y-3">
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-stone-500">Día</label>
-            <div className="mt-1 grid grid-cols-4 gap-1.5 sm:grid-cols-7">
-              {last7Days.map((d) => (
-                <button
-                  key={d.iso}
-                  type="button"
-                  onClick={() => setFecha(d.iso)}
-                  className={`rounded-md px-2 py-1.5 text-[11px] transition ${
-                    fecha === d.iso
-                      ? 'bg-stone-900 text-white'
-                      : 'border border-stone-300 bg-white text-stone-700 hover:bg-stone-100'
-                  }`}
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Botón ancho prominente: Fichaje detallado */}
+      <Link
+        href={`/portal/trabajador/${token}/fichaje`}
+        className="mb-3 block rounded-lg border-2 border-stone-900 bg-white p-4 text-center font-medium text-stone-900 hover:bg-stone-50"
+      >
+        ⏱️ Fichaje del día · editar partes
+      </Link>
 
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-stone-500">
-              Proyecto donde has trabajado
-            </label>
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base"
-            >
-              <option value="">— Sin proyecto específico</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code} {p.name ? `· ${p.name}` : ''}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-stone-500">
-              {assignmentHoy
-                ? 'Te he pre-rellenado el proyecto de tu cuadrante. Cámbialo si has trabajado en otro.'
-                : 'Si no estás seguro o has trabajado en oficina/almacén, déjalo vacío.'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-stone-500">
-                Ordinarias
-              </label>
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                max="24"
-                inputMode="decimal"
-                placeholder={jornadaEsperadaHoy > 0 ? String(jornadaEsperadaHoy) : '0'}
-                value={horasOrd}
-                onChange={(e) => setHorasOrd(e.target.value)}
-                onFocus={(e) => e.target.select()}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums placeholder:text-stone-300"
-              />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-stone-500">Extra</label>
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                max="24"
-                inputMode="decimal"
-                placeholder="0"
-                value={horasExt}
-                onChange={(e) => setHorasExt(e.target.value)}
-                onFocus={(e) => e.target.select()}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums placeholder:text-stone-300"
-              />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-stone-500">
-                Nocturnas
-              </label>
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                max="24"
-                inputMode="decimal"
-                placeholder="0"
-                value={horasNoc}
-                onChange={(e) => setHorasNoc(e.target.value)}
-                onFocus={(e) => e.target.select()}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums placeholder:text-stone-300"
-              />
-            </div>
-          </div>
-
-          <div className="rounded bg-stone-100 p-2 text-center text-sm text-stone-600">
-            Total: <span className="font-medium tabular-nums">{total.toFixed(2)} h</span>
-            {jornadaEsperadaHoy > 0 && total > jornadaEsperadaHoy && (
-              <span className="ml-2 text-xs text-amber-700">
-                ({(total - jornadaEsperadaHoy).toFixed(1)}h por encima de la jornada)
-              </span>
-            )}
-          </div>
-
-          {/* Toggle modo extras: solo si hay horas extra */}
-          {horasExtNum > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-              <div className="text-xs uppercase tracking-wider text-amber-900">
-                Las {horasExtNum}h extra ¿qué prefieres?
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setHorasExtraModo('compensar')}
-                  className={`rounded-lg border px-3 py-2 text-sm transition ${
-                    horasExtraModo === 'compensar'
-                      ? 'border-stone-900 bg-stone-900 text-white'
-                      : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
-                  }`}
-                >
-                  🪙 Compensar
-                  <div className="mt-0.5 text-[10px] font-normal opacity-80">
-                    Descansas otro día
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHorasExtraModo('pagar')}
-                  className={`rounded-lg border px-3 py-2 text-sm transition ${
-                    horasExtraModo === 'pagar'
-                      ? 'border-stone-900 bg-stone-900 text-white'
-                      : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
-                  }`}
-                >
-                  💰 Pagar
-                  <div className="mt-0.5 text-[10px] font-normal opacity-80">
-                    Importe en nómina
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-stone-500">
-              Observaciones <span className="text-stone-400">(opcional)</span>
-            </label>
-            <textarea
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              rows={2}
-              placeholder="¿Qué has hecho hoy? ej: solado planta 2…"
-              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          {/* Foto avance opcional */}
-          <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-            <label className="block text-xs uppercase tracking-wider text-stone-500">
-              📸 Foto avance del día <span className="text-stone-400">(opcional)</span>
-            </label>
-            <p className="mt-1 text-xs text-stone-500">
-              Útil para clientes y como prueba de tu trabajo. Solo se ve desde admin.
-            </p>
-            {fotoAvancePreview ? (
-              <div className="mt-2">
-                <img
-                  src={fotoAvancePreview}
-                  alt="Avance"
-                  className="h-32 w-auto rounded border border-stone-200 object-contain"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFotoAvanceFile(null)
-                    setFotoAvancePreview(null)
-                    setFotoAvanceAttachmentId(null)
-                  }}
-                  className="mt-1 text-xs text-red-600 hover:text-red-800"
-                >
-                  Quitar foto
-                </button>
-              </div>
-            ) : (
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic"
-                capture="environment"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0]
-                  if (!f) return
-                  setFotoAvanceFile(f)
-                  setFotoAvancePreview(URL.createObjectURL(f))
-                  await uploadFotoAvance(f)
-                }}
-                disabled={fotoAvanceUploading}
-                className="mt-2 block w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-stone-200 file:px-3 file:py-1 file:text-sm hover:file:bg-stone-300 disabled:opacity-50"
-              />
-            )}
-            {fotoAvanceUploading && (
-              <p className="mt-1 text-xs text-blue-700">Subiendo foto…</p>
-            )}
-          </div>
-
-          {/* Firma digital — checkbox legal */}
-          <label className="flex items-start gap-2 rounded-lg border border-stone-300 bg-stone-50 p-3 text-sm">
-            <input
-              type="checkbox"
-              checked={confirmaVeracidad}
-              onChange={(e) => setConfirmaVeracidad(e.target.checked)}
-              className="mt-0.5 h-5 w-5 cursor-pointer"
-            />
-            <span className="text-stone-700">
-              <strong>Confirmo</strong> que las horas y proyecto son correctos. Al guardar quedará
-              registrado con mi nombre, fecha y hora.
-            </span>
-          </label>
-
-          {error && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-              ⚠️ {error}
-            </div>
-          )}
-          {success && (
-            <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
-              ✓ {success}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={guardar}
-            disabled={saving || total === 0 || !confirmaVeracidad}
-            className="w-full rounded-lg bg-stone-900 px-4 py-3 text-base font-medium text-white transition hover:bg-stone-800 disabled:opacity-50"
-          >
-            {saving
-              ? 'Guardando…'
-              : !confirmaVeracidad
-                ? 'Marca la casilla para firmar y guardar'
-                : parteHoy
-                  ? 'Actualizar y firmar parte'
-                  : 'Firmar y guardar parte'}
-          </button>
-        </div>
-      </div>
-
-      {/* Accesos rápidos */}
+      {/* Menú: 6 botones */}
       <div className="mb-4 grid grid-cols-3 gap-2">
         <Link
           href={`/portal/trabajador/${token}/calendario`}
