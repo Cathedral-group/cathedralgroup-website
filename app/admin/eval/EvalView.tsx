@@ -111,12 +111,41 @@ interface SystemHealth {
   alerts: string[]
 }
 
+interface CostSummary {
+  current_month: {
+    month_start: string
+    total_calls: number
+    distinct_invoices: number
+    tokens_input_total: number
+    tokens_output_total: number
+    cost_eur_total: number
+    avg_duration_ms: number | null
+    errors_count: number
+    by_provider: Record<string, { calls: number; cost_eur: number; tokens: number }>
+    by_context: Record<string, { calls: number; cost_eur: number }>
+    avg_cost_per_invoice: number
+  } | null
+  monthly_by_provider: Array<{
+    month: string
+    provider: string
+    call_count: number
+    tokens_input_total: number
+    tokens_output_total: number
+    tokens_total_total: number
+    cost_eur_total: number
+    avg_duration_ms: number
+    error_count: number
+  }>
+}
+
 export default function EvalView({ snapshot7, snapshot30, snapshot365, history }: Props) {
   const [window, setWindow] = useState<7 | 30 | 365>(30)
   const [refreshing, setRefreshing] = useState(false)
   const [snaps, setSnaps] = useState({ 7: snapshot7, 30: snapshot30, 365: snapshot365 })
   const [health, setHealth] = useState<SystemHealth | null>(null)
   const [healthLoading, setHealthLoading] = useState(false)
+  const [cost, setCost] = useState<CostSummary | null>(null)
+  const [costLoading, setCostLoading] = useState(false)
 
   const loadHealth = async () => {
     setHealthLoading(true)
@@ -133,8 +162,24 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
     }
   }
 
+  const loadCost = async () => {
+    setCostLoading(true)
+    try {
+      const res = await fetch('/api/eval/cost-summary?months=6')
+      if (res.ok) {
+        const data = (await res.json()) as CostSummary
+        setCost(data)
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setCostLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadHealth()
+    loadCost()
   }, [])
 
   const current = snaps[window]
@@ -432,6 +477,109 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
                 </div>
               </div>
             </div>
+
+            {/* Coste IA */}
+            {cost && cost.current_month && (
+              <div className="bg-white rounded-lg border border-neutral-200 p-4 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-bold">Coste IA — mes actual</h2>
+                  <button
+                    onClick={loadCost}
+                    disabled={costLoading}
+                    className="text-xs text-neutral-500 hover:text-neutral-900 disabled:opacity-50"
+                  >
+                    {costLoading ? '…' : '↻'}
+                  </button>
+                </div>
+                {cost.current_month.total_calls === 0 ? (
+                  <p className="text-sm text-neutral-500">
+                    Sin registros en <code className="bg-neutral-100 px-1 rounded">ai_usage_log</code> todavía. Los datos
+                    aparecerán cuando el workflow general empiece a registrar tokens por llamada IA.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-5 gap-3 mb-4">
+                      <div>
+                        <p className="text-[10px] uppercase text-neutral-400">Coste mes</p>
+                        <p className="font-mono font-bold text-lg">
+                          {cost.current_month.cost_eur_total.toFixed(2)} €
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-neutral-400">Coste / factura</p>
+                        <p className="font-mono font-bold text-lg">
+                          {cost.current_month.avg_cost_per_invoice.toFixed(4)} €
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-neutral-400">Llamadas IA</p>
+                        <p className="font-mono font-bold">{fmtN(cost.current_month.total_calls)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-neutral-400">Tokens (M)</p>
+                        <p className="font-mono font-bold">
+                          {((cost.current_month.tokens_input_total + cost.current_month.tokens_output_total) / 1_000_000).toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-neutral-400">Errores IA</p>
+                        <p className={`font-mono font-bold ${cost.current_month.errors_count > 5 ? 'text-red-600' : ''}`}>
+                          {fmtN(cost.current_month.errors_count)}
+                        </p>
+                      </div>
+                    </div>
+                    {Object.keys(cost.current_month.by_provider).length > 0 && (
+                      <div className="text-xs">
+                        <p className="text-[10px] uppercase tracking-widest text-neutral-400 mb-1">Por provider</p>
+                        <div className="font-mono space-y-0.5">
+                          {Object.entries(cost.current_month.by_provider)
+                            .sort((a, b) => (b[1].cost_eur ?? 0) - (a[1].cost_eur ?? 0))
+                            .map(([prov, data]) => (
+                              <div key={prov} className="flex justify-between border-b py-1">
+                                <span>{prov}</span>
+                                <span className="text-neutral-500">
+                                  {data.calls} calls · {(data.tokens / 1000).toFixed(1)}K tok · <span className="font-bold">{data.cost_eur.toFixed(4)} €</span>
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {cost.monthly_by_provider.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-[10px] uppercase tracking-widest text-neutral-400 mb-2">Histórico 6 meses</p>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-neutral-500">
+                          <th className="text-left py-1">Mes</th>
+                          <th className="text-left py-1">Provider</th>
+                          <th className="text-right py-1">Calls</th>
+                          <th className="text-right py-1">Tokens</th>
+                          <th className="text-right py-1">Coste €</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cost.monthly_by_provider.slice(0, 12).map((row, i) => (
+                          <tr key={i} className="border-b">
+                            <td className="py-1 font-mono">{row.month}</td>
+                            <td className="py-1">{row.provider}</td>
+                            <td className="py-1 text-right font-mono">{fmtN(row.call_count)}</td>
+                            <td className="py-1 text-right font-mono">
+                              {(row.tokens_total_total / 1000).toFixed(1)}K
+                            </td>
+                            <td className="py-1 text-right font-mono font-bold">
+                              {row.cost_eur_total.toFixed(4)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Top razones IA */}
             {(current.top_ai_razones?.length ?? 0) > 0 && (
