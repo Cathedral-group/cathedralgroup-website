@@ -10,6 +10,7 @@ import {
 } from '@/components/admin/AdminIcons'
 import VerificationBadge from '@/components/admin/VerificationBadge'
 import type { VerificationSummary } from '@/lib/verifier/batch'
+import PersonalKpiBanner, { type DashboardKpis } from './PersonalKpiBanner'
 
 const MES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -36,6 +37,9 @@ type DataBundle = {
   equality: AnyRow[]
   agreements: AnyRow[]
   prl: AnyRow[]
+  // B9: KPIs y alertas computadas server-side
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dashboardKpis?: any
 }
 
 function formatEur(val: number | null | undefined): string {
@@ -109,6 +113,11 @@ export default function PersonalView({ data }: { data: DataBundle }) {
           />
         </div>
       </div>
+
+      {/* B9 — Banner KPIs + alertas (siempre visible, datos calculados server-side) */}
+      {data.dashboardKpis && (
+        <PersonalKpiBanner kpis={data.dashboardKpis as DashboardKpis} />
+      )}
 
       {/* Breadcrumb / título de la sección actual (la navegación principal vive en el sidebar) */}
       {(() => {

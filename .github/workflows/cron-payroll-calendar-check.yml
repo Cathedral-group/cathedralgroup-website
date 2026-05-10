@@ -1,0 +1,47 @@
+name: Cron Payroll Calendar Check
+
+# B8 — Alarma mensual nóminas: día 22 generar, 27 pagar, 30 SS.
+# Llama al endpoint /api/cron/payroll-calendar-check que verifica estado de
+# cada empresa del grupo y crea system_notification crítica/warning si aplica.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 22, 27 y 30 de cada mes a las 09:00 UTC = 11:00 Madrid (CEST)
+    - cron: '0 9 22,27,30 * *'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/payroll-calendar-check
+        env:
+          AUDIT_CRON_SECRET: ${{ secrets.AUDIT_CRON_SECRET }}
+          BASE_URL: ${{ secrets.CATHEDRAL_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AUDIT_CRON_SECRET:-}" ]; then
+            echo "::error::AUDIT_CRON_SECRET no configurado"; exit 1
+          fi
+          URL="${BASE_URL:-https://cathedralgroup.es}/api/cron/payroll-calendar-check"
+          echo "→ GET $URL"
+          HTTP_CODE=$(curl -sS -o /tmp/resp.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${AUDIT_CRON_SECRET}" \
+            "$URL")
+          echo "HTTP $HTTP_CODE"
+          cat /tmp/resp.json | head -c 2000
+          echo
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::endpoint payroll-calendar-check devolvió $HTTP_CODE"
+            exit 1
+          fi
+          NOTIFS=$(jq -r '.notifications_created // 0' /tmp/resp.json)
+          if [ "$NOTIFS" -gt 0 ]; then
+            echo "⚠️ $NOTIFS notification(s) creadas — ver banner /admin/*"
+          else
+            echo "✓ Calendario nóminas OK (no alertas)"
+          fi
