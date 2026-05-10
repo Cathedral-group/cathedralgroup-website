@@ -218,10 +218,26 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
       <main className="flex-1 p-6 max-w-6xl mx-auto">
         <div className="mb-6">
           <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Cathedral Admin · Observabilidad</p>
-          <h1 className="text-2xl font-bold">Eval — métricas estructurales</h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Salud del sistema clasificador IA. Sin estas métricas, cualquier cambio es ingeniería ciega.
+          <h1 className="text-2xl font-bold">Eval — salud del sistema</h1>
+          <p className="text-sm text-neutral-500 mt-1 max-w-3xl">
+            <span className="font-semibold text-neutral-700">Eval = evaluación continua del sistema.</span>{' '}
+            Mide cuántas facturas extrae bien la IA, qué porcentaje requiere revisión humana, cuánto cuesta el procesamiento
+            y si hay drift (degradación) entre versiones. Sin estas métricas, cualquier cambio es ingeniería ciega.
           </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mt-3 text-[11px] text-neutral-500">
+            <div className="bg-neutral-50 rounded p-2">
+              <span className="font-semibold text-neutral-700">Cobertura:</span> % de facturas con cada campo crítico extraído correctamente (NIF, importe, fecha…).
+            </div>
+            <div className="bg-neutral-50 rounded p-2">
+              <span className="font-semibold text-neutral-700">Needs review:</span> facturas marcadas por la IA como sospechosas (necesitan validación humana).
+            </div>
+            <div className="bg-neutral-50 rounded p-2">
+              <span className="font-semibold text-neutral-700">Forensic:</span> % con análisis anti-fraude completado (ver dashboard Forensic).
+            </div>
+            <div className="bg-neutral-50 rounded p-2">
+              <span className="font-semibold text-neutral-700">Confidence:</span> certeza media de la IA al extraer datos (0,93 = muy alta, 0,5 = baja).
+            </div>
+          </div>
         </div>
 
         {/* Selector ventana */}
@@ -375,7 +391,11 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
             {/* Cobertura campos */}
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div className="bg-white rounded-lg border border-neutral-200 p-4">
-                <h2 className="text-sm font-bold mb-3">Cobertura de campos</h2>
+                <h2 className="text-sm font-bold">Cobertura de campos</h2>
+                <p className="text-[11px] text-neutral-400 mb-3 leading-snug">
+                  % de facturas que tienen cada campo poblado. SHA-256 es el hash único del PDF (capa 1 anti-duplicados).
+                  Entity ID = proveedor o cliente vinculado en BD.
+                </p>
                 <PctRow label="SHA-256 (Capa 1)" value={cob.sha256_pct} target={99} warn={95} />
                 <PctRow label="Direction" value={cob.direction_pct} target={99} warn={95} />
                 <PctRow label="Drive URL" value={cob.drive_pct} target={99} warn={95} />
@@ -388,7 +408,11 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
               </div>
 
               <div className="bg-white rounded-lg border border-neutral-200 p-4">
-                <h2 className="text-sm font-bold mb-3">Revisión humana</h2>
+                <h2 className="text-sm font-bold">Revisión humana</h2>
+                <p className="text-[11px] text-neutral-400 mb-3 leading-snug">
+                  Estado de validación final por uno de los socios. <span className="font-semibold">Confirmado</span> = OK
+                  definitivo. <span className="font-semibold">Pendiente</span> = aún por revisar. Ideal: tender a 0 pendientes.
+                </p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="py-1.5 border-b">
                     <p className="text-neutral-400 text-xs">Pendiente</p>
@@ -430,7 +454,11 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
             {/* Forensic + Providers */}
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div className="bg-white rounded-lg border border-neutral-200 p-4">
-                <h2 className="text-sm font-bold mb-3">Score Forensic (BLOQUE 8)</h2>
+                <h2 className="text-sm font-bold">Score Forensic</h2>
+                <p className="text-[11px] text-neutral-400 mb-3 leading-snug">
+                  Resultado del análisis anti-fraude por factura (0-100). Score &lt;50 = crítico, posible fraude.
+                  50-79 = revisar. ≥80 = limpia.
+                </p>
                 <div className="grid grid-cols-3 gap-2 text-sm mb-3">
                   <div>
                     <p className="text-neutral-400 text-xs">Limpias (≥80)</p>
@@ -453,7 +481,10 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
               </div>
 
               <div className="bg-white rounded-lg border border-neutral-200 p-4">
-                <h2 className="text-sm font-bold mb-3">Distribución</h2>
+                <h2 className="text-sm font-bold">Distribución</h2>
+                <p className="text-[11px] text-neutral-400 mb-3 leading-snug">
+                  AI Provider = qué modelo procesó cada factura (Gemini, GPT-4o, Mistral). Doc Type = tipo de documento detectado.
+                </p>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">AI Provider</p>
                 <div className="text-sm font-mono space-y-1 mb-3">
                   {Object.entries(current.providers ?? {}).map(([k, v]) => (
@@ -481,7 +512,7 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
             {/* Coste IA */}
             {cost && cost.current_month && (
               <div className="bg-white rounded-lg border border-neutral-200 p-4 mb-6">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-1">
                   <h2 className="text-sm font-bold">Coste IA — mes actual</h2>
                   <button
                     onClick={loadCost}
@@ -491,6 +522,10 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
                     {costLoading ? '…' : '↻'}
                   </button>
                 </div>
+                <p className="text-[11px] text-neutral-400 mb-3 leading-snug">
+                  Cuánto está costando procesar facturas con IA este mes. Cada llamada (extracción, OCR, reconciliación)
+                  se registra con tokens consumidos y se calcula su coste real en euros.
+                </p>
                 {cost.current_month.total_calls === 0 ? (
                   <p className="text-sm text-neutral-500">
                     Sin registros en <code className="bg-neutral-100 px-1 rounded">ai_usage_log</code> todavía. Los datos
@@ -584,7 +619,11 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
             {/* Top razones IA */}
             {(current.top_ai_razones?.length ?? 0) > 0 && (
               <div className="bg-white rounded-lg border border-neutral-200 p-4 mb-6">
-                <h2 className="text-sm font-bold mb-3">Top 10 razones IA / Verificador</h2>
+                <h2 className="text-sm font-bold">Top 10 razones IA / Verificador</h2>
+                <p className="text-[11px] text-neutral-400 mb-3 leading-snug">
+                  Motivos más frecuentes por los que las facturas se marcan para revisión. Útil para detectar patrones
+                  recurrentes (ej. siempre falla el mismo tipo de factura → ajustar el extractor).
+                </p>
                 <ol className="text-xs space-y-1.5 list-decimal list-inside">
                   {current.top_ai_razones!.slice(0, 10).map((r, i) => (
                     <li key={i} className="text-neutral-700 truncate" title={r}>

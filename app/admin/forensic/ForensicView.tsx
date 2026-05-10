@@ -203,10 +203,25 @@ export default function ForensicView({ rows: initialRows }: Props) {
       <main className="flex-1 p-6">
         <div className="mb-6">
           <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Cathedral Admin</p>
-          <h1 className="text-2xl font-bold">Validaciones Forensic</h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Resultado de los 6 chequeos automáticos por factura: alertas y score consolidado.
+          <h1 className="text-2xl font-bold">Análisis Forensic</h1>
+          <p className="text-sm text-neutral-500 mt-1 max-w-3xl">
+            <span className="font-semibold text-neutral-700">Forensic = investigación profesional anti-fraude.</span>{' '}
+            Cada factura pasa por 6 chequeos automáticos que detectan: manipulación del PDF (modificaciones tardías,
+            firmas digitales falsas), duplicados disimulados, errores de numeración del proveedor, importes que
+            superan el presupuesto del proyecto, y emails sospechosos (anti-BEC: cuando un proveedor cambia su
+            email habitual).
           </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 text-[11px] text-neutral-500">
+            <div className="bg-neutral-50 rounded p-2">
+              <span className="font-semibold text-neutral-700">Score 80-100:</span> factura limpia, sin alertas relevantes.
+            </div>
+            <div className="bg-amber-50 rounded p-2">
+              <span className="font-semibold text-amber-700">Score 50-79:</span> revisar, alertas menores detectadas.
+            </div>
+            <div className="bg-red-50 rounded p-2">
+              <span className="font-semibold text-red-700">Score &lt;50:</span> crítica, posible fraude o error grave.
+            </div>
+          </div>
         </div>
 
         {/* 5 KPIs */}
@@ -336,14 +351,15 @@ export default function ForensicView({ rows: initialRows }: Props) {
 
               {/* Alertas por categoría */}
               {[
-                { title: 'PDF Forensic', items: selected.pdf_alerts },
-                { title: 'Email (anti-BEC)', items: selected.email_alerts },
-                { title: 'Numeración', items: selected.numeracion_alerts },
-                { title: 'Duplicados', items: selected.duplicados_alerts },
+                { title: 'PDF Forensic', help: 'Detecta manipulación del archivo PDF: modificaciones tardías, firmas digitales sospechosas, capas ocultas', items: selected.pdf_alerts },
+                { title: 'Email (anti-BEC)', help: 'Business Email Compromise: el proveedor escribe desde un email distinto al habitual (posible suplantación)', items: selected.email_alerts },
+                { title: 'Numeración', help: 'Saltos o retrocesos en la numeración de facturas del proveedor (Ej. F25-100 después de F25-105)', items: selected.numeracion_alerts },
+                { title: 'Duplicados', help: 'Factura muy parecida a otra ya registrada: mismo proveedor + importe ±0,5% + fecha cercana', items: selected.duplicados_alerts },
               ].map((s) =>
                 (s.items?.length ?? 0) > 0 ? (
                   <div key={s.title} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-1.5">{s.title}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-1">{s.title}</p>
+                    <p className="text-[10px] text-amber-700/70 mb-2 leading-tight">{s.help}</p>
                     <ul className="list-disc list-inside text-sm text-amber-900 space-y-1">
                       {s.items!.map((a, i) => (
                         <li key={i} className="leading-snug">{a}</li>

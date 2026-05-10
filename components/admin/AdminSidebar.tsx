@@ -9,6 +9,7 @@ type NavItem = {
   label: string
   href: string
   icon?: React.ReactNode
+  description?: string      // texto pequeño debajo del label para conceptos técnicos
   children?: NavItem[]      // sub-items para drill-down
   badge?: 'red' | 'amber' | 'blue'  // color del badge contador (si lo tiene)
   badgeKey?: 'errors' | 'review' | 'orphans' | 'notif_critical' | 'notif_warning'    // qué counter mostrar
@@ -173,6 +174,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       {
         label: 'Revisión IA',    href: '/admin/revision',      icon: <IconRevision />,
+        description: 'Documentos extraídos por IA pendientes de validar manualmente',
         badge: 'red', badgeKey: 'orphans',
         children: [
           { label: 'Todos pendientes',    href: '/admin/revision' },
@@ -190,6 +192,7 @@ const NAV_SECTIONS: NavSection[] = [
       },
       {
         label: 'Forensic',       href: '/admin/forensic',      icon: <IconForensic />,
+        description: 'Análisis forense anti-fraude: detecta manipulación, duplicados y datos sospechosos',
         children: [
           { label: 'Todas',                href: '/admin/forensic' },
           { label: 'Críticas (<50)',       href: '/admin/forensic?cat=criticas' },
@@ -201,9 +204,13 @@ const NAV_SECTIONS: NavSection[] = [
       },
       {
         label: 'Eval (métricas)', href: '/admin/eval',         icon: <IconEval />,
+        description: 'Salud del sistema: cobertura de datos, errores, coste real de la IA',
         badge: 'red', badgeKey: 'notif_critical',
       },
-      { label: 'Sistema',        href: '/admin/sistema',       icon: <IconSistema /> },
+      {
+        label: 'Sistema',        href: '/admin/sistema',       icon: <IconSistema />,
+        description: 'Estado del workflow + acciones operativas (forzar healthcheck, limpiar, etc.)',
+      },
       { label: 'Archivo',        href: '/admin/archivo',       icon: <IconArchivo /> },
       { label: 'Papelera',       href: '/admin/papelera',      icon: <IconPapelera /> },
       { label: 'Configuración',  href: '/admin/configuracion', icon: <IconConfiguracion /> },
@@ -434,7 +441,7 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
                   {section.label}
                 </p>
                 {section.items.map((item) => {
-                  const { label, href, icon, children, badgeKey } = item
+                  const { label, href, icon, children, badgeKey, description } = item
                   const isRevision = href === '/admin/revision'
                   const isFacturas = href === '/admin/facturas'
                   const active = isActive(href)
@@ -457,36 +464,45 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
                           onToggle()
                         }
                       }}
-                      className={`flex items-center gap-2.5 px-5 py-2.5 text-sm transition-colors ${
+                      className={`flex items-start gap-2.5 px-5 py-2.5 text-sm transition-colors ${
                         active && !hasChildren
                           ? 'bg-primary/8 text-primary font-semibold border-r-2 border-primary'
                           : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
                       }`}
                     >
-                      <span className={active && !hasChildren ? 'text-primary' : 'text-neutral-400'}>
+                      <span className={`mt-0.5 ${active && !hasChildren ? 'text-primary' : 'text-neutral-400'}`}>
                         {icon}
                       </span>
-                      <span className="flex-1">{label}</span>
-                      {/* Badges */}
-                      {badge && (
-                        <span className={`${badge.color} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none`}>
-                          {badge.count > 99 ? '99+' : badge.count}
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center gap-2">
+                          <span>{label}</span>
+                          {/* Badges */}
+                          {badge && (
+                            <span className={`${badge.color} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none`}>
+                              {badge.count > 99 ? '99+' : badge.count}
+                            </span>
+                          )}
+                          {showRevisionBadge && (
+                            <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                              {revisionCount! > 99 ? '99+' : revisionCount}
+                            </span>
+                          )}
+                          {showFacturasErrorsBadge && (
+                            <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                              {errorCount! > 99 ? '99+' : errorCount}
+                            </span>
+                          )}
+                          {/* Indicador drill-down */}
+                          {hasChildren && (
+                            <span className="text-neutral-300 text-xs ml-auto">›</span>
+                          )}
                         </span>
-                      )}
-                      {showRevisionBadge && (
-                        <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                          {revisionCount! > 99 ? '99+' : revisionCount}
-                        </span>
-                      )}
-                      {showFacturasErrorsBadge && (
-                        <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                          {errorCount! > 99 ? '99+' : errorCount}
-                        </span>
-                      )}
-                      {/* Indicador drill-down */}
-                      {hasChildren && (
-                        <span className="text-neutral-300 text-xs">›</span>
-                      )}
+                        {description && (
+                          <span className="block text-[10px] text-neutral-400 leading-tight mt-0.5 font-normal">
+                            {description}
+                          </span>
+                        )}
+                      </span>
                     </a>
                   )
                 })}
