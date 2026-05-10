@@ -49,11 +49,19 @@ export default async function ProjectLaborCostsPage({ params }: PageProps) {
     .order('fecha', { ascending: false })
     .limit(200)
 
+  const { data: location } = await supabase
+    .from('project_locations')
+    .select('id, lat, lng, radio_m, direccion, updated_at')
+    .eq('project_id', project.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+
   return (
     <LaborCostsView
       project={project}
       laborCosts={laborCosts ?? []}
       timeRecords={timeRecords ?? []}
+      location={location ?? null}
     />
   )
 }

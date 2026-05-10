@@ -255,6 +255,34 @@ export default function PortalTrabajadorView({
     setError(null)
     setSuccess(null)
 
+    // Geo opcional, best-effort sin bloquear
+    let geoData: { geo_lat?: number; geo_lng?: number; geo_accuracy?: number } = {}
+    if (typeof navigator !== 'undefined' && navigator.geolocation && projectId) {
+      try {
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(() => resolve(), 2000)
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              clearTimeout(timer)
+              geoData = {
+                geo_lat: pos.coords.latitude,
+                geo_lng: pos.coords.longitude,
+                geo_accuracy: Math.round(pos.coords.accuracy),
+              }
+              resolve()
+            },
+            () => {
+              clearTimeout(timer)
+              resolve()
+            },
+            { timeout: 1500, maximumAge: 60000 },
+          )
+        })
+      } catch {
+        // ignorar
+      }
+    }
+
     const payload = {
       fecha,
       project_id: projectId || null,
@@ -263,6 +291,7 @@ export default function PortalTrabajadorView({
       horas_nocturnas: horasNoc,
       horas_extra_modo: horasExt > 0 ? horasExtraModo : undefined,
       observaciones: observaciones.trim() || undefined,
+      ...geoData,
     }
 
     // Si offline, encolar directamente

@@ -32,6 +32,9 @@ interface ParteBody {
   horas_nocturnas?: number
   observaciones?: string
   horas_extra_modo?: 'compensar' | 'pagar'
+  geo_lat?: number
+  geo_lng?: number
+  geo_accuracy?: number
 }
 
 export async function POST(
@@ -120,6 +123,29 @@ export async function POST(
 
   const registradoPor = `portal:${validation.employee_nombre ?? employeeId}`
 
+  // Geofence check (opcional, solo si proyecto + coords)
+  let geofenceStatus: string | null = null
+  let geofenceDistance: number | null = null
+  const geoLat = Number(body.geo_lat)
+  const geoLng = Number(body.geo_lng)
+  const geoAcc = body.geo_accuracy ? Math.round(Number(body.geo_accuracy)) : null
+  const geoOk = Number.isFinite(geoLat) && Number.isFinite(geoLng)
+
+  if (geoOk && body.project_id) {
+    const { data: geofence } = await supabase.rpc('check_geofence', {
+      p_project_id: body.project_id,
+      p_lat: geoLat,
+      p_lng: geoLng,
+      p_accuracy_m: geoAcc,
+    })
+    if (geofence) {
+      geofenceStatus = geofence.status
+      geofenceDistance = geofence.distance_m
+    }
+  } else if (geoOk) {
+    geofenceStatus = 'no_data'
+  }
+
   // UPSERT por (employee_id, fecha) — UNIQUE existente
   const { data: existing } = await supabase
     .from('time_records')
@@ -145,6 +171,11 @@ export async function POST(
         modificado_at: nowIso,
         modificado_por: registradoPor,
         worker_signed_at: nowIso,
+        device_geo_lat: geoOk ? geoLat : null,
+        device_geo_lng: geoOk ? geoLng : null,
+        device_geo_accuracy_m: geoAcc,
+        geofence_distance_m: geofenceDistance,
+        geofence_status: geofenceStatus,
       })
       .eq('id', existing.id)
       .select()
@@ -169,6 +200,11 @@ export async function POST(
       fuente: 'app_movil',
       registrado_por: registradoPor,
       worker_signed_at: nowIso,
+      device_geo_lat: geoOk ? geoLat : null,
+      device_geo_lng: geoOk ? geoLng : null,
+      device_geo_accuracy_m: geoAcc,
+      geofence_distance_m: geofenceDistance,
+      geofence_status: geofenceStatus,
     })
     .select()
     .single()
