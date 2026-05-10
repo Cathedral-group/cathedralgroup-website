@@ -157,6 +157,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Tiempo y permisos',    href: '/admin/personal?seccion=tiempo' },
           { label: 'Cuadrante semanal', href: '/admin/personal/cuadrante' },
           { label: 'Dietario (partes horas)', href: '/admin/personal/dietario' },
+          { label: 'Tickets de trabajadores', href: '/admin/personal/tickets-trabajador' },
           { label: 'Accesos portal trabajador', href: '/admin/personal/trabajadores' },
           { label: 'Cumplimiento legal',   href: '/admin/personal?seccion=cumplimiento' },
           { label: 'Prevención (PRL)',     href: '/admin/personal?seccion=prl' },
