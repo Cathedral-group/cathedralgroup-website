@@ -1138,7 +1138,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   return (
                     <tr key={p.id} onClick={() => openDetail(p)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
                       <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">
-                        <span className={hasGeo ? 'text-green-600' : 'text-neutral-300'} title={hasGeo ? 'Tiene geofence' : 'Sin geofence — los fichajes aquí no podrán validar ubicación'}>📍</span>{' '}
+                        <span className={hasGeo ? 'text-green-600' : 'text-red-500'} title={hasGeo ? 'Tiene geofence' : 'Sin geofence — los fichajes aquí no podrán validar ubicación'}>📍</span>{' '}
                         {p.code}
                       </td>
                       <td className="px-4 py-3 text-sm max-w-[200px] truncate">{p.name}</td>
@@ -1208,7 +1208,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                             className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-4"
                           >
                             <span className="text-xs font-mono text-neutral-500 w-32 shrink-0">
-                              <span className={hasGeo ? 'text-green-600' : 'text-neutral-300'} title={hasGeo ? 'Tiene geofence' : 'Sin geofence'}>📍</span>{' '}
+                              <span className={hasGeo ? 'text-green-600' : 'text-red-500'} title={hasGeo ? 'Tiene geofence' : 'Sin geofence'}>📍</span>{' '}
                               {p.code}
                             </span>
                             <span className="text-sm flex-1 truncate">{p.name}</span>
