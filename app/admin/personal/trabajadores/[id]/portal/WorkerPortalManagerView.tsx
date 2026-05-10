@@ -46,6 +46,8 @@ export default function WorkerPortalManagerView({ employee, tokens: initialToken
   const [error, setError] = useState<string | null>(null)
   const [generated, setGenerated] = useState<{ token: string; portalUrl: string } | null>(null)
   const [confirmRevoke, setConfirmRevoke] = useState(false)
+  const [resettingPin, setResettingPin] = useState(false)
+  const [pinResetMsg, setPinResetMsg] = useState<string | null>(null)
   const [revokeReason, setRevokeReason] = useState('')
   const [copyOk, setCopyOk] = useState(false)
   const [expiresAt, setExpiresAt] = useState('')
@@ -107,6 +109,28 @@ export default function WorkerPortalManagerView({ employee, tokens: initialToken
       setError(e instanceof Error ? e.message : 'Error de red')
     } finally {
       setRevoking(false)
+    }
+  }
+
+  async function resetPin() {
+    if (!confirm('¿Resetear PIN del trabajador a 0000? El trabajador deberá entrar con 0000 y elegir uno nuevo.')) return
+    setResettingPin(true)
+    setError(null)
+    setPinResetMsg(null)
+    try {
+      const res = await fetch(`/api/admin/personal/trabajadores/${employee.id}/reset-pin`, {
+        method: 'POST',
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error ?? 'Error reseteando PIN')
+      } else {
+        setPinResetMsg('PIN reseteado a 0000. El trabajador deberá cambiarlo al entrar.')
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setResettingPin(false)
     }
   }
 
@@ -307,6 +331,32 @@ export default function WorkerPortalManagerView({ employee, tokens: initialToken
               className="mt-4 w-full rounded border border-emerald-300 bg-white px-4 py-2 text-sm text-emerald-900 hover:bg-emerald-100"
             >
               He copiado el link, cerrar
+            </button>
+          </div>
+        )}
+
+        {/* Resetear PIN */}
+        {activeToken && !generated && (
+          <div className="mb-4 rounded-lg border border-stone-200 bg-white p-4">
+            <h2 className="text-sm font-medium uppercase tracking-wider text-stone-700">
+              🔒 Resetear PIN
+            </h2>
+            <p className="mt-1 text-xs text-stone-600">
+              Si el trabajador olvida su PIN, vuélvelo a poner a <strong>0000</strong>. El
+              token sigue siendo el mismo, no necesitas regenerar el link.
+            </p>
+            {pinResetMsg && (
+              <p className="mt-2 rounded bg-emerald-50 p-2 text-xs text-emerald-800">
+                ✓ {pinResetMsg}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={resetPin}
+              disabled={resettingPin}
+              className="mt-2 rounded border border-stone-300 px-3 py-1.5 text-sm hover:bg-stone-50 disabled:opacity-50"
+            >
+              {resettingPin ? 'Reseteando…' : 'Resetear PIN a 0000'}
             </button>
           </div>
         )}

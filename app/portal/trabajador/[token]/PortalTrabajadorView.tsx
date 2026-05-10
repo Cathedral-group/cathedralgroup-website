@@ -796,7 +796,13 @@ export default function PortalTrabajadorView({
       </div>
 
       {/* Accesos rápidos */}
-      <div className="mb-4 grid grid-cols-2 gap-2">
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        <Link
+          href={`/portal/trabajador/${token}/calendario`}
+          className="rounded-lg border border-stone-200 bg-white p-3 text-center text-xs text-stone-700 hover:bg-stone-50"
+        >
+          📆 Calendario
+        </Link>
         <Link
           href={`/portal/trabajador/${token}/tickets`}
           className="rounded-lg border border-stone-200 bg-white p-3 text-center text-xs text-stone-700 hover:bg-stone-50"
@@ -807,7 +813,7 @@ export default function PortalTrabajadorView({
           href={`/portal/trabajador/${token}/gastos`}
           className="rounded-lg border border-stone-200 bg-white p-3 text-center text-xs text-stone-700 hover:bg-stone-50"
         >
-          💼 Gastos día
+          💼 Gastos
         </Link>
         <Link
           href={`/portal/trabajador/${token}/historial`}
@@ -820,6 +826,12 @@ export default function PortalTrabajadorView({
           className="rounded-lg border border-stone-200 bg-white p-3 text-center text-xs text-stone-700 hover:bg-stone-50"
         >
           🏖️ Ausencias
+        </Link>
+        <Link
+          href={`/portal/trabajador/${token}/configuracion`}
+          className="rounded-lg border border-stone-200 bg-white p-3 text-center text-xs text-stone-700 hover:bg-stone-50"
+        >
+          🔧 Ajustes
         </Link>
       </div>
 

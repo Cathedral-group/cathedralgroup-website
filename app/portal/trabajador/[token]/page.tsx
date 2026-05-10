@@ -1,10 +1,13 @@
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import PortalTrabajadorView from './PortalTrabajadorView'
+import PinGate from './PinGate'
 
 type Params = { params: Promise<{ token: string }> }
 
 const CURRENT_CONSENT_VERSION = 'v1-2026-05'
+const SESSION_COOKIE = 'cathedral_worker_session'
 
 export default async function PortalTrabajadorPage({ params }: Params) {
   const { token } = await params
@@ -19,6 +22,27 @@ export default async function PortalTrabajadorPage({ params }: Params) {
   })
 
   if (!validation?.valid) notFound()
+
+  // Comprobar cookie de sesión PIN. Si no hay o no coincide con el token, mostrar PinGate.
+  const cookieStore = await cookies()
+  const sessionToken = cookieStore.get(SESSION_COOKIE)?.value
+  if (sessionToken !== token) {
+    // Verificar si el PIN actual es default (mostrar aviso en PinGate)
+    const { data: tokenInfo } = await supabase
+      .from('worker_portal_access')
+      .select('pin_set_at')
+      .eq('token', token)
+      .is('revoked_at', null)
+      .maybeSingle()
+
+    return (
+      <PinGate
+        token={token}
+        employeeName={validation.employee_nombre ?? ''}
+        pinIsDefault={tokenInfo?.pin_set_at == null}
+      />
+    )
+  }
 
   const employeeId: string = validation.employee_id
   const companyId: string = validation.company_id
