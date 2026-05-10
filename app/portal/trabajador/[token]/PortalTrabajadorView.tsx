@@ -1,7 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import {
+  countPending,
+  drainQueue,
+  enqueueParte,
+} from '@/lib/portal-offline-queue'
 
 interface ProjectRef {
   id: string
@@ -136,6 +141,40 @@ export default function PortalTrabajadorView({
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Cola offline
+  const [pendingCount, setPendingCount] = useState<number>(0)
+  const [isOnline, setIsOnline] = useState<boolean>(true)
+  const [draining, setDraining] = useState(false)
+
+  const refreshPending = useCallback(async () => {
+    try {
+      const c = await countPending(token)
+      setPendingCount(c)
+    } catch {
+      // ignore (IDB no disponible)
+    }
+  }, [token])
+
+  const tryDrain = useCallback(async () => {
+    if (!navigator.onLine) return
+    setDraining(true)
+    try {
+      const result = await drainQueue(token)
+      if (result.succeeded > 0) {
+        setSuccess(`${result.succeeded} parte${result.succeeded > 1 ? 's' : ''} pendiente${result.succeeded > 1 ? 's' : ''} sincronizado${result.succeeded > 1 ? 's' : ''} ✓`)
+      }
+      await refreshPending()
+      // Si hay éxitos, recargar para reflejar estado servidor
+      if (result.succeeded > 0) {
+        setTimeout(() => window.location.reload(), 1500)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDraining(false)
+    }
+  }, [token, refreshPending])
+
   useEffect(() => {
     if (showConsent) document.body.style.overflow = 'hidden'
     else document.body.style.overflow = ''
@@ -143,6 +182,29 @@ export default function PortalTrabajadorView({
       document.body.style.overflow = ''
     }
   }, [showConsent])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setIsOnline(navigator.onLine)
+    refreshPending()
+
+    const handleOnline = () => {
+      setIsOnline(true)
+      tryDrain()
+    }
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    // Drain inicial al cargar (por si hay pendientes de sesión anterior)
+    if (navigator.onLine) tryDrain()
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [refreshPending, tryDrain])
 
   async function aceptarConsent() {
     setAcceptingConsent(true)
@@ -170,18 +232,37 @@ export default function PortalTrabajadorView({
     setSaving(true)
     setError(null)
     setSuccess(null)
+
+    const payload = {
+      fecha,
+      project_id: projectId || null,
+      horas_ordinarias: horasOrd,
+      horas_extra: horasExt,
+      horas_nocturnas: horasNoc,
+      observaciones: observaciones.trim() || undefined,
+    }
+
+    // Si offline, encolar directamente
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      try {
+        await enqueueParte({ token, payload })
+        await refreshPending()
+        setSuccess(
+          'Sin conexión: parte guardado en este móvil. Se enviará automáticamente cuando vuelva la red.',
+        )
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'No se pudo guardar localmente')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     try {
       const res = await fetch(`/api/portal/trabajador/${token}/parte`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fecha,
-          project_id: projectId || null,
-          horas_ordinarias: horasOrd,
-          horas_extra: horasExt,
-          horas_nocturnas: horasNoc,
-          observaciones: observaciones.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -195,7 +276,16 @@ export default function PortalTrabajadorView({
         setTimeout(() => window.location.reload(), 1200)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error de red')
+      // Error de red — encolar para reintento automático
+      try {
+        await enqueueParte({ token, payload })
+        await refreshPending()
+        setSuccess(
+          'Conexión perdida: parte guardado en este móvil. Se enviará automáticamente cuando vuelva la red.',
+        )
+      } catch {
+        setError(e instanceof Error ? e.message : 'Error de red')
+      }
     } finally {
       setSaving(false)
     }
@@ -241,6 +331,36 @@ export default function PortalTrabajadorView({
         <div className="text-xs uppercase tracking-wider text-stone-500">Bienvenido</div>
         <div className="mt-1 text-lg font-medium text-stone-900">{employee.nombre.trim()}</div>
       </div>
+
+      {/* Banner offline / pendientes de sincronizar */}
+      {(!isOnline || pendingCount > 0) && (
+        <div className={`mb-4 rounded-lg border p-3 text-sm ${
+          !isOnline
+            ? 'border-amber-300 bg-amber-50 text-amber-900'
+            : 'border-blue-300 bg-blue-50 text-blue-900'
+        }`}>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              {!isOnline && <div>📵 Sin conexión. Lo que guardes se enviará al volver.</div>}
+              {pendingCount > 0 && (
+                <div>
+                  ⏳ {pendingCount} parte{pendingCount > 1 ? 's' : ''} esperando enviar.
+                </div>
+              )}
+            </div>
+            {isOnline && pendingCount > 0 && (
+              <button
+                type="button"
+                onClick={tryDrain}
+                disabled={draining}
+                className="rounded bg-blue-700 px-3 py-1.5 text-xs text-white hover:bg-blue-800 disabled:opacity-50"
+              >
+                {draining ? 'Enviando…' : 'Reintentar'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Acumulados */}
       {stats && (
