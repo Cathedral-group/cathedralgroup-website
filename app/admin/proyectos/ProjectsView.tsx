@@ -78,15 +78,25 @@ interface ProjectLocation {
   direccion: string | null
 }
 
-/* ───────── Geofence helpers (Nominatim OSM, gratis, sin API key) ───────── */
+/* ───────── Geofence helpers (Nominatim OSM via /api/admin/geocode) ───────── */
 
-async function geocodeAddress(query: string): Promise<{ lat: number; lng: number; display: string } | null> {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=es`
-  const res = await fetch(url, { headers: { 'Accept-Language': 'es' } })
-  if (!res.ok) return null
-  const data = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>
-  if (!data?.[0]) return null
-  return { lat: Number(data[0].lat), lng: Number(data[0].lon), display: data[0].display_name }
+interface GeocodeSuggestion {
+  lat: number
+  lng: number
+  display: string
+  type?: string
+}
+
+async function geocodeAddressSuggestions(query: string): Promise<GeocodeSuggestion[]> {
+  if (!query || query.trim().length < 3) return []
+  try {
+    const res = await fetch(`/api/admin/geocode?q=${encodeURIComponent(query)}`)
+    if (!res.ok) return []
+    const data = (await res.json()) as { results?: GeocodeSuggestion[] }
+    return data.results ?? []
+  } catch {
+    return []
+  }
 }
 
 function getMyLocation(): Promise<{ lat: number; lng: number; accuracy: number }> {
@@ -204,12 +214,16 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [newLocSearch, setNewLocSearch] = useState('')
   const [newLocBusy, setNewLocBusy] = useState<'mine' | 'search' | null>(null)
   const [newLocMsg, setNewLocMsg] = useState<string | null>(null)
+  const [newLocSuggestions, setNewLocSuggestions] = useState<GeocodeSuggestion[]>([])
+  const [newLocShowSugg, setNewLocShowSugg] = useState(false)
 
   // Ubicación en tab del detail (carga al abrir un proyecto)
   const [locForm, setLocForm] = useState({ lat: '', lng: '', radio_m: 300, direccion: '' })
   const [locSearch, setLocSearch] = useState('')
   const [locBusy, setLocBusy] = useState<'mine' | 'search' | 'save' | 'delete' | null>(null)
   const [locMsg, setLocMsg] = useState<string | null>(null)
+  const [locSuggestions, setLocSuggestions] = useState<GeocodeSuggestion[]>([])
+  const [locShowSugg, setLocShowSugg] = useState(false)
 
   // Phase inline form
   const [showPhaseForm, setShowPhaseForm] = useState(false)
@@ -566,18 +580,35 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   }
 
   async function newLoc_searchAddress() {
-    if (!newLocSearch.trim()) return
+    const q = newLocSearch.trim()
+    if (q.length < 3) { setNewLocMsg('Escribe al menos 3 caracteres'); return }
     setNewLocBusy('search'); setNewLocMsg(null)
     try {
-      const r = await geocodeAddress(newLocSearch.trim())
-      if (!r) { setNewLocMsg('No se encontró la dirección'); return }
-      setNewLoc(prev => ({ ...prev, lat: r.lat.toFixed(6), lng: r.lng.toFixed(6), direccion: prev.direccion || r.display }))
-      setNewLocMsg(`📍 ${r.display}`)
+      const results = await geocodeAddressSuggestions(q)
+      if (results.length === 0) {
+        setNewLocMsg('No se encontraron resultados. Prueba con calle + número, o calle + Madrid.')
+        setNewLocSuggestions([]); setNewLocShowSugg(false)
+        return
+      }
+      setNewLocSuggestions(results); setNewLocShowSugg(true)
+      setNewLocMsg(`${results.length} resultado${results.length === 1 ? '' : 's'} — elige uno`)
     } catch (e) {
       setNewLocMsg(e instanceof Error ? e.message : 'Error buscando dirección')
     } finally {
       setNewLocBusy(null)
     }
+  }
+
+  function newLoc_pickSuggestion(s: GeocodeSuggestion) {
+    setNewLoc(prev => ({
+      ...prev,
+      lat: s.lat.toFixed(6),
+      lng: s.lng.toFixed(6),
+      direccion: prev.direccion || s.display,
+    }))
+    setNewLocSearch(s.display)
+    setNewLocShowSugg(false)
+    setNewLocMsg(`📍 ${s.display}`)
   }
 
   async function locForm_useMyLocation() {
@@ -594,18 +625,35 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   }
 
   async function locForm_searchAddress() {
-    if (!locSearch.trim()) return
+    const q = locSearch.trim()
+    if (q.length < 3) { setLocMsg('Escribe al menos 3 caracteres'); return }
     setLocBusy('search'); setLocMsg(null)
     try {
-      const r = await geocodeAddress(locSearch.trim())
-      if (!r) { setLocMsg('No se encontró la dirección'); return }
-      setLocForm(prev => ({ ...prev, lat: r.lat.toFixed(6), lng: r.lng.toFixed(6), direccion: prev.direccion || r.display }))
-      setLocMsg(`📍 ${r.display}`)
+      const results = await geocodeAddressSuggestions(q)
+      if (results.length === 0) {
+        setLocMsg('No se encontraron resultados. Prueba con calle + número, o calle + Madrid.')
+        setLocSuggestions([]); setLocShowSugg(false)
+        return
+      }
+      setLocSuggestions(results); setLocShowSugg(true)
+      setLocMsg(`${results.length} resultado${results.length === 1 ? '' : 's'} — elige uno`)
     } catch (e) {
       setLocMsg(e instanceof Error ? e.message : 'Error buscando dirección')
     } finally {
       setLocBusy(null)
     }
+  }
+
+  function locForm_pickSuggestion(s: GeocodeSuggestion) {
+    setLocForm(prev => ({
+      ...prev,
+      lat: s.lat.toFixed(6),
+      lng: s.lng.toFixed(6),
+      direccion: prev.direccion || s.display,
+    }))
+    setLocSearch(s.display)
+    setLocShowSugg(false)
+    setLocMsg(`📍 ${s.display}`)
   }
 
   async function saveLocation() {
@@ -844,18 +892,18 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               </h4>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 mb-3">
+            <div className="flex flex-col sm:flex-row gap-2 mb-1 relative">
               <input
                 value={newLocSearch}
-                onChange={e => setNewLocSearch(e.target.value)}
+                onChange={e => { setNewLocSearch(e.target.value); setNewLocShowSugg(false) }}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); newLoc_searchAddress() } }}
-                placeholder="Buscar dirección: C/ Buenavista 24, Madrid..."
+                placeholder="Calle + número (ej: Buenavista 24)"
                 className={inputCls + ' flex-1'}
               />
               <button
                 type="button"
                 onClick={newLoc_searchAddress}
-                disabled={newLocBusy !== null || !newLocSearch.trim()}
+                disabled={newLocBusy !== null || newLocSearch.trim().length < 3}
                 className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
               >
                 {newLocBusy === 'search' ? '...' : '🔍 Buscar'}
@@ -870,6 +918,24 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                 {newLocBusy === 'mine' ? '...' : '📍 Mi ubicación'}
               </button>
             </div>
+
+            {newLocShowSugg && newLocSuggestions.length > 0 && (
+              <div className="mb-3 border border-neutral-200 bg-white max-h-72 overflow-y-auto rounded shadow-sm">
+                {newLocSuggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => newLoc_pickSuggestion(s)}
+                    className="block w-full text-left px-3 py-2 hover:bg-neutral-50 border-b border-neutral-50 last:border-b-0 text-sm"
+                  >
+                    <span className="text-stone-900">📍 {s.display}</span>
+                    <span className="ml-2 text-[10px] font-mono text-stone-400">
+                      {s.lat.toFixed(4)}, {s.lng.toFixed(4)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div>
@@ -1278,31 +1344,51 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   )}
 
                   {/* Buscar dirección / Mi ubicación */}
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      value={locSearch}
-                      onChange={e => setLocSearch(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); locForm_searchAddress() } }}
-                      placeholder="Buscar dirección..."
-                      className={inputCls + ' flex-1'}
-                    />
-                    <button
-                      type="button"
-                      onClick={locForm_searchAddress}
-                      disabled={locBusy !== null || !locSearch.trim()}
-                      className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
-                    >
-                      {locBusy === 'search' ? '...' : '🔍 Buscar'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={locForm_useMyLocation}
-                      disabled={locBusy !== null}
-                      className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
-                      title="Usa el GPS del dispositivo (ideal si estás en la obra)"
-                    >
-                      {locBusy === 'mine' ? '...' : '📍 Mi ubicación'}
-                    </button>
+                  <div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        value={locSearch}
+                        onChange={e => { setLocSearch(e.target.value); setLocShowSugg(false) }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); locForm_searchAddress() } }}
+                        placeholder="Calle + número (ej: Buenavista 24)"
+                        className={inputCls + ' flex-1'}
+                      />
+                      <button
+                        type="button"
+                        onClick={locForm_searchAddress}
+                        disabled={locBusy !== null || locSearch.trim().length < 3}
+                        className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {locBusy === 'search' ? '...' : '🔍 Buscar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={locForm_useMyLocation}
+                        disabled={locBusy !== null}
+                        className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
+                        title="Usa el GPS del dispositivo (ideal si estás en la obra)"
+                      >
+                        {locBusy === 'mine' ? '...' : '📍 Mi ubicación'}
+                      </button>
+                    </div>
+
+                    {locShowSugg && locSuggestions.length > 0 && (
+                      <div className="mt-2 border border-neutral-200 bg-white max-h-72 overflow-y-auto rounded shadow-sm">
+                        {locSuggestions.map((s, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => locForm_pickSuggestion(s)}
+                            className="block w-full text-left px-3 py-2 hover:bg-neutral-50 border-b border-neutral-50 last:border-b-0 text-sm"
+                          >
+                            <span className="text-stone-900">📍 {s.display}</span>
+                            <span className="ml-2 text-[10px] font-mono text-stone-400">
+                              {s.lat.toFixed(4)}, {s.lng.toFixed(4)}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
