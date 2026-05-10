@@ -319,6 +319,10 @@ function OperationsActions() {
           if (action === 'create_test_notification') {
             return `OK · notification creada (ver banner)`
           }
+          if (action === 'trigger_backup' || action === 'trigger_backup_pre_migration') {
+            const runId = json.result?.run_id ?? '?'
+            return `OK · workflow disparado · run_id ${String(runId).slice(0, 8)}…`
+          }
           return 'OK'
         })()
         setResult({ action, ok: true, message: summary, duration_ms: json.duration_ms })
@@ -357,6 +361,17 @@ function OperationsActions() {
       key: 'create_test_notification',
       label: '🔔 Notif de prueba',
       description: 'Crea notificación info para verificar que el banner funciona',
+    },
+    {
+      key: 'trigger_backup',
+      label: '💾 Backup manual ahora',
+      description: 'Dispara GitHub Actions backup-db.yml (pg_dump cifrado GPG → Drive). Tarda ~3-5 min, status visible en /admin/sistema',
+    },
+    {
+      key: 'trigger_backup_pre_migration',
+      label: '🛡️ Snapshot pre-migración',
+      description: 'Igual que el anterior pero categorizado como pre_migration en backup_runs. Usar SIEMPRE antes de aplicar migraciones destructivas',
+      danger: true,
     },
   ]
 

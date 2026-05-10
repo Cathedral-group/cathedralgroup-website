@@ -1,0 +1,171 @@
+name: Cron Backup Fire Drill (Restore Test)
+
+# Sprint A Backup Robusto — fire drill semanal AUTOMATIZADO que verifica
+# que el último backup pg_dump cifrado:
+#   1. Existe como artifact reciente (cathedral_db_dump_<run_id>)
+#   2. Su SHA-256 coincide con el registrado en backup_runs
+#   3. `gpg --list-packets` lo reconoce como archivo GPG válido (estructura ok)
+#   4. Tamaño >0 y razonable
+#
+# NO descifra el archivo (no expone la clave privada). Verificación FULL =
+# tabletop exercise trimestral manual de David con la passphrase en máquina
+# aislada.
+#
+# Si algún check falla → POST /api/cron/backup-restore-test-record marca el
+# backup_run con restore_verified_status='failed' y crea system_notification
+# crítica en /admin/*.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * 0'  # domingo 05:00 UTC = 07:00 Madrid (CEST). Tras backup nocturno.
+
+permissions:
+  contents: read
+  actions: read  # para listar artifacts
+
+jobs:
+  drill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install gpg + jq
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gnupg2 jq
+
+      - name: Find latest backup_runs row (pg_dump success)
+        id: lastrun
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados"; exit 1
+          fi
+          # Query: último backup_runs con backup_type='pg_dump' y status='success'
+          RESP=$(curl -sS \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            "${SUPABASE_URL}/rest/v1/backup_runs?backup_type=eq.pg_dump&status=eq.success&order=completed_at.desc&limit=1&select=id,file_sha256,file_size_bytes,file_locations,completed_at")
+          echo "$RESP" | head -c 500
+          RUN_ID=$(echo "$RESP" | jq -r '.[0].id // ""')
+          SHA=$(echo "$RESP" | jq -r '.[0].file_sha256 // ""')
+          SIZE=$(echo "$RESP" | jq -r '.[0].file_size_bytes // 0')
+          GH_RUN=$(echo "$RESP" | jq -r '.[0].file_locations.github_artifact // ""')
+          if [ -z "$RUN_ID" ] || [ -z "$SHA" ] || [ -z "$GH_RUN" ]; then
+            echo "::error::No se encontró un backup_run reciente con SHA + github_artifact. RESP=$RESP"
+            exit 1
+          fi
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "expected_sha=$SHA" >> $GITHUB_OUTPUT
+          echo "expected_size=$SIZE" >> $GITHUB_OUTPUT
+          echo "gh_run_id=$GH_RUN" >> $GITHUB_OUTPUT
+          echo "→ último backup_run: $RUN_ID (gh_run=$GH_RUN, sha=${SHA:0:16}…)"
+
+      - name: Download artifact from referenced run
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          name: cathedral_db_dump_${{ steps.lastrun.outputs.gh_run_id }}
+          path: /tmp/drill
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.lastrun.outputs.gh_run_id }}
+
+      - name: Verify file integrity (SHA-256 + GPG packets + size)
+        id: verify
+        run: |
+          set -euo pipefail
+          FILE=/tmp/drill/cathedral_db.dump.gz.gpg
+          if [ ! -f "$FILE" ]; then
+            echo "::error::archivo no encontrado tras download: $FILE"
+            ls -la /tmp/drill/
+            echo "verify_status=failed" >> $GITHUB_OUTPUT
+            echo "verify_error=archivo no encontrado en artifact" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          # SHA-256
+          ACTUAL_SHA=$(sha256sum "$FILE" | awk '{print $1}')
+          EXPECTED_SHA="${{ steps.lastrun.outputs.expected_sha }}"
+          ACTUAL_SIZE=$(stat -c %s "$FILE")
+          EXPECTED_SIZE="${{ steps.lastrun.outputs.expected_size }}"
+          echo "Expected SHA: $EXPECTED_SHA"
+          echo "Actual   SHA: $ACTUAL_SHA"
+          echo "Expected size: $EXPECTED_SIZE bytes"
+          echo "Actual   size: $ACTUAL_SIZE bytes"
+          SHA_MATCH="false"
+          [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ] && SHA_MATCH="true"
+          SIZE_MATCH="false"
+          [ "$ACTUAL_SIZE" = "$EXPECTED_SIZE" ] && SIZE_MATCH="true"
+          # GPG packets (verifica estructura PGP sin descifrar)
+          GPG_OK="false"
+          if gpg --list-packets "$FILE" 2>&1 | grep -q "encrypted data packet"; then
+            GPG_OK="true"
+          fi
+          echo "sha_match=$SHA_MATCH" >> $GITHUB_OUTPUT
+          echo "size_match=$SIZE_MATCH" >> $GITHUB_OUTPUT
+          echo "gpg_ok=$GPG_OK" >> $GITHUB_OUTPUT
+          echo "actual_sha=$ACTUAL_SHA" >> $GITHUB_OUTPUT
+          echo "actual_size=$ACTUAL_SIZE" >> $GITHUB_OUTPUT
+          if [ "$SHA_MATCH" = "true" ] && [ "$SIZE_MATCH" = "true" ] && [ "$GPG_OK" = "true" ]; then
+            echo "verify_status=passed" >> $GITHUB_OUTPUT
+            echo "✓ Fire drill PASSED — backup íntegro y descifrable estructuralmente"
+          else
+            echo "verify_status=failed" >> $GITHUB_OUTPUT
+            echo "verify_error=sha_match=$SHA_MATCH size_match=$SIZE_MATCH gpg_ok=$GPG_OK" >> $GITHUB_OUTPUT
+            echo "::error::Fire drill FAILED — sha_match=$SHA_MATCH size_match=$SIZE_MATCH gpg_ok=$GPG_OK"
+          fi
+
+      - name: Record drill result
+        if: always()
+        env:
+          AUDIT_CRON_SECRET: ${{ secrets.AUDIT_CRON_SECRET }}
+          BASE_URL: ${{ secrets.CATHEDRAL_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AUDIT_CRON_SECRET:-}" ]; then
+            echo "::warning::AUDIT_CRON_SECRET no configurado — omitiendo registro"
+            exit 0
+          fi
+          URL="${BASE_URL:-https://cathedralgroup.es}/api/cron/backup-restore-test-record"
+          RUN_ID="${{ steps.lastrun.outputs.run_id }}"
+          STATUS="${{ steps.verify.outputs.verify_status }}"
+          if [ -z "$STATUS" ]; then STATUS="failed"; fi
+          PAYLOAD=$(jq -n \
+            --arg id "$RUN_ID" \
+            --arg status "$STATUS" \
+            --arg sha_match "${{ steps.verify.outputs.sha_match }}" \
+            --arg size_match "${{ steps.verify.outputs.size_match }}" \
+            --arg gpg_ok "${{ steps.verify.outputs.gpg_ok }}" \
+            --arg actual_sha "${{ steps.verify.outputs.actual_sha }}" \
+            --argjson actual_size "${{ steps.verify.outputs.actual_size || 0 }}" \
+            --arg gh_artifact "${{ steps.lastrun.outputs.gh_run_id }}" \
+            --arg err "${{ steps.verify.outputs.verify_error }}" \
+            '{
+              backup_run_id: $id,
+              status: $status,
+              details: {
+                sha256_match: ($sha_match == "true"),
+                size_match: ($size_match == "true"),
+                gpg_packets_ok: ($gpg_ok == "true"),
+                actual_sha256: $actual_sha,
+                actual_size_bytes: $actual_size,
+                artifact_run_id: $gh_artifact,
+                verification_type: "partial",
+                error_message: (if $err == "" then null else $err end)
+              }
+            }')
+          echo "→ POST $URL"
+          curl -sS -X POST "$URL" \
+            -H "Authorization: Bearer ${AUDIT_CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" | head -c 500
+          echo
+
+# Secrets necesarios:
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   AUDIT_CRON_SECRET
+#   CATHEDRAL_BASE_URL (default https://cathedralgroup.es)
+#   GITHUB_TOKEN está disponible automáticamente en cada run.

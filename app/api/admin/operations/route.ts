@@ -30,6 +30,8 @@ const VALID_ACTIONS = new Set([
   'recalculate_costs',
   'forensic_rpcs_check',
   'create_test_notification',
+  'trigger_backup',
+  'trigger_backup_pre_migration',
 ])
 
 export async function POST(request: NextRequest) {
@@ -107,6 +109,38 @@ export async function POST(request: NextRequest) {
         })
         if (error) throw new Error(error.message)
         result = { notification_id: data }
+        break
+      }
+      case 'trigger_backup':
+      case 'trigger_backup_pre_migration': {
+        // Snapshot on-demand: invoca /api/admin/backup/trigger internamente
+        // que dispara GitHub Actions workflow_dispatch.
+        const category = action === 'trigger_backup_pre_migration' ? 'pre_migration' : 'manual'
+        const baseUrl =
+          process.env.NEXT_PUBLIC_BASE_URL ||
+          (request.headers.get('x-forwarded-host')
+            ? `https://${request.headers.get('x-forwarded-host')}`
+            : 'https://cathedralgroup.es')
+
+        const cookieHeader = request.headers.get('cookie') || ''
+
+        const triggerResp = await fetch(`${baseUrl}/api/admin/backup/trigger`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            cookie: cookieHeader,
+          },
+          body: JSON.stringify({
+            reason: `${category} desde Operations Center por ${user.email}`,
+            category,
+          }),
+        })
+
+        const triggerJson = await triggerResp.json()
+        if (!triggerResp.ok || !triggerJson.ok) {
+          throw new Error(`backup trigger HTTP ${triggerResp.status}: ${triggerJson.error || 'sin detalle'}`)
+        }
+        result = triggerJson
         break
       }
     }

@@ -6,21 +6,26 @@ name: Backup BD Supabase
 #   (ADMINISTRACION/Backups/Supabase/) aplicando política de retention:
 #   30 diarios + 52 semanales + ∞ mensuales.
 #
+#   Sprint A Backup Robusto (10/05/2026):
+#   1. Cifra el dump con GPG (clave pública Cathedral Backups) antes de subir.
+#      Sin la passphrase + privada custodiada, los .gpg en Drive son ilegibles.
+#   2. Calcula SHA-256 del archivo cifrado.
+#   3. Llama a /api/cron/backup-record para registrar el resultado en
+#      backup_runs (auditoría AEPD/AML + alarma stale automática).
+#
 # Cómo activarlo
-#   1. Verificar que los GitHub Secrets están configurados (ver sección
-#      "Secrets necesarios" más abajo).
-#   2. Quitar el comentario al bloque `schedule:` para que corra automáticamente.
-#      Mientras esté comentado, solo se ejecuta manualmente desde la UI de
-#      GitHub Actions (workflow_dispatch).
+#   1. Verificar GitHub Secrets configurados (sección "Secrets necesarios" abajo).
+#   2. Schedule activo cron diario 04:30 Madrid (línea 38).
+#   3. workflow_dispatch desde UI GitHub o desde POST /api/admin/backup/trigger.
 #
 # Cómo restaurar un backup
-#   Ver scripts/restore-db.sh
+#   Ver scripts/restore-db.sh y memory/runbook_recovery.md (Escenario 5).
 
 on:
   workflow_dispatch:
     inputs:
       reason:
-        description: 'Motivo del backup manual (opcional)'
+        description: 'Motivo del backup manual (puede contener "run_id=<uuid>" si fue disparado por /api/admin/backup/trigger)'
         required: false
         default: 'manual run'
 
@@ -38,7 +43,43 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Install postgresql-client-17
+      - name: Compute category (daily / weekly / monthly)
+        id: category
+        run: |
+          DAY_OF_MONTH=$(date -u +%d)
+          DAY_OF_WEEK=$(date -u +%u)  # 1=lunes
+          if [ "$DAY_OF_MONTH" = "01" ]; then
+            echo "category=monthly" >> $GITHUB_OUTPUT
+          elif [ "$DAY_OF_WEEK" = "1" ]; then
+            echo "category=weekly" >> $GITHUB_OUTPUT
+          else
+            echo "category=daily" >> $GITHUB_OUTPUT
+          fi
+          # Si fue disparado vía workflow_dispatch (manual), usar 'manual'
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            REASON="${{ github.event.inputs.reason }}"
+            if echo "$REASON" | grep -q "pre_migration"; then
+              echo "category=pre_migration" >> $GITHUB_OUTPUT
+            else
+              echo "category=manual" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Extract pre_registered_run_id from reason (if any)
+        id: runid
+        run: |
+          REASON="${{ github.event.inputs.reason }}"
+          # Formato esperado: "...| run_id=<uuid>"
+          RUN_ID=$(echo "$REASON" | grep -oE 'run_id=[a-f0-9-]{36}' | sed 's/run_id=//' || true)
+          if [ -n "$RUN_ID" ]; then
+            echo "pre_registered_run_id=$RUN_ID" >> $GITHUB_OUTPUT
+            echo "→ pre_registered_run_id detectado: $RUN_ID"
+          else
+            echo "pre_registered_run_id=" >> $GITHUB_OUTPUT
+            echo "→ no pre-registered run_id (cron schedule normal)"
+          fi
+
+      - name: Install postgresql-client-17 + GPG
         # Supabase es Postgres 17. Ubuntu 24.04 trae solo postgresql-client-16,
         # incompatible (pg_dump aborta con "server version mismatch"). Añadimos
         # el repo oficial PGDG para instalar postgresql-client-17.
@@ -48,15 +89,32 @@ jobs:
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
           echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          sudo apt-get install -y --no-install-recommends postgresql-client-17 gnupg2
 
-      - name: Verify Postgres tools
+      - name: Verify Postgres + GPG tools
         run: |
-          # Usar pg_dump 17 explícito (Ubuntu update-alternatives mantiene pg16
-          # como /usr/bin/pg_dump por defecto aunque tengamos pg17 instalado).
           PG17_DUMP=/usr/lib/postgresql/17/bin/pg_dump
           $PG17_DUMP --version
           gzip --version | head -1
+          gpg --version | head -1
+
+      - name: Import GPG public key
+        env:
+          GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GPG_PUBLIC_KEY:-}" ]; then
+            echo "::error::GPG_PUBLIC_KEY no configurado en secrets"
+            exit 1
+          fi
+          echo "$GPG_PUBLIC_KEY" | gpg --import 2>&1 | tail -5
+          # Verificar fingerprint esperado
+          FP=$(gpg --list-keys --with-colons backups@cathedralgroup.es | awk -F: '/^fpr/ {print $10; exit}')
+          echo "GPG fingerprint importado: $FP"
+          EXPECTED_FP="CA85D0ED5C35D808EC7E664E6B3E392F09F26DA1"
+          if [ "$FP" != "$EXPECTED_FP" ]; then
+            echo "::warning::GPG fingerprint $FP no coincide con esperado $EXPECTED_FP"
+          fi
 
       - name: Create dump
         env:
@@ -69,10 +127,17 @@ jobs:
           fi
           # pg_dump --format=custom: formato binario, compresible, restaurable
           # con pg_restore (parcial o completo). El estándar Postgres.
+          # --schema flags explícitos: incluye TODOS los schemas críticos.
           # --no-owner, --no-acl: evita problemas al restaurar a otra BD donde
           #   los roles/usuarios no coincidan.
           /usr/lib/postgresql/17/bin/pg_dump \
             --format=custom \
+            --schema=public \
+            --schema=auth \
+            --schema=storage \
+            --schema=vault \
+            --schema=graphql_public \
+            --schema=extensions \
             --no-owner \
             --no-acl \
             --verbose \
@@ -82,9 +147,26 @@ jobs:
           # Comprimir
           gzip -9 /tmp/cathedral_db.dump
           ls -lh /tmp/cathedral_db.dump.gz
-          echo "DUMP_SIZE=$(stat -c %s /tmp/cathedral_db.dump.gz)" >> $GITHUB_ENV
+          echo "DUMP_SIZE_GZ=$(stat -c %s /tmp/cathedral_db.dump.gz)" >> $GITHUB_ENV
+
+      - name: Encrypt with GPG (Cathedral Backups public key)
+        run: |
+          set -euo pipefail
+          gpg --trust-model always \
+              --recipient backups@cathedralgroup.es \
+              --output /tmp/cathedral_db.dump.gz.gpg \
+              --encrypt /tmp/cathedral_db.dump.gz
+          ls -lh /tmp/cathedral_db.dump.gz.gpg
+          # Borrar el plano para no guardarlo accidentalmente
+          rm -f /tmp/cathedral_db.dump.gz
+          echo "DUMP_SIZE_ENC=$(stat -c %s /tmp/cathedral_db.dump.gz.gpg)" >> $GITHUB_ENV
+          # SHA-256 del cifrado (para tracking en backup_runs)
+          SHA=$(sha256sum /tmp/cathedral_db.dump.gz.gpg | awk '{print $1}')
+          echo "DUMP_SHA256=$SHA" >> $GITHUB_ENV
+          echo "SHA-256: $SHA"
 
       - name: Upload to n8n webhook
+        id: upload
         env:
           WEBHOOK_URL: ${{ secrets.BACKUP_WEBHOOK_URL }}
           WEBHOOK_TOKEN: ${{ secrets.BACKUP_WEBHOOK_TOKEN }}
@@ -94,45 +176,100 @@ jobs:
             echo "::error::BACKUP_WEBHOOK_URL o BACKUP_WEBHOOK_TOKEN no configurados"
             exit 1
           fi
-          # Sanitizar trailing whitespace/newlines (defensivo)
           WEBHOOK_URL_CLEAN=$(printf '%s' "${WEBHOOK_URL}" | tr -d '\r\n ')
           WEBHOOK_TOKEN_CLEAN=$(printf '%s' "${WEBHOOK_TOKEN}" | tr -d '\r\n ')
-          # Content-Type: application/gzip — n8n webhook con binaryData:true no
-          # parsea octet-stream como binary; gzip sí (verificado 8/05/2026).
+          # Content-Type: application/octet-stream para .gpg (binario PGP)
+          # n8n recibirá esto como binary y lo subirá tal cual a Drive con
+          # extensión .dump.gz.gpg en el filename.
           HTTP_CODE=$(curl -sS -o /tmp/n8n_response.json -w "%{http_code}" \
             -X POST "${WEBHOOK_URL_CLEAN}" \
             -H "Authorization: Bearer ${WEBHOOK_TOKEN_CLEAN}" \
             -H "X-Backup-Type: db" \
-            -H "Content-Type: application/gzip" \
-            --data-binary @/tmp/cathedral_db.dump.gz)
+            -H "X-Backup-Encrypted: gpg" \
+            -H "X-Backup-Category: ${{ steps.category.outputs.category }}" \
+            -H "X-Backup-Sha256: ${DUMP_SHA256}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @/tmp/cathedral_db.dump.gz.gpg)
           echo "n8n response code: ${HTTP_CODE}"
           echo "n8n response body:"
           cat /tmp/n8n_response.json | head -c 2000
           echo
           if [ "${HTTP_CODE}" -ge 400 ]; then
             echo "::error::n8n upload failed with HTTP ${HTTP_CODE}"
+            echo "upload_status=failed" >> $GITHUB_OUTPUT
+            echo "upload_error=HTTP ${HTTP_CODE}" >> $GITHUB_OUTPUT
             exit 1
           fi
+          echo "upload_status=success" >> $GITHUB_OUTPUT
+          # Drive file ID si n8n lo devuelve en response
+          DRIVE_ID=$(jq -r '.drive_file_id // empty' /tmp/n8n_response.json || true)
+          echo "drive_file_id=${DRIVE_ID}" >> $GITHUB_OUTPUT
 
-      # Mantenemos el dump como artifact por si el upload a Drive falló pero
-      # GitHub se enteró tarde. Retention 7 días = backup secundario gratuito.
       - name: Save dump as GitHub Actions artifact (90 days)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cathedral_db_dump_${{ github.run_id }}
-          path: /tmp/cathedral_db.dump.gz
+          path: /tmp/cathedral_db.dump.gz.gpg
           retention-days: 90
-          if-no-files-found: error
+          if-no-files-found: warn
+
+      - name: Record backup run in Supabase
+        if: always()
+        env:
+          AUDIT_CRON_SECRET: ${{ secrets.AUDIT_CRON_SECRET }}
+          BASE_URL: ${{ secrets.CATHEDRAL_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AUDIT_CRON_SECRET:-}" ]; then
+            echo "::warning::AUDIT_CRON_SECRET no configurado — omitiendo registro en backup_runs"
+            exit 0
+          fi
+          URL="${BASE_URL:-https://cathedralgroup.es}/api/cron/backup-record"
+          STATUS="${{ steps.upload.outputs.upload_status }}"
+          if [ -z "$STATUS" ]; then
+            STATUS="failed"
+          fi
+          PRE_REG="${{ steps.runid.outputs.pre_registered_run_id }}"
+          PAYLOAD=$(jq -n \
+            --arg trigger_type "${{ github.event_name == 'workflow_dispatch' && 'github_actions' || 'cron' }}" \
+            --arg backup_type "pg_dump" \
+            --arg status "$STATUS" \
+            --arg category "${{ steps.category.outputs.category }}" \
+            --arg triggered_by "github-actions-run-${{ github.run_id }}" \
+            --argjson size "${DUMP_SIZE_ENC:-0}" \
+            --arg sha "${DUMP_SHA256:-}" \
+            --arg drive_id "${{ steps.upload.outputs.drive_file_id }}" \
+            --arg gh_run "${{ github.run_id }}" \
+            --arg gpg_fp "CA85D0ED5C35D808EC7E664E6B3E392F09F26DA1" \
+            --arg pre_reg "$PRE_REG" \
+            --arg err "${{ steps.upload.outputs.upload_error }}" \
+            '{
+              trigger_type: $trigger_type,
+              backup_type: $backup_type,
+              status: $status,
+              category: $category,
+              triggered_by: $triggered_by,
+              file_size_bytes: $size,
+              file_sha256: $sha,
+              file_locations: {drive: $drive_id, github_artifact: $gh_run},
+              gpg_encrypted: true,
+              gpg_fingerprint: $gpg_fp,
+              error_message: (if $err == "" then null else $err end),
+              metadata: {github_run_url: ("https://github.com/${{ github.repository }}/actions/runs/" + $gh_run)},
+              pre_registered_run_id: (if $pre_reg == "" then null else $pre_reg end)
+            }')
+          echo "→ POST $URL"
+          curl -sS -X POST "$URL" \
+            -H "Authorization: Bearer ${AUDIT_CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" | head -c 1000
+          echo
 
 # Secrets necesarios (configurar via Settings → Secrets and variables → Actions):
-#   SUPABASE_DATABASE_URL — connection string vía POOLER session mode.
-#                           Direct (db.X.supabase.co) solo expone IPv6, no llega
-#                           desde GitHub Actions runners (IPv4).
-#                           Formato exacto del connection string en
-#                           memory/cathedral-credentials.md (sección Supabase).
-#                           Puerto 5432 = session mode (necesario para pg_dump).
-#                           Puerto 6543 = transaction mode (NO sirve, prepared statements).
+#   SUPABASE_DATABASE_URL — connection string vía POOLER session mode (puerto 5432).
 #   BACKUP_WEBHOOK_URL    — https://n8n.cathedralgroup.es/webhook/cathedral-backup-db
-#   BACKUP_WEBHOOK_TOKEN  — Bearer token del header Authorization (mismo que la
-#                           credencial n8n "Cathedral Backup Webhook Auth")
+#   BACKUP_WEBHOOK_TOKEN  — Bearer token (mismo que credencial n8n "Cathedral Backup Webhook Auth")
+#   GPG_PUBLIC_KEY        — contenido de cathedral-backups-public.asc (Sprint A 10/05/2026)
+#   AUDIT_CRON_SECRET     — para POST /api/cron/backup-record
+#   CATHEDRAL_BASE_URL    — https://cathedralgroup.es (default si no está)

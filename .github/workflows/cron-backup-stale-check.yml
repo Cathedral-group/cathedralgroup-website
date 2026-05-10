@@ -1,0 +1,57 @@
+name: Cron Backup Stale Check
+
+# Sprint A Backup Robusto — verifica cada 6h que los backups (pg_dump y
+# n8n_volume) tienen una ejecución `success` reciente (<26h). Si NO →
+# llama a /api/cron/backup-stale-check que crea system_notification crítica.
+#
+# Por qué GitHub Actions y no Vercel Cron
+#   Vercel Hobby tier limita a 1 cron/día. Cathedral ya usa el slot para
+#   workflow-healthcheck (09:00). GitHub Actions schedules son gratis,
+#   ilimitados y ya tenemos infra (backup-db.yml, keepalive.yml).
+#
+# Endpoint Vercel objetivo
+#   GET https://cathedralgroup.es/api/cron/backup-stale-check
+#   con header `Authorization: Bearer ${AUDIT_CRON_SECRET}`
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 */6 * * *'  # 00:15, 06:15, 12:15, 18:15 UTC = 02:15, 08:15, 14:15, 20:15 Madrid (CEST)
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/backup-stale-check
+        env:
+          AUDIT_CRON_SECRET: ${{ secrets.AUDIT_CRON_SECRET }}
+          BASE_URL: ${{ secrets.CATHEDRAL_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AUDIT_CRON_SECRET:-}" ]; then
+            echo "::error::AUDIT_CRON_SECRET no configurado"; exit 1
+          fi
+          URL="${BASE_URL:-https://cathedralgroup.es}/api/cron/backup-stale-check"
+          echo "→ GET $URL"
+          HTTP_CODE=$(curl -sS -o /tmp/resp.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${AUDIT_CRON_SECRET}" \
+            "$URL")
+          echo "HTTP $HTTP_CODE"
+          cat /tmp/resp.json | head -c 2000
+          echo
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::endpoint backup-stale-check devolvió $HTTP_CODE"
+            exit 1
+          fi
+          # Reportar staleness en log step (visible en GitHub UI)
+          STALE_COUNT=$(jq -r '.stale_count // 0' /tmp/resp.json)
+          if [ "$STALE_COUNT" -gt 0 ]; then
+            echo "⚠️ $STALE_COUNT backup(s) stale — system_notification creada en /admin/*"
+            jq '.results[] | select(.is_stale)' /tmp/resp.json
+          else
+            echo "✓ todos los backups OK (no stale)"
+          fi
