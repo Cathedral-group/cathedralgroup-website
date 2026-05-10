@@ -158,6 +158,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Cuadrante semanal', href: '/admin/personal/cuadrante' },
           { label: 'Dietario (partes horas)', href: '/admin/personal/dietario' },
           { label: 'Banco horas extras', href: '/admin/personal/banco-horas' },
+          { label: 'Ausencias', href: '/admin/personal/ausencias' },
           { label: 'Tickets de trabajadores', href: '/admin/personal/tickets-trabajador' },
           { label: 'Gastos de trabajadores', href: '/admin/personal/gastos-trabajador' },
           { label: 'Accesos portal trabajador', href: '/admin/personal/trabajadores' },
