@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { isAdminEmail } from '@/lib/auth-allowlist'
+import { resolveCompanyIdForRequest, tableHasCompanyId } from '@/lib/company-context'
 import QRCode from 'qrcode'
 
 function escapeHtml(text: string | null | undefined): string {
@@ -801,6 +802,21 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   const body = await request.json()
   const supabase = createAdminSupabaseClient()
 
+  // F3 core: si la tabla tiene company_id y no viene en el body, asignar la
+  // empresa activa del usuario. Si tampoco hay header → DEFAULT (Cathedral via F2).
+  let activeCompanyId: string | null = null
+  try {
+    activeCompanyId = resolveCompanyIdForRequest(user, request.headers)
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Forbidden company' },
+      { status: 403 },
+    )
+  }
+  if (activeCompanyId && tableHasCompanyId(table) && body.company_id === undefined) {
+    body.company_id = activeCompanyId
+  }
+
   // Upsert support: if _upsert_on_conflict is set, use upsert with ignoreDuplicates
   if (body._upsert_on_conflict) {
     const { _upsert_on_conflict, ...payload } = body
@@ -853,6 +869,39 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   }
 
   const supabase = createAdminSupabaseClient()
+
+  // F3 core: si la tabla tiene company_id y el request envía header X-Active-Company-Id,
+  // validar que la fila objetivo pertenece a esa company antes de actualizar.
+  let activeCompanyId: string | null = null
+  try {
+    activeCompanyId = resolveCompanyIdForRequest(user, request.headers)
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Forbidden company' },
+      { status: 403 },
+    )
+  }
+  if (activeCompanyId && tableHasCompanyId(table)) {
+    const { data: existing, error: existErr } = await supabase
+      .from(table)
+      .select('company_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (existErr) {
+      console.error(`[PATCH ${table}] verify company_id error:`, existErr.message)
+      return NextResponse.json({ error: 'Error verificando empresa' }, { status: 500 })
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 })
+    }
+    if ((existing as { company_id?: string }).company_id !== activeCompanyId) {
+      return NextResponse.json(
+        { error: 'Forbidden: este registro no pertenece a tu empresa activa' },
+        { status: 403 },
+      )
+    }
+  }
+
   const payload = resource === 'quality-coefficients'
     ? { ...updates, updated_at: new Date().toISOString() }
     : updates
@@ -934,6 +983,37 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
   const supabase = createAdminSupabaseClient()
+
+  // F3 core: validar pertenencia a empresa activa antes de borrar
+  let activeCompanyId: string | null = null
+  try {
+    activeCompanyId = resolveCompanyIdForRequest(user, request.headers)
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Forbidden company' },
+      { status: 403 },
+    )
+  }
+  if (activeCompanyId && tableHasCompanyId(table)) {
+    const { data: existing, error: existErr } = await supabase
+      .from(table)
+      .select('company_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (existErr) {
+      console.error(`[DELETE ${table}] verify company_id error:`, existErr.message)
+      return NextResponse.json({ error: 'Error verificando empresa' }, { status: 500 })
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 })
+    }
+    if ((existing as { company_id?: string }).company_id !== activeCompanyId) {
+      return NextResponse.json(
+        { error: 'Forbidden: este registro no pertenece a tu empresa activa' },
+        { status: 403 },
+      )
+    }
+  }
 
   if (SOFT_DELETE_TABLES.has(table)) {
     // Soft delete

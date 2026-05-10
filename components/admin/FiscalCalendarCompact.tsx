@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 
 interface Deadline {
@@ -15,6 +15,15 @@ interface Deadline {
   importe_a_ingresar: number | null
   filing_id: string | null
   is_overdue: boolean
+}
+
+interface MarkPresentedModalState {
+  modelo: string
+  ejercicio: number
+  periodo: string
+  importe: string
+  csv_aeat: string
+  notes: string
 }
 
 const fmtDate = (iso: string) => {
@@ -32,26 +41,59 @@ const fmtDate = (iso: string) => {
 export default function FiscalCalendarCompact() {
   const [deadlines, setDeadlines] = useState<Deadline[]>([])
   const [loading, setLoading] = useState(true)
+  const [markModal, setMarkModal] = useState<MarkPresentedModalState | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      try {
-        const res = await fetch('/api/fiscal/upcoming?days_ahead=90&days_overdue=30')
-        if (!res.ok) return
-        const json = await res.json()
-        if (!cancelled) setDeadlines(json.deadlines ?? [])
-      } catch {
-        /* silent */
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/fiscal/upcoming?days_ahead=90&days_overdue=30', { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json()
+      setDeadlines(json.deadlines ?? [])
+    } catch {
+      /* silent */
+    } finally {
+      setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const handleMarkPresented = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!markModal) return
+    setSubmitting(true)
+    setErrorMsg(null)
+    try {
+      const payload: Record<string, unknown> = {
+        modelo: markModal.modelo,
+        ejercicio: markModal.ejercicio,
+        periodo: markModal.periodo,
+      }
+      if (markModal.importe) payload.importe_a_ingresar = parseFloat(markModal.importe)
+      if (markModal.csv_aeat) payload.csv_aeat = markModal.csv_aeat.trim()
+      if (markModal.notes) payload.notes = markModal.notes.trim()
+
+      const res = await fetch('/api/fiscal/mark-presented', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || `HTTP ${res.status}`)
+      }
+      setMarkModal(null)
+      await load()
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   if (loading || deadlines.length === 0) return null
 
@@ -118,10 +160,27 @@ export default function FiscalCalendarCompact() {
                 <div className="text-[10px] opacity-70">{fmtDate(d.fecha_limite)}</div>
               </div>
               <span className="text-xs font-bold whitespace-nowrap">{daysLabel}</span>
-              {d.estado !== 'pendiente' && (
+              {d.estado !== 'pendiente' ? (
                 <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-green-200 text-green-800">
                   {d.estado}
                 </span>
+              ) : (
+                <button
+                  onClick={() =>
+                    setMarkModal({
+                      modelo: d.modelo,
+                      ejercicio: d.ejercicio,
+                      periodo: d.periodo,
+                      importe: d.importe_a_ingresar?.toString() ?? '',
+                      csv_aeat: '',
+                      notes: '',
+                    })
+                  }
+                  className="text-[9px] uppercase tracking-widest font-bold px-2 py-1 rounded bg-white border border-current hover:bg-current hover:text-white transition-colors whitespace-nowrap"
+                  title="Marcar como presentado en AEAT"
+                >
+                  ✓ Presentado
+                </button>
               )}
             </div>
           )
@@ -134,6 +193,88 @@ export default function FiscalCalendarCompact() {
         >
           Ver todos ({deadlines.length}) →
         </Link>
+      )}
+
+      {/* Modal Marcar presentado */}
+      {markModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-base font-bold text-neutral-800 mb-1">
+              Marcar modelo {markModal.modelo} como presentado
+            </h3>
+            <p className="text-xs text-neutral-500 mb-4">
+              {markModal.periodo} {markModal.ejercicio} · Quedará registrado en{' '}
+              <code className="text-[10px] bg-neutral-100 px-1">tax_filings</code> con
+              estado=presentado y desaparecerá de los próximos vencimientos.
+            </p>
+
+            {errorMsg && (
+              <div className="mb-3 bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded text-xs">
+                {errorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleMarkPresented} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
+                  Importe a ingresar (opcional)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={markModal.importe}
+                  onChange={(e) => setMarkModal({ ...markModal, importe: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
+                  CSV AEAT (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={markModal.csv_aeat}
+                  onChange={(e) => setMarkModal({ ...markModal, csv_aeat: e.target.value })}
+                  placeholder="Código Seguro Verificación devuelto por AEAT"
+                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">
+                  Notas
+                </label>
+                <textarea
+                  value={markModal.notes}
+                  onChange={(e) => setMarkModal({ ...markModal, notes: e.target.value })}
+                  placeholder="Notas internas (opcional)"
+                  rows={2}
+                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setMarkModal(null)}
+                  disabled={submitting}
+                  className="text-sm text-neutral-500 hover:text-neutral-800 px-3 py-2"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-primary text-white px-4 py-2 rounded text-sm font-semibold hover:bg-[#5A5550] transition-colors disabled:opacity-50"
+                >
+                  {submitting ? 'Guardando…' : '✓ Marcar presentado'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

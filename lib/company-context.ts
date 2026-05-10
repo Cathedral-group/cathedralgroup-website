@@ -195,3 +195,82 @@ export async function syncCompanyMetadataForUser(userId: string): Promise<{
  */
 export const CATHEDRAL_INVESTMENT_SL_ID: CompanyId =
   '00000000-0000-0000-0000-cca7ed1a1000'
+
+/**
+ * Tablas que NO llevan `company_id` (allowlist explícito).
+ * Sincronizado con la migración 20260510141500_bloque_0_f2_company_id_alter.sql.
+ *
+ * Categorías:
+ *   - Entidades globales del grupo (F1)
+ *   - Auditoría global y logs
+ *   - Catálogos compartidos por todas las SL
+ *   - Sistema interno
+ */
+export const TABLES_WITHOUT_COMPANY_ID = new Set<string>([
+  // Entidades globales (F1)
+  'companies',
+  'parties',
+  'properties',
+  'company_members',
+  'party_company_relationships',
+  'property_ownership_history',
+  'intragroup_transactions',
+  'intercompany_loans',
+  // Auditoría global
+  'audit_log_chain',
+  'admin_audit_log',
+  '_backfill_log',
+  'login_attempts',
+  'email_audit_attempts',
+  'gdpr_processing_log',
+  // Catálogos compartidos
+  'fiscal_models',
+  'ai_pricing_table',
+  'quality_coefficients',
+  'collective_agreements',
+  'quote_items_catalog',
+  'supplier_email_whitelist',
+  'project_subfolders',
+  // Sistema
+  'webhook_idempotency',
+  'eval_runs',
+  'ai_usage_log',
+  'system_notifications',
+  'backup_runs',
+])
+
+/**
+ * Devuelve true si la tabla tiene `company_id` (es discriminator multi-empresa).
+ * F2 añadió `company_id` a 55 tablas operativas. Las del allowlist no lo tienen
+ * por diseño (entidades globales, catálogos, auditoría).
+ */
+export function tableHasCompanyId(tableName: string): boolean {
+  return !TABLES_WITHOUT_COMPANY_ID.has(tableName)
+}
+
+/**
+ * Resuelve la company_id para aplicar a un request /api/db/[resource]/*.
+ * Patrón "opt-in F3 core":
+ *   - Si header X-Active-Company-Id presente y es uno de los del usuario → usarla
+ *   - Si no, devuelve null (= comportamiento legacy: sin filtro company_id, lo
+ *     que para SQL con RLS+FORCE significa que solo service_role lo verá)
+ *
+ * En F3 completo (post 2ª SL real), el frontend admin enviará SIEMPRE el
+ * header X-Active-Company-Id. Mientras tanto, omitir = filtro Cathedral por
+ * DEFAULT que viene de la migración F2.
+ */
+export function resolveCompanyIdForRequest(
+  user: User | null,
+  headers: Headers,
+): CompanyId | null {
+  const ctx = getCompanyContextFromUser(user)
+  if (!ctx) return null
+  const headerVal = headers.get('x-active-company-id')
+  if (!headerVal) return null
+  if (!ctx.companies.includes(headerVal)) {
+    throw new Error(
+      `Forbidden: header X-Active-Company-Id=${headerVal} no es de tu grupo`,
+    )
+  }
+  return headerVal
+}
