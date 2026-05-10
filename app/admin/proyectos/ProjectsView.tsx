@@ -70,6 +70,39 @@ interface Phase {
   [key: string]: unknown
 }
 
+interface ProjectLocation {
+  project_id: string
+  lat: number
+  lng: number
+  radio_m: number
+  direccion: string | null
+}
+
+/* ───────── Geofence helpers (Nominatim OSM, gratis, sin API key) ───────── */
+
+async function geocodeAddress(query: string): Promise<{ lat: number; lng: number; display: string } | null> {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=es`
+  const res = await fetch(url, { headers: { 'Accept-Language': 'es' } })
+  if (!res.ok) return null
+  const data = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>
+  if (!data?.[0]) return null
+  return { lat: Number(data[0].lat), lng: Number(data[0].lon), display: data[0].display_name }
+}
+
+function getMyLocation(): Promise<{ lat: number; lng: number; accuracy: number }> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Tu navegador no soporta geolocalización'))
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+      (err) => reject(new Error(err.message || 'No se pudo obtener tu ubicación')),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    )
+  })
+}
+
 /* ───────── Constants ───────── */
 
 const STATUSES = ['presupuesto', 'en_curso', 'completado', 'finalizado', 'cancelado']
@@ -130,6 +163,7 @@ interface Props {
   financials: Financial[]
   invoices: Invoice[]
   phases: Phase[]
+  locations: ProjectLocation[]
 }
 
 /**
@@ -146,9 +180,10 @@ function KpiCard({ label, value, hint }: { label: string; value: string; hint?: 
   )
 }
 
-export default function ProjectsView({ projects: initialProjects, clients, financials, invoices: initialInvoices, phases: initialPhases }: Props) {
+export default function ProjectsView({ projects: initialProjects, clients, financials, invoices: initialInvoices, phases: initialPhases, locations: initialLocations }: Props) {
   const [projects, setProjects] = useState(initialProjects)
   const [allPhases, setAllPhases] = useState(initialPhases)
+  const [allLocations, setAllLocations] = useState(initialLocations)
   const [selected, setSelected] = useState<Project | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -163,6 +198,18 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [showNewForm, setShowNewForm] = useState(false)
   const [newForm, setNewForm] = useState({ code: '', name: '', type: '', status: 'presupuesto', client_id: '' })
   const [savingNew, setSavingNew] = useState(false)
+
+  // Ubicación en form Nuevo (opcional)
+  const [newLoc, setNewLoc] = useState({ lat: '', lng: '', radio_m: 300, direccion: '' })
+  const [newLocSearch, setNewLocSearch] = useState('')
+  const [newLocBusy, setNewLocBusy] = useState<'mine' | 'search' | null>(null)
+  const [newLocMsg, setNewLocMsg] = useState<string | null>(null)
+
+  // Ubicación en tab del detail (carga al abrir un proyecto)
+  const [locForm, setLocForm] = useState({ lat: '', lng: '', radio_m: 300, direccion: '' })
+  const [locSearch, setLocSearch] = useState('')
+  const [locBusy, setLocBusy] = useState<'mine' | 'search' | 'save' | 'delete' | null>(null)
+  const [locMsg, setLocMsg] = useState<string | null>(null)
 
   // Phase inline form
   const [showPhaseForm, setShowPhaseForm] = useState(false)
@@ -182,6 +229,12 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     clients.forEach((c) => { m[c.id] = c.name })
     return m
   }, [clients])
+
+  const locationMap = useMemo(() => {
+    const m: Record<string, ProjectLocation> = {}
+    allLocations.forEach((l) => { m[l.project_id] = l })
+    return m
+  }, [allLocations])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -305,6 +358,17 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     setShowPhaseForm(false)
     setEditingPhaseId(null)
     setPhaseForm({ name: '', status: 'pendiente', start_date: '', end_date: '' })
+    // Pre-cargar form de ubicación con lo que haya en BD para este proyecto
+    const loc = locationMap[project.id]
+    setLocForm({
+      lat: loc ? String(loc.lat) : '',
+      lng: loc ? String(loc.lng) : '',
+      radio_m: loc?.radio_m ?? 300,
+      direccion: loc?.direccion ?? '',
+    })
+    setLocSearch('')
+    setLocBusy(null)
+    setLocMsg(null)
   }
 
   function closeDetail() {
@@ -439,16 +503,160 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
         throw new Error(body.error || `Error ${res.status}`)
       }
       const { data } = await res.json()
-      if (data) {
-        setProjects(prev => [data as Project, ...prev])
+      const created = data as Project | undefined
+      if (created) {
+        setProjects(prev => [created, ...prev])
+
+        // Si rellenó ubicación, encadenar PUT location
+        const lat = newLoc.lat ? Number(newLoc.lat) : NaN
+        const lng = newLoc.lng ? Number(newLoc.lng) : NaN
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          const locRes = await fetch(`/api/admin/proyectos/${encodeURIComponent(created.code)}/location`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              lat, lng,
+              radio_m: newLoc.radio_m || 300,
+              direccion: newLoc.direccion || null,
+            }),
+          })
+          if (locRes.ok) {
+            setAllLocations(prev => [
+              ...prev.filter(l => l.project_id !== created.id),
+              {
+                project_id: created.id,
+                lat, lng,
+                radio_m: newLoc.radio_m || 300,
+                direccion: newLoc.direccion || null,
+              },
+            ])
+          } else {
+            const lb = await locRes.json().catch(() => ({}))
+            alert('Proyecto creado, pero falló guardar ubicación: ' + (lb.error || locRes.status))
+          }
+        }
+
         setShowNewForm(false)
         setNewForm({ code: '', name: '', type: '', status: 'presupuesto', client_id: '' })
+        setNewLoc({ lat: '', lng: '', radio_m: 300, direccion: '' })
+        setNewLocSearch('')
+        setNewLocMsg(null)
       }
     } catch (err) {
       console.error('createProject:', err)
       alert('Error al crear proyecto: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     } finally {
       setSavingNew(false)
+    }
+  }
+
+  /* ─── Geofence: helpers de los dos formularios ─── */
+
+  async function newLoc_useMyLocation() {
+    setNewLocBusy('mine'); setNewLocMsg(null)
+    try {
+      const pos = await getMyLocation()
+      setNewLoc(prev => ({ ...prev, lat: pos.lat.toFixed(6), lng: pos.lng.toFixed(6) }))
+      setNewLocMsg(`Precisión ≈ ${Math.round(pos.accuracy)} m`)
+    } catch (e) {
+      setNewLocMsg(e instanceof Error ? e.message : 'Error obteniendo ubicación')
+    } finally {
+      setNewLocBusy(null)
+    }
+  }
+
+  async function newLoc_searchAddress() {
+    if (!newLocSearch.trim()) return
+    setNewLocBusy('search'); setNewLocMsg(null)
+    try {
+      const r = await geocodeAddress(newLocSearch.trim())
+      if (!r) { setNewLocMsg('No se encontró la dirección'); return }
+      setNewLoc(prev => ({ ...prev, lat: r.lat.toFixed(6), lng: r.lng.toFixed(6), direccion: prev.direccion || r.display }))
+      setNewLocMsg(`📍 ${r.display}`)
+    } catch (e) {
+      setNewLocMsg(e instanceof Error ? e.message : 'Error buscando dirección')
+    } finally {
+      setNewLocBusy(null)
+    }
+  }
+
+  async function locForm_useMyLocation() {
+    setLocBusy('mine'); setLocMsg(null)
+    try {
+      const pos = await getMyLocation()
+      setLocForm(prev => ({ ...prev, lat: pos.lat.toFixed(6), lng: pos.lng.toFixed(6) }))
+      setLocMsg(`Precisión ≈ ${Math.round(pos.accuracy)} m`)
+    } catch (e) {
+      setLocMsg(e instanceof Error ? e.message : 'Error obteniendo ubicación')
+    } finally {
+      setLocBusy(null)
+    }
+  }
+
+  async function locForm_searchAddress() {
+    if (!locSearch.trim()) return
+    setLocBusy('search'); setLocMsg(null)
+    try {
+      const r = await geocodeAddress(locSearch.trim())
+      if (!r) { setLocMsg('No se encontró la dirección'); return }
+      setLocForm(prev => ({ ...prev, lat: r.lat.toFixed(6), lng: r.lng.toFixed(6), direccion: prev.direccion || r.display }))
+      setLocMsg(`📍 ${r.display}`)
+    } catch (e) {
+      setLocMsg(e instanceof Error ? e.message : 'Error buscando dirección')
+    } finally {
+      setLocBusy(null)
+    }
+  }
+
+  async function saveLocation() {
+    if (!selected) return
+    const lat = Number(locForm.lat); const lng = Number(locForm.lng)
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) { setLocMsg('Latitud inválida'); return }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) { setLocMsg('Longitud inválida'); return }
+    const radio = Number(locForm.radio_m || 300)
+    if (!Number.isInteger(radio) || radio < 50 || radio > 2000) { setLocMsg('Radio inválido (50-2000 m)'); return }
+    setLocBusy('save'); setLocMsg(null)
+    try {
+      const res = await fetch(`/api/admin/proyectos/${encodeURIComponent(selected.code)}/location`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat, lng, radio_m: radio, direccion: locForm.direccion || null }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setAllLocations(prev => [
+        ...prev.filter(l => l.project_id !== selected.id),
+        { project_id: selected.id, lat, lng, radio_m: radio, direccion: locForm.direccion || null },
+      ])
+      setLocMsg('✓ Ubicación guardada')
+    } catch (e) {
+      setLocMsg(e instanceof Error ? e.message : 'Error guardando ubicación')
+    } finally {
+      setLocBusy(null)
+    }
+  }
+
+  async function deleteLocation() {
+    if (!selected) return
+    if (!confirm('¿Eliminar la ubicación / geofence de este proyecto?')) return
+    setLocBusy('delete'); setLocMsg(null)
+    try {
+      const res = await fetch(`/api/admin/proyectos/${encodeURIComponent(selected.code)}/location`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      setAllLocations(prev => prev.filter(l => l.project_id !== selected.id))
+      setLocForm({ lat: '', lng: '', radio_m: 300, direccion: '' })
+      setLocMsg('Ubicación eliminada')
+    } catch (e) {
+      setLocMsg(e instanceof Error ? e.message : 'Error eliminando ubicación')
+    } finally {
+      setLocBusy(null)
     }
   }
 
@@ -627,6 +835,92 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               </select>
             </div>
           </div>
+
+          {/* ─── Bloque Ubicación / Geofence (opcional) ─── */}
+          <div className="border-t border-neutral-100 pt-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                📍 Ubicación de la obra <span className="text-neutral-300">— opcional, pero recomendable para fichaje</span>
+              </h4>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 mb-3">
+              <input
+                value={newLocSearch}
+                onChange={e => setNewLocSearch(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); newLoc_searchAddress() } }}
+                placeholder="Buscar dirección: C/ Buenavista 24, Madrid..."
+                className={inputCls + ' flex-1'}
+              />
+              <button
+                type="button"
+                onClick={newLoc_searchAddress}
+                disabled={newLocBusy !== null || !newLocSearch.trim()}
+                className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
+              >
+                {newLocBusy === 'search' ? '...' : '🔍 Buscar'}
+              </button>
+              <button
+                type="button"
+                onClick={newLoc_useMyLocation}
+                disabled={newLocBusy !== null}
+                className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
+                title="Usa el GPS del dispositivo (ideal si estás en la obra)"
+              >
+                {newLocBusy === 'mine' ? '...' : '📍 Mi ubicación'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div>
+                <label className={labelCls}>Latitud</label>
+                <input
+                  type="number" step="0.0000001"
+                  value={newLoc.lat}
+                  onChange={e => setNewLoc({ ...newLoc, lat: e.target.value })}
+                  className={inputCls + ' font-mono text-xs'}
+                  placeholder="40.4168"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Longitud</label>
+                <input
+                  type="number" step="0.0000001"
+                  value={newLoc.lng}
+                  onChange={e => setNewLoc({ ...newLoc, lng: e.target.value })}
+                  className={inputCls + ' font-mono text-xs'}
+                  placeholder="-3.7038"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Radio (m)</label>
+                <input
+                  type="number" min="50" max="2000" step="50"
+                  value={newLoc.radio_m}
+                  onChange={e => setNewLoc({ ...newLoc, radio_m: parseInt(e.target.value, 10) || 300 })}
+                  className={inputCls + ' tabular-nums'}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Dirección (opcional)</label>
+                <input
+                  value={newLoc.direccion}
+                  onChange={e => setNewLoc({ ...newLoc, direccion: e.target.value })}
+                  className={inputCls}
+                  placeholder="C/ Ejemplo 12, Madrid"
+                />
+              </div>
+            </div>
+
+            {newLocMsg && (
+              <p className="mt-2 text-xs text-neutral-600">{newLocMsg}</p>
+            )}
+            <p className="mt-2 text-[10px] text-neutral-400">
+              Default radio 300 m — Madrid centro tiene mucha imprecisión GPS por edificios.
+              Si lo dejas vacío, los fichajes ahí se registran como <em>sin ubicación</em> (no se bloquea).
+            </p>
+          </div>
+
           <div className="flex gap-3">
             <button
               onClick={createProject}
@@ -635,7 +929,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
             >
               {savingNew ? '...' : 'Crear proyecto'}
             </button>
-            <button onClick={() => setShowNewForm(false)} className="text-neutral-500 hover:text-neutral-700 text-xs font-bold uppercase tracking-widest">
+            <button onClick={() => { setShowNewForm(false); setNewLoc({ lat: '', lng: '', radio_m: 300, direccion: '' }); setNewLocSearch(''); setNewLocMsg(null) }} className="text-neutral-500 hover:text-neutral-700 text-xs font-bold uppercase tracking-widest">
               Cancelar
             </button>
           </div>
@@ -725,9 +1019,13 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               ) : (
                 filtered.map((p) => {
                   const fin = financialMap[p.id]
+                  const hasGeo = !!locationMap[p.id]
                   return (
                     <tr key={p.id} onClick={() => openDetail(p)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{p.code}</td>
+                      <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">
+                        <span className={hasGeo ? 'text-green-600' : 'text-neutral-300'} title={hasGeo ? 'Tiene geofence' : 'Sin geofence — los fichajes aquí no podrán validar ubicación'}>📍</span>{' '}
+                        {p.code}
+                      </td>
                       <td className="px-4 py-3 text-sm max-w-[200px] truncate">{p.name}</td>
                       <td className="px-4 py-3">{p.type && <Badge value={p.type} styles={TYPE_STYLES} />}</td>
                       <td className="px-4 py-3"><Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} /></td>
@@ -787,6 +1085,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                     <div className="divide-y divide-neutral-50">
                       {group.items.map((p) => {
                         const fin = financialMap[p.id]
+                        const hasGeo = !!locationMap[p.id]
                         return (
                           <div
                             key={p.id}
@@ -794,6 +1093,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                             className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-4"
                           >
                             <span className="text-xs font-mono text-neutral-500 w-32 shrink-0">
+                              <span className={hasGeo ? 'text-green-600' : 'text-neutral-300'} title={hasGeo ? 'Tiene geofence' : 'Sin geofence'}>📍</span>{' '}
                               {p.code}
                             </span>
                             <span className="text-sm flex-1 truncate">{p.name}</span>
@@ -890,6 +1190,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
             <TabPanel
               tabs={[
                 { key: 'general', label: 'General' },
+                { key: 'ubicacion', label: locationMap[selected.id] ? '📍 Ubicación' : '📍 Ubicación ⚠' },
                 { key: 'fases', label: 'Fases' },
                 { key: 'facturas', label: 'Facturas' },
                 { key: 'documentos', label: 'Documentos' },
@@ -958,6 +1259,129 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
 
                   <Field label="Notas" name="notes" type="textarea" />
                   <Field label="Carpeta Google Drive (URL)" name="drive_folder_url" />
+                </div>
+              )}
+
+              {/* ─── Tab: Ubicación / Geofence ─── */}
+              {activeTab === 'ubicacion' && (
+                <div className="space-y-4">
+                  <p className="text-xs text-neutral-500">
+                    Coordenadas GPS del proyecto. Cuando un trabajador ficha aquí, comprobamos si está
+                    dentro del radio (aviso informativo, <strong>no bloquea</strong> el fichaje).
+                  </p>
+
+                  {!locationMap[selected.id] && (
+                    <div className="border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      ⚠ Sin geofence configurado. Los fichajes en este proyecto se registran como
+                      <em> sin ubicación válida</em>.
+                    </div>
+                  )}
+
+                  {/* Buscar dirección / Mi ubicación */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      value={locSearch}
+                      onChange={e => setLocSearch(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); locForm_searchAddress() } }}
+                      placeholder="Buscar dirección..."
+                      className={inputCls + ' flex-1'}
+                    />
+                    <button
+                      type="button"
+                      onClick={locForm_searchAddress}
+                      disabled={locBusy !== null || !locSearch.trim()}
+                      className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {locBusy === 'search' ? '...' : '🔍 Buscar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={locForm_useMyLocation}
+                      disabled={locBusy !== null}
+                      className="bg-white border border-neutral-300 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-primary disabled:opacity-50 whitespace-nowrap"
+                      title="Usa el GPS del dispositivo (ideal si estás en la obra)"
+                    >
+                      {locBusy === 'mine' ? '...' : '📍 Mi ubicación'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div>
+                      <label className={labelCls}>Latitud *</label>
+                      <input
+                        type="number" step="0.0000001"
+                        value={locForm.lat}
+                        onChange={e => setLocForm({ ...locForm, lat: e.target.value })}
+                        className={inputCls + ' font-mono text-xs'}
+                        placeholder="40.4168"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Longitud *</label>
+                      <input
+                        type="number" step="0.0000001"
+                        value={locForm.lng}
+                        onChange={e => setLocForm({ ...locForm, lng: e.target.value })}
+                        className={inputCls + ' font-mono text-xs'}
+                        placeholder="-3.7038"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Radio (m)</label>
+                      <input
+                        type="number" min="50" max="2000" step="50"
+                        value={locForm.radio_m}
+                        onChange={e => setLocForm({ ...locForm, radio_m: parseInt(e.target.value, 10) || 300 })}
+                        className={inputCls + ' tabular-nums'}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Dirección</label>
+                      <input
+                        value={locForm.direccion}
+                        onChange={e => setLocForm({ ...locForm, direccion: e.target.value })}
+                        className={inputCls}
+                        placeholder="C/ Ejemplo 12, Madrid"
+                      />
+                    </div>
+                  </div>
+
+                  {locForm.lat && locForm.lng && (
+                    <a
+                      href={`https://www.google.com/maps?q=${locForm.lat},${locForm.lng}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Ver en Google Maps →
+                    </a>
+                  )}
+
+                  {locMsg && (
+                    <p className="text-xs text-neutral-600">{locMsg}</p>
+                  )}
+
+                  <p className="text-[10px] text-neutral-400">
+                    Default radio 300 m — Madrid centro tiene mucha imprecisión GPS por edificios.
+                  </p>
+
+                  <div className="flex gap-3 pt-3 border-t border-neutral-100">
+                    <button
+                      onClick={saveLocation}
+                      disabled={locBusy !== null}
+                      className="bg-neutral-900 text-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary disabled:opacity-50 transition-colors"
+                    >
+                      {locBusy === 'save' ? 'Guardando...' : 'Guardar ubicación'}
+                    </button>
+                    {locationMap[selected.id] && (
+                      <button
+                        onClick={deleteLocation}
+                        disabled={locBusy !== null}
+                        className="bg-white border border-red-200 text-red-600 px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50 disabled:opacity-50 transition-colors"
+                      >
+                        {locBusy === 'delete' ? '...' : 'Eliminar'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 

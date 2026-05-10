@@ -12,7 +12,7 @@ export default async function ProyectosPage() {
   const supabase = createAdminSupabaseClient()
 
   // project_financials no tiene company_id (allowlist) — proyectos sí filtran
-  const [projectsRes, clientsRes, financialsRes, invoices, phasesRes] = await Promise.all([
+  const [projectsRes, clientsRes, financialsRes, invoices, phasesRes, locationsRes] = await Promise.all([
     supabase.from('projects').select('*').eq('company_id', activeCompanyId).is('deleted_at', null).order('created_at', { ascending: false }),
     supabase.from('clients').select('id, name').eq('company_id', activeCompanyId).is('deleted_at', null).order('name'),
     supabase.from('project_financials').select('*').eq('company_id', activeCompanyId),
@@ -24,6 +24,7 @@ export default async function ProyectosPage() {
         .is('deleted_at', null)
     ),
     supabase.from('project_phases').select('*').eq('company_id', activeCompanyId).order('start_date', { ascending: true }),
+    supabase.from('project_locations').select('project_id, lat, lng, radio_m, direccion').eq('company_id', activeCompanyId).is('deleted_at', null),
   ])
 
   return (
@@ -34,6 +35,7 @@ export default async function ProyectosPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       invoices={invoices as any}
       phases={phasesRes.data || []}
+      locations={locationsRes.data || []}
     />
   )
 }
