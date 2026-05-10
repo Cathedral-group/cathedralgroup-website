@@ -1,6 +1,7 @@
 import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect, notFound } from 'next/navigation'
 import ProjectDocumentsView from './ProjectDocumentsView'
+import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
 interface PageProps {
   params: Promise<{ code: string }>
@@ -12,13 +13,15 @@ export default async function ProjectDocumentsPage({ params }: PageProps) {
   if (authError || !userData?.user) redirect('/admin/login')
 
   const { code } = await params
+  const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
-  // Localizar proyecto por code
+  // Localizar proyecto por code (filtrado por empresa activa)
   const { data: project } = await supabase
     .from('projects')
     .select('*')
     .eq('code', code)
+    .eq('company_id', activeCompanyId)
     .is('deleted_at', null)
     .maybeSingle()
 

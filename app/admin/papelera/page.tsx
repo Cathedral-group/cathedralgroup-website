@@ -1,22 +1,24 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import PapeleraView from './PapeleraView'
+import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
 export default async function PapeleraPage() {
   const authClient = await createServerSupabaseClient()
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
 
+  const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
   const [leadsRes, clientsRes, suppliersRes, projectsRes, invoicesRes, quotesRes, documentsRes] = await Promise.all([
-    supabase.from('leads').select('id, nombre, email, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    supabase.from('clients').select('id, name, email, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    supabase.from('suppliers').select('id, name, nif, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    supabase.from('projects').select('id, code, name, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    supabase.from('invoices').select('id, number, concept, direction, amount_total, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    supabase.from('quotes').select('id, number, total, status, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    supabase.from('documents').select('id, titulo, doc_type, doc_category, created_at, deleted_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    supabase.from('leads').select('id, nombre, email, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    supabase.from('clients').select('id, name, email, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    supabase.from('suppliers').select('id, name, nif, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    supabase.from('projects').select('id, code, name, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    supabase.from('invoices').select('id, number, concept, direction, amount_total, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    supabase.from('quotes').select('id, number, total, status, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    supabase.from('documents').select('id, titulo, doc_type, doc_category, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
   ])
 
   const items = [

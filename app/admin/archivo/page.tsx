@@ -1,6 +1,7 @@
 import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import InvoicesView from '../facturas/InvoicesView'
+import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,14 +10,15 @@ export default async function ArchivoPage() {
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
 
+  const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
   const [invoices, projectsRes, suppliersRes] = await Promise.all([
     fetchAllRows((sb) =>
-      sb.from('invoices').select('*').is('deleted_at', null).order('created_at', { ascending: false })
+      sb.from('invoices').select('*').eq('company_id', activeCompanyId).is('deleted_at', null).order('created_at', { ascending: false })
     ),
-    supabase.from('projects').select('id, code, name').is('deleted_at', null),
-    supabase.from('suppliers').select('nif, name').is('deleted_at', null),
+    supabase.from('projects').select('id, code, name').eq('company_id', activeCompanyId).is('deleted_at', null),
+    supabase.from('suppliers').select('nif, name').eq('company_id', activeCompanyId).is('deleted_at', null),
   ])
 
   const projects = (projectsRes.data ?? []).map((p) => ({

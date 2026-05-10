@@ -1,12 +1,14 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import DocumentsView from '../DocumentsView'
+import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
 export default async function ContratosPage() {
   const authClient = await createServerSupabaseClient()
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
 
+  const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
   const [docsRes, projectsRes] = await Promise.all([
@@ -14,11 +16,13 @@ export default async function ContratosPage() {
       .from('documents')
       .select('*')
       .eq('doc_category', 'legal')
+      .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     supabase
       .from('projects')
       .select('id, code, name')
+      .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .order('code'),
   ])

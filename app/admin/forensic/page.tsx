@@ -1,27 +1,31 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import ForensicView from './ForensicView'
+import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
 export default async function ForensicPage() {
   const authClient = await createServerSupabaseClient()
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
 
+  const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
-  // Cargar factura_forensic + datos básicos de invoice asociada
+  // Cargar factura_forensic + datos básicos de invoice (filtrado por empresa)
   const [forensicRes, invoicesRes] = await Promise.all([
     supabase
       .from('factura_forensic')
       .select(
         'id, invoice_id, score, pdf_alerts, email_alerts, numeracion_alerts, duplicados_alerts, decision, reviewed_at, notes, created_at',
       )
+      .eq('company_id', activeCompanyId)
       .order('created_at', { ascending: false })
       .limit(500)
       .then((r) => r, () => ({ data: [], error: null })),
     supabase
       .from('invoices')
       .select('id, number, supplier_nif, empresa, amount_total, issue_date, direction, original_filename, drive_url, review_status, needs_review, deleted_at, created_at')
+      .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(2000)

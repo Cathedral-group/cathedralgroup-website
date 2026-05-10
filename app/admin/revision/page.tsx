@@ -1,19 +1,23 @@
 import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import RevisionView from './RevisionView'
+import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
 export default async function RevisionPage() {
   const authClient = await createServerSupabaseClient()
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
 
+  const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
+  // email_audit_attempts es global (allowlist) — no se filtra por company
   const [pending, pendingDocs, pendingQuotes, projectsRes, suppliersRes, orphansRes, forensicRes] = await Promise.all([
     fetchAllRows((sb) =>
       sb
         .from('invoices')
         .select('*')
+        .eq('company_id', activeCompanyId)
         .is('deleted_at', null)
         .or('needs_review.eq.true,doc_type.eq.otro,review_status.eq.pendiente,review_status.eq.revisado,review_status.eq.error,ai_confidence.lt.0.7')
         .order('created_at', { ascending: false })
@@ -21,20 +25,21 @@ export default async function RevisionPage() {
     supabase
       .from('documents')
       .select('*')
+      .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .or('needs_review.eq.true,doc_type.eq.otro,source.eq.email_automatico,source.eq.drive_retroactivo')
       .order('created_at', { ascending: false }),
     supabase
       .from('quotes')
       .select('*')
+      .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .eq('direction', 'recibida')
       .or('needs_review.eq.true,review_status.eq.pendiente,review_status.eq.revisado,review_status.eq.error,ai_confidence.lt.0.7')
       .order('created_at', { ascending: false }),
-    supabase.from('projects').select('id, code, name').is('deleted_at', null),
-    supabase.from('suppliers').select('nif, name').is('deleted_at', null),
-    // Huérfanos persistentes detectados por el cron auditor n8n.
-    // Tolera ausencia de tabla (migración pendiente de aplicar) → array vacío.
+    supabase.from('projects').select('id, code, name').eq('company_id', activeCompanyId).is('deleted_at', null),
+    supabase.from('suppliers').select('nif, name').eq('company_id', activeCompanyId).is('deleted_at', null),
+    // Huérfanos persistentes (allowlist global, sin company_id)
     supabase
       .from('email_audit_attempts')
       .select('id, message_id, gmail_account, subject, from_address, received_at, attempt_count, last_attempt_at, last_error, created_at')
@@ -42,10 +47,11 @@ export default async function RevisionPage() {
       .order('received_at', { ascending: false, nullsFirst: false })
       .limit(500)
       .then((r) => r, () => ({ data: [], error: null })),
-    // Score forensic por factura. Tolera ausencia de tabla → array vacío.
+    // Score forensic por factura — filtrar por company
     supabase
       .from('factura_forensic')
       .select('invoice_id, score, pdf_alerts, email_alerts, numeracion_alerts, duplicados_alerts, decision')
+      .eq('company_id', activeCompanyId)
       .then((r) => r, () => ({ data: [], error: null })),
   ])
 

@@ -8,6 +8,8 @@ import PeriodSelector from '@/components/admin/PeriodSelector'
 import SystemHealthCompact from '@/components/admin/SystemHealthCompact'
 import FiscalCalendarCompact from '@/components/admin/FiscalCalendarCompact'
 import DashboardCharts from './DashboardCharts'
+import { getActiveCompanyForPage } from '@/lib/company-aware-server'
+import { CATHEDRAL_INVESTMENT_SL_ID } from '@/lib/company-context'
 
 function formatEUR(value: number | null | undefined): string {
   if (value == null || isNaN(value)) return '0,00 \u20ac'
@@ -91,7 +93,7 @@ function buildMonthlyMap(
 // Doc types that represent real monetary transactions (exclude presupuesto, contrato, albaran, escritura, etc.)
 const FINANCIAL_DOC_TYPES = ['factura','ticket','proforma','certificado','rectificativa','abono','nomina','modelo_fiscal','seguro','justificante_pago'] as const
 
-async function getStats(year: number, quarter: number | null, month: number | null, all?: boolean) {
+async function getStats(year: number, quarter: number | null, month: number | null, all: boolean | undefined, companyId: string) {
   const supabase = createAdminSupabaseClient()
   const { start, end } = periodRange(year, quarter, month, all)
   const vatQuarter = quarter ?? Math.ceil((new Date().getMonth() + 1) / 3)
@@ -123,27 +125,27 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     { data: projectsList },
     { data: estructuraInvoices },
   ] = await Promise.all([
-    supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
-    supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
-    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
-    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
-    supabase.from('vat_quarterly').select('*').eq('year',year).eq('quarter',vatQuarter).maybeSingle(),
-    supabase.from('invoices').select('amount_total,due_date,direction').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str),
-    supabase.from('leads').select('id,nombre,email,tipo_proyecto,zona,created_at').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59').order('created_at',{ascending:false}).limit(10),
-    supabase.from('invoices').select('amount_base,vat_amount,amount_total,direction,issue_date,payment_status,due_date').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
-    supabase.from('leads').select('origen').is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59'),
+    supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('company_id',companyId).eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('company_id',companyId).eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('company_id',companyId).eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
+    fetchAllRows<{amount_total:number|null}>((sb) => sb.from('invoices').select('amount_total').eq('company_id',companyId).eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null)),
+    supabase.from('vat_quarterly').select('*').eq('company_id',companyId).eq('year',year).eq('quarter',vatQuarter).maybeSingle(),
+    supabase.from('invoices').select('amount_total,due_date,direction').eq('company_id',companyId).in('doc_type',FINANCIAL_DOC_TYPES).eq('payment_status','pendiente').is('deleted_at',null).gte('due_date',todayStr).lte('due_date',in30Str),
+    supabase.from('leads').select('id,nombre,email,tipo_proyecto,zona,created_at').eq('company_id',companyId).is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59').order('created_at',{ascending:false}).limit(10),
+    supabase.from('invoices').select('amount_base,vat_amount,amount_total,direction,issue_date,payment_status,due_date').eq('company_id',companyId).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
+    supabase.from('leads').select('origen').eq('company_id',companyId).is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59'),
     // Documentos que vencen en los próximos 15 días (siempre, independiente del periodo)
-    supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:true}),
+    supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').eq('company_id',companyId).is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:true}),
     // Documentos ya vencidos (vencimiento pasado, no cancelados)
-    supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:false}).limit(10),
+    supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').eq('company_id',companyId).is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:false}).limit(10),
     // Facturas del periodo para gráfica de rentabilidad por proyecto
     fetchAllRows<{direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string|null;proyecto_code:string|null}>((sb) =>
-      sb.from('invoices').select('direction,amount_base,vat_amount,amount_total,project_id,proyecto_code').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end)
+      sb.from('invoices').select('direction,amount_base,vat_amount,amount_total,project_id,proyecto_code').eq('company_id',companyId).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end)
     ),
     // Lista de proyectos para nombres (con code para resolver proyecto_code)
-    supabase.from('projects').select('id,code,name').is('deleted_at',null),
+    supabase.from('projects').select('id,code,name').eq('company_id',companyId).is('deleted_at',null),
     // Gastos de estructura — siempre año completo para visión anual
-    supabase.from('invoices').select('linea_estructura,amount_base,vat_amount,amount_total').eq('direction','recibida').eq('es_gasto_general',true).not('linea_estructura','is',null).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',`${year}-01-01`).lte('issue_date',`${year}-12-31`),
+    supabase.from('invoices').select('linea_estructura,amount_base,vat_amount,amount_total').eq('company_id',companyId).eq('direction','recibida').eq('es_gasto_general',true).not('linea_estructura','is',null).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',`${year}-01-01`).lte('issue_date',`${year}-12-31`),
   ])
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -282,6 +284,11 @@ export default async function AdminDashboard({
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
 
+  // F3 completo: filtrar por empresa activa (CATHEDRAL_INVESTMENT_SL_ID se usa como
+  // referencia para mantener compatibilidad con la constante exportada — no se aplica directamente)
+  void CATHEDRAL_INVESTMENT_SL_ID
+  const activeCompanyId = await getActiveCompanyForPage()
+
   const sp = await searchParams
   const currentYear = new Date().getFullYear()
   const all = sp.all === '1'
@@ -290,7 +297,7 @@ export default async function AdminDashboard({
   const month = sp.month ? parseInt(sp.month) : null
 
   // Data
-  const stats = await getStats(year, quarter, month, all)
+  const stats = await getStats(year, quarter, month, all, activeCompanyId)
 
   const margenPct = stats.facturacionTotal > 0
     ? ((stats.margenBruto / stats.facturacionTotal) * 100).toFixed(1)

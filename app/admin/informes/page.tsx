@@ -1,6 +1,7 @@
 import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import ReportsView from './ReportsView'
+import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
 interface Invoice {
   id: string
@@ -35,6 +36,7 @@ export default async function InformesPage() {
   const { data, error } = await authClient.auth.getUser()
   if (error || !data?.user) redirect('/admin/login')
 
+  const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
   const [invoices, vatData] = await Promise.all([
@@ -42,12 +44,14 @@ export default async function InformesPage() {
       sb
         .from('invoices')
         .select('id, number, direction, doc_type, amount_base, amount_total, vat_amount, categoria_gasto, es_gasto_general, linea_estructura, issue_date, due_date, payment_date, payment_status, created_at')
+        .eq('company_id', activeCompanyId)
         .is('deleted_at', null)
         .order('issue_date', { ascending: false })
     ),
     supabase
       .from('vat_quarterly')
       .select('*')
+      .eq('company_id', activeCompanyId)
       .order('year', { ascending: false })
       .order('quarter', { ascending: false })
       .then((r) => r.data),
