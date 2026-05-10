@@ -9,6 +9,21 @@ interface Project {
   name: string | null
 }
 
+interface ExtractedData {
+  proveedor_nombre?: string | null
+  proveedor_nif?: string | null
+  numero_factura?: string | null
+  fecha_emision?: string | null
+  importe_base?: number | null
+  iva_pct?: number | null
+  iva_importe?: number | null
+  importe_total?: number | null
+  categoria_gasto?: string | null
+  forma_pago?: string | null
+  confidence?: number | null
+  warnings?: string[]
+}
+
 interface Attachment {
   id: string
   storage_path: string
@@ -26,6 +41,9 @@ interface Attachment {
   device_geo_lat: number | null
   device_geo_lng: number | null
   preview_url: string | null
+  extracted_data: ExtractedData | null
+  extracted_at: string | null
+  extraction_provider: string | null
   employee: { id: string; nombre: string | null; nif: string | null }
     | { id: string; nombre: string | null; nif: string | null }[]
     | null
@@ -63,9 +81,11 @@ function singleRef<T>(p: T | T[] | null | undefined): T | null {
 
 export default function TicketsAdminView({ initialAttachments, projects }: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments)
-  const [filter, setFilter] = useState<'all' | 'uploaded' | 'confirmed' | 'ignored'>('uploaded')
+  const [filter, setFilter] = useState<'all' | 'uploaded' | 'extracted' | 'confirmed' | 'ignored'>('extracted')
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<ExtractedData & { project_id?: string | null }>({})
 
   const filtered = useMemo(() => {
     if (filter === 'all') return attachments
@@ -74,12 +94,99 @@ export default function TicketsAdminView({ initialAttachments, projects }: Props
 
   const counts = useMemo(() => {
     return {
-      uploaded: attachments.filter((a) => a.status === 'uploaded').length,
+      uploaded: attachments.filter((a) => a.status === 'uploaded' || a.status === 'processing' || a.status === 'error').length,
+      extracted: attachments.filter((a) => a.status === 'extracted').length,
       confirmed: attachments.filter((a) => a.status === 'confirmed').length,
       ignored: attachments.filter((a) => a.status === 'ignored').length,
       total: attachments.length,
     }
   }, [attachments])
+
+  function startEdit(a: Attachment) {
+    const ed = a.extracted_data ?? {}
+    const proj = singleRef(a.project)
+    setEditingId(a.id)
+    setEditForm({
+      proveedor_nombre: ed.proveedor_nombre ?? '',
+      proveedor_nif: ed.proveedor_nif ?? '',
+      numero_factura: ed.numero_factura ?? '',
+      fecha_emision: ed.fecha_emision ?? '',
+      importe_base: ed.importe_base ?? undefined,
+      iva_pct: ed.iva_pct ?? undefined,
+      iva_importe: ed.iva_importe ?? undefined,
+      importe_total: ed.importe_total ?? undefined,
+      categoria_gasto: ed.categoria_gasto ?? '',
+      project_id: proj?.id ?? null,
+    })
+    setError(null)
+  }
+
+  async function ejecutarOcr(id: string) {
+    setBusyId(id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/personal/tickets-trabajador/${id}/ocr`, {
+        method: 'POST',
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error ?? 'Error al ejecutar OCR')
+      } else {
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.id === id
+              ? {
+                  ...a,
+                  extracted_data: json.extracted,
+                  extracted_at: new Date().toISOString(),
+                  extraction_provider: 'gemini-flash-2',
+                  status: 'extracted',
+                }
+              : a,
+          ),
+        )
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function crearFactura(id: string) {
+    setBusyId(id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/personal/tickets-trabajador/${id}/create-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error ?? 'Error al crear factura')
+      } else {
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.id === id
+              ? {
+                  ...a,
+                  status: 'confirmed',
+                  invoice_id: json.invoice_id,
+                  reviewer_action: 'confirmed_to_invoice',
+                  reviewed_at: new Date().toISOString(),
+                }
+              : a,
+          ),
+        )
+        setEditingId(null)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   async function patchAttachment(
     id: string,
@@ -161,7 +268,7 @@ export default function TicketsAdminView({ initialAttachments, projects }: Props
       <div className="mx-auto max-w-6xl px-6 py-6">
         {/* Filtros */}
         <div className="mb-4 flex flex-wrap gap-2">
-          {(['uploaded', 'confirmed', 'ignored', 'all'] as const).map((f) => (
+          {(['extracted', 'uploaded', 'confirmed', 'ignored', 'all'] as const).map((f) => (
             <button
               key={f}
               type="button"
@@ -172,8 +279,9 @@ export default function TicketsAdminView({ initialAttachments, projects }: Props
                   : 'border border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
               }`}
             >
-              {f === 'uploaded' && `Pendientes (${counts.uploaded})`}
-              {f === 'confirmed' && `Anotados (${counts.confirmed})`}
+              {f === 'extracted' && `🤖 Extraídos por revisar (${counts.extracted})`}
+              {f === 'uploaded' && `📷 Sin procesar (${counts.uploaded})`}
+              {f === 'confirmed' && `✓ Anotados (${counts.confirmed})`}
               {f === 'ignored' && `Ignorados (${counts.ignored})`}
               {f === 'all' && `Todos (${counts.total})`}
             </button>
@@ -318,10 +426,258 @@ export default function TicketsAdminView({ initialAttachments, projects }: Props
                         </div>
                       )}
 
+                      {/* Datos extraídos por OCR */}
+                      {a.extracted_data && a.status !== 'confirmed' && a.status !== 'ignored' && (
+                        <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs font-medium uppercase tracking-wider text-blue-900">
+                              🤖 Datos extraídos por IA
+                              {a.extracted_data.confidence !== undefined && (
+                                <span className="ml-2 text-[10px] text-blue-700">
+                                  ({Math.round(Number(a.extracted_data.confidence) * 100)}%
+                                  fiabilidad)
+                                </span>
+                              )}
+                            </div>
+                            {editingId !== a.id && (
+                              <button
+                                type="button"
+                                onClick={() => startEdit(a)}
+                                className="rounded bg-blue-700 px-3 py-1 text-xs text-white hover:bg-blue-800"
+                              >
+                                Revisar y crear factura
+                              </button>
+                            )}
+                          </div>
+
+                          {a.extracted_data.warnings && a.extracted_data.warnings.length > 0 && (
+                            <div className="mt-2 text-xs text-amber-800">
+                              ⚠️ {a.extracted_data.warnings.join('; ')}
+                            </div>
+                          )}
+
+                          {editingId !== a.id ? (
+                            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+                              <div>
+                                <span className="text-blue-700">Proveedor:</span>{' '}
+                                <span className="font-medium">
+                                  {a.extracted_data.proveedor_nombre ?? '—'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-blue-700">NIF:</span>{' '}
+                                <span className="font-mono">
+                                  {a.extracted_data.proveedor_nif ?? '—'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-blue-700">Fecha:</span>{' '}
+                                {a.extracted_data.fecha_emision ?? '—'}
+                              </div>
+                              <div>
+                                <span className="text-blue-700">Núm:</span>{' '}
+                                {a.extracted_data.numero_factura ?? '—'}
+                              </div>
+                              <div>
+                                <span className="text-blue-700">Base:</span>{' '}
+                                <span className="tabular-nums">
+                                  {a.extracted_data.importe_base ?? '—'}€
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-blue-700">Total:</span>{' '}
+                                <span className="font-medium tabular-nums">
+                                  {a.extracted_data.importe_total ?? '—'}€
+                                </span>
+                              </div>
+                              <div className="col-span-full">
+                                <span className="text-blue-700">Categoría:</span>{' '}
+                                {a.extracted_data.categoria_gasto ?? '—'}
+                              </div>
+                            </div>
+                          ) : (
+                            // Form edición
+                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  Proveedor
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editForm.proveedor_nombre ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({ ...p, proveedor_nombre: e.target.value }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  NIF
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editForm.proveedor_nif ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({ ...p, proveedor_nif: e.target.value }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 font-mono text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  Fecha *
+                                </label>
+                                <input
+                                  type="date"
+                                  value={editForm.fecha_emision ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({ ...p, fecha_emision: e.target.value }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  Número factura
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editForm.numero_factura ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({ ...p, numero_factura: e.target.value }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  Base (€)
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editForm.importe_base ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({
+                                      ...p,
+                                      importe_base: parseFloat(e.target.value) || undefined,
+                                    }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 text-xs tabular-nums"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  IVA importe (€)
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editForm.iva_importe ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({
+                                      ...p,
+                                      iva_importe: parseFloat(e.target.value) || undefined,
+                                    }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 text-xs tabular-nums"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  Total (€) *
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editForm.importe_total ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({
+                                      ...p,
+                                      importe_total: parseFloat(e.target.value) || undefined,
+                                    }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 text-xs tabular-nums font-medium"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  Categoría gasto
+                                </label>
+                                <select
+                                  value={editForm.categoria_gasto ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({ ...p, categoria_gasto: e.target.value }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 text-xs"
+                                >
+                                  <option value="">—</option>
+                                  <option value="material">Material</option>
+                                  <option value="mano_de_obra">Mano de obra</option>
+                                  <option value="subcontratas">Subcontratas</option>
+                                  <option value="alquiler">Alquiler</option>
+                                  <option value="servicios">Servicios</option>
+                                  <option value="otros">Otros</option>
+                                </select>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <label className="block text-[10px] uppercase tracking-wider text-blue-900">
+                                  Proyecto
+                                </label>
+                                <select
+                                  value={editForm.project_id ?? ''}
+                                  onChange={(e) =>
+                                    setEditForm((p) => ({
+                                      ...p,
+                                      project_id: e.target.value || null,
+                                    }))
+                                  }
+                                  className="mt-0.5 w-full rounded border border-blue-300 px-2 py-1 text-xs"
+                                >
+                                  <option value="">— sin proyecto —</option>
+                                  {projects.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.code} {p.name ? `· ${p.name}` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="sm:col-span-2 flex gap-2">
+                                <button
+                                  type="button"
+                                  disabled={busyId === a.id}
+                                  onClick={() => crearFactura(a.id)}
+                                  className="rounded bg-emerald-700 px-3 py-1.5 text-xs text-white hover:bg-emerald-800 disabled:opacity-50"
+                                >
+                                  ✓ Crear factura en sistema
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingId(null)}
+                                  className="rounded border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-100"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* Acciones */}
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {a.status === 'uploaded' && (
+                        {(a.status === 'uploaded' || a.status === 'error') && (
                           <>
+                            <button
+                              type="button"
+                              disabled={busyId === a.id}
+                              onClick={() => ejecutarOcr(a.id)}
+                              className="rounded bg-blue-700 px-3 py-1.5 text-xs text-white hover:bg-blue-800 disabled:opacity-50"
+                              title="Procesar con Gemini OCR"
+                            >
+                              🤖 Extraer datos
+                            </button>
                             <button
                               type="button"
                               disabled={busyId === a.id}
@@ -349,6 +705,17 @@ export default function TicketsAdminView({ initialAttachments, projects }: Props
                               Ignorar
                             </button>
                           </>
+                        )}
+                        {a.status === 'extracted' && !editingId && (
+                          <button
+                            type="button"
+                            disabled={busyId === a.id}
+                            onClick={() => ejecutarOcr(a.id)}
+                            className="rounded border border-blue-300 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                            title="Reprocesar OCR"
+                          >
+                            🤖 Re-OCR
+                          </button>
                         )}
                         {a.status === 'confirmed' && (
                           <button

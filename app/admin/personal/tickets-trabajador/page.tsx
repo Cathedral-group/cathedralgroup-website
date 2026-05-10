@@ -19,6 +19,9 @@ interface AttachmentRow {
   invoice_id: string | null
   device_geo_lat: number | null
   device_geo_lng: number | null
+  extracted_data: Record<string, unknown> | null
+  extracted_at: string | null
+  extraction_provider: string | null
   employee: { id: string; nombre: string | null; nif: string | null }
     | { id: string; nombre: string | null; nif: string | null }[]
     | null
@@ -41,6 +44,7 @@ export default async function TicketsAdminPage() {
       `id, storage_path, storage_bucket, mime_type, size_bytes, doc_type, status,
        worker_notas, created_at, reviewed_at, reviewed_by_email, reviewer_action, invoice_id,
        device_geo_lat, device_geo_lng,
+       extracted_data, extracted_at, extraction_provider,
        employee:employee_id (id, nombre, nif),
        project:project_id (id, code, name)`,
     )

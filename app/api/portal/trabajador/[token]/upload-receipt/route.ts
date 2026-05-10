@@ -25,6 +25,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
+import { extractReceiptData, isOcrAvailable } from '@/lib/ocr-gemini'
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
@@ -181,10 +182,48 @@ export async function POST(
     .from('worker-receipts')
     .createSignedUrl(storagePath, 3600)
 
+  // OCR automático async (best-effort, no bloquea respuesta al trabajador)
+  // Solo si imagen + GEMINI_API_KEY disponible.
+  if (isOcrAvailable() && file.type.startsWith('image/')) {
+    void (async () => {
+      try {
+        await supabase
+          .from('worker_attachments')
+          .update({ status: 'processing' })
+          .eq('id', id)
+
+        const extracted = await extractReceiptData(arrayBuffer, file.type)
+        if (extracted) {
+          await supabase
+            .from('worker_attachments')
+            .update({
+              extracted_data: extracted,
+              extracted_at: new Date().toISOString(),
+              extraction_provider: 'gemini-flash-2',
+              status: 'extracted',
+            })
+            .eq('id', id)
+        } else {
+          await supabase
+            .from('worker_attachments')
+            .update({ status: 'uploaded' }) // queda pendiente revisión manual
+            .eq('id', id)
+        }
+      } catch (e) {
+        console.error('[upload-receipt async OCR]', e)
+        await supabase
+          .from('worker_attachments')
+          .update({ status: 'error' })
+          .eq('id', id)
+      }
+    })()
+  }
+
   return NextResponse.json({
     ok: true,
     attachment,
     preview_url: signed?.signedUrl ?? null,
+    ocr_queued: isOcrAvailable() && file.type.startsWith('image/'),
     message:
       'Subido correctamente. La administración lo procesará para anotarlo en la contabilidad.',
   })
