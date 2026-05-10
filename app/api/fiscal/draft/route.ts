@@ -34,7 +34,7 @@ async function authCheck() {
   return data.user
 }
 
-const SUPPORTED_MODELOS = new Set(['303', '111'])
+const SUPPORTED_MODELOS = new Set(['303', '111', '115', '347'])
 const SUPPORTED_PERIODOS = new Set(['1T', '2T', '3T', '4T', 'A', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'])
 
 export async function GET(request: NextRequest) {
@@ -100,14 +100,24 @@ export async function GET(request: NextRequest) {
   }
 
   // Llamar RPC correspondiente
-  const rpcName = modelo === '303' ? 'generate_303_draft' : 'generate_111_draft'
+  const rpcMap: Record<string, string> = {
+    '303': 'generate_303_draft',
+    '111': 'generate_111_draft',
+    '115': 'generate_115_draft',
+    '347': 'generate_347_draft',
+  }
+  const rpcName = rpcMap[modelo]
 
   try {
-    const { data, error } = await supabase.rpc(rpcName, {
+    // 347 es anual (no requiere periodo), pasamos solo ejercicio
+    const rpcArgs: Record<string, unknown> = {
       p_company_id: activeCompanyId,
       p_ejercicio: ejercicio,
-      p_periodo: periodo,
-    })
+    }
+    if (modelo !== '347') {
+      rpcArgs.p_periodo = periodo
+    }
+    const { data, error } = await supabase.rpc(rpcName, rpcArgs)
     if (error) throw new Error(error.message)
 
     return NextResponse.json({

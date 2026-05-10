@@ -161,7 +161,9 @@ export default function FiscalView({
               className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
             >
               <option value="303">303 — IVA trimestral</option>
-              <option value="111">111 — IRPF retenciones</option>
+              <option value="111">111 — IRPF retenciones trabajo + profesionales</option>
+              <option value="115">115 — IRPF retenciones alquileres</option>
+              <option value="347">347 — Operaciones &gt;3.005€ (anual)</option>
             </select>
           </div>
           <div>
