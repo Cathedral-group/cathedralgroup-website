@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import TabPanel from '@/components/admin/TabPanel'
 import ProgressBar from '@/components/admin/ProgressBar'
 import LinkedSelect from '@/components/admin/LinkedSelect'
@@ -598,6 +598,55 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       setNewLocBusy(null)
     }
   }
+
+  // Auto-buscar mientras escribe (debounce 500ms, sólo si form Nuevo está abierto)
+  useEffect(() => {
+    if (!showNewForm) return
+    const q = newLocSearch.trim()
+    if (q.length < 3) {
+      setNewLocSuggestions([])
+      setNewLocShowSugg(false)
+      return
+    }
+    // Si ya elegimos esta sugerencia, no re-buscar
+    if (newLocSuggestions.some(s => s.display === newLocSearch)) return
+    const t = setTimeout(async () => {
+      const results = await geocodeAddressSuggestions(q)
+      setNewLocSuggestions(results)
+      setNewLocShowSugg(results.length > 0)
+      if (results.length === 0) {
+        setNewLocMsg('Sin resultados. Prueba añadir el barrio o el código postal.')
+      } else {
+        setNewLocMsg(null)
+      }
+    }, 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newLocSearch, showNewForm])
+
+  // Auto-buscar mientras escribe en tab Ubicación del detail
+  useEffect(() => {
+    if (!selected || activeTab !== 'ubicacion') return
+    const q = locSearch.trim()
+    if (q.length < 3) {
+      setLocSuggestions([])
+      setLocShowSugg(false)
+      return
+    }
+    if (locSuggestions.some(s => s.display === locSearch)) return
+    const t = setTimeout(async () => {
+      const results = await geocodeAddressSuggestions(q)
+      setLocSuggestions(results)
+      setLocShowSugg(results.length > 0)
+      if (results.length === 0) {
+        setLocMsg('Sin resultados. Prueba añadir el barrio o el código postal.')
+      } else {
+        setLocMsg(null)
+      }
+    }, 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locSearch, selected, activeTab])
 
   function newLoc_pickSuggestion(s: GeocodeSuggestion) {
     setNewLoc(prev => ({
