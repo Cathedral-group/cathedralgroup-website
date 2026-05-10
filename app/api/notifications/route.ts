@@ -41,10 +41,12 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const supabase = createAdminSupabaseClient()
+  const nowIso = new Date().toISOString()
   const { data, error } = await supabase
     .from('system_notifications')
-    .select('id, severity, title, message, source, metadata, created_at')
+    .select('id, severity, title, message, source, metadata, created_at, snoozed_until')
     .is('dismissed_at', null)
+    .or(`snoozed_until.is.null,snoozed_until.lt.${nowIso}`)
     .order('created_at', { ascending: false })
     .limit(50)
 

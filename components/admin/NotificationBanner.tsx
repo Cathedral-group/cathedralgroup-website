@@ -10,6 +10,7 @@ interface Notification {
   source: string
   metadata: Record<string, unknown> | null
   created_at: string
+  snoozed_until?: string | null
 }
 
 const SEVERITY_STYLES: Record<Notification['severity'], { bg: string; border: string; text: string; icon: string }> = {
@@ -58,6 +59,22 @@ export default function NotificationBanner() {
     setDismissing(n.id)
     try {
       const res = await fetch(`/api/notifications/${n.id}/dismiss`, { method: 'PATCH' })
+      if (res.ok) {
+        setNotifications((prev) => prev.filter((x) => x.id !== n.id))
+      }
+    } finally {
+      setDismissing(null)
+    }
+  }
+
+  const snooze = async (n: Notification, hours: number) => {
+    setDismissing(n.id)
+    try {
+      const res = await fetch(`/api/notifications/${n.id}/snooze`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours }),
+      })
       if (res.ok) {
         setNotifications((prev) => prev.filter((x) => x.id !== n.id))
       }
@@ -123,14 +140,26 @@ export default function NotificationBanner() {
                 <p className={`text-xs ${s.text} opacity-80 leading-snug whitespace-pre-line`}>{n.message}</p>
               )}
             </div>
-            <button
-              onClick={() => dismiss(n)}
-              disabled={dismissing === n.id}
-              className={`text-xs font-bold uppercase tracking-widest ${s.text} opacity-60 hover:opacity-100 disabled:opacity-30`}
-              aria-label="Descartar"
-            >
-              {dismissing === n.id ? '…' : '✕'}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => snooze(n, 24)}
+                disabled={dismissing === n.id}
+                title="Posponer 24h"
+                className={`text-[10px] font-bold uppercase tracking-widest ${s.text} opacity-50 hover:opacity-100 disabled:opacity-30`}
+                aria-label="Posponer 24h"
+              >
+                Snooze
+              </button>
+              <button
+                onClick={() => dismiss(n)}
+                disabled={dismissing === n.id}
+                title="Descartar definitivamente"
+                className={`text-xs font-bold uppercase tracking-widest ${s.text} opacity-60 hover:opacity-100 disabled:opacity-30`}
+                aria-label="Descartar"
+              >
+                {dismissing === n.id ? '…' : '✕'}
+              </button>
+            </div>
           </div>
         )
       })}

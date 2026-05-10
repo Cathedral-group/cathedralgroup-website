@@ -5,6 +5,7 @@ import { Suspense } from 'react'
 import CashFlowBar from '@/components/admin/CashFlowBar'
 import QuickAddButton from '@/components/admin/QuickAddButton'
 import PeriodSelector from '@/components/admin/PeriodSelector'
+import SystemHealthCompact from '@/components/admin/SystemHealthCompact'
 import DashboardCharts from './DashboardCharts'
 
 function formatEUR(value: number | null | undefined): string {
@@ -348,6 +349,9 @@ export default async function AdminDashboard({
           <QuickAddButton />
         </div>
       </div>
+
+      {/* Salud del sistema — widget compacto enlazado a /admin/eval */}
+      <SystemHealthCompact />
 
       {/* ── Alertas: documentos por vencer / vencidos ── */}
       {(stats.docsExpired.length > 0 || stats.docsExpiringSoon.length > 0) && (() => {

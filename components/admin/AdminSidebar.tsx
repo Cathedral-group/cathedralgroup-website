@@ -11,7 +11,7 @@ type NavItem = {
   icon?: React.ReactNode
   children?: NavItem[]      // sub-items para drill-down
   badge?: 'red' | 'amber' | 'blue'  // color del badge contador (si lo tiene)
-  badgeKey?: 'errors' | 'review' | 'orphans'    // qué counter mostrar
+  badgeKey?: 'errors' | 'review' | 'orphans' | 'notif_critical' | 'notif_warning'    // qué counter mostrar
   countKey?: string         // si los hijos tienen contadores dinámicos, key para resolverlos
 }
 type NavSection = {
@@ -199,7 +199,10 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Con alertas',          href: '/admin/forensic?cat=con_alertas' },
         ],
       },
-      { label: 'Eval (métricas)', href: '/admin/eval',         icon: <IconEval /> },
+      {
+        label: 'Eval (métricas)', href: '/admin/eval',         icon: <IconEval />,
+        badge: 'red', badgeKey: 'notif_critical',
+      },
       { label: 'Sistema',        href: '/admin/sistema',       icon: <IconSistema /> },
       { label: 'Archivo',        href: '/admin/archivo',       icon: <IconArchivo /> },
       { label: 'Papelera',       href: '/admin/papelera',      icon: <IconPapelera /> },
@@ -221,6 +224,8 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const [revisionCount, setRevisionCount] = useState<number | null>(null)
   const [errorCount, setErrorCount] = useState<number | null>(null)
   const [orphanCount, setOrphanCount] = useState<number | null>(null)
+  const [notifCritical, setNotifCritical] = useState<number | null>(null)
+  const [notifWarning, setNotifWarning] = useState<number | null>(null)
   // Drill-down: label del item padre cuyo árbol estamos mostrando.
   // Inicializado de forma síncrona desde pathname para que en el primer render
   // ya aparezca el drill correcto sin parpadeo.
@@ -287,6 +292,27 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       .then(({ count, error: err }) => {
         if (!err && count !== null) setOrphanCount(count)
       })
+    // Notificaciones críticas/warnings activas (sistema notificaciones internas).
+    // Excluir las que están snoozed (snoozed_until > NOW).
+    const nowIso = new Date().toISOString()
+    supabase
+      .from('system_notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('severity', 'critical')
+      .is('dismissed_at', null)
+      .or(`snoozed_until.is.null,snoozed_until.lt.${nowIso}`)
+      .then(({ count, error: err }) => {
+        if (!err && count !== null) setNotifCritical(count)
+      })
+    supabase
+      .from('system_notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('severity', 'warning')
+      .is('dismissed_at', null)
+      .or(`snoozed_until.is.null,snoozed_until.lt.${nowIso}`)
+      .then(({ count, error: err }) => {
+        if (!err && count !== null) setNotifWarning(count)
+      })
   }, [])
 
   const handleLogout = async () => {
@@ -352,6 +378,10 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       return { count: errorCount, color: 'bg-red-500' }
     if (badgeKey === 'review' && revisionCount !== null && revisionCount > 0)
       return { count: revisionCount, color: 'bg-amber-500' }
+    if (badgeKey === 'notif_critical' && notifCritical !== null && notifCritical > 0)
+      return { count: notifCritical, color: 'bg-red-600' }
+    if (badgeKey === 'notif_warning' && notifWarning !== null && notifWarning > 0)
+      return { count: notifWarning, color: 'bg-amber-600' }
     if (badgeKey === 'orphans' && orphanCount !== null && orphanCount > 0)
       return { count: orphanCount, color: 'bg-red-500' }
     return null
