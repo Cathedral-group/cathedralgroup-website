@@ -26,12 +26,25 @@ interface Assignment {
   project?: { id: string; code: string; name?: string | null } | { id: string; code: string; name?: string | null }[] | null
 }
 
+interface Holiday {
+  fecha: string
+  nombre: string
+  ambito: string
+}
+
+interface JornadaDia {
+  fecha: string
+  horas: number
+}
+
 interface Props {
   employees: Employee[]
   projects: Project[]
   assignments: Assignment[]
   days: string[]
   mondayIso: string
+  holidays: Holiday[]
+  jornadas: JornadaDia[]
 }
 
 const DOW_LABEL = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
@@ -62,13 +75,20 @@ export default function CuadranteView({
   assignments: initialAssignments,
   days,
   mondayIso,
+  holidays,
+  jornadas,
 }: Props) {
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
   const [editing, setEditing] = useState<{ employeeId: string; fecha: string } | null>(null)
   const [editProjectId, setEditProjectId] = useState<string>('')
-  const [editJornada, setEditJornada] = useState<number>(8)
+  const [editJornada, setEditJornada] = useState<number>(9)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const holidayByDate = new Map<string, Holiday>()
+  for (const h of holidays) holidayByDate.set(h.fecha, h)
+  const jornadaByDate = new Map<string, number>()
+  for (const j of jornadas) jornadaByDate.set(j.fecha, j.horas)
 
   function findAssignment(employeeId: string, fecha: string): Assignment | null {
     return assignments.find((a) => a.employee_id === employeeId && a.fecha === fecha) ?? null
@@ -76,9 +96,10 @@ export default function CuadranteView({
 
   function startEdit(employeeId: string, fecha: string) {
     const existing = findAssignment(employeeId, fecha)
+    const jornadaEsperada = jornadaByDate.get(fecha) ?? 9
     setEditing({ employeeId, fecha })
     setEditProjectId(existing?.project_id ?? '')
-    setEditJornada(Number(existing?.jornada_esperada_horas ?? 8))
+    setEditJornada(Number(existing?.jornada_esperada_horas ?? jornadaEsperada))
     setError(null)
   }
 
@@ -219,17 +240,31 @@ export default function CuadranteView({
                   <th className="sticky left-0 bg-stone-50 px-4 py-2.5 min-w-[180px]">
                     Trabajador
                   </th>
-                  {days.map((d, i) => (
-                    <th
-                      key={d}
-                      className={`px-3 py-2.5 text-center min-w-[110px] ${
-                        isToday(d) ? 'bg-amber-50 text-amber-900' : ''
-                      } ${i >= 5 ? 'bg-stone-100' : ''}`}
-                    >
-                      <div className="text-[10px]">{DOW_LABEL[i]}</div>
-                      <div className="text-base font-medium">{dayLabel(d)}</div>
-                    </th>
-                  ))}
+                  {days.map((d, i) => {
+                    const holiday = holidayByDate.get(d)
+                    const horas = jornadaByDate.get(d) ?? 0
+                    return (
+                      <th
+                        key={d}
+                        className={`px-3 py-2.5 text-center min-w-[110px] ${
+                          isToday(d) ? 'bg-amber-50 text-amber-900' : ''
+                        } ${i >= 5 ? 'bg-stone-100' : ''} ${
+                          holiday ? 'bg-rose-50 text-rose-900' : ''
+                        }`}
+                        title={holiday?.nombre ?? ''}
+                      >
+                        <div className="text-[10px]">{DOW_LABEL[i]}</div>
+                        <div className="text-base font-medium">{dayLabel(d)}</div>
+                        {holiday ? (
+                          <div className="text-[9px] mt-0.5 truncate" style={{ maxWidth: '110px' }}>
+                            {holiday.nombre}
+                          </div>
+                        ) : (
+                          <div className="text-[9px] mt-0.5 text-stone-500">{horas}h</div>
+                        )}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -247,12 +282,20 @@ export default function CuadranteView({
                       const a = findAssignment(e.id, d)
                       const proj = singleProj(a?.project)
                       const isEditing = editing?.employeeId === e.id && editing.fecha === d
+                      const isHoliday = holidayByDate.has(d)
+                      const horas = jornadaByDate.get(d) ?? 0
                       return (
                         <td
                           key={d}
-                          className={`px-2 py-2 align-top ${isToday(d) ? 'bg-amber-50/30' : ''}`}
+                          className={`px-2 py-2 align-top ${isToday(d) ? 'bg-amber-50/30' : ''} ${
+                            isHoliday ? 'bg-rose-50/40' : ''
+                          }`}
                         >
-                          {isEditing ? (
+                          {isHoliday ? (
+                            <div className="text-center text-[10px] text-rose-700 italic">
+                              No laborable
+                            </div>
+                          ) : isEditing ? (
                             <div className="space-y-1">
                               <select
                                 value={editProjectId}

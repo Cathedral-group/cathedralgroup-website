@@ -31,6 +31,7 @@ interface ParteBody {
   horas_extra?: number
   horas_nocturnas?: number
   observaciones?: string
+  horas_extra_modo?: 'compensar' | 'pagar'
 }
 
 export async function POST(
@@ -94,6 +95,15 @@ export async function POST(
     return NextResponse.json({ error: 'Indica al menos una hora trabajada' }, { status: 400 })
   }
 
+  // Validar modo extras: solo si hay extras (>0)
+  let horasExtraModo: 'compensar' | 'pagar' | null = null
+  if (hExt > 0) {
+    horasExtraModo = body.horas_extra_modo ?? 'compensar' // default: compensar (preferencia trabajadores Cathedral)
+    if (horasExtraModo !== 'compensar' && horasExtraModo !== 'pagar') {
+      return NextResponse.json({ error: 'horas_extra_modo inválido' }, { status: 400 })
+    }
+  }
+
   // Validar project_id pertenece a la company del trabajador
   if (body.project_id) {
     const { data: proj } = await supabase
@@ -129,6 +139,7 @@ export async function POST(
         horas_ordinarias: hOrd,
         horas_extra: hExt,
         horas_nocturnas: hNoc,
+        horas_extra_modo: horasExtraModo,
         observaciones: body.observaciones ?? null,
         fuente: 'app_movil',
         modificado_at: nowIso,
@@ -153,6 +164,7 @@ export async function POST(
       horas_ordinarias: hOrd,
       horas_extra: hExt,
       horas_nocturnas: hNoc,
+      horas_extra_modo: horasExtraModo,
       observaciones: body.observaciones ?? null,
       fuente: 'app_movil',
       registrado_por: registradoPor,

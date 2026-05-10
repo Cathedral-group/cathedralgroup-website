@@ -23,6 +23,7 @@ interface ParteRow {
   horas_ordinarias: number | null
   horas_extra: number | null
   horas_nocturnas: number | null
+  horas_extra_modo?: 'compensar' | 'pagar' | null
   observaciones: string | null
   fuente?: string | null
   worker_signed_at?: string | null
@@ -51,8 +52,18 @@ interface Stats {
   horas_hoy: number
   horas_semana: number
   horas_mes: number
+  horas_esperadas_semana?: number
+  horas_esperadas_mes?: number
+  jornada_esperada_hoy?: number
   dias_apuntados_mes: number
   dias_pendientes_mes: number
+}
+
+interface OvertimeBalance {
+  employee_id: string
+  extras_acumuladas: number
+  descontadas: number
+  saldo_horas: number
 }
 
 interface ConsentState {
@@ -71,6 +82,7 @@ interface Props {
   ultimosDias: ParteRow[]
   assignmentHoy: AssignmentHoy | null
   stats: Stats | null
+  overtimeBalance: OvertimeBalance | null
   consent: ConsentState
 }
 
@@ -109,6 +121,7 @@ export default function PortalTrabajadorView({
   ultimosDias,
   assignmentHoy,
   stats,
+  overtimeBalance,
   consent,
 }: Props) {
   // Cláusula RGPD: si necesita aceptación, modal bloqueante
@@ -127,14 +140,23 @@ export default function PortalTrabajadorView({
     assignmentHoy?.project_id ??
     ''
 
-  const defaultJornada =
-    Number(parteHoy?.horas_ordinarias ?? assignmentHoy?.jornada_esperada_horas ?? 8)
+  // Jornada esperada hoy (de stats RPC, calculada desde calendario laboral)
+  const jornadaEsperadaHoy = Number(
+    stats?.jornada_esperada_hoy ?? assignmentHoy?.jornada_esperada_horas ?? 9,
+  )
+
+  const defaultJornada = Number(
+    parteHoy?.horas_ordinarias ?? jornadaEsperadaHoy,
+  )
 
   const [fecha, setFecha] = useState<string>(today)
   const [projectId, setProjectId] = useState<string>(defaultProjectId)
   const [horasOrd, setHorasOrd] = useState<number>(defaultJornada)
   const [horasExt, setHorasExt] = useState<number>(Number(parteHoy?.horas_extra ?? 0))
   const [horasNoc, setHorasNoc] = useState<number>(Number(parteHoy?.horas_nocturnas ?? 0))
+  const [horasExtraModo, setHorasExtraModo] = useState<'compensar' | 'pagar'>(
+    parteHoy?.horas_extra_modo ?? 'compensar',
+  )
   const [observaciones, setObservaciones] = useState<string>(parteHoy?.observaciones ?? '')
   const [confirmaVeracidad, setConfirmaVeracidad] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -239,6 +261,7 @@ export default function PortalTrabajadorView({
       horas_ordinarias: horasOrd,
       horas_extra: horasExt,
       horas_nocturnas: horasNoc,
+      horas_extra_modo: horasExt > 0 ? horasExtraModo : undefined,
       observaciones: observaciones.trim() || undefined,
     }
 
@@ -370,23 +393,61 @@ export default function PortalTrabajadorView({
             <div className="mt-1 text-xl font-light tabular-nums">
               {Number(stats.horas_hoy).toFixed(1)}<span className="text-sm text-stone-400">h</span>
             </div>
+            {jornadaEsperadaHoy > 0 && (
+              <div className="mt-0.5 text-[10px] text-stone-500">
+                de {jornadaEsperadaHoy}h esperadas
+              </div>
+            )}
+            {jornadaEsperadaHoy === 0 && (
+              <div className="mt-0.5 text-[10px] text-emerald-700">No laborable</div>
+            )}
           </div>
           <div className="rounded-lg border border-stone-200 bg-white p-3 text-center">
             <div className="text-[10px] uppercase tracking-wider text-stone-500">Semana</div>
             <div className="mt-1 text-xl font-light tabular-nums">
               {Number(stats.horas_semana).toFixed(1)}<span className="text-sm text-stone-400">h</span>
             </div>
+            {stats.horas_esperadas_semana !== undefined && (
+              <div className="mt-0.5 text-[10px] text-stone-500">
+                de {Number(stats.horas_esperadas_semana).toFixed(0)}h
+              </div>
+            )}
           </div>
           <div className="rounded-lg border border-stone-200 bg-white p-3 text-center">
             <div className="text-[10px] uppercase tracking-wider text-stone-500">Mes</div>
             <div className="mt-1 text-xl font-light tabular-nums">
               {Number(stats.horas_mes).toFixed(0)}<span className="text-sm text-stone-400">h</span>
             </div>
+            {stats.horas_esperadas_mes !== undefined && (
+              <div className="mt-0.5 text-[10px] text-stone-500">
+                de {Number(stats.horas_esperadas_mes).toFixed(0)}h
+              </div>
+            )}
             {stats.dias_pendientes_mes > 0 && (
               <div className="mt-1 text-[10px] text-amber-700">
                 {stats.dias_pendientes_mes} día{stats.dias_pendientes_mes > 1 ? 's' : ''} sin parte
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Banco horas extras */}
+      {overtimeBalance && Number(overtimeBalance.saldo_horas) !== 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-stone-200 bg-white p-3">
+          <div>
+            <div className="text-xs uppercase tracking-wider text-stone-500">
+              🪙 Banco horas extras
+            </div>
+            <div className="mt-1 text-sm text-stone-600">
+              Saldo de horas que has acumulado para descansar otro día
+            </div>
+          </div>
+          <div className={`text-2xl font-light tabular-nums ${
+            Number(overtimeBalance.saldo_horas) > 0 ? 'text-emerald-700' : 'text-amber-700'
+          }`}>
+            {Number(overtimeBalance.saldo_horas) > 0 ? '+' : ''}
+            {Number(overtimeBalance.saldo_horas).toFixed(1)}h
           </div>
         </div>
       )}
@@ -523,7 +584,51 @@ export default function PortalTrabajadorView({
 
           <div className="rounded bg-stone-100 p-2 text-center text-sm text-stone-600">
             Total: <span className="font-medium tabular-nums">{total.toFixed(2)} h</span>
+            {jornadaEsperadaHoy > 0 && total > jornadaEsperadaHoy && (
+              <span className="ml-2 text-xs text-amber-700">
+                ({(total - jornadaEsperadaHoy).toFixed(1)}h por encima de la jornada)
+              </span>
+            )}
           </div>
+
+          {/* Toggle modo extras: solo si hay horas extra */}
+          {horasExt > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <div className="text-xs uppercase tracking-wider text-amber-900">
+                Las {horasExt}h extra ¿qué prefieres?
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHorasExtraModo('compensar')}
+                  className={`rounded-lg border px-3 py-2 text-sm transition ${
+                    horasExtraModo === 'compensar'
+                      ? 'border-stone-900 bg-stone-900 text-white'
+                      : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
+                  }`}
+                >
+                  🪙 Compensar
+                  <div className="mt-0.5 text-[10px] font-normal opacity-80">
+                    Descansas otro día
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHorasExtraModo('pagar')}
+                  className={`rounded-lg border px-3 py-2 text-sm transition ${
+                    horasExtraModo === 'pagar'
+                      ? 'border-stone-900 bg-stone-900 text-white'
+                      : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
+                  }`}
+                >
+                  💰 Pagar
+                  <div className="mt-0.5 text-[10px] font-normal opacity-80">
+                    Importe en nómina
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs uppercase tracking-wider text-stone-500">
@@ -624,13 +729,29 @@ export default function PortalTrabajadorView({
                     <span className="font-mono text-xs text-stone-500">{r.fecha}</span>
                     <span className="tabular-nums font-medium">{totalHoras(r).toFixed(2)} h</span>
                   </div>
-                  <div className="mt-1 flex items-center gap-2 text-stone-700">
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-stone-700">
                     {proj ? (
                       <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
                         {proj.code}
                       </span>
                     ) : (
                       <span className="text-xs text-stone-400">— sin proyecto —</span>
+                    )}
+                    {Number(r.horas_extra ?? 0) > 0 && r.horas_extra_modo && (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                          r.horas_extra_modo === 'compensar'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-stone-200 text-stone-700'
+                        }`}
+                        title={
+                          r.horas_extra_modo === 'compensar'
+                            ? 'Horas extra al banco para descansar'
+                            : 'Horas extra a pagar en nómina'
+                        }
+                      >
+                        {r.horas_extra_modo === 'compensar' ? '🪙' : '💰'} +{Number(r.horas_extra).toFixed(1)}h
+                      </span>
                     )}
                     {r.worker_signed_at && (
                       <span className="text-xs text-emerald-700" title="Parte firmado">

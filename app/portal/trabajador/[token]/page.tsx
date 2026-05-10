@@ -28,52 +28,60 @@ export default async function PortalTrabajadorPage({ params }: Params) {
   sieteAtras.setDate(sieteAtras.getDate() - 7)
   const desde = sieteAtras.toISOString().slice(0, 10)
 
-  const [projectsRes, parteHoyRes, ultimosDiasRes, assignmentRes, statsRes, tokenInfoRes] =
-    await Promise.all([
-      supabase
-        .from('projects')
-        .select('id, code, name, description, status')
-        .eq('company_id', companyId)
-        .is('deleted_at', null)
-        .order('code', { ascending: false })
-        .limit(50),
-      supabase
-        .from('time_records')
-        .select(
-          'id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, observaciones, fuente, worker_signed_at',
-        )
-        .eq('employee_id', employeeId)
-        .eq('fecha', today)
-        .is('deleted_at', null)
-        .maybeSingle(),
-      supabase
-        .from('time_records')
-        .select(
-          `id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, observaciones,
-           worker_signed_at, project:project_id (code, name)`,
-        )
-        .eq('employee_id', employeeId)
-        .gte('fecha', desde)
-        .is('deleted_at', null)
-        .order('fecha', { ascending: false }),
-      supabase
-        .from('worker_assignments')
-        .select(
-          `id, project_id, jornada_esperada_horas, notas,
-           project:project_id (id, code, name)`,
-        )
-        .eq('employee_id', employeeId)
-        .eq('fecha', today)
-        .is('deleted_at', null)
-        .maybeSingle(),
-      supabase.rpc('get_worker_dashboard_stats', { p_employee_id: employeeId }),
-      supabase
-        .from('worker_portal_access')
-        .select('consent_accepted_at, consent_text_version')
-        .eq('token', token)
-        .is('revoked_at', null)
-        .maybeSingle(),
-    ])
+  const [
+    projectsRes,
+    parteHoyRes,
+    ultimosDiasRes,
+    assignmentRes,
+    statsRes,
+    tokenInfoRes,
+    overtimeBalanceRes,
+  ] = await Promise.all([
+    supabase
+      .from('projects')
+      .select('id, code, name, description, status')
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .order('code', { ascending: false })
+      .limit(50),
+    supabase
+      .from('time_records')
+      .select(
+        'id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, horas_extra_modo, observaciones, fuente, worker_signed_at',
+      )
+      .eq('employee_id', employeeId)
+      .eq('fecha', today)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    supabase
+      .from('time_records')
+      .select(
+        `id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, horas_extra_modo, observaciones,
+         worker_signed_at, project:project_id (code, name)`,
+      )
+      .eq('employee_id', employeeId)
+      .gte('fecha', desde)
+      .is('deleted_at', null)
+      .order('fecha', { ascending: false }),
+    supabase
+      .from('worker_assignments')
+      .select(
+        `id, project_id, jornada_esperada_horas, notas,
+         project:project_id (id, code, name)`,
+      )
+      .eq('employee_id', employeeId)
+      .eq('fecha', today)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    supabase.rpc('get_worker_dashboard_stats', { p_employee_id: employeeId }),
+    supabase
+      .from('worker_portal_access')
+      .select('consent_accepted_at, consent_text_version')
+      .eq('token', token)
+      .is('revoked_at', null)
+      .maybeSingle(),
+    supabase.rpc('get_worker_overtime_balance', { p_employee_id: employeeId }),
+  ])
 
   const consent = {
     accepted_at: tokenInfoRes.data?.consent_accepted_at ?? null,
@@ -96,6 +104,7 @@ export default async function PortalTrabajadorPage({ params }: Params) {
       ultimosDias={ultimosDiasRes.data ?? []}
       assignmentHoy={assignmentRes.data ?? null}
       stats={statsRes.data ?? null}
+      overtimeBalance={overtimeBalanceRes.data ?? null}
       consent={consent}
     />
   )

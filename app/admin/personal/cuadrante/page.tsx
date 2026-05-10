@@ -39,7 +39,7 @@ export default async function CuadrantePage({
   const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
-  const [employeesRes, projectsRes, assignmentsRes] = await Promise.all([
+  const [employeesRes, projectsRes, assignmentsRes, holidaysRes, jornadasRes] = await Promise.all([
     supabase
       .from('employees')
       .select('id, nombre, nif, fecha_baja')
@@ -62,6 +62,26 @@ export default async function CuadrantePage({
       .gte('fecha', desde)
       .lte('fecha', hasta)
       .is('deleted_at', null),
+    supabase
+      .from('holidays')
+      .select('fecha, nombre, ambito')
+      .gte('fecha', desde)
+      .lte('fecha', hasta)
+      .or(
+        'ambito.eq.nacional,and(ambito.eq.autonomico,comunidad_autonoma.eq.MADRID),' +
+          `and(ambito.eq.local,municipio.eq.Madrid),and(ambito.eq.convenio,comunidad_autonoma.eq.MADRID),` +
+          `and(ambito.eq.no_laborable,comunidad_autonoma.eq.MADRID),and(ambito.eq.empresa,company_id.eq.${activeCompanyId})`,
+      ),
+    // Calcular jornada esperada por cada día (RPC)
+    Promise.all(
+      days.map(async (d) => {
+        const { data } = await supabase.rpc('get_jornada_esperada_horas', {
+          p_fecha: d,
+          p_company_id: activeCompanyId,
+        })
+        return { fecha: d, horas: Number(data ?? 0) }
+      }),
+    ),
   ])
 
   const employeesActivos = (employeesRes.data ?? []).filter((e) => !e.fecha_baja)
@@ -73,6 +93,8 @@ export default async function CuadrantePage({
       assignments={assignmentsRes.data ?? []}
       days={days}
       mondayIso={desde}
+      holidays={holidaysRes.data ?? []}
+      jornadas={jornadasRes}
     />
   )
 }

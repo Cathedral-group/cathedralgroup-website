@@ -92,6 +92,11 @@ export async function GET(
     p_employee_id: employeeId,
   })
 
+  // Saldo banco horas extras
+  const { data: overtimeBalance } = await supabase.rpc('get_worker_overtime_balance', {
+    p_employee_id: employeeId,
+  })
+
   // Estado consentimiento RGPD del token activo
   const { data: tokenInfo } = await supabase
     .from('worker_portal_access')
@@ -110,6 +115,7 @@ export async function GET(
     projects: projects ?? [],
     assignment_hoy: assignmentHoy ?? null,
     stats: stats ?? null,
+    overtime_balance: overtimeBalance ?? null,
     consent: {
       accepted_at: tokenInfo?.consent_accepted_at ?? null,
       text_version: tokenInfo?.consent_text_version ?? null,
