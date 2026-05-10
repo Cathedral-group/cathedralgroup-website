@@ -74,8 +74,8 @@ export async function GET(request: NextRequest) {
     .select(
       `id, fecha, project_id, employee_id, horas_ordinarias, horas_extra, horas_nocturnas,
        observaciones, fuente, hash_registro, registrado_por, created_at, modificado_at,
-       employee:employee_id (id, nombre, apellidos, nif),
-       project:project_id (id, code, descripcion)`,
+       employee:employee_id (id, nombre, nif),
+       project:project_id (id, code, name)`,
     )
     .eq('company_id', activeCompanyId)
     .is('deleted_at', null)

@@ -6,14 +6,14 @@ import Link from 'next/link'
 interface EmployeeRef {
   id: string
   nombre: string | null
-  apellidos: string | null
   nif?: string | null
 }
 
 interface ProjectRef {
   id: string
   code: string
-  descripcion: string | null
+  name?: string | null
+  description?: string | null
   status?: string | null
 }
 
@@ -48,7 +48,7 @@ function singleRef<T>(v: T | T[] | null): T | null {
 function employeeName(e: EmployeeRef | EmployeeRef[] | null): string {
   const r = singleRef(e)
   if (!r) return '—'
-  return `${r.nombre ?? ''} ${r.apellidos ?? ''}`.trim() || '—'
+  return (r.nombre ?? '').trim() || '—'
 }
 
 function totalHoras(r: TimeRecord): number {
@@ -241,7 +241,7 @@ export default function DietarioView({
                 <option value="">Todos</option>
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {`${e.nombre ?? ''} ${e.apellidos ?? ''}`.trim()}
+                    {(e.nombre ?? '').trim()}
                   </option>
                 ))}
               </select>
@@ -315,7 +315,7 @@ export default function DietarioView({
                   <option value="">—</option>
                   {employees.map((e) => (
                     <option key={e.id} value={e.id}>
-                      {`${e.nombre ?? ''} ${e.apellidos ?? ''}`.trim()}
+                      {(e.nombre ?? '').trim()}
                     </option>
                   ))}
                 </select>

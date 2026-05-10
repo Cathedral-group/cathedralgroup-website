@@ -18,7 +18,7 @@ export default async function ProjectLaborCostsPage({ params }: PageProps) {
 
   const { data: project } = await supabase
     .from('projects')
-    .select('id, code, descripcion, status, company_id')
+    .select('id, code, name, description, status, company_id')
     .eq('code', code)
     .eq('company_id', activeCompanyId)
     .is('deleted_at', null)
@@ -31,7 +31,7 @@ export default async function ProjectLaborCostsPage({ params }: PageProps) {
     .select(
       `id, anio, mes, horas_ordinarias, horas_extra, horas_nocturnas, horas_total,
        coste_hora_empresa, coste_imputado_total, source, payroll_id, calculado_at,
-       employee:employee_id (id, nombre, apellidos, nif)`,
+       employee:employee_id (id, nombre, nif)`,
     )
     .eq('project_id', project.id)
     .is('deleted_at', null)
@@ -42,7 +42,7 @@ export default async function ProjectLaborCostsPage({ params }: PageProps) {
     .from('time_records')
     .select(
       `id, fecha, employee_id, horas_ordinarias, horas_extra, horas_nocturnas, observaciones,
-       fuente, employee:employee_id (id, nombre, apellidos)`,
+       fuente, employee:employee_id (id, nombre)`,
     )
     .eq('project_id', project.id)
     .is('deleted_at', null)

@@ -18,13 +18,13 @@ export default async function DietarioPage() {
   const [employeesRes, projectsRes, timeRecordsRes] = await Promise.all([
     supabase
       .from('employees')
-      .select('id, nombre, apellidos, nif')
+      .select('id, nombre, nif')
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .order('nombre'),
     supabase
       .from('projects')
-      .select('id, code, descripcion, status')
+      .select('id, code, name, description, status')
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .order('code', { ascending: false }),
@@ -33,8 +33,8 @@ export default async function DietarioPage() {
       .select(
         `id, fecha, project_id, employee_id, horas_ordinarias, horas_extra, horas_nocturnas,
          observaciones, fuente, registrado_por,
-         employee:employee_id (id, nombre, apellidos),
-         project:project_id (id, code, descripcion)`,
+         employee:employee_id (id, nombre),
+         project:project_id (id, code, name)`,
       )
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)

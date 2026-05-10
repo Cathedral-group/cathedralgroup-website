@@ -6,14 +6,14 @@ import Link from 'next/link'
 interface Project {
   id: string
   code: string
-  descripcion: string | null
+  name?: string | null
+  description?: string | null
   status: string | null
 }
 
 interface EmployeeRef {
   id: string
   nombre: string | null
-  apellidos: string | null
   nif?: string | null
 }
 
@@ -62,7 +62,7 @@ function employeeName(e: EmployeeRef | EmployeeRef[] | null): string {
   if (!e) return '—'
   const r = Array.isArray(e) ? e[0] : e
   if (!r) return '—'
-  return `${r.nombre ?? ''} ${r.apellidos ?? ''}`.trim() || '—'
+  return (r.nombre ?? '').trim() || '—'
 }
 
 export default function LaborCostsView({ project, laborCosts, timeRecords }: Props) {
@@ -135,8 +135,8 @@ export default function LaborCostsView({ project, laborCosts, timeRecords }: Pro
           <h1 className="mt-2 text-2xl font-light tracking-tight text-stone-900">
             Mano de obra interna — {project.code}
           </h1>
-          {project.descripcion && (
-            <p className="mt-1 text-sm text-stone-600">{project.descripcion}</p>
+          {(project.name || project.description) && (
+            <p className="mt-1 text-sm text-stone-600">{project.name ?? project.description}</p>
           )}
         </div>
       </div>

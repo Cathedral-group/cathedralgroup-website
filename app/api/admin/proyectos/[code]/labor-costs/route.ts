@@ -86,7 +86,7 @@ export async function GET(
     .select(
       `id, anio, mes, horas_ordinarias, horas_extra, horas_nocturnas, horas_total,
        coste_hora_empresa, coste_imputado_total, source, payroll_id, calculado_at,
-       employee:employee_id (id, nombre, apellidos, nif)`,
+       employee:employee_id (id, nombre, nif)`,
     )
     .eq('project_id', project.id)
     .is('deleted_at', null)
