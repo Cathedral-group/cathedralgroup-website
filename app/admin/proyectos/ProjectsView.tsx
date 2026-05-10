@@ -198,6 +198,8 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(new Set())
+  // Por defecto ocultar proyectos cancelados de la vista principal — historial accesible vía toggle
+  const [showCancelled, setShowCancelled] = useState(false)
   // ─── Patrón coherente Cathedral: 4 modos de vista (igual que Personal y Facturas)
   const [viewMode, setViewMode] = useState<'estado' | 'tipo' | 'año' | 'lista'>('estado')
   const [sortField, setSortField] = useState<SortField>('created_at')
@@ -267,8 +269,17 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       sortField === field ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'
     } ${extra}`
 
+  const cancelledCount = useMemo(
+    () => projects.filter((p) => (p.status || '') === 'cancelado').length,
+    [projects],
+  )
+
   const filtered = useMemo(() => {
     let list = projects
+    // Ocultar cancelados por defecto. Mostrarlos sólo si: toggle activo, o filtro explícito 'cancelado'
+    if (!showCancelled && statusFilter !== 'cancelado') {
+      list = list.filter((p) => (p.status || '') !== 'cancelado')
+    }
     if (hiddenStatuses.size > 0) list = list.filter((p) => !hiddenStatuses.has(p.status || 'presupuesto'))
     if (statusFilter) list = list.filter((p) => (p.status || 'presupuesto') === statusFilter)
     if (search) {
@@ -305,7 +316,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       return sortDir === 'asc' ? cmp : -cmp
     })
     return list
-  }, [projects, statusFilter, search, clientMap, hiddenStatuses, sortField, sortDir, financialMap])
+  }, [projects, statusFilter, search, clientMap, hiddenStatuses, sortField, sortDir, financialMap, showCancelled])
 
   /* ───────── KPIs (cabecera de la página, patrón Cathedral) ───────── */
   const kpis = useMemo(() => {
@@ -1107,7 +1118,21 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
           </>
         )}
 
-        <span className="text-xs text-neutral-400 ml-auto">
+        {cancelledCount > 0 && (
+          <button
+            onClick={() => setShowCancelled((v) => !v)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ml-auto ${
+              showCancelled
+                ? 'bg-neutral-200 text-neutral-700'
+                : 'bg-white border border-neutral-200 text-neutral-500 hover:border-neutral-400'
+            }`}
+            title="Los proyectos cancelados están ocultos por defecto en la vista principal"
+          >
+            {showCancelled ? `✓ Cancelados visibles (${cancelledCount})` : `Mostrar cancelados (${cancelledCount})`}
+          </button>
+        )}
+
+        <span className={`text-xs text-neutral-400 ${cancelledCount > 0 ? '' : 'ml-auto'}`}>
           {filtered.length} de {projects.length}
         </span>
       </div>
