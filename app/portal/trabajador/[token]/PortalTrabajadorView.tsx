@@ -581,18 +581,24 @@ export default function PortalTrabajadorView({
       </div>
 
       {/* Accesos rápidos */}
-      <div className="mb-4 grid grid-cols-2 gap-2">
+      <div className="mb-4 grid grid-cols-3 gap-2">
         <Link
           href={`/portal/trabajador/${token}/tickets`}
-          className="rounded-lg border border-stone-200 bg-white p-3 text-center text-sm text-stone-700 hover:bg-stone-50"
+          className="rounded-lg border border-stone-200 bg-white p-3 text-center text-xs text-stone-700 hover:bg-stone-50"
         >
-          📷 Subir tickets
+          📷 Tickets
+        </Link>
+        <Link
+          href={`/portal/trabajador/${token}/gastos`}
+          className="rounded-lg border border-stone-200 bg-white p-3 text-center text-xs text-stone-700 hover:bg-stone-50"
+        >
+          💼 Gastos día
         </Link>
         <Link
           href={`/portal/trabajador/${token}/historial`}
-          className="rounded-lg border border-stone-200 bg-white p-3 text-center text-sm text-stone-700 hover:bg-stone-50"
+          className="rounded-lg border border-stone-200 bg-white p-3 text-center text-xs text-stone-700 hover:bg-stone-50"
         >
-          📅 Mis horas del mes
+          📅 Mis horas
         </Link>
       </div>
 
