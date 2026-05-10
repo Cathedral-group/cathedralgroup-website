@@ -160,6 +160,10 @@ const NAV_SECTIONS: NavSection[] = [
         ],
       },
       { label: 'Informes',       href: '/admin/informes',      icon: <IconInformes /> },
+      {
+        label: 'Fiscal AEAT',    href: '/admin/fiscal',        icon: <IconFiscal />,
+        description: 'Calendario AEAT + generador automático borradores 303/111 desde invoices',
+      },
     ],
   },
   {
