@@ -27,6 +27,8 @@ interface ParteRow {
   observaciones: string | null
   fuente?: string | null
   worker_signed_at?: string | null
+  hora_entrada?: string | null
+  hora_salida?: string | null
   project?:
     | { code: string; name?: string | null }
     | { code: string; name?: string | null }[]
@@ -129,9 +131,20 @@ export default function PortalTrabajadorView({
   const [acceptingConsent, setAcceptingConsent] = useState(false)
   const [consentError, setConsentError] = useState<string | null>(null)
 
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayStr = yesterday.toISOString().slice(0, 10)
+  // Últimos 7 días: lista [{iso, label}] del más reciente al más antiguo
+  const last7Days: { iso: string; label: string }[] = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    const iso = d.toISOString().slice(0, 10)
+    let label: string
+    if (i === 0) label = 'Hoy'
+    else if (i === 1) label = 'Ayer'
+    else {
+      label = d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' })
+    }
+    last7Days.push({ iso, label })
+  }
 
   // Pre-rellenar con asignación cuadrante si existe y parteHoy aún no
   const assignProj = singleProj(assignmentHoy?.project)
@@ -151,9 +164,23 @@ export default function PortalTrabajadorView({
 
   const [fecha, setFecha] = useState<string>(today)
   const [projectId, setProjectId] = useState<string>(defaultProjectId)
-  const [horasOrd, setHorasOrd] = useState<number>(defaultJornada)
-  const [horasExt, setHorasExt] = useState<number>(Number(parteHoy?.horas_extra ?? 0))
-  const [horasNoc, setHorasNoc] = useState<number>(Number(parteHoy?.horas_nocturnas ?? 0))
+  const [horasOrd, setHorasOrd] = useState<string>(
+    parteHoy?.horas_ordinarias != null ? String(parteHoy.horas_ordinarias) : '',
+  )
+  const [horasExt, setHorasExt] = useState<string>(
+    parteHoy?.horas_extra != null && Number(parteHoy.horas_extra) > 0
+      ? String(parteHoy.horas_extra)
+      : '',
+  )
+  const [horasNoc, setHorasNoc] = useState<string>(
+    parteHoy?.horas_nocturnas != null && Number(parteHoy.horas_nocturnas) > 0
+      ? String(parteHoy.horas_nocturnas)
+      : '',
+  )
+
+  const horasOrdNum = parseFloat(horasOrd) || 0
+  const horasExtNum = parseFloat(horasExt) || 0
+  const horasNocNum = parseFloat(horasNoc) || 0
   const [horasExtraModo, setHorasExtraModo] = useState<'compensar' | 'pagar'>(
     parteHoy?.horas_extra_modo ?? 'compensar',
   )
@@ -168,6 +195,12 @@ export default function PortalTrabajadorView({
   const [fotoAvancePreview, setFotoAvancePreview] = useState<string | null>(null)
   const [fotoAvanceUploading, setFotoAvanceUploading] = useState(false)
   const [fotoAvanceAttachmentId, setFotoAvanceAttachmentId] = useState<string | null>(null)
+
+  // Fichaje entrada/salida
+  const [fichando, setFichando] = useState(false)
+  const [fichajeMsg, setFichajeMsg] = useState<string | null>(null)
+  const horaEntrada = parteHoy?.hora_entrada
+  const horaSalida = parteHoy?.hora_salida
 
   // Cola offline
   const [pendingCount, setPendingCount] = useState<number>(0)
@@ -233,6 +266,73 @@ export default function PortalTrabajadorView({
       window.removeEventListener('offline', handleOffline)
     }
   }, [refreshPending, tryDrain])
+
+  async function fichar(tipo: 'entrada' | 'salida') {
+    setFichando(true)
+    setFichajeMsg(null)
+    setError(null)
+
+    // Geo best-effort
+    let geoData: { geo_lat?: number; geo_lng?: number; geo_accuracy?: number } = {}
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(() => resolve(), 2500)
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              clearTimeout(timer)
+              geoData = {
+                geo_lat: pos.coords.latitude,
+                geo_lng: pos.coords.longitude,
+                geo_accuracy: Math.round(pos.coords.accuracy),
+              }
+              resolve()
+            },
+            () => {
+              clearTimeout(timer)
+              resolve()
+            },
+            { timeout: 2000, maximumAge: 30000 },
+          )
+        })
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      const res = await fetch(`/api/portal/trabajador/${token}/fichaje`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo,
+          project_id: tipo === 'entrada' ? projectId || null : undefined,
+          ...geoData,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error ?? 'Error al fichar')
+        return
+      }
+      if (tipo === 'entrada') {
+        setFichajeMsg(`✓ Entrada fichada a las ${json.hora.slice(0, 5)}`)
+      } else {
+        const extras = Number(json.horas_extra ?? 0)
+        let msg = `✓ Salida fichada a las ${json.hora.slice(0, 5)}. Trabajadas ${json.horas_calculadas}h`
+        if (extras > 0) {
+          const saldo = Number(json.balance?.saldo_horas ?? 0)
+          msg += `. ${extras}h extra al banco (saldo: ${saldo > 0 ? '+' : ''}${saldo.toFixed(1)}h)`
+        }
+        setFichajeMsg(msg)
+      }
+      setTimeout(() => window.location.reload(), 1500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setFichando(false)
+    }
+  }
 
   async function uploadFotoAvance(file: File) {
     setFotoAvanceUploading(true)
@@ -318,10 +418,10 @@ export default function PortalTrabajadorView({
     const payload = {
       fecha,
       project_id: projectId || null,
-      horas_ordinarias: horasOrd,
-      horas_extra: horasExt,
-      horas_nocturnas: horasNoc,
-      horas_extra_modo: horasExt > 0 ? horasExtraModo : undefined,
+      horas_ordinarias: horasOrdNum,
+      horas_extra: horasExtNum,
+      horas_nocturnas: horasNocNum,
+      horas_extra_modo: horasExtNum > 0 ? horasExtraModo : undefined,
       observaciones: observaciones.trim() || undefined,
       foto_avance_attachment_id: fotoAvanceAttachmentId ?? undefined,
       ...geoData,
@@ -353,12 +453,18 @@ export default function PortalTrabajadorView({
       if (!res.ok) {
         setError(json.error ?? 'No se pudo guardar')
       } else {
-        setSuccess(
+        let msg =
           json.action === 'created'
             ? 'Parte registrado y firmado correctamente'
-            : 'Parte actualizado y firmado',
-        )
-        setTimeout(() => window.location.reload(), 1200)
+            : 'Parte actualizado y firmado'
+        if (horasExtNum > 0 && horasExtraModo === 'compensar') {
+          const saldoAcum = Number(overtimeBalance?.saldo_horas ?? 0) + horasExtNum
+          msg += `. +${horasExtNum}h al banco (saldo: ${saldoAcum > 0 ? '+' : ''}${saldoAcum.toFixed(1)}h)`
+        } else if (horasExtNum > 0 && horasExtraModo === 'pagar') {
+          msg += `. +${horasExtNum}h se pagarán en nómina`
+        }
+        setSuccess(msg)
+        setTimeout(() => window.location.reload(), 1800)
       }
     } catch (e) {
       // Error de red — encolar para reintento automático
@@ -376,7 +482,7 @@ export default function PortalTrabajadorView({
     }
   }
 
-  const total = horasOrd + horasExt + horasNoc
+  const total = horasOrdNum + horasExtNum + horasNocNum
 
   // Modal cláusula RGPD bloqueante (primer acceso)
   if (showConsent) {
@@ -547,6 +653,58 @@ export default function PortalTrabajadorView({
         </div>
       )}
 
+      {/* Fichaje rápido entrada/salida */}
+      <div className="mb-4 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-stone-700">
+          ⏱️ Fichaje rápido
+        </h2>
+        <p className="mt-1 text-xs text-stone-500">
+          Pulsa al llegar a la obra y al irte. El sistema calcula tus horas automáticamente.
+        </p>
+        {(horaEntrada || horaSalida) && (
+          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded bg-stone-100 p-2">
+              <div className="text-stone-500">Entrada</div>
+              <div className="text-base font-medium tabular-nums">
+                {horaEntrada ? horaEntrada.slice(0, 5) : '—'}
+              </div>
+            </div>
+            <div className="rounded bg-stone-100 p-2">
+              <div className="text-stone-500">Salida</div>
+              <div className="text-base font-medium tabular-nums">
+                {horaSalida ? horaSalida.slice(0, 5) : '—'}
+              </div>
+            </div>
+          </div>
+        )}
+        {fichajeMsg && (
+          <div className="mt-2 rounded-lg border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-800">
+            {fichajeMsg}
+          </div>
+        )}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => fichar('entrada')}
+            disabled={fichando || !!horaEntrada}
+            className="rounded-lg bg-emerald-700 px-3 py-3 text-base font-medium text-white transition hover:bg-emerald-800 disabled:bg-stone-300 disabled:text-stone-600"
+          >
+            {horaEntrada ? '✓ Entrada' : '▶️ Entrar ahora'}
+          </button>
+          <button
+            type="button"
+            onClick={() => fichar('salida')}
+            disabled={fichando || !horaEntrada || !!horaSalida}
+            className="rounded-lg bg-rose-700 px-3 py-3 text-base font-medium text-white transition hover:bg-rose-800 disabled:bg-stone-300 disabled:text-stone-600"
+          >
+            {horaSalida ? '✓ Salida' : '⏹️ Salir ahora'}
+          </button>
+        </div>
+        <p className="mt-2 text-[10px] text-stone-500">
+          También puedes meter las horas a mano abajo, sin fichar.
+        </p>
+      </div>
+
       {/* Form parte */}
       <div className="mb-6 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-medium uppercase tracking-wider text-stone-700">
@@ -556,25 +714,21 @@ export default function PortalTrabajadorView({
         <div className="mt-4 space-y-3">
           <div>
             <label className="block text-xs uppercase tracking-wider text-stone-500">Día</label>
-            <div className="mt-1 inline-flex rounded-lg border border-stone-300 p-0.5">
-              <button
-                type="button"
-                onClick={() => setFecha(today)}
-                className={`rounded-md px-3 py-1.5 text-sm transition ${
-                  fecha === today ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'
-                }`}
-              >
-                Hoy
-              </button>
-              <button
-                type="button"
-                onClick={() => setFecha(yesterdayStr)}
-                className={`rounded-md px-3 py-1.5 text-sm transition ${
-                  fecha === yesterdayStr ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'
-                }`}
-              >
-                Ayer
-              </button>
+            <div className="mt-1 grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+              {last7Days.map((d) => (
+                <button
+                  key={d.iso}
+                  type="button"
+                  onClick={() => setFecha(d.iso)}
+                  className={`rounded-md px-2 py-1.5 text-[11px] transition ${
+                    fecha === d.iso
+                      ? 'bg-stone-900 text-white'
+                      : 'border border-stone-300 bg-white text-stone-700 hover:bg-stone-100'
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -611,9 +765,12 @@ export default function PortalTrabajadorView({
                 step="0.25"
                 min="0"
                 max="24"
+                inputMode="decimal"
+                placeholder={jornadaEsperadaHoy > 0 ? String(jornadaEsperadaHoy) : '0'}
                 value={horasOrd}
-                onChange={(e) => setHorasOrd(parseFloat(e.target.value) || 0)}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums"
+                onChange={(e) => setHorasOrd(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums placeholder:text-stone-300"
               />
             </div>
             <div>
@@ -623,9 +780,12 @@ export default function PortalTrabajadorView({
                 step="0.25"
                 min="0"
                 max="24"
+                inputMode="decimal"
+                placeholder="0"
                 value={horasExt}
-                onChange={(e) => setHorasExt(parseFloat(e.target.value) || 0)}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums"
+                onChange={(e) => setHorasExt(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums placeholder:text-stone-300"
               />
             </div>
             <div>
@@ -637,9 +797,12 @@ export default function PortalTrabajadorView({
                 step="0.25"
                 min="0"
                 max="24"
+                inputMode="decimal"
+                placeholder="0"
                 value={horasNoc}
-                onChange={(e) => setHorasNoc(parseFloat(e.target.value) || 0)}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums"
+                onChange={(e) => setHorasNoc(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-center text-lg tabular-nums placeholder:text-stone-300"
               />
             </div>
           </div>
@@ -654,10 +817,10 @@ export default function PortalTrabajadorView({
           </div>
 
           {/* Toggle modo extras: solo si hay horas extra */}
-          {horasExt > 0 && (
+          {horasExtNum > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
               <div className="text-xs uppercase tracking-wider text-amber-900">
-                Las {horasExt}h extra ¿qué prefieres?
+                Las {horasExtNum}h extra ¿qué prefieres?
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button

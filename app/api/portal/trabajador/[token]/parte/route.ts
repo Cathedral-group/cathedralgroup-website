@@ -70,17 +70,17 @@ export async function POST(
     return NextResponse.json({ error: 'Body JSON inválido' }, { status: 400 })
   }
 
-  // Validación fecha: solo hoy o ayer
+  // Validación fecha: últimos 7 días (incluyendo hoy)
   const today = new Date()
   const todayStr = today.toISOString().slice(0, 10)
-  const yesterday = new Date(today)
-  yesterday.setDate(today.getDate() - 1)
-  const yesterdayStr = yesterday.toISOString().slice(0, 10)
+  const sieteAtras = new Date(today)
+  sieteAtras.setDate(today.getDate() - 6) // hoy + 6 días atrás = 7 días totales
+  const sieteAtrasStr = sieteAtras.toISOString().slice(0, 10)
   const fecha = body.fecha ?? todayStr
 
-  if (fecha !== todayStr && fecha !== yesterdayStr) {
+  if (fecha < sieteAtrasStr || fecha > todayStr) {
     return NextResponse.json(
-      { error: 'Solo se permite registrar partes de hoy o ayer' },
+      { error: 'Solo se permite registrar partes de los últimos 7 días' },
       { status: 400 },
     )
   }

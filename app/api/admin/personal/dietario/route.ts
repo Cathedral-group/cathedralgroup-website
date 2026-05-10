@@ -145,6 +145,7 @@ export async function PATCH(request: NextRequest) {
   const update: Record<string, unknown> = {
     modificado_at: new Date().toISOString(),
     modificado_por: user.email ?? null,
+    modificado_motivo: 'Edición desde admin dietario',
   }
   if ('project_id' in body) update.project_id = body.project_id
   if ('horas_ordinarias' in body) update.horas_ordinarias = body.horas_ordinarias

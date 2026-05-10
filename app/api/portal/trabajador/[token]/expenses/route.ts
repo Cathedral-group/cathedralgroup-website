@@ -111,13 +111,16 @@ export async function POST(
     return NextResponse.json({ error: 'medio_pago inválido' }, { status: 400 })
   }
 
-  // Restricción anti-manipulación: solo hoy o ayer
+  // Restricción anti-manipulación: últimos 7 días
   const today = new Date().toISOString().slice(0, 10)
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayStr = yesterday.toISOString().slice(0, 10)
-  if (body.fecha !== today && body.fecha !== yesterdayStr) {
-    return NextResponse.json({ error: 'Solo se permite registrar hoy o ayer' }, { status: 400 })
+  const sieteAtras = new Date()
+  sieteAtras.setDate(sieteAtras.getDate() - 6)
+  const sieteAtrasStr = sieteAtras.toISOString().slice(0, 10)
+  if (body.fecha < sieteAtrasStr || body.fecha > today) {
+    return NextResponse.json(
+      { error: 'Solo se permite registrar últimos 7 días' },
+      { status: 400 },
+    )
   }
 
   // Validar project si se da

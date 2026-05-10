@@ -77,6 +77,15 @@ export default function DietarioView({
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editProjectId, setEditProjectId] = useState<string>('')
+  const [fullEditId, setFullEditId] = useState<string | null>(null)
+  const [fullEdit, setFullEdit] = useState<{
+    project_id: string
+    horas_ord: string
+    horas_ext: string
+    horas_noc: string
+    observaciones: string
+  }>({ project_id: '', horas_ord: '', horas_ext: '', horas_noc: '', observaciones: '' })
+  const [savingFull, setSavingFull] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [createForm, setCreateForm] = useState({
     employee_id: '',
@@ -116,6 +125,73 @@ export default function DietarioView({
     } finally {
       setLoading(false)
     }
+  }
+
+  async function patchRecord(
+    recordId: string,
+    update: {
+      project_id?: string | null
+      horas_ordinarias?: number
+      horas_extra?: number
+      horas_nocturnas?: number
+      observaciones?: string | null
+    },
+    successMsg?: string,
+  ) {
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/personal/dietario', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: recordId, ...update }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error ?? 'Error al actualizar')
+        return false
+      }
+      setRecords((prev) =>
+        prev.map((r) => (r.id === recordId ? { ...r, ...json.row } : r)),
+      )
+      if (successMsg) {
+        // Toast simple
+        // eslint-disable-next-line no-console
+        console.log(successMsg)
+      }
+      return true
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+      return false
+    }
+  }
+
+  function openFullEdit(r: TimeRecord) {
+    setFullEditId(r.id)
+    setFullEdit({
+      project_id: r.project_id ?? '',
+      horas_ord: r.horas_ordinarias != null ? String(r.horas_ordinarias) : '',
+      horas_ext: r.horas_extra != null && Number(r.horas_extra) > 0 ? String(r.horas_extra) : '',
+      horas_noc:
+        r.horas_nocturnas != null && Number(r.horas_nocturnas) > 0
+          ? String(r.horas_nocturnas)
+          : '',
+      observaciones: r.observaciones ?? '',
+    })
+    setError(null)
+  }
+
+  async function saveFullEdit() {
+    if (!fullEditId) return
+    setSavingFull(true)
+    const ok = await patchRecord(fullEditId, {
+      project_id: fullEdit.project_id || null,
+      horas_ordinarias: parseFloat(fullEdit.horas_ord) || 0,
+      horas_extra: parseFloat(fullEdit.horas_ext) || 0,
+      horas_nocturnas: parseFloat(fullEdit.horas_noc) || 0,
+      observaciones: fullEdit.observaciones.trim() || null,
+    })
+    setSavingFull(false)
+    if (ok) setFullEditId(null)
   }
 
   async function asignarProyecto(recordId: string, projectId: string | null) {
@@ -521,16 +597,25 @@ export default function DietarioView({
                       </td>
                       <td className="px-4 py-2.5">
                         {!isEditing && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingId(r.id)
-                              setEditProjectId(r.project_id ?? '')
-                            }}
-                            className="text-xs text-stone-600 underline hover:text-stone-900"
-                          >
-                            Asignar proyecto
-                          </button>
+                          <div className="flex flex-col gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(r.id)
+                                setEditProjectId(r.project_id ?? '')
+                              }}
+                              className="text-left text-[11px] text-stone-600 underline hover:text-stone-900"
+                            >
+                              Asignar proyecto
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openFullEdit(r)}
+                              className="text-left text-[11px] text-blue-700 underline hover:text-blue-900"
+                            >
+                              ✏️ Editar parte
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -538,6 +623,119 @@ export default function DietarioView({
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Modal edición completa */}
+        {fullEditId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/70 p-4">
+            <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+              <h3 className="text-sm font-medium uppercase tracking-wider text-stone-700">
+                Editar parte de horas
+              </h3>
+              <p className="mt-1 text-xs text-stone-500">
+                Como administrador puedes ajustar horas y observaciones. Quedará registro de
+                la modificación.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-stone-500">
+                    Proyecto
+                  </label>
+                  <select
+                    value={fullEdit.project_id}
+                    onChange={(e) => setFullEdit((p) => ({ ...p, project_id: e.target.value }))}
+                    className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
+                  >
+                    <option value="">— Sin proyecto —</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.code}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-stone-500">
+                      Ordinarias
+                    </label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      placeholder="0"
+                      value={fullEdit.horas_ord}
+                      onChange={(e) => setFullEdit((p) => ({ ...p, horas_ord: e.target.value }))}
+                      onFocus={(e) => e.target.select()}
+                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-center tabular-nums placeholder:text-stone-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-stone-500">
+                      Extra
+                    </label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      placeholder="0"
+                      value={fullEdit.horas_ext}
+                      onChange={(e) => setFullEdit((p) => ({ ...p, horas_ext: e.target.value }))}
+                      onFocus={(e) => e.target.select()}
+                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-center tabular-nums placeholder:text-stone-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider text-stone-500">
+                      Nocturnas
+                    </label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      placeholder="0"
+                      value={fullEdit.horas_noc}
+                      onChange={(e) => setFullEdit((p) => ({ ...p, horas_noc: e.target.value }))}
+                      onFocus={(e) => e.target.select()}
+                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-center tabular-nums placeholder:text-stone-300"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-stone-500">
+                    Observaciones
+                  </label>
+                  <textarea
+                    value={fullEdit.observaciones}
+                    onChange={(e) =>
+                      setFullEdit((p) => ({ ...p, observaciones: e.target.value }))
+                    }
+                    rows={2}
+                    className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={saveFullEdit}
+                  disabled={savingFull}
+                  className="flex-1 rounded bg-stone-900 px-4 py-2 text-sm text-white hover:bg-stone-800 disabled:opacity-50"
+                >
+                  {savingFull ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFullEditId(null)}
+                  className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-100"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -75,16 +75,28 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
   yesterday.setDate(yesterday.getDate() - 1)
   const yesterdayStr = yesterday.toISOString().slice(0, 10)
 
+  const last7Days: { iso: string; label: string }[] = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    const iso = d.toISOString().slice(0, 10)
+    let label: string
+    if (i === 0) label = 'Hoy'
+    else if (i === 1) label = 'Ayer'
+    else label = d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' })
+    last7Days.push({ iso, label })
+  }
+
   const [tipo, setTipo] = useState('dieta')
   const [medioPago, setMedioPago] = useState<string>('tarjeta_empresa')
   const [fecha, setFecha] = useState(today)
   const [projectId, setProjectId] = useState<string>('')
-  const [importe, setImporte] = useState<number>(0)
-  const [kmRecorridos, setKmRecorridos] = useState<number>(0)
+  const [importe, setImporte] = useState<string>('')
+  const [kmRecorridos, setKmRecorridos] = useState<string>('')
   const [kmOrigen, setKmOrigen] = useState('')
   const [kmDestino, setKmDestino] = useState('')
   const [materialDesc, setMaterialDesc] = useState('')
-  const [materialCantidad, setMaterialCantidad] = useState<number>(1)
+  const [materialCantidad, setMaterialCantidad] = useState<string>('')
   const [materialUnidad, setMaterialUnidad] = useState('uds')
   const [observaciones, setObservaciones] = useState('')
   const [saving, setSaving] = useState(false)
@@ -92,12 +104,12 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
   const [success, setSuccess] = useState<string | null>(null)
 
   function reset() {
-    setImporte(0)
-    setKmRecorridos(0)
+    setImporte('')
+    setKmRecorridos('')
     setKmOrigen('')
     setKmDestino('')
     setMaterialDesc('')
-    setMaterialCantidad(1)
+    setMaterialCantidad('')
     setMaterialUnidad('uds')
     setObservaciones('')
   }
@@ -116,15 +128,15 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
     }
 
     if (tipo === 'kilometraje') {
-      payload.km_recorridos = kmRecorridos
+      payload.km_recorridos = parseFloat(kmRecorridos) || 0
       payload.km_origen = kmOrigen.trim() || undefined
       payload.km_destino = kmDestino.trim() || undefined
     } else if (tipo === 'material') {
       payload.material_descripcion = materialDesc.trim()
-      payload.material_cantidad = materialCantidad
+      payload.material_cantidad = parseFloat(materialCantidad) || 0
       payload.material_unidad = materialUnidad
     } else {
-      payload.importe = importe
+      payload.importe = parseFloat(importe) || 0
     }
 
     try {
@@ -268,25 +280,21 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
           {/* Día */}
           <div>
             <label className="block text-xs uppercase tracking-wider text-stone-500">Día</label>
-            <div className="mt-1 inline-flex rounded-lg border border-stone-300 p-0.5">
-              <button
-                type="button"
-                onClick={() => setFecha(today)}
-                className={`rounded-md px-3 py-1.5 text-sm transition ${
-                  fecha === today ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'
-                }`}
-              >
-                Hoy
-              </button>
-              <button
-                type="button"
-                onClick={() => setFecha(yesterdayStr)}
-                className={`rounded-md px-3 py-1.5 text-sm transition ${
-                  fecha === yesterdayStr ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'
-                }`}
-              >
-                Ayer
-              </button>
+            <div className="mt-1 grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+              {last7Days.map((d) => (
+                <button
+                  key={d.iso}
+                  type="button"
+                  onClick={() => setFecha(d.iso)}
+                  className={`rounded-md px-2 py-1.5 text-[11px] transition ${
+                    fecha === d.iso
+                      ? 'bg-stone-900 text-white'
+                      : 'border border-stone-300 bg-white text-stone-700 hover:bg-stone-100'
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -321,9 +329,12 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
                   step="0.5"
                   min="0"
                   max="1000"
+                  inputMode="decimal"
+                  placeholder="0"
                   value={kmRecorridos}
-                  onChange={(e) => setKmRecorridos(parseFloat(e.target.value) || 0)}
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-lg tabular-nums"
+                  onChange={(e) => setKmRecorridos(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-lg tabular-nums placeholder:text-stone-300"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -376,9 +387,12 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
                     type="number"
                     step="0.5"
                     min="0"
+                    inputMode="decimal"
+                    placeholder="0"
                     value={materialCantidad}
-                    onChange={(e) => setMaterialCantidad(parseFloat(e.target.value) || 0)}
-                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-lg tabular-nums"
+                    onChange={(e) => setMaterialCantidad(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-lg tabular-nums placeholder:text-stone-300"
                   />
                 </div>
                 <div>
@@ -411,9 +425,12 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
                 type="number"
                 step="0.01"
                 min="0"
+                inputMode="decimal"
+                placeholder="0,00"
                 value={importe}
-                onChange={(e) => setImporte(parseFloat(e.target.value) || 0)}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-lg tabular-nums"
+                onChange={(e) => setImporte(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-lg tabular-nums placeholder:text-stone-300"
               />
             </div>
           )}

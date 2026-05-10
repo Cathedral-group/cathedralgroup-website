@@ -71,7 +71,7 @@ export default async function PortalTrabajadorPage({ params }: Params) {
     supabase
       .from('time_records')
       .select(
-        'id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, horas_extra_modo, observaciones, fuente, worker_signed_at',
+        'id, fecha, project_id, horas_ordinarias, horas_extra, horas_nocturnas, horas_extra_modo, observaciones, fuente, worker_signed_at, hora_entrada, hora_salida',
       )
       .eq('employee_id', employeeId)
       .eq('fecha', today)
