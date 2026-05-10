@@ -153,6 +153,7 @@ const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: '📊 Resumen',                  href: '/admin/personal' },
           { label: '👤 Trabajadores',             href: '/admin/personal/trabajadores' },
+          { label: '📋 Dietario (partes horas)',  href: '/admin/personal/dietario' },
           { label: '📅 Cuadrante semanal',        href: '/admin/personal/cuadrante' },
           { label: '🪙 Banco horas (todos)',      href: '/admin/personal/banco-horas' },
           { label: '🏖️ Ausencias (todas)',        href: '/admin/personal/ausencias' },
