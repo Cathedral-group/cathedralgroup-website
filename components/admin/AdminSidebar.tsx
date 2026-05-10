@@ -13,7 +13,9 @@ type NavItem = {
   description?: string      // texto pequeño debajo del label para conceptos técnicos
   children?: NavItem[]      // sub-items para drill-down
   badge?: 'red' | 'amber' | 'blue'  // color del badge contador (si lo tiene)
-  badgeKey?: 'errors' | 'review' | 'orphans' | 'notif_critical' | 'notif_warning'    // qué counter mostrar
+  badgeKey?: 'errors' | 'review' | 'orphans' | 'notif_critical' | 'notif_warning'
+    | 'absences_pending' | 'tickets_pending' | 'expenses_pending' | 'partes_anomalia'
+    | 'personal_total'    // qué counter mostrar
   countKey?: string         // si los hijos tienen contadores dinámicos, key para resolverlos
 }
 type NavSection = {
@@ -149,16 +151,16 @@ const NAV_SECTIONS: NavSection[] = [
       },
       {
         label: 'Personal',       href: '/admin/personal',      icon: <IconPersonal />,
-        badge: 'red', badgeKey: 'errors',
+        badge: 'red', badgeKey: 'personal_total',
         children: [
           { label: '📊 Resumen',                  href: '/admin/personal' },
           { label: '👤 Trabajadores',             href: '/admin/personal/trabajadores' },
-          { label: '📋 Dietario (partes horas)',  href: '/admin/personal/dietario' },
+          { label: '📋 Dietario (partes horas)',  href: '/admin/personal/dietario',          badge: 'amber', badgeKey: 'partes_anomalia' },
           { label: '📅 Cuadrante semanal',        href: '/admin/personal/cuadrante' },
           { label: '🪙 Banco horas (todos)',      href: '/admin/personal/banco-horas' },
-          { label: '🏖️ Ausencias (todas)',        href: '/admin/personal/ausencias' },
-          { label: '📷 Tickets/albaranes',        href: '/admin/personal/tickets-trabajador' },
-          { label: '💼 Gastos por reembolsar',    href: '/admin/personal/gastos-trabajador' },
+          { label: '🏖️ Ausencias (todas)',        href: '/admin/personal/ausencias',         badge: 'red',   badgeKey: 'absences_pending' },
+          { label: '📷 Tickets/albaranes',        href: '/admin/personal/tickets-trabajador', badge: 'blue', badgeKey: 'tickets_pending' },
+          { label: '💼 Gastos por reembolsar',    href: '/admin/personal/gastos-trabajador',  badge: 'blue', badgeKey: 'expenses_pending' },
           { label: '⚖️ Acceso Inspección Trabajo', href: '/admin/personal/itss' },
           { label: '— Otras secciones —',         href: '/admin/personal?seccion=otras' },
           { label: 'Nóminas y pagos',             href: '/admin/personal?seccion=nominas' },
@@ -250,6 +252,10 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const [orphanCount, setOrphanCount] = useState<number | null>(null)
   const [notifCritical, setNotifCritical] = useState<number | null>(null)
   const [notifWarning, setNotifWarning] = useState<number | null>(null)
+  const [absencesPending, setAbsencesPending] = useState<number | null>(null)
+  const [ticketsPending, setTicketsPending] = useState<number | null>(null)
+  const [expensesPending, setExpensesPending] = useState<number | null>(null)
+  const [partesAnomalia, setPartesAnomalia] = useState<number | null>(null)
   // Drill-down: label del item padre cuyo árbol estamos mostrando.
   // Inicializado de forma síncrona desde pathname para que en el primer render
   // ya aparezca el drill correcto sin parpadeo.
@@ -337,6 +343,42 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       .then(({ count, error: err }) => {
         if (!err && count !== null) setNotifWarning(count)
       })
+    // Personal: pendientes accionables
+    supabase
+      .from('worker_absences')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .is('deleted_at', null)
+      .then(({ count, error: err }) => {
+        if (!err && count !== null) setAbsencesPending(count)
+      })
+    supabase
+      .from('worker_attachments')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['uploaded', 'processing', 'extracted'])
+      .is('deleted_at', null)
+      .then(({ count, error: err }) => {
+        if (!err && count !== null) setTicketsPending(count)
+      })
+    supabase
+      .from('worker_expense_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .is('deleted_at', null)
+      .then(({ count, error: err }) => {
+        if (!err && count !== null) setExpensesPending(count)
+      })
+    // Partes con geofence anómalo en últimos 7 días
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+    supabase
+      .from('time_records')
+      .select('id', { count: 'exact', head: true })
+      .gte('fecha', sevenDaysAgo)
+      .is('deleted_at', null)
+      .or('entrada_geofence_status.eq.outside,entrada_geofence_status.eq.low_accuracy,salida_geofence_status.eq.outside,salida_geofence_status.eq.low_accuracy')
+      .then(({ count, error: err }) => {
+        if (!err && count !== null) setPartesAnomalia(count)
+      })
   }, [])
 
   const handleLogout = async () => {
@@ -408,6 +450,22 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       return { count: notifWarning, color: 'bg-amber-600' }
     if (badgeKey === 'orphans' && orphanCount !== null && orphanCount > 0)
       return { count: orphanCount, color: 'bg-red-500' }
+    if (badgeKey === 'absences_pending' && absencesPending !== null && absencesPending > 0)
+      return { count: absencesPending, color: 'bg-red-500' }
+    if (badgeKey === 'tickets_pending' && ticketsPending !== null && ticketsPending > 0)
+      return { count: ticketsPending, color: 'bg-blue-500' }
+    if (badgeKey === 'expenses_pending' && expensesPending !== null && expensesPending > 0)
+      return { count: expensesPending, color: 'bg-blue-500' }
+    if (badgeKey === 'partes_anomalia' && partesAnomalia !== null && partesAnomalia > 0)
+      return { count: partesAnomalia, color: 'bg-amber-500' }
+    if (badgeKey === 'personal_total') {
+      const total = (absencesPending ?? 0) + (ticketsPending ?? 0) + (expensesPending ?? 0) + (partesAnomalia ?? 0)
+      if (total > 0) {
+        // Color rojo si hay ausencias o partes anómalos críticos; azul si solo tickets/gastos
+        const urgent = (absencesPending ?? 0) > 0 || (partesAnomalia ?? 0) > 0
+        return { count: total, color: urgent ? 'bg-red-500' : 'bg-blue-500' }
+      }
+    }
     return null
   }
 

@@ -121,6 +121,12 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     { data: periodLeads },
     { data: docsExpiringSoon },
     { data: docsExpired },
+    { data: absencesPending },
+    { data: ticketsPending },
+    { data: expensesPending },
+    { data: parteAnomalias },
+    { data: employeesList },
+    { data: sysNotifications },
     projectInvoices,
     { data: projectsList },
     { data: estructuraInvoices },
@@ -138,6 +144,16 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').eq('company_id',companyId).is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:true}),
     // Documentos ya vencidos (vencimiento pasado, no cancelados)
     supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').eq('company_id',companyId).is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:false}).limit(10),
+    // ─── Personal: pendientes accionables ───
+    supabase.from('worker_absences').select('id,tipo,fecha_inicio,fecha_fin,solicitado_at,employee_id').eq('company_id',companyId).eq('status','pending').is('deleted_at',null).order('solicitado_at',{ascending:true}).limit(10),
+    supabase.from('worker_attachments').select('id,tipo,created_at,employee_id').eq('company_id',companyId).in('status',['uploaded','processing','extracted']).is('deleted_at',null).order('created_at',{ascending:false}).limit(10),
+    supabase.from('worker_expense_items').select('id,tipo,fecha,importe,created_at,employee_id').eq('company_id',companyId).eq('status','pending').is('deleted_at',null).order('created_at',{ascending:false}).limit(10),
+    // Partes con anomalía geofence en últimos 7 días (outside o low_accuracy en entrada o salida)
+    supabase.from('time_records').select('id,fecha,employee_id,entrada_geofence_status,salida_geofence_status,project_id,hora_entrada,hora_salida').eq('company_id',companyId).is('deleted_at',null).gte('fecha',new Date(Date.now()-7*86400000).toISOString().slice(0,10)).or('entrada_geofence_status.eq.outside,entrada_geofence_status.eq.low_accuracy,salida_geofence_status.eq.outside,salida_geofence_status.eq.low_accuracy').order('fecha',{ascending:false}).limit(10),
+    // Empleados activos (para resolver nombres en alertas)
+    supabase.from('employees').select('id,nombre').eq('company_id',companyId).is('deleted_at',null),
+    // Notificaciones del sistema activas (no dismissed, no snoozed)
+    supabase.from('system_notifications').select('id,severity,title,message,source,created_at,metadata').is('dismissed_at',null).or(`snoozed_until.is.null,snoozed_until.lt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(10),
     // Facturas del periodo para gráfica de rentabilidad por proyecto
     fetchAllRows<{direction:string;amount_base:number|null;vat_amount:number|null;amount_total:number|null;project_id:string|null;proyecto_code:string|null}>((sb) =>
       sb.from('invoices').select('direction,amount_base,vat_amount,amount_total,project_id,proyecto_code').eq('company_id',companyId).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end)
@@ -271,6 +287,13 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     estructuraData, estructuraYear: year,
     docsExpiringSoon: docsExpiringSoon || [],
     docsExpired: docsExpired || [],
+    // ─── Pendientes personal ───
+    absencesPending: absencesPending || [],
+    ticketsPending: ticketsPending || [],
+    expensesPending: expensesPending || [],
+    parteAnomalias: parteAnomalias || [],
+    employeesList: employeesList || [],
+    sysNotifications: sysNotifications || [],
   }
 }
 
@@ -427,6 +450,210 @@ export default async function AdminDashboard({
                 </Link>
               )
             })}
+          </div>
+        )
+      })()}
+
+      {/* ── Pendientes de tu atención (personal + sistema) ── */}
+      {(() => {
+        const empMap: Record<string, string> = {}
+        for (const e of stats.employeesList as Array<{ id: string; nombre: string | null }>) {
+          empMap[e.id] = e.nombre ?? e.id.slice(0, 8)
+        }
+
+        type AbsRow = { id: string; tipo: string; fecha_inicio: string; fecha_fin: string; solicitado_at: string; employee_id: string }
+        type TicketRow = { id: string; tipo: string; created_at: string; employee_id: string }
+        type ExpenseRow = { id: string; tipo: string; fecha: string; importe: number | null; created_at: string; employee_id: string }
+        type ParteRow = { id: string; fecha: string; employee_id: string; entrada_geofence_status: string | null; salida_geofence_status: string | null; project_id: string | null }
+        type SysNotif = { id: string; severity: 'info' | 'warning' | 'critical'; title: string; message: string | null; source: string; created_at: string }
+
+        const totalPendientesPersonal =
+          stats.absencesPending.length + stats.ticketsPending.length + stats.expensesPending.length
+        const totalAnomalias = stats.parteAnomalias.length
+        const totalNotif = stats.sysNotifications.length
+
+        if (totalPendientesPersonal === 0 && totalAnomalias === 0 && totalNotif === 0) return null
+
+        const ABSENCE_LABELS: Record<string, string> = {
+          vacaciones: 'Vacaciones',
+          baja_medica: 'Baja médica',
+          permiso_retribuido: 'Permiso retribuido',
+          asuntos_propios: 'Asuntos propios',
+          banco_horas: 'Banco horas',
+        }
+
+        const fmtDate = (s: string) =>
+          new Date(s.includes('T') ? s : s + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
+
+        return (
+          <div className="mb-8 bg-white border border-neutral-100 rounded">
+            <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+                📋 Pendientes de tu atención
+              </h2>
+              <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">
+                {totalPendientesPersonal + totalAnomalias + totalNotif} en total
+              </span>
+            </div>
+            <div className="divide-y divide-neutral-50">
+              {/* Notificaciones del sistema (críticas primero) */}
+              {(stats.sysNotifications as SysNotif[])
+                .sort((a, b) => {
+                  const order = { critical: 0, warning: 1, info: 2 } as const
+                  return order[a.severity] - order[b.severity]
+                })
+                .map((n) => {
+                  const cls =
+                    n.severity === 'critical'
+                      ? 'border-l-red-500 hover:bg-red-50'
+                      : n.severity === 'warning'
+                      ? 'border-l-amber-500 hover:bg-amber-50'
+                      : 'border-l-neutral-300 hover:bg-neutral-50'
+                  const icon = n.severity === 'critical' ? '🔴' : n.severity === 'warning' ? '⚠️' : 'ℹ️'
+                  return (
+                    <Link
+                      key={n.id}
+                      href="/admin/sistema"
+                      className={`flex items-center gap-3 px-5 py-3 border-l-4 transition-colors group ${cls}`}
+                    >
+                      <span className="text-base flex-none">{icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-neutral-900 truncate">{n.title}</p>
+                        {n.message && (
+                          <p className="text-xs text-neutral-500 truncate">{n.message}</p>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-neutral-400 uppercase tracking-widest whitespace-nowrap">
+                        {n.source}
+                      </span>
+                      <span className="text-neutral-300 text-xs group-hover:text-neutral-600">→</span>
+                    </Link>
+                  )
+                })}
+
+              {/* Ausencias pendientes */}
+              {(stats.absencesPending as AbsRow[]).map((a) => (
+                <Link
+                  key={a.id}
+                  href="/admin/personal/ausencias"
+                  className="flex items-center gap-3 px-5 py-3 border-l-4 border-l-blue-400 hover:bg-blue-50 transition-colors group"
+                >
+                  <span className="text-base flex-none">🌴</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-neutral-900">
+                      {empMap[a.employee_id] ?? '—'} solicita {ABSENCE_LABELS[a.tipo] ?? a.tipo}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {fmtDate(a.fecha_inicio)} → {fmtDate(a.fecha_fin)}
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-blue-700 font-bold uppercase tracking-widest whitespace-nowrap">
+                    Aprobar
+                  </span>
+                  <span className="text-blue-300 text-xs group-hover:text-blue-700">→</span>
+                </Link>
+              ))}
+
+              {/* Tickets / albaranes / facturas subidos por trabajadores */}
+              {(stats.ticketsPending as TicketRow[]).slice(0, 5).map((t) => (
+                <Link
+                  key={t.id}
+                  href="/admin/personal/tickets-trabajador"
+                  className="flex items-center gap-3 px-5 py-3 border-l-4 border-l-purple-400 hover:bg-purple-50 transition-colors group"
+                >
+                  <span className="text-base flex-none">🧾</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-neutral-900">
+                      {empMap[t.employee_id] ?? '—'} subió un {t.tipo}
+                    </p>
+                    <p className="text-xs text-neutral-500">{fmtDate(t.created_at)} — pendiente de revisar</p>
+                  </div>
+                  <span className="text-[10px] text-purple-700 font-bold uppercase tracking-widest whitespace-nowrap">
+                    Revisar
+                  </span>
+                  <span className="text-purple-300 text-xs group-hover:text-purple-700">→</span>
+                </Link>
+              ))}
+              {stats.ticketsPending.length > 5 && (
+                <Link
+                  href="/admin/personal/tickets-trabajador"
+                  className="flex items-center gap-3 px-5 py-2 text-xs text-neutral-500 hover:bg-purple-50/30"
+                >
+                  + {stats.ticketsPending.length - 5} ticket{stats.ticketsPending.length - 5 === 1 ? '' : 's'} más sin revisar →
+                </Link>
+              )}
+
+              {/* Gastos reembolsables */}
+              {(stats.expensesPending as ExpenseRow[]).slice(0, 5).map((g) => (
+                <Link
+                  key={g.id}
+                  href="/admin/personal/gastos-trabajador"
+                  className="flex items-center gap-3 px-5 py-3 border-l-4 border-l-orange-400 hover:bg-orange-50 transition-colors group"
+                >
+                  <span className="text-base flex-none">💶</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-neutral-900">
+                      {empMap[g.employee_id] ?? '—'} apuntó gasto: {g.tipo}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {fmtDate(g.fecha)} {g.importe != null && `— ${formatEUR(Number(g.importe))}`}
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-orange-700 font-bold uppercase tracking-widest whitespace-nowrap">
+                    Validar
+                  </span>
+                  <span className="text-orange-300 text-xs group-hover:text-orange-700">→</span>
+                </Link>
+              ))}
+              {stats.expensesPending.length > 5 && (
+                <Link
+                  href="/admin/personal/gastos-trabajador"
+                  className="flex items-center gap-3 px-5 py-2 text-xs text-neutral-500 hover:bg-orange-50/30"
+                >
+                  + {stats.expensesPending.length - 5} gasto{stats.expensesPending.length - 5 === 1 ? '' : 's'} más pendientes →
+                </Link>
+              )}
+
+              {/* Partes con anomalía de geofence (últimos 7 días) */}
+              {(stats.parteAnomalias as ParteRow[]).slice(0, 5).map((p) => {
+                const outside =
+                  p.entrada_geofence_status === 'outside' || p.salida_geofence_status === 'outside'
+                const status = outside ? 'fuera del radio' : 'GPS impreciso'
+                return (
+                  <Link
+                    key={p.id}
+                    href="/admin/personal/dietario"
+                    className={`flex items-center gap-3 px-5 py-3 border-l-4 transition-colors group ${
+                      outside ? 'border-l-red-400 hover:bg-red-50' : 'border-l-amber-300 hover:bg-amber-50'
+                    }`}
+                  >
+                    <span className="text-base flex-none">📍</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-neutral-900">
+                        {empMap[p.employee_id] ?? '—'} fichó {status}
+                      </p>
+                      <p className="text-xs text-neutral-500">{fmtDate(p.fecha)} — revisar ubicación</p>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-widest whitespace-nowrap ${
+                        outside ? 'text-red-700' : 'text-amber-700'
+                      }`}
+                    >
+                      Revisar
+                    </span>
+                    <span className={`text-xs group-hover:${outside ? 'text-red-700' : 'text-amber-700'} ${outside ? 'text-red-300' : 'text-amber-300'}`}>→</span>
+                  </Link>
+                )
+              })}
+              {stats.parteAnomalias.length > 5 && (
+                <Link
+                  href="/admin/personal/dietario"
+                  className="flex items-center gap-3 px-5 py-2 text-xs text-neutral-500 hover:bg-amber-50/30"
+                >
+                  + {stats.parteAnomalias.length - 5} fichaje{stats.parteAnomalias.length - 5 === 1 ? '' : 's'} más con anomalía →
+                </Link>
+              )}
+            </div>
           </div>
         )
       })()}
