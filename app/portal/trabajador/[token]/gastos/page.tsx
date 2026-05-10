@@ -34,7 +34,7 @@ export default async function GastosPage({ params }: Params) {
     supabase
       .from('worker_expense_items')
       .select(
-        `id, fecha, tipo, project_id, importe, km_recorridos, km_origen, km_destino,
+        `id, fecha, tipo, medio_pago, project_id, importe, km_recorridos, km_origen, km_destino,
          material_descripcion, material_cantidad, material_unidad, observaciones,
          status, reviewed_at, created_at,
          project:project_id (code, name)`,

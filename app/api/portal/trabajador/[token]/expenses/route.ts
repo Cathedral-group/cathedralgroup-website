@@ -18,10 +18,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 
 const ALLOWED_TIPOS = ['dieta', 'kilometraje', 'material', 'aparcamiento', 'peaje', 'otro']
+const ALLOWED_MEDIOS_PAGO = ['bolsillo_personal', 'tarjeta_empresa', 'coche_empresa', 'efectivo_caja_obra']
 
 interface ExpenseBody {
   fecha?: string
   tipo?: string
+  medio_pago?: string
   project_id?: string | null
   importe?: number
   km_recorridos?: number
@@ -63,7 +65,7 @@ export async function GET(
   let query = supabase
     .from('worker_expense_items')
     .select(
-      `id, fecha, tipo, project_id, importe, km_recorridos, km_origen, km_destino,
+      `id, fecha, tipo, medio_pago, project_id, importe, km_recorridos, km_origen, km_destino,
        material_descripcion, material_cantidad, material_unidad, observaciones,
        fuente, status, reviewed_at, created_at,
        project:project_id (code, name)`,
@@ -103,6 +105,10 @@ export async function POST(
   if (!body.fecha) return NextResponse.json({ error: 'fecha requerida' }, { status: 400 })
   if (!body.tipo || !ALLOWED_TIPOS.includes(body.tipo)) {
     return NextResponse.json({ error: 'tipo inválido' }, { status: 400 })
+  }
+  const medioPago = body.medio_pago ?? 'tarjeta_empresa'
+  if (!ALLOWED_MEDIOS_PAGO.includes(medioPago)) {
+    return NextResponse.json({ error: 'medio_pago inválido' }, { status: 400 })
   }
 
   // Restricción anti-manipulación: solo hoy o ayer
@@ -147,6 +153,11 @@ export async function POST(
     }
   }
 
+  // Si paga con tarjeta empresa o coche empresa, no requiere reembolso
+  // (el trigger BD también auto-confirma, esto es por consistencia)
+  const initialStatus =
+    medioPago === 'tarjeta_empresa' || medioPago === 'coche_empresa' ? 'confirmed' : 'pending'
+
   const { data, error } = await supabase
     .from('worker_expense_items')
     .insert({
@@ -155,6 +166,7 @@ export async function POST(
       project_id: body.project_id ?? null,
       fecha: body.fecha,
       tipo: body.tipo,
+      medio_pago: medioPago,
       importe: body.importe ?? null,
       km_recorridos: body.km_recorridos ?? null,
       km_origen: body.km_origen ?? null,
@@ -164,7 +176,7 @@ export async function POST(
       material_unidad: body.material_unidad ?? null,
       observaciones: body.observaciones ?? null,
       fuente: 'app_movil',
-      status: 'pending',
+      status: initialStatus,
     })
     .select()
     .single()

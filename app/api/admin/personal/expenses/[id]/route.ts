@@ -55,7 +55,7 @@ export async function PATCH(
 
   const { id } = await params
 
-  let body: { status?: string; project_id?: string | null }
+  let body: { status?: string; project_id?: string | null; medio_pago?: string }
   try {
     body = await request.json()
   } catch {
@@ -63,8 +63,12 @@ export async function PATCH(
   }
 
   const ALLOWED_STATUS = ['pending', 'confirmed', 'ignored', 'reimbursed']
+  const ALLOWED_MEDIOS = ['bolsillo_personal', 'tarjeta_empresa', 'coche_empresa', 'efectivo_caja_obra']
   if (body.status && !ALLOWED_STATUS.includes(body.status)) {
     return NextResponse.json({ error: 'status inválido' }, { status: 400 })
+  }
+  if (body.medio_pago && !ALLOWED_MEDIOS.includes(body.medio_pago)) {
+    return NextResponse.json({ error: 'medio_pago inválido' }, { status: 400 })
   }
 
   const update: Record<string, unknown> = {
@@ -74,6 +78,7 @@ export async function PATCH(
   }
   if (body.status) update.status = body.status
   if ('project_id' in body) update.project_id = body.project_id
+  if (body.medio_pago) update.medio_pago = body.medio_pago
 
   const supabase = createAdminSupabaseClient()
   const { data, error } = await supabase

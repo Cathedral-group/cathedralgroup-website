@@ -13,6 +13,7 @@ interface Expense {
   id: string
   fecha: string
   tipo: string
+  medio_pago: string
   project_id: string | null
   importe: number | null
   km_recorridos: number | null
@@ -56,6 +57,13 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   reimbursed: { label: 'Reembolsado', cls: 'bg-emerald-100 text-emerald-800' },
 }
 
+const MEDIO_PAGO_LABELS: Record<string, string> = {
+  tarjeta_empresa: '💳 Tarjeta empresa',
+  bolsillo_personal: '👛 Bolsillo trabajador',
+  coche_empresa: '🚗 Coche empresa',
+  efectivo_caja_obra: '💵 Caja obra',
+}
+
 function singleRef<T>(p: T | T[] | null | undefined): T | null {
   if (!p) return null
   return Array.isArray(p) ? (p[0] ?? null) : p
@@ -66,22 +74,37 @@ function eur(n: number | null | undefined): string {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(Number(n))
 }
 
+type Filter = 'por_reembolsar' | 'conciliar_tarjeta' | 'coche_empresa' | 'todos'
+
 export default function GastosAdminView({ initialExpenses, projects }: Props) {
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses)
-  const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'reimbursed'>('pending')
+  const [filter, setFilter] = useState<Filter>('por_reembolsar')
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return expenses
-    return expenses.filter((e) => e.status === filter)
+    switch (filter) {
+      case 'por_reembolsar':
+        return expenses.filter(
+          (e) => e.medio_pago === 'bolsillo_personal' && e.status === 'confirmed',
+        )
+      case 'conciliar_tarjeta':
+        return expenses.filter((e) => e.medio_pago === 'tarjeta_empresa')
+      case 'coche_empresa':
+        return expenses.filter((e) => e.medio_pago === 'coche_empresa')
+      case 'todos':
+      default:
+        return expenses
+    }
   }, [expenses, filter])
 
   const counts = useMemo(
     () => ({
-      pending: expenses.filter((e) => e.status === 'pending').length,
-      confirmed: expenses.filter((e) => e.status === 'confirmed').length,
-      reimbursed: expenses.filter((e) => e.status === 'reimbursed').length,
+      por_reembolsar: expenses.filter(
+        (e) => e.medio_pago === 'bolsillo_personal' && e.status === 'confirmed',
+      ).length,
+      conciliar_tarjeta: expenses.filter((e) => e.medio_pago === 'tarjeta_empresa').length,
+      coche_empresa: expenses.filter((e) => e.medio_pago === 'coche_empresa').length,
       total: expenses.length,
     }),
     [expenses],
@@ -141,24 +164,46 @@ export default function GastosAdminView({ initialExpenses, projects }: Props) {
 
       <div className="mx-auto max-w-6xl px-6 py-6">
         <div className="mb-4 flex flex-wrap gap-2">
-          {(['pending', 'confirmed', 'reimbursed', 'all'] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={`rounded-lg px-3 py-1.5 text-sm transition ${
-                filter === f
-                  ? 'bg-stone-900 text-white'
-                  : 'border border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
-              }`}
-            >
-              {f === 'pending' && `Pendientes (${counts.pending})`}
-              {f === 'confirmed' && `Aprobados (${counts.confirmed})`}
-              {f === 'reimbursed' && `Reembolsados (${counts.reimbursed})`}
-              {f === 'all' && `Todos (${counts.total})`}
-            </button>
-          ))}
+          {(['por_reembolsar', 'conciliar_tarjeta', 'coche_empresa', 'todos'] as const).map(
+            (f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFilter(f)}
+                className={`rounded-lg px-3 py-1.5 text-sm transition ${
+                  filter === f
+                    ? 'bg-stone-900 text-white'
+                    : 'border border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
+                }`}
+              >
+                {f === 'por_reembolsar' && `👛 Por reembolsar (${counts.por_reembolsar})`}
+                {f === 'conciliar_tarjeta' && `💳 Conciliar tarjeta (${counts.conciliar_tarjeta})`}
+                {f === 'coche_empresa' && `🚗 Coche empresa (${counts.coche_empresa})`}
+                {f === 'todos' && `Todos (${counts.total})`}
+              </button>
+            ),
+          )}
         </div>
+
+        {/* Ayuda contextual filtro */}
+        {filter === 'por_reembolsar' && (
+          <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+            👛 Adelantos del trabajador con su dinero. Tras revisar y aprobar, marca como
+            reembolsado cuando le pagues.
+          </div>
+        )}
+        {filter === 'conciliar_tarjeta' && (
+          <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
+            💳 Pagados directo con tarjeta empresa. Ya están confirmados; el objetivo aquí es
+            cuadrar con el extracto bancario al final del mes.
+          </div>
+        )}
+        {filter === 'coche_empresa' && (
+          <div className="mb-3 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-900">
+            🚗 Combustible, peajes y aparcamiento del coche de Cathedral. Imputables al
+            proyecto si está vinculado.
+          </div>
+        )}
 
         {error && (
           <div className="mb-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
@@ -178,6 +223,7 @@ export default function GastosAdminView({ initialExpenses, projects }: Props) {
                   <th className="px-3 py-2.5">Fecha</th>
                   <th className="px-3 py-2.5">Trabajador</th>
                   <th className="px-3 py-2.5">Tipo</th>
+                  <th className="px-3 py-2.5">Pago</th>
                   <th className="px-3 py-2.5">Proyecto</th>
                   <th className="px-3 py-2.5">Detalle</th>
                   <th className="px-3 py-2.5 text-right">Importe</th>
@@ -198,6 +244,9 @@ export default function GastosAdminView({ initialExpenses, projects }: Props) {
                       </td>
                       <td className="px-3 py-2.5 text-xs">
                         {TIPO_LABELS[e.tipo] ?? e.tipo}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs">
+                        {MEDIO_PAGO_LABELS[e.medio_pago] ?? e.medio_pago}
                       </td>
                       <td className="px-3 py-2.5 text-xs">
                         {proj ? proj.code : (
@@ -262,6 +311,7 @@ export default function GastosAdminView({ initialExpenses, projects }: Props) {
                                 disabled={busyId === e.id}
                                 onClick={() => patch(e.id, { status: 'confirmed' })}
                                 className="rounded bg-emerald-700 px-2 py-1 text-[10px] text-white hover:bg-emerald-800 disabled:opacity-50"
+                                title="Aprobar"
                               >
                                 ✓
                               </button>
@@ -270,21 +320,38 @@ export default function GastosAdminView({ initialExpenses, projects }: Props) {
                                 disabled={busyId === e.id}
                                 onClick={() => patch(e.id, { status: 'ignored' })}
                                 className="rounded border border-stone-300 px-2 py-1 text-[10px] hover:bg-stone-100 disabled:opacity-50"
+                                title="Ignorar"
                               >
                                 ✕
                               </button>
                             </>
                           )}
-                          {e.status === 'confirmed' && (
+                          {/* Solo bolsillo personal requiere "marcar reembolsado" */}
+                          {e.status === 'confirmed' && e.medio_pago === 'bolsillo_personal' && (
                             <button
                               type="button"
                               disabled={busyId === e.id}
                               onClick={() => patch(e.id, { status: 'reimbursed' })}
                               className="rounded bg-stone-900 px-2 py-1 text-[10px] text-white hover:bg-stone-800 disabled:opacity-50"
+                              title="Marcar como reembolsado al trabajador"
                             >
-                              💰 pagado
+                              💰 reembolsado
                             </button>
                           )}
+                          {/* Tarjeta/coche empresa: ya confirmed, solo se puede ignorar si fue por error */}
+                          {e.status === 'confirmed' &&
+                            (e.medio_pago === 'tarjeta_empresa' ||
+                              e.medio_pago === 'coche_empresa') && (
+                              <button
+                                type="button"
+                                disabled={busyId === e.id}
+                                onClick={() => patch(e.id, { status: 'ignored' })}
+                                className="rounded border border-stone-300 px-2 py-1 text-[10px] hover:bg-stone-100 disabled:opacity-50"
+                                title="Marcar como erróneo"
+                              >
+                                ✕ error
+                              </button>
+                            )}
                         </div>
                       </td>
                     </tr>

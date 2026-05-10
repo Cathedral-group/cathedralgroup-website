@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('worker_expense_items')
     .select(
-      `id, fecha, tipo, project_id, importe, km_recorridos, km_origen, km_destino,
+      `id, fecha, tipo, medio_pago, project_id, importe, km_recorridos, km_origen, km_destino,
        material_descripcion, material_cantidad, material_unidad, observaciones,
        fuente, status, reviewed_at, reviewed_by_email, created_at,
        employee:employee_id (id, nombre, nif),

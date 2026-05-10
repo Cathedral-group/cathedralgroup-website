@@ -13,6 +13,7 @@ interface Expense {
   id: string
   fecha: string
   tipo: string
+  medio_pago: string
   project_id: string | null
   importe: number | null
   km_recorridos: number | null
@@ -45,9 +46,16 @@ const TIPO_LABELS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   pending: { label: 'Pendiente revisar', cls: 'bg-amber-100 text-amber-800' },
-  confirmed: { label: '✓ Aprobado', cls: 'bg-emerald-100 text-emerald-800' },
+  confirmed: { label: '✓ Registrado', cls: 'bg-emerald-100 text-emerald-800' },
   ignored: { label: 'Descartado', cls: 'bg-stone-100 text-stone-600' },
-  reimbursed: { label: '💰 Pagado', cls: 'bg-emerald-100 text-emerald-800' },
+  reimbursed: { label: '💰 Reembolsado', cls: 'bg-emerald-100 text-emerald-800' },
+}
+
+const MEDIO_PAGO_LABELS: Record<string, string> = {
+  tarjeta_empresa: '💳 Tarjeta empresa',
+  bolsillo_personal: '👛 Mi bolsillo',
+  coche_empresa: '🚗 Coche empresa',
+  efectivo_caja_obra: '💵 Caja obra',
 }
 
 function singleProj<T>(p: T | T[] | null | undefined): T | null {
@@ -68,6 +76,7 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
   const yesterdayStr = yesterday.toISOString().slice(0, 10)
 
   const [tipo, setTipo] = useState('dieta')
+  const [medioPago, setMedioPago] = useState<string>('tarjeta_empresa')
   const [fecha, setFecha] = useState(today)
   const [projectId, setProjectId] = useState<string>('')
   const [importe, setImporte] = useState<number>(0)
@@ -101,6 +110,7 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
     const payload: Record<string, unknown> = {
       fecha,
       tipo,
+      medio_pago: medioPago,
       project_id: projectId || null,
       observaciones: observaciones.trim() || undefined,
     }
@@ -127,7 +137,15 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
       if (!res.ok) {
         setError(json.error ?? 'Error al guardar')
       } else {
-        setSuccess('Gasto registrado ✓')
+        const msg =
+          medioPago === 'tarjeta_empresa'
+            ? 'Gasto registrado ✓ (tarjeta empresa, sin reembolso)'
+            : medioPago === 'coche_empresa'
+            ? 'Gasto registrado ✓ (coche empresa)'
+            : medioPago === 'bolsillo_personal'
+            ? 'Gasto registrado ✓ Pendiente de reembolso'
+            : 'Gasto registrado ✓'
+        setSuccess(msg)
         setExpenses((prev) => [
           {
             ...json.row,
@@ -207,6 +225,44 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Medio de pago */}
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-stone-500">
+              ¿Cómo lo pagaste?
+            </label>
+            <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {Object.entries(MEDIO_PAGO_LABELS).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setMedioPago(k)}
+                  className={`rounded-lg border px-2 py-2 text-xs transition ${
+                    medioPago === k
+                      ? 'border-stone-900 bg-stone-900 text-white'
+                      : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {medioPago === 'tarjeta_empresa' && (
+              <p className="mt-1 text-xs text-emerald-700">
+                ✓ Cathedral paga directo, no se reembolsa
+              </p>
+            )}
+            {medioPago === 'bolsillo_personal' && (
+              <p className="mt-1 text-xs text-amber-700">
+                ⚠ Adelanto tuyo — Cathedral te lo reembolsará
+              </p>
+            )}
+            {medioPago === 'coche_empresa' && (
+              <p className="mt-1 text-xs text-stone-500">
+                Combustible/peajes/aparcamiento del coche de Cathedral
+              </p>
+            )}
           </div>
 
           {/* Día */}
@@ -450,9 +506,12 @@ export default function GastosView({ token, projects, initialExpenses }: Props) 
                       {e.observaciones && (
                         <div className="mt-1 text-xs text-stone-500">{e.observaciones}</div>
                       )}
-                      <div className="mt-1">
+                      <div className="mt-1 flex flex-wrap gap-1">
                         <span className={`rounded px-1.5 py-0.5 text-[10px] ${status.cls}`}>
                           {status.label}
+                        </span>
+                        <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600">
+                          {MEDIO_PAGO_LABELS[e.medio_pago] ?? e.medio_pago}
                         </span>
                       </div>
                     </div>
