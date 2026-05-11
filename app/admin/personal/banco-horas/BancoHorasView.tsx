@@ -26,9 +26,30 @@ interface Redemption {
   fecha: string
   horas_descontadas: number
   motivo: string | null
+  modo_canje?: string | null
+  status?: string
+  requested_at?: string | null
+  requested_motivo?: string | null
+  decided_at?: string | null
+  decided_by_email?: string | null
+  decision_notes?: string | null
   created_at: string
   created_by_email: string | null
   employee: { id: string; nombre: string | null } | { id: string; nombre: string | null }[] | null
+}
+
+const MODO_LABELS: Record<string, string> = {
+  descanso_dia: '🏖️ Día completo (8h)',
+  descanso_medio_dia: '🌗 Medio día (4h)',
+  descanso_horas: '⏰ Horas sueltas',
+  pago_nomina: '💶 Pago en nómina',
+}
+
+const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
+  pending: { label: 'Pendiente', cls: 'bg-amber-100 text-amber-800' },
+  approved: { label: 'Aprobado', cls: 'bg-emerald-100 text-emerald-800' },
+  rejected: { label: 'Rechazado', cls: 'bg-red-100 text-red-800' },
+  cancelled: { label: 'Cancelado', cls: 'bg-stone-100 text-stone-600' },
 }
 
 interface Props {
@@ -43,6 +64,30 @@ function singleRef<T>(p: T | T[] | null | undefined): T | null {
 
 export default function BancoHorasView({ balances, redemptions: initialRedemptions }: Props) {
   const [redemptions, setRedemptions] = useState<Redemption[]>(initialRedemptions)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const pending = redemptions.filter((r) => r.status === 'pending')
+
+  async function decidir(id: string, action: 'approve' | 'reject') {
+    const notes = action === 'reject' ? (prompt('Motivo del rechazo (opcional):') ?? undefined) : undefined
+    setBusyId(id)
+    try {
+      const res = await fetch(`/api/admin/personal/canjes/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, notes }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) {
+        alert(json.error ?? 'Error decidiendo canje')
+        return
+      }
+      setRedemptions((prev) => prev.map((r) => (r.id === id ? { ...r, ...json.row } : r)))
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setBusyId(null)
+    }
+  }
   const [showForm, setShowForm] = useState(false)
   const [employeeId, setEmployeeId] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
@@ -188,6 +233,59 @@ export default function BancoHorasView({ balances, redemptions: initialRedemptio
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Canjes pendientes solicitados por trabajadores */}
+        {pending.length > 0 && (
+          <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+            <h2 className="text-sm font-medium uppercase tracking-wider text-amber-900 mb-3">
+              ⏳ Canjes pendientes de aprobar ({pending.length})
+            </h2>
+            <ul className="space-y-2">
+              {pending.map((r) => {
+                const emp = singleRef(r.employee)
+                return (
+                  <li key={r.id} className="rounded bg-white border border-amber-200 p-3 text-sm">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-stone-900">
+                          {emp?.nombre ?? '—'}
+                          <span className="ml-2 text-xs text-stone-500">
+                            {MODO_LABELS[r.modo_canje ?? ''] ?? r.modo_canje ?? '—'}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-stone-700">
+                          <span className="font-mono text-xs">{r.fecha}</span>
+                          <span className="ml-2 text-xs text-stone-500">({r.horas_descontadas} h)</span>
+                        </div>
+                        {r.requested_motivo && (
+                          <div className="mt-1 text-xs text-stone-500">Motivo: {r.requested_motivo}</div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={busyId === r.id}
+                          onClick={() => decidir(r.id, 'approve')}
+                          className="rounded bg-emerald-700 px-3 py-1.5 text-xs text-white hover:bg-emerald-800 disabled:opacity-50"
+                        >
+                          ✓ Aprobar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyId === r.id}
+                          onClick={() => decidir(r.id, 'reject')}
+                          className="rounded border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50 disabled:opacity-50"
+                        >
+                          ✕ Rechazar
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
           </div>
         )}
 

@@ -35,13 +35,15 @@ export default async function BancoHorasPage() {
   const { data: redemptions } = await supabase
     .from('worker_overtime_redemptions')
     .select(
-      `id, employee_id, fecha, horas_descontadas, motivo, created_at, created_by_email,
+      `id, employee_id, fecha, horas_descontadas, motivo, modo_canje, status,
+       requested_at, requested_motivo, decided_at, decided_by_email, decision_notes,
+       created_at, created_by_email,
        employee:employee_id (id, nombre)`,
     )
     .eq('company_id', activeCompanyId)
     .is('deleted_at', null)
-    .order('fecha', { ascending: false })
-    .limit(50)
+    .order('created_at', { ascending: false })
+    .limit(100)
 
   return (
     <BancoHorasView
