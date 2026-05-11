@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import MisTareasBlock from './MisTareasBlock'
 import {
   countPending,
   drainQueue,
@@ -443,6 +444,9 @@ export default function PortalTrabajadorView({
           </div>
         </Link>
       )}
+
+      {/* Mis tareas (bloque encima de la asignación, no emborrona si no hay nada) */}
+      <MisTareasBlock token={token} />
 
       {/* Asignación del cuadrante */}
       {assignmentHoy && assignProj && (
