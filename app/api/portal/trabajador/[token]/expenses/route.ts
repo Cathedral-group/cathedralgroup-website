@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
+import { notifyAdmins } from '@/lib/admin-notify'
 
 const ALLOWED_TIPOS = ['dieta', 'kilometraje', 'material', 'aparcamiento', 'peaje', 'otro']
 const ALLOWED_MEDIOS_PAGO = ['bolsillo_personal', 'tarjeta_empresa', 'coche_empresa', 'efectivo_caja_obra']
@@ -42,7 +43,11 @@ async function validateToken(supabase: ReturnType<typeof createAdminSupabaseClie
     p_user_agent: ua,
   })
   if (error || !data?.valid) return null
-  return { employeeId: data.employee_id as string, companyId: data.company_id as string }
+  return {
+    employeeId: data.employee_id as string,
+    companyId: data.company_id as string,
+    nombre: (data.employee_nombre as string | null) ?? null,
+  }
 }
 
 export async function GET(
@@ -185,6 +190,49 @@ export async function POST(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Solo notificar si el gasto requiere reembolso (pending) — los confirmados (tarjeta
+  // empresa o coche empresa) no necesitan validación ni desbloqueo
+  if (initialStatus === 'pending') {
+    const TIPO_LABELS: Record<string, string> = {
+      dieta: 'dieta',
+      kilometraje: 'kilometraje',
+      material: 'material',
+      aparcamiento: 'aparcamiento',
+      peaje: 'peaje',
+      otro: 'gasto varios',
+    }
+    const tipoLabel = TIPO_LABELS[body.tipo as string] ?? body.tipo
+    const importeStr =
+      body.importe != null && Number(body.importe) > 0
+        ? ` por ${Number(body.importe).toFixed(2)} €`
+        : body.km_recorridos
+        ? ` (${body.km_recorridos} km)`
+        : ''
+    notifyAdmins({
+      severity: 'info',
+      title: `${validation.nombre ?? 'Trabajador'} solicita reembolso: ${tipoLabel}`,
+      message:
+        `${validation.nombre ?? validation.employeeId} ha apuntado un gasto de tipo ${tipoLabel}` +
+        `${importeStr} con fecha ${body.fecha}.` +
+        (body.observaciones ? `\nObservaciones: ${body.observaciones}` : '') +
+        '\nRevísalo en el panel para validar o rechazar el reembolso.',
+      source: 'portal_trabajador',
+      dedupKey: `expense:${data.id}`,
+      actionUrl: '/admin/personal/gastos-trabajador',
+      actionLabel: 'Revisar gasto',
+      metadata: {
+        expense_id: data.id,
+        employee_id: validation.employeeId,
+        tipo: body.tipo,
+        importe: body.importe,
+        fecha: body.fecha,
+      },
+    }).catch((e) => {
+      console.warn('[expenses] notifyAdmins failed:', e)
+    })
+  }
+
   return NextResponse.json({ ok: true, row: data })
 }
 

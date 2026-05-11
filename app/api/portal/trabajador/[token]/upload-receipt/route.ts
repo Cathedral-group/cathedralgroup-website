@@ -26,6 +26,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { extractReceiptData, isOcrAvailable } from '@/lib/ocr-gemini'
+import { notifyAdmins } from '@/lib/admin-notify'
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
@@ -71,6 +72,7 @@ export async function POST(
 
   const employeeId: string = validation.employee_id
   const companyId: string = validation.company_id
+  const employeeNombre: string = validation.employee_nombre ?? employeeId
 
   let formData: FormData
   try {
@@ -218,6 +220,36 @@ export async function POST(
       }
     })()
   }
+
+  // Notificar admins: tienen un ticket/albarán/factura nuevo del trabajador.
+  // No espera la promesa para no bloquear la respuesta al móvil.
+  const DOC_LABELS: Record<string, string> = {
+    ticket: 'un ticket',
+    albaran: 'un albarán',
+    factura: 'una factura',
+    foto_obra: 'una foto de obra',
+    otro: 'un documento',
+  }
+  notifyAdmins({
+    severity: 'info',
+    title: `${employeeNombre} subió ${DOC_LABELS[docType] ?? 'un documento'}`,
+    message:
+      `${employeeNombre} ha subido ${DOC_LABELS[docType] ?? 'un documento'} desde el portal.` +
+      (notas ? `\nNotas: ${notas}` : '') +
+      '\nRevísalo para asignarlo al proyecto correspondiente.',
+    source: 'portal_trabajador',
+    dedupKey: `attachment:${attachment.id}`,
+    actionUrl: '/admin/personal/tickets-trabajador',
+    actionLabel: 'Revisar',
+    metadata: {
+      attachment_id: attachment.id,
+      employee_id: employeeId,
+      doc_type: docType,
+      project_id: projectId,
+    },
+  }).catch((e) => {
+    console.warn('[upload-receipt] notifyAdmins failed:', e)
+  })
 
   return NextResponse.json({
     ok: true,

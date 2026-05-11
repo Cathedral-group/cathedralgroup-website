@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
+import { notifyAdmins } from '@/lib/admin-notify'
 
 const ALLOWED_TIPOS = [
   'vacaciones',
@@ -142,6 +143,42 @@ export async function POST(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Notificar admins (banner + email opcional via Resend). No bloquea la respuesta:
+  // si la notificación falla, el trabajador igual recibe success.
+  const TIPO_LABELS: Record<string, string> = {
+    vacaciones: 'vacaciones',
+    baja_medica: 'baja médica',
+    permiso_retribuido: 'permiso retribuido',
+    asuntos_propios: 'asuntos propios',
+    banco_horas: 'banco de horas',
+  }
+  const tipoLabel = TIPO_LABELS[body.tipo as string] ?? body.tipo
+  const dias = data.dias_total ?? 1
+  notifyAdmins({
+    severity: 'warning',
+    title: `${validation.nombre ?? 'Trabajador'} solicita ${tipoLabel}`,
+    message:
+      `${validation.nombre ?? validation.employeeId} ha solicitado ${tipoLabel} del ` +
+      `${body.fecha_inicio} al ${body.fecha_fin} (${dias} día${dias === 1 ? '' : 's'}).` +
+      (body.motivo_detalle ? `\nMotivo: ${body.motivo_detalle}` : '') +
+      '\nApruébalo o recházalo en el panel.',
+    source: 'portal_trabajador',
+    dedupKey: `absence:${data.id}`,
+    actionUrl: '/admin/personal/ausencias',
+    actionLabel: 'Revisar solicitud',
+    metadata: {
+      absence_id: data.id,
+      employee_id: validation.employeeId,
+      tipo: body.tipo,
+      fecha_inicio: body.fecha_inicio,
+      fecha_fin: body.fecha_fin,
+      dias_total: dias,
+    },
+  }).catch((e) => {
+    console.warn('[ausencias] notifyAdmins failed:', e)
+  })
+
   return NextResponse.json({ ok: true, row: data })
 }
 
