@@ -191,6 +191,14 @@ export default function CalendarioView({
             </button>
             <button onClick={() => nav(1)} className="px-2 py-1.5 text-sm hover:bg-stone-50">›</button>
           </div>
+
+          {/* Gantt multi-proyecto */}
+          <Link
+            href="/admin/calendario/gantt"
+            className="rounded border border-stone-300 px-3 py-1.5 text-xs uppercase tracking-widest text-stone-700 hover:bg-stone-50"
+          >
+            📊 Gantt
+          </Link>
         </div>
       </div>
 
