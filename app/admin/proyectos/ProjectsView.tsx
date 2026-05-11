@@ -128,6 +128,26 @@ const STATUS_PRIORITY: Record<string, number> = {
 const HISTORICO_STATUSES = new Set(['completado', 'finalizado', 'cancelado'])
 const isHistorico = (status: string | null | undefined) =>
   HISTORICO_STATUSES.has(status ?? 'presupuesto')
+
+// Checklist de completitud: campos clave que un proyecto activo debe rellenar.
+// Si están vacíos, el sistema lo avisa (no bloquea — solo informa).
+interface MissingField {
+  key: string
+  label: string
+  /** Hint corto sobre por qué importa */
+  why?: string
+}
+
+function getMissingFields(p: Project, hasGeo: boolean): MissingField[] {
+  const missing: MissingField[] = []
+  if (!p.client_id) missing.push({ key: 'client_id', label: 'Cliente', why: 'sin cliente vinculado, las facturas a este proyecto no se asocian bien' })
+  if (!p.address) missing.push({ key: 'address', label: 'Dirección', why: 'sin dirección, no aparece en albaranes ni reportes' })
+  if (!hasGeo) missing.push({ key: 'location', label: 'Ubicación GPS', why: 'sin coords, los fichajes ahí no validan ubicación' })
+  if (!p.type) missing.push({ key: 'type', label: 'Tipo', why: 'reforma/promoción/etc — afecta clasificación contable' })
+  if (!p.start_date) missing.push({ key: 'start_date', label: 'Fecha inicio' })
+  if (p.budget_estimated == null) missing.push({ key: 'budget_estimated', label: 'Presupuesto estimado' })
+  return missing
+}
 const TYPES = ['reforma', 'reforma_cliente', 'interiorismo', 'cambio_uso', 'obra_nueva', 'promocion', 'desarrollo', 'compra_reforma_venta']
 const PHASE_STATUSES = ['pendiente', 'en_curso', 'completado']
 
@@ -1167,6 +1187,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                     }
                     const fin = financialMap[p.id]
                     const hasGeo = !!locationMap[p.id]
+                    const missing = historico ? [] : getMissingFields(p, hasGeo)
                     out.push(
                       <tr
                         key={p.id}
@@ -1176,12 +1197,12 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                         <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{p.code}</td>
                         <td className="px-4 py-3 text-sm max-w-[280px]">
                           <span className="truncate">{p.name}</span>
-                          {!hasGeo && !historico && (
+                          {missing.length > 0 && (
                             <span
-                              className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 whitespace-nowrap"
-                              title="Los fichajes en este proyecto no podrán validar ubicación"
+                              className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap"
+                              title={`Faltan ${missing.length} campo${missing.length === 1 ? '' : 's'} importante${missing.length === 1 ? '' : 's'}: ${missing.map((m) => m.label).join(', ')}`}
                             >
-                              Sin ubicación
+                              ⚠ Falta info ({missing.length})
                             </span>
                           )}
                         </td>
@@ -1256,6 +1277,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                         const fin = financialMap[p.id]
                         const hasGeo = !!locationMap[p.id]
                         const historico = isHistorico(p.status)
+                        const missing = historico ? [] : getMissingFields(p, hasGeo)
                         return (
                           <div
                             key={p.id}
@@ -1267,12 +1289,12 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                             </span>
                             <span className="text-sm flex-1 min-w-0 flex items-center gap-2">
                               <span className="truncate">{p.name}</span>
-                              {!hasGeo && !historico && (
+                              {missing.length > 0 && (
                                 <span
-                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 whitespace-nowrap shrink-0"
-                                  title="Los fichajes en este proyecto no podrán validar ubicación"
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap shrink-0"
+                                  title={`Faltan: ${missing.map((m) => m.label).join(', ')}`}
                                 >
-                                  Sin ubicación
+                                  ⚠ Falta info ({missing.length})
                                 </span>
                               )}
                             </span>
@@ -1316,6 +1338,44 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                 ✕
               </button>
             </div>
+
+            {/* Checklist completitud — campos clave sin rellenar */}
+            {(() => {
+              if (isHistorico(selected.status)) return null
+              const hasGeo = !!locationMap[selected.id]
+              const missing = getMissingFields(selected, hasGeo)
+              if (missing.length === 0) return null
+              return (
+                <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-amber-700">⚠️</span>
+                    <span className="text-xs font-bold uppercase tracking-widest text-amber-800">
+                      Faltan {missing.length} dato{missing.length === 1 ? '' : 's'} importante{missing.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <ul className="space-y-0.5 text-xs text-amber-900">
+                    {missing.map((m) => (
+                      <li key={m.key} className="flex items-start gap-1.5">
+                        <span className="text-amber-500 leading-tight">•</span>
+                        <span>
+                          <strong>{m.label}</strong>
+                          {m.why && <span className="text-amber-700"> — {m.why}</span>}
+                          {m.key === 'location' && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('ubicacion')}
+                              className="ml-2 text-[10px] underline hover:text-amber-950"
+                            >
+                              Configurar →
+                            </button>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })()}
 
             {/* Acceso rápido vista de documentos del proyecto */}
             <div className="mb-4 flex flex-wrap gap-2">
