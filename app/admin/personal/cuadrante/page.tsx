@@ -123,12 +123,20 @@ export default async function CuadrantePage({
     ),
   ])
 
-  const employeesActivos = (employeesRes.data ?? []).filter((e) => !e.fecha_baja)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const employeesActivos = (employeesRes.data ?? []).filter(
+    (e) => !e.fecha_baja || (e.fecha_baja as string) > todayStr,
+  )
+  // Para el cuadrante solo proyectos activos (no completado/finalizado/cancelado)
+  const HISTORICO = new Set(['completado', 'finalizado', 'cancelado'])
+  const projectsActivos = (projectsRes.data ?? []).filter(
+    (p) => !HISTORICO.has((p.status ?? '').toLowerCase()),
+  )
 
   return (
     <CuadranteView
       employees={employeesActivos}
-      projects={projectsRes.data ?? []}
+      projects={projectsActivos}
       assignments={assignmentsRes.data ?? []}
       days={days}
       mondayIso={desde}

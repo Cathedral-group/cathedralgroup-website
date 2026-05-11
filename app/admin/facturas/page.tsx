@@ -24,7 +24,7 @@ export default async function FacturasPage() {
         .is('deleted_at', null)
         .order('issue_date', { ascending: false })
     ),
-    supabase.from('projects').select('id, code, name').eq('company_id', activeCompanyId).is('deleted_at', null),
+    supabase.from('projects').select('id, code, name').eq('company_id', activeCompanyId).is('deleted_at', null).neq('status', 'cancelado'),
     supabase.from('suppliers').select('nif, name').eq('company_id', activeCompanyId).is('deleted_at', null),
   ])
 

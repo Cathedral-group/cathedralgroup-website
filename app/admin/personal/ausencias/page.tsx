@@ -32,7 +32,10 @@ export default async function AusenciasAdminPage() {
       .order('nombre'),
   ])
 
-  const activos = (employeesRes.data ?? []).filter((e) => !e.fecha_baja)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const activos = (employeesRes.data ?? []).filter(
+    (e) => !e.fecha_baja || (e.fecha_baja as string) > todayStr,
+  )
 
   return (
     <AusenciasAdminView

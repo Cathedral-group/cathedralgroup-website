@@ -18,7 +18,10 @@ export default async function BancoHorasPage() {
     .is('deleted_at', null)
     .order('nombre')
 
-  const activos = (employees ?? []).filter((e) => !e.fecha_baja)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const activos = (employees ?? []).filter(
+    (e) => !e.fecha_baja || (e.fecha_baja as string) > todayStr,
+  )
 
   const balances = await Promise.all(
     activos.map(async (e) => {

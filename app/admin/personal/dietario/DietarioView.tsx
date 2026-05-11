@@ -7,6 +7,7 @@ interface EmployeeRef {
   id: string
   nombre: string | null
   nif?: string | null
+  fecha_baja?: string | null
 }
 
 interface ProjectRef {
@@ -15,6 +16,16 @@ interface ProjectRef {
   name?: string | null
   description?: string | null
   status?: string | null
+}
+
+const PROJECT_HISTORICO = new Set(['completado', 'finalizado', 'cancelado'])
+
+function isProjectActive(p: ProjectRef): boolean {
+  return !PROJECT_HISTORICO.has((p.status ?? '').toLowerCase())
+}
+
+function isEmployeeActive(e: EmployeeRef, todayStr: string): boolean {
+  return !e.fecha_baja || e.fecha_baja > todayStr
 }
 
 interface TimeRecord {
@@ -67,6 +78,10 @@ export default function DietarioView({
   defaultDesde,
   defaultHasta,
 }: Props) {
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const employeesActive = useMemo(() => employees.filter((e) => isEmployeeActive(e, todayStr)), [employees, todayStr])
+  const projectsActive = useMemo(() => projects.filter(isProjectActive), [projects])
+
   const [desde, setDesde] = useState(defaultDesde)
   const [hasta, setHasta] = useState(defaultHasta)
   const [filterEmployee, setFilterEmployee] = useState<string>('')
@@ -316,7 +331,7 @@ export default function DietarioView({
                 className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
               >
                 <option value="">Todos</option>
-                {employees.map((e) => (
+                {employeesActive.map((e) => (
                   <option key={e.id} value={e.id}>
                     {(e.nombre ?? '').trim()}
                   </option>
@@ -331,7 +346,7 @@ export default function DietarioView({
                 className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
               >
                 <option value="">Todos</option>
-                {projects.map((p) => (
+                {projectsActive.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.code}
                   </option>
@@ -390,7 +405,7 @@ export default function DietarioView({
                   className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
                 >
                   <option value="">—</option>
-                  {employees.map((e) => (
+                  {employeesActive.map((e) => (
                     <option key={e.id} value={e.id}>
                       {(e.nombre ?? '').trim()}
                     </option>
@@ -418,7 +433,7 @@ export default function DietarioView({
                   className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
                 >
                   <option value="">— Sin proyecto</option>
-                  {projects.map((p) => (
+                  {projectsActive.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.code}
                     </option>
@@ -532,7 +547,7 @@ export default function DietarioView({
                               className="rounded border border-stone-300 px-2 py-1 text-xs"
                             >
                               <option value="">— Sin proyecto</option>
-                              {projects.map((p) => (
+                              {projectsActive.map((p) => (
                                 <option key={p.id} value={p.id}>
                                   {p.code}
                                 </option>
@@ -649,7 +664,7 @@ export default function DietarioView({
                     className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
                   >
                     <option value="">— Sin proyecto —</option>
-                    {projects.map((p) => (
+                    {projectsActive.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.code}
                       </option>

@@ -18,7 +18,7 @@ export default async function DietarioPage() {
   const [employeesRes, projectsRes, timeRecordsRes] = await Promise.all([
     supabase
       .from('employees')
-      .select('id, nombre, nif')
+      .select('id, nombre, nif, fecha_baja')
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .order('nombre'),

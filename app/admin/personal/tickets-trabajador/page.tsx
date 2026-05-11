@@ -53,12 +53,17 @@ export default async function TicketsAdminPage() {
     .order('created_at', { ascending: false })
     .limit(200)
 
-  const { data: projects } = await supabase
+  const { data: allProjects } = await supabase
     .from('projects')
-    .select('id, code, name')
+    .select('id, code, name, status')
     .eq('company_id', activeCompanyId)
     .is('deleted_at', null)
     .order('code', { ascending: false })
+
+  const HISTORICO = new Set(['completado', 'finalizado', 'cancelado'])
+  const projects = (allProjects ?? []).filter(
+    (p) => !HISTORICO.has((p.status ?? '').toLowerCase()),
+  )
 
   // Generar signed URLs en paralelo
   const attachmentsWithUrl = await Promise.all(

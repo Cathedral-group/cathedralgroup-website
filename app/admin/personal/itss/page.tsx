@@ -25,16 +25,21 @@ export default async function ItssAdminPage() {
       .limit(50),
     supabase
       .from('employees')
-      .select('id, nombre, nif')
+      .select('id, nombre, nif, fecha_baja')
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .order('nombre'),
   ])
 
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const employeesActivos = (employeesRes.data ?? []).filter(
+    (e) => !e.fecha_baja || (e.fecha_baja as string) > todayStr,
+  )
+
   return (
     <ItssAdminView
       initialTokens={tokensRes.data ?? []}
-      employees={employeesRes.data ?? []}
+      employees={employeesActivos}
     />
   )
 }

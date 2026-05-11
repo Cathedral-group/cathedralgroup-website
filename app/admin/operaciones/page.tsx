@@ -22,7 +22,8 @@ export default async function OperacionesPage() {
       .from('projects')
       .select('id, code, name')
       .eq('company_id', activeCompanyId)
-      .is('deleted_at', null),
+      .is('deleted_at', null)
+      .neq('status', 'cancelado'),
   ])
 
   return (
