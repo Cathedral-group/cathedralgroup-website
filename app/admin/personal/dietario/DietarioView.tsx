@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import SegmentsModal from './SegmentsModal'
 
 interface EmployeeRef {
   id: string
@@ -93,6 +94,7 @@ export default function DietarioView({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editProjectId, setEditProjectId] = useState<string>('')
   const [fullEditId, setFullEditId] = useState<string | null>(null)
+  const [segmentsModal, setSegmentsModal] = useState<{ id: string; fecha: string; nombre: string } | null>(null)
   const [fullEdit, setFullEdit] = useState<{
     project_id: string
     horas_ord: string
@@ -630,6 +632,20 @@ export default function DietarioView({
                             >
                               ✏️ Editar parte
                             </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSegmentsModal({
+                                  id: r.id,
+                                  fecha: r.fecha,
+                                  nombre: employeeName(r.employee),
+                                })
+                              }
+                              className="text-left text-[11px] text-purple-700 underline hover:text-purple-900"
+                              title="Editar tramos múltiples (varias obras en el mismo día)"
+                            >
+                              🔀 Tramos
+                            </button>
                           </div>
                         )}
                       </td>
@@ -754,6 +770,17 @@ export default function DietarioView({
           </div>
         )}
       </div>
+
+      {segmentsModal && (
+        <SegmentsModal
+          recordId={segmentsModal.id}
+          fecha={segmentsModal.fecha}
+          employeeName={segmentsModal.nombre}
+          projects={projectsActive}
+          onClose={() => setSegmentsModal(null)}
+          onSaved={aplicarFiltros}
+        />
+      )}
     </div>
   )
 }
