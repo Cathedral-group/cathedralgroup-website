@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { isAdminEmail } from '@/lib/auth-allowlist'
+import { dismissNotificationByDedup } from '@/lib/admin-notify'
 import {
   resolveCompanyIdForRequest,
   getCompanyContextFromUser,
@@ -87,6 +88,13 @@ export async function PATCH(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auto-dismiss notificación pendiente si el admin la resolvió (approved/rejected/cancelled)
+  if (body.status && body.status !== 'pending') {
+    dismissNotificationByDedup('portal_trabajador', `absence:${id}`, user.email ?? undefined)
+      .catch((e) => console.warn('[ausencias dismiss]', e))
+  }
+
   return NextResponse.json({ ok: true, row: data })
 }
 
@@ -108,6 +116,10 @@ export async function DELETE(
     .eq('id', id)
     .eq('company_id', resolved.activeCompanyId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  dismissNotificationByDedup('portal_trabajador', `absence:${id}`, user.email ?? undefined)
+    .catch((e) => console.warn('[ausencias dismiss delete]', e))
+
   return NextResponse.json({ ok: true })
 }
 

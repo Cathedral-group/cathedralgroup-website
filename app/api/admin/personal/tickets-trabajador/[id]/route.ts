@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { isAdminEmail } from '@/lib/auth-allowlist'
+import { dismissNotificationByDedup } from '@/lib/admin-notify'
 import {
   resolveCompanyIdForRequest,
   getCompanyContextFromUser,
@@ -87,6 +88,13 @@ export async function PATCH(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auto-dismiss notificación si el admin movió el ticket a un estado resuelto
+  if (body.status && ['confirmed', 'ignored'].includes(body.status)) {
+    dismissNotificationByDedup('portal_trabajador', `attachment:${id}`, user.email ?? undefined)
+      .catch((e) => console.warn('[tickets dismiss]', e))
+  }
+
   return NextResponse.json({ ok: true, row: data })
 }
 
@@ -133,6 +141,9 @@ export async function DELETE(
   await supabase.storage
     .from(attachment.storage_bucket || 'worker-receipts')
     .remove([attachment.storage_path])
+
+  dismissNotificationByDedup('portal_trabajador', `attachment:${id}`, user.email ?? undefined)
+    .catch((e) => console.warn('[tickets dismiss delete]', e))
 
   return NextResponse.json({ ok: true })
 }

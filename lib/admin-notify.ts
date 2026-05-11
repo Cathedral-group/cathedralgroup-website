@@ -202,3 +202,43 @@ export async function notifyAdmins(input: AdminNotifyInput): Promise<{
     ...(emailErrors.length > 0 ? { emailErrors } : {}),
   }
 }
+
+/**
+ * Descarta una notificación activa identificada por (source, dedupKey).
+ *
+ * Llamar desde endpoints admin cuando el admin RESUELVE la causa de la
+ * notificación (aprueba ausencia, valida ticket, etc.). Así la campana
+ * y el widget Pendientes se actualizan solos sin que el admin tenga que
+ * tocar nada extra.
+ *
+ * Tolerante: si no hay match (porque la notif nunca existió o ya estaba
+ * dismissed) → no-op silencioso.
+ */
+export async function dismissNotificationByDedup(
+  source: string,
+  dedupKey: string,
+  dismissedByEmail?: string,
+): Promise<{ dismissed: number }> {
+  if (!source || !dedupKey) return { dismissed: 0 }
+  try {
+    const supabase = createAdminSupabaseClient()
+    const { data, error } = await supabase
+      .from('system_notifications')
+      .update({
+        dismissed_at: new Date().toISOString(),
+        dismissed_by: dismissedByEmail ?? 'auto-resolved',
+      })
+      .eq('source', source)
+      .eq('dedup_key', dedupKey)
+      .is('dismissed_at', null)
+      .select('id')
+    if (error) {
+      console.warn('[admin-notify] dismissByDedup failed:', error.message)
+      return { dismissed: 0 }
+    }
+    return { dismissed: data?.length ?? 0 }
+  } catch (e) {
+    console.warn('[admin-notify] dismissByDedup threw:', e)
+    return { dismissed: 0 }
+  }
+}

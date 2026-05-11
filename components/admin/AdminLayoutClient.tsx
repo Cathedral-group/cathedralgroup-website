@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminSidebar from './AdminSidebar'
-import NotificationBanner from './NotificationBanner'
+import NotificationBell from './NotificationBell'
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -58,6 +58,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
           <span className="text-xs font-bold uppercase tracking-widest text-neutral-500">Cathedral Group</span>
         </div>
         <div className="flex items-center gap-3">
+          <NotificationBell />
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -71,9 +72,13 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
         </div>
       </div>
 
+      {/* Floating notification bell para desktop (la barra mobile arriba lo lleva en línea) */}
+      <div className="hidden md:block fixed top-4 right-4 z-30">
+        <NotificationBell />
+      </div>
+
       {/* Main content */}
       <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-8 md:ml-56">
-        <NotificationBanner />
         {children}
       </main>
     </>
