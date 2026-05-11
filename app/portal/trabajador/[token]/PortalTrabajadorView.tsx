@@ -423,13 +423,16 @@ export default function PortalTrabajadorView({
 
       {/* Banco horas extras */}
       {overtimeBalance && Number(overtimeBalance.saldo_horas) !== 0 && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-stone-200 bg-white p-3">
+        <Link
+          href={`/portal/trabajador/${token}/canjes`}
+          className="mb-4 flex items-center justify-between rounded-lg border border-stone-200 bg-white p-3 hover:bg-stone-50 transition-colors"
+        >
           <div>
             <div className="text-xs uppercase tracking-wider text-stone-500">
               🪙 Banco horas extras
             </div>
             <div className="mt-1 text-sm text-stone-600">
-              Saldo de horas que has acumulado para descansar otro día
+              Saldo de horas acumuladas. Toca para canjearlas →
             </div>
           </div>
           <div className={`text-2xl font-light tabular-nums ${
@@ -438,7 +441,7 @@ export default function PortalTrabajadorView({
             {Number(overtimeBalance.saldo_horas) > 0 ? '+' : ''}
             {Number(overtimeBalance.saldo_horas).toFixed(1)}h
           </div>
-        </div>
+        </Link>
       )}
 
       {/* Asignación del cuadrante */}
