@@ -116,6 +116,18 @@ function getMyLocation(): Promise<{ lat: number; lng: number; accuracy: number }
 /* ───────── Constants ───────── */
 
 const STATUSES = ['presupuesto', 'en_curso', 'completado', 'finalizado', 'cancelado']
+
+// Prioridad para ordenar: activos arriba, histórico/cancelado al final.
+const STATUS_PRIORITY: Record<string, number> = {
+  presupuesto: 0,
+  en_curso: 1,
+  completado: 2,
+  finalizado: 3,
+  cancelado: 4,
+}
+const HISTORICO_STATUSES = new Set(['completado', 'finalizado', 'cancelado'])
+const isHistorico = (status: string | null | undefined) =>
+  HISTORICO_STATUSES.has(status ?? 'presupuesto')
 const TYPES = ['reforma', 'reforma_cliente', 'interiorismo', 'cambio_uso', 'obra_nueva', 'promocion', 'desarrollo', 'compra_reforma_venta']
 const PHASE_STATUSES = ['pendiente', 'en_curso', 'completado']
 
@@ -198,8 +210,6 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(new Set())
-  // Por defecto ocultar proyectos cancelados de la vista principal — historial accesible vía toggle
-  const [showCancelled, setShowCancelled] = useState(false)
   // ─── Patrón coherente Cathedral: 4 modos de vista (igual que Personal y Facturas)
   const [viewMode, setViewMode] = useState<'estado' | 'tipo' | 'año' | 'lista'>('estado')
   const [sortField, setSortField] = useState<SortField>('created_at')
@@ -269,17 +279,8 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       sortField === field ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'
     } ${extra}`
 
-  const cancelledCount = useMemo(
-    () => projects.filter((p) => (p.status || '') === 'cancelado').length,
-    [projects],
-  )
-
   const filtered = useMemo(() => {
     let list = projects
-    // Ocultar cancelados por defecto. Mostrarlos sólo si: toggle activo, o filtro explícito 'cancelado'
-    if (!showCancelled && statusFilter !== 'cancelado') {
-      list = list.filter((p) => (p.status || '') !== 'cancelado')
-    }
     if (hiddenStatuses.size > 0) list = list.filter((p) => !hiddenStatuses.has(p.status || 'presupuesto'))
     if (statusFilter) list = list.filter((p) => (p.status || 'presupuesto') === statusFilter)
     if (search) {
@@ -292,6 +293,11 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       )
     }
     list = [...list].sort((a, b) => {
+      // Criterio primario: activos arriba, histórico abajo (siempre, sin importar el sortField)
+      const pa = STATUS_PRIORITY[a.status ?? 'presupuesto'] ?? 99
+      const pb = STATUS_PRIORITY[b.status ?? 'presupuesto'] ?? 99
+      if (pa !== pb) return pa - pb
+
       let cmp = 0
       switch (sortField) {
         case 'name':
@@ -316,7 +322,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
       return sortDir === 'asc' ? cmp : -cmp
     })
     return list
-  }, [projects, statusFilter, search, clientMap, hiddenStatuses, sortField, sortDir, financialMap, showCancelled])
+  }, [projects, statusFilter, search, clientMap, hiddenStatuses, sortField, sortDir, financialMap])
 
   /* ───────── KPIs (cabecera de la página, patrón Cathedral) ───────── */
   const kpis = useMemo(() => {
@@ -1118,21 +1124,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
           </>
         )}
 
-        {cancelledCount > 0 && (
-          <button
-            onClick={() => setShowCancelled((v) => !v)}
-            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ml-auto ${
-              showCancelled
-                ? 'bg-neutral-200 text-neutral-700'
-                : 'bg-white border border-neutral-200 text-neutral-500 hover:border-neutral-400'
-            }`}
-            title="Los proyectos cancelados están ocultos por defecto en la vista principal"
-          >
-            {showCancelled ? `✓ Cancelados visibles (${cancelledCount})` : `Mostrar cancelados (${cancelledCount})`}
-          </button>
-        )}
-
-        <span className={`text-xs text-neutral-400 ${cancelledCount > 0 ? '' : 'ml-auto'}`}>
+        <span className="text-xs text-neutral-400 ml-auto">
           {filtered.length} de {projects.length}
         </span>
       </div>
@@ -1157,37 +1149,58 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               {filtered.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-neutral-400">Sin proyectos</td></tr>
               ) : (
-                filtered.map((p) => {
-                  const fin = financialMap[p.id]
-                  const hasGeo = !!locationMap[p.id]
-                  return (
-                    <tr key={p.id} onClick={() => openDetail(p)} className="cursor-pointer hover:bg-neutral-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{p.code}</td>
-                      <td className="px-4 py-3 text-sm max-w-[280px]">
-                        <span className="truncate">{p.name}</span>
-                        {!hasGeo && (
-                          <span
-                            className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 whitespace-nowrap"
-                            title="Los fichajes en este proyecto no podrán validar ubicación"
-                          >
-                            Sin ubicación
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">{p.type && <Badge value={p.type} styles={TYPE_STYLES} />}</td>
-                      <td className="px-4 py-3"><Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} /></td>
-                      <td className="px-4 py-3 text-sm tabular-nums">{currency(p.budget_estimated)}</td>
-                      <td className="px-4 py-3 text-sm tabular-nums">
-                        {fin?.margin_pct != null ? (
-                          <span className={marginColor(fin.margin_pct)}>{fin.margin_pct.toFixed(0)}%</span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap">
-                        {p.start_date ? new Date(p.start_date + 'T00:00:00').toLocaleDateString('es-ES') : '—'}
-                      </td>
-                    </tr>
-                  )
-                })
+                (() => {
+                  const out: React.ReactNode[] = []
+                  let dividerShown = false
+                  filtered.forEach((p) => {
+                    const historico = isHistorico(p.status)
+                    if (historico && !dividerShown) {
+                      dividerShown = true
+                      const histCount = filtered.filter((x) => isHistorico(x.status)).length
+                      out.push(
+                        <tr key="hist-divider" className="bg-neutral-50">
+                          <td colSpan={7} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400 border-t-2 border-neutral-200">
+                            Histórico — {histCount} proyecto{histCount === 1 ? '' : 's'} (completados / finalizados / cancelados)
+                          </td>
+                        </tr>
+                      )
+                    }
+                    const fin = financialMap[p.id]
+                    const hasGeo = !!locationMap[p.id]
+                    out.push(
+                      <tr
+                        key={p.id}
+                        onClick={() => openDetail(p)}
+                        className={`cursor-pointer hover:bg-neutral-50 transition-colors ${historico ? 'opacity-60' : ''}`}
+                      >
+                        <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{p.code}</td>
+                        <td className="px-4 py-3 text-sm max-w-[280px]">
+                          <span className="truncate">{p.name}</span>
+                          {!hasGeo && !historico && (
+                            <span
+                              className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 whitespace-nowrap"
+                              title="Los fichajes en este proyecto no podrán validar ubicación"
+                            >
+                              Sin ubicación
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">{p.type && <Badge value={p.type} styles={TYPE_STYLES} />}</td>
+                        <td className="px-4 py-3"><Badge value={p.status || 'presupuesto'} styles={STATUS_STYLES} /></td>
+                        <td className="px-4 py-3 text-sm tabular-nums">{currency(p.budget_estimated)}</td>
+                        <td className="px-4 py-3 text-sm tabular-nums">
+                          {fin?.margin_pct != null ? (
+                            <span className={marginColor(fin.margin_pct)}>{fin.margin_pct.toFixed(0)}%</span>
+                          ) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-sm whitespace-nowrap">
+                          {p.start_date ? new Date(p.start_date + 'T00:00:00').toLocaleDateString('es-ES') : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })
+                  return out
+                })()
               )}
             </tbody>
           </table>
@@ -1203,6 +1216,13 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
           {grouped &&
             Object.entries(grouped)
               .sort((a, b) => {
+                // Vista por estado: activos arriba (presupuesto, en_curso), histórico abajo
+                if (viewMode === 'estado') {
+                  const pa = STATUS_PRIORITY[a[0]] ?? 99
+                  const pb = STATUS_PRIORITY[b[0]] ?? 99
+                  if (pa !== pb) return pa - pb
+                  return a[1].label.localeCompare(b[1].label, 'es')
+                }
                 // Para "año": orden descendente (2026 → 2024)
                 if (viewMode === 'año') return b[1].label.localeCompare(a[1].label)
                 return a[1].label.localeCompare(b[1].label, 'es')
@@ -1212,8 +1232,10 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   (s, p) => s + (Number(p.budget_estimated) || 0),
                   0,
                 )
+                // En vista por estado, atenuar el bloque entero si el grupo es histórico
+                const groupHistorico = viewMode === 'estado' && isHistorico(key)
                 return (
-                  <div key={key} className="bg-white border border-neutral-100">
+                  <div key={key} className={`bg-white border border-neutral-100 ${groupHistorico ? 'opacity-60' : ''}`}>
                     {/* Cabecera del grupo */}
                     <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/60">
                       <div className="flex items-center gap-3">
@@ -1233,18 +1255,19 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                       {group.items.map((p) => {
                         const fin = financialMap[p.id]
                         const hasGeo = !!locationMap[p.id]
+                        const historico = isHistorico(p.status)
                         return (
                           <div
                             key={p.id}
                             onClick={() => openDetail(p)}
-                            className="px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-4"
+                            className={`px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-4 ${historico ? 'opacity-60' : ''}`}
                           >
                             <span className="text-xs font-mono text-neutral-500 w-32 shrink-0">
                               {p.code}
                             </span>
                             <span className="text-sm flex-1 min-w-0 flex items-center gap-2">
                               <span className="truncate">{p.name}</span>
-                              {!hasGeo && (
+                              {!hasGeo && !historico && (
                                 <span
                                   className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 whitespace-nowrap shrink-0"
                                   title="Los fichajes en este proyecto no podrán validar ubicación"
