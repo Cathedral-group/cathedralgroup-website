@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import TabPanel from '@/components/admin/TabPanel'
 import ProgressBar from '@/components/admin/ProgressBar'
 import LinkedSelect from '@/components/admin/LinkedSelect'
+import PlanificacionTab from './PlanificacionTab'
 
 /* ───────── Types ───────── */
 
@@ -206,6 +207,7 @@ interface Props {
   invoices: Invoice[]
   phases: Phase[]
   locations: ProjectLocation[]
+  employees: Array<{ id: string; nombre: string | null }>
 }
 
 /**
@@ -222,7 +224,7 @@ function KpiCard({ label, value, hint }: { label: string; value: string; hint?: 
   )
 }
 
-export default function ProjectsView({ projects: initialProjects, clients, financials, invoices: initialInvoices, phases: initialPhases, locations: initialLocations }: Props) {
+export default function ProjectsView({ projects: initialProjects, clients, financials, invoices: initialInvoices, phases: initialPhases, locations: initialLocations, employees }: Props) {
   const [projects, setProjects] = useState(initialProjects)
   const [allPhases, setAllPhases] = useState(initialPhases)
   const [allLocations, setAllLocations] = useState(initialLocations)
@@ -1430,7 +1432,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               tabs={[
                 { key: 'general', label: 'General' },
                 { key: 'ubicacion', label: 'Ubicación' },
-                { key: 'fases', label: 'Fases' },
+                { key: 'fases', label: 'Planificación' },
                 { key: 'facturas', label: 'Facturas' },
                 { key: 'documentos', label: 'Documentos' },
               ]}
@@ -1646,120 +1648,102 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
 
               {/* ─── Tab: Fases ─── */}
               {activeTab === 'fases' && (
-                <div className="space-y-4">
-                  {/* Progress */}
-                  <div className="flex items-center gap-4 mb-2">
-                    <div className="flex-1">
-                      <ProgressBar value={phasePct} />
-                    </div>
-                    <span className="text-sm font-medium">{completedPhases}/{projectPhases.length} fases</span>
-                  </div>
+                <div className="space-y-6">
+                  {/* Vista principal: planificación con tareas + certificación manual */}
+                  <PlanificacionTab
+                    projectId={selected.id}
+                    projectCode={selected.code}
+                    employees={employees}
+                    initialPhases={projectPhases.map((ph) => ({
+                      id: ph.id,
+                      name: ph.name,
+                      status: ph.status ?? null,
+                      start_date: ph.start_date ?? null,
+                      end_date: ph.end_date ?? null,
+                      pct_certificado: (ph as Record<string, unknown>).pct_certificado as number | undefined,
+                      pct_certificado_updated_at: (ph as Record<string, unknown>).pct_certificado_updated_at as string | undefined,
+                      pct_certificado_updated_by: (ph as Record<string, unknown>).pct_certificado_updated_by as string | undefined,
+                    }))}
+                  />
 
-                  {/* Phase list */}
-                  {projectPhases.map((phase) => (
-                    <div key={phase.id} className="flex items-center justify-between bg-neutral-50 p-3">
-                      <div
-                        className="flex-1 cursor-pointer"
-                        onClick={() => startEditPhase(phase)}
-                      >
-                        <p className="text-sm font-medium">{phase.name}</p>
-                        <p className="text-[10px] text-neutral-400">
-                          {phase.start_date || '—'} → {phase.end_date || '—'}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge value={phase.status || 'pendiente'} styles={{
-                          pendiente: 'bg-neutral-100 text-neutral-600',
-                          en_curso: 'bg-blue-50 text-blue-700',
-                          completado: 'bg-green-50 text-green-700',
-                        }} />
-                        <button
-                          onClick={() => deletePhase(phase.id)}
-                          className="text-neutral-300 hover:text-red-500 text-sm ml-2"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                  {/* Gestión legacy de fases (crear/editar/eliminar nombre y fechas) */}
+                  <details className="rounded border border-neutral-200">
+                    <summary className="cursor-pointer px-3 py-2 text-xs font-bold uppercase tracking-widest text-neutral-500 hover:bg-neutral-50">
+                      ⚙️ Gestionar fases (nombre, fechas, eliminar)
+                    </summary>
+                    <div className="p-3 space-y-3 border-t border-neutral-200">
+                      {projectPhases.length === 0 && !showPhaseForm && (
+                        <p className="text-xs text-neutral-400">Sin fases definidas. Crea una para empezar a planificar.</p>
+                      )}
 
-                  {projectPhases.length === 0 && !showPhaseForm && (
-                    <p className="text-sm text-neutral-400 py-4 text-center">Sin fases definidas</p>
-                  )}
+                      {projectPhases.map((phase) => (
+                        <div key={phase.id} className="flex items-center justify-between bg-neutral-50 p-2 rounded">
+                          <div className="flex-1 cursor-pointer" onClick={() => startEditPhase(phase)}>
+                            <p className="text-xs font-medium">{phase.name}</p>
+                            <p className="text-[10px] text-neutral-400">
+                              {phase.start_date || '—'} → {phase.end_date || '—'}
+                            </p>
+                          </div>
+                          <button onClick={() => deletePhase(phase.id)} className="text-neutral-300 hover:text-red-500 text-sm ml-2">
+                            ✕
+                          </button>
+                        </div>
+                      ))}
 
-                  {/* Phase form */}
-                  {showPhaseForm && (
-                    <div className="border border-neutral-200 p-4 space-y-3">
-                      <div>
-                        <label className={labelCls}>Nombre</label>
-                        <input
-                          type="text"
-                          value={phaseForm.name}
-                          onChange={(e) => setPhaseForm({ ...phaseForm, name: e.target.value })}
-                          className={inputCls}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Estado</label>
-                        <select
-                          value={phaseForm.status}
-                          onChange={(e) => setPhaseForm({ ...phaseForm, status: e.target.value })}
-                          className={inputCls}
-                        >
-                          {PHASE_STATUSES.map((s) => (
-                            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className={labelCls}>Fecha inicio</label>
+                      {showPhaseForm && (
+                        <div className="border border-neutral-200 p-3 space-y-2 rounded bg-white">
                           <input
-                            type="date"
-                            value={phaseForm.start_date}
-                            onChange={(e) => setPhaseForm({ ...phaseForm, start_date: e.target.value })}
+                            type="text"
+                            placeholder="Nombre de la fase"
+                            value={phaseForm.name}
+                            onChange={(e) => setPhaseForm({ ...phaseForm, name: e.target.value })}
                             className={inputCls}
                           />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="date"
+                              value={phaseForm.start_date}
+                              onChange={(e) => setPhaseForm({ ...phaseForm, start_date: e.target.value })}
+                              className={inputCls}
+                            />
+                            <input
+                              type="date"
+                              value={phaseForm.end_date}
+                              onChange={(e) => setPhaseForm({ ...phaseForm, end_date: e.target.value })}
+                              className={inputCls}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={savePhase}
+                              className="bg-primary text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/90"
+                            >
+                              {editingPhaseId ? 'Actualizar' : 'Crear fase'}
+                            </button>
+                            <button
+                              onClick={() => { setShowPhaseForm(false); setEditingPhaseId(null) }}
+                              className="bg-white border border-neutral-200 px-3 py-1.5 text-[10px] hover:bg-neutral-50"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
                         </div>
-                        <div>
-                          <label className={labelCls}>Fecha fin</label>
-                          <input
-                            type="date"
-                            value={phaseForm.end_date}
-                            onChange={(e) => setPhaseForm({ ...phaseForm, end_date: e.target.value })}
-                            className={inputCls}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={savePhase}
-                          className="bg-primary text-white px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/90"
-                        >
-                          {editingPhaseId ? 'Actualizar' : 'Crear fase'}
-                        </button>
-                        <button
-                          onClick={() => { setShowPhaseForm(false); setEditingPhaseId(null) }}
-                          className="bg-white border border-neutral-200 px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-neutral-50"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                      )}
 
-                  {!showPhaseForm && (
-                    <button
-                      onClick={() => {
-                        setPhaseForm({ name: '', status: 'pendiente', start_date: '', end_date: '' })
-                        setEditingPhaseId(null)
-                        setShowPhaseForm(true)
-                      }}
-                      className="text-[10px] font-bold uppercase tracking-widest text-primary hover:text-primary/80"
-                    >
-                      + Añadir fase
-                    </button>
-                  )}
+                      {!showPhaseForm && (
+                        <button
+                          onClick={() => {
+                            setPhaseForm({ name: '', status: 'pendiente', start_date: '', end_date: '' })
+                            setEditingPhaseId(null)
+                            setShowPhaseForm(true)
+                          }}
+                          className="text-[10px] font-bold uppercase tracking-widest text-primary hover:text-primary/80"
+                        >
+                          + Añadir fase
+                        </button>
+                      )}
+                    </div>
+                  </details>
                 </div>
               )}
 

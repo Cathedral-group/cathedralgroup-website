@@ -12,7 +12,7 @@ export default async function ProyectosPage() {
   const supabase = createAdminSupabaseClient()
 
   // project_financials no tiene company_id (allowlist) — proyectos sí filtran
-  const [projectsRes, clientsRes, financialsRes, invoices, phasesRes, locationsRes] = await Promise.all([
+  const [projectsRes, clientsRes, financialsRes, invoices, phasesRes, locationsRes, employeesRes] = await Promise.all([
     supabase.from('projects').select('*').eq('company_id', activeCompanyId).is('deleted_at', null).order('created_at', { ascending: false }),
     supabase.from('clients').select('id, name').eq('company_id', activeCompanyId).is('deleted_at', null).order('name'),
     supabase.from('project_financials').select('*').eq('company_id', activeCompanyId),
@@ -25,7 +25,14 @@ export default async function ProyectosPage() {
     ),
     supabase.from('project_phases').select('*').eq('company_id', activeCompanyId).order('start_date', { ascending: true }),
     supabase.from('project_locations').select('project_id, lat, lng, radio_m, direccion').eq('company_id', activeCompanyId).is('deleted_at', null),
+    supabase.from('employees').select('id, nombre, fecha_baja').eq('company_id', activeCompanyId).is('deleted_at', null).order('nombre'),
   ])
+
+  // Solo empleados activos para asignar tareas
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const employeesActivos = (employeesRes.data ?? []).filter(
+    (e) => !e.fecha_baja || (e.fecha_baja as string) > todayStr,
+  ).map((e) => ({ id: e.id, nombre: e.nombre }))
 
   return (
     <ProjectsView
@@ -36,6 +43,7 @@ export default async function ProyectosPage() {
       invoices={invoices as any}
       phases={phasesRes.data || []}
       locations={locationsRes.data || []}
+      employees={employeesActivos}
     />
   )
 }
