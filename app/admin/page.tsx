@@ -7,6 +7,7 @@ import QuickAddButton from '@/components/admin/QuickAddButton'
 import PeriodSelector from '@/components/admin/PeriodSelector'
 import SystemHealthCompact from '@/components/admin/SystemHealthCompact'
 import FiscalCalendarCompact from '@/components/admin/FiscalCalendarCompact'
+import EnablePushButton from '@/components/admin/EnablePushButton'
 import DashboardCharts from './DashboardCharts'
 import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 import { CATHEDRAL_INVESTMENT_SL_ID } from '@/lib/company-context'
@@ -379,6 +380,11 @@ export default async function AdminDashboard({
           </Suspense>
           <QuickAddButton />
         </div>
+      </div>
+
+      {/* Botón de activar notificaciones push (solo se ve si no está activado o falta config) */}
+      <div className="mb-4">
+        <EnablePushButton />
       </div>
 
       {/* Salud del sistema — widget compacto enlazado a /admin/eval */}

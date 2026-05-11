@@ -23,6 +23,7 @@
 import { Resend } from 'resend'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { ADMIN_ALLOWED_EMAILS } from '@/lib/auth-allowlist'
+import { sendPushToAdmins } from '@/lib/push-server'
 
 export type NotifySeverity = 'info' | 'warning' | 'critical'
 
@@ -114,11 +115,15 @@ function buildHtmlEmail(input: AdminNotifyInput, link: string): string {
 export async function notifyAdmins(input: AdminNotifyInput): Promise<{
   banner: 'ok' | 'failed'
   email: 'sent' | 'skipped_no_key' | 'failed'
+  push: { sent: number; failed: number; removed: number; skipped?: string }
   emailErrors?: string[]
 }> {
   let bannerStatus: 'ok' | 'failed' = 'ok'
   let emailStatus: 'sent' | 'skipped_no_key' | 'failed' = 'skipped_no_key'
   const emailErrors: string[] = []
+  let pushStats: { sent: number; failed: number; removed: number; skipped?: string } = {
+    sent: 0, failed: 0, removed: 0, skipped: 'not_run',
+  }
 
   // 1) Banner / dashboard
   try {
@@ -176,9 +181,24 @@ export async function notifyAdmins(input: AdminNotifyInput): Promise<{
     }
   }
 
+  // 3) Push notifications (sólo si VAPID configurado)
+  try {
+    pushStats = await sendPushToAdmins({
+      title: input.title,
+      body: input.message ?? '',
+      url: input.actionUrl,
+      tag: input.dedupKey,
+      severity: input.severity,
+    })
+  } catch (e) {
+    pushStats = { sent: 0, failed: 0, removed: 0, skipped: 'threw' }
+    console.warn('[admin-notify] push threw:', e)
+  }
+
   return {
     banner: bannerStatus,
     email: emailStatus,
+    push: pushStats,
     ...(emailErrors.length > 0 ? { emailErrors } : {}),
   }
 }
