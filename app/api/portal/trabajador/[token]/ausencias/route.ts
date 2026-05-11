@@ -52,7 +52,8 @@ export async function GET(
     .from('worker_absences')
     .select(
       `id, tipo, motivo_detalle, fecha_inicio, fecha_fin, dias_total, horas_total,
-       solicitado_at, status, decided_at, decision_notes, justificante_attachment_id`,
+       solicitado_at, status, decided_at, decision_notes, justificante_attachment_id,
+       cancellation_requested_at, cancellation_requested_motivo, cancellation_decided_at, cancellation_decision`,
     )
     .eq('employee_id', validation.employeeId)
     .is('deleted_at', null)
@@ -154,8 +155,8 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Notificar admins (banner + email opcional via Resend). No bloquea la respuesta:
-  // si la notificación falla, el trabajador igual recibe success.
+  // Notificar admins (banner + email opcional via Resend + push opcional). No bloquea
+  // la respuesta: si la notificación falla, el trabajador igual recibe success.
   const TIPO_LABELS: Record<string, string> = {
     vacaciones: 'vacaciones',
     baja_medica: 'baja médica',
@@ -190,6 +191,171 @@ export async function POST(
   })
 
   return NextResponse.json({ ok: true, row: data })
+}
+
+/**
+ * PATCH /api/portal/trabajador/[token]/ausencias
+ *   Body: { id, action: 'cancel' | 'request_cancellation' | 'cancel_request', motivo? }
+ *
+ * Acciones:
+ *   - cancel: solo permitido si status='pending' (solicitud aún no aprobada).
+ *     El trabajador cancela su propia solicitud directamente → status='cancelled'.
+ *   - request_cancellation: solo si status='approved'. El trabajador solicita
+ *     cancelar una ausencia ya aprobada → set cancellation_requested_at + motivo.
+ *     El admin la decide después.
+ *   - cancel_request: trabajador retira una petición de cancelación pendiente
+ *     de aprobar (resetea los flags si admin aún no ha decidido).
+ *
+ * Aislamiento: NO usa Supabase Auth. Token + ownership (employee_id matching).
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ token: string }> },
+) {
+  const { token } = await params
+  if (!token || token.length < 30) return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+
+  // Rate limit
+  const rl = enforce({
+    category: 'ausencia-patch',
+    max: 20,
+    windowMs: 60_000,
+    key: `${getClientIp(request)}|${token.slice(0, 8)}`,
+  })
+  if (rl) return rl
+
+  const supabase = createAdminSupabaseClient()
+  const validation = await validateToken(supabase, token)
+  if (!validation) return NextResponse.json({ error: 'Token inválido o expirado' }, { status: 401 })
+
+  let body: { id?: string; action?: string; motivo?: string }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Body JSON inválido' }, { status: 400 })
+  }
+
+  const id = (body.id ?? '').trim()
+  const action = body.action
+  if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+  if (!['cancel', 'request_cancellation', 'cancel_request'].includes(action ?? '')) {
+    return NextResponse.json({ error: 'action inválida' }, { status: 400 })
+  }
+
+  // Cargar ausencia + validar ownership
+  const { data: absence } = await supabase
+    .from('worker_absences')
+    .select(
+      'id, status, tipo, fecha_inicio, fecha_fin, dias_total, employee_id, cancellation_requested_at, cancellation_decided_at',
+    )
+    .eq('id', id)
+    .eq('employee_id', validation.employeeId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!absence) return NextResponse.json({ error: 'Ausencia no encontrada' }, { status: 404 })
+
+  const nowIso = new Date().toISOString()
+  const who = `portal:${validation.nombre ?? validation.employeeId}`
+
+  if (action === 'cancel') {
+    if (absence.status !== 'pending') {
+      return NextResponse.json(
+        { error: 'Solo puedes cancelar directamente las solicitudes pendientes. Para una aprobada, pide cancelación al admin.' },
+        { status: 400 },
+      )
+    }
+    const { error } = await supabase
+      .from('worker_absences')
+      .update({
+        status: 'cancelled',
+        decided_at: nowIso,
+        decided_by_email: who,
+        decision_notes: body.motivo?.trim() || 'Cancelada por el trabajador (pendiente)',
+        updated_at: nowIso,
+      })
+      .eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Auto-dismiss notif si estaba activa
+    try {
+      const { dismissNotificationByDedup } = await import('@/lib/admin-notify')
+      await dismissNotificationByDedup('portal_trabajador', `absence:${id}`, who)
+    } catch {
+      /* silent */
+    }
+    return NextResponse.json({ ok: true, action: 'cancelled' })
+  }
+
+  if (action === 'request_cancellation') {
+    if (absence.status !== 'approved') {
+      return NextResponse.json(
+        { error: 'Solo se puede pedir cancelación de una ausencia ya aprobada.' },
+        { status: 400 },
+      )
+    }
+    if (absence.cancellation_requested_at && !absence.cancellation_decided_at) {
+      return NextResponse.json({ error: 'Ya tienes una petición de cancelación pendiente.' }, { status: 400 })
+    }
+    const { error } = await supabase
+      .from('worker_absences')
+      .update({
+        cancellation_requested_at: nowIso,
+        cancellation_requested_motivo: body.motivo?.trim() || null,
+        cancellation_decided_at: null,
+        cancellation_decided_by_email: null,
+        cancellation_decision: null,
+        updated_at: nowIso,
+      })
+      .eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Notificar admins de la nueva petición de cancelación
+    try {
+      const { notifyAdmins } = await import('@/lib/admin-notify')
+      const dias = absence.dias_total ?? 1
+      notifyAdmins({
+        severity: 'warning',
+        title: `${validation.nombre ?? 'Trabajador'} pide cancelar su ${absence.tipo}`,
+        message:
+          `Solicitó cancelar la ausencia del ${absence.fecha_inicio} al ${absence.fecha_fin} ` +
+          `(${dias} día${dias === 1 ? '' : 's'}).` +
+          (body.motivo?.trim() ? `\nMotivo: ${body.motivo.trim()}` : '') +
+          '\nAprueba o rechaza la cancelación en el panel.',
+        source: 'portal_trabajador',
+        dedupKey: `absence_cancel:${id}`,
+        actionUrl: '/admin/personal/ausencias',
+        actionLabel: 'Revisar',
+        metadata: { absence_id: id, employee_id: validation.employeeId, kind: 'cancellation_request' },
+      }).catch(() => {})
+    } catch { /* silent */ }
+
+    return NextResponse.json({ ok: true, action: 'cancellation_requested' })
+  }
+
+  // action === 'cancel_request'
+  if (!absence.cancellation_requested_at) {
+    return NextResponse.json({ error: 'No hay petición de cancelación que retirar.' }, { status: 400 })
+  }
+  if (absence.cancellation_decided_at) {
+    return NextResponse.json({ error: 'El admin ya decidió, no se puede retirar.' }, { status: 400 })
+  }
+  const { error } = await supabase
+    .from('worker_absences')
+    .update({
+      cancellation_requested_at: null,
+      cancellation_requested_motivo: null,
+      updated_at: nowIso,
+    })
+    .eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  try {
+    const { dismissNotificationByDedup } = await import('@/lib/admin-notify')
+    await dismissNotificationByDedup('portal_trabajador', `absence_cancel:${id}`, who)
+  } catch { /* silent */ }
+
+  return NextResponse.json({ ok: true, action: 'request_withdrawn' })
 }
 
 export const dynamic = 'force-dynamic'

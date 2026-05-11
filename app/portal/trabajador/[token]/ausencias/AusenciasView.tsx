@@ -16,6 +16,10 @@ interface Absence {
   decided_at: string | null
   decision_notes: string | null
   justificante_attachment_id: string | null
+  cancellation_requested_at?: string | null
+  cancellation_requested_motivo?: string | null
+  cancellation_decided_at?: string | null
+  cancellation_decision?: 'approved' | 'rejected' | null
 }
 
 interface VacationSummary {
@@ -59,6 +63,43 @@ export default function AusenciasView({ token, initialAbsences, vacationSummary 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  async function patchAbsence(id: string, action: 'cancel' | 'request_cancellation' | 'cancel_request', motivo?: string) {
+    setBusyId(id); setError(null); setSuccess(null)
+    try {
+      const res = await fetch(`/api/portal/trabajador/${token}/ausencias`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action, motivo }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) { setError(json.error ?? 'Error'); return }
+      // Refresco optimista
+      setAbsences((prev) =>
+        prev.map((a) => {
+          if (a.id !== id) return a
+          if (action === 'cancel') return { ...a, status: 'cancelled' }
+          if (action === 'request_cancellation') {
+            return { ...a, cancellation_requested_at: new Date().toISOString(), cancellation_requested_motivo: motivo ?? null }
+          }
+          // cancel_request: retira la petición
+          return { ...a, cancellation_requested_at: null, cancellation_requested_motivo: null }
+        }),
+      )
+      setSuccess(
+        action === 'cancel'
+          ? 'Solicitud cancelada.'
+          : action === 'request_cancellation'
+          ? 'Petición de cancelación enviada. El admin la revisará.'
+          : 'Petición de cancelación retirada.',
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   async function solicitar() {
     if (!fechaInicio || !fechaFin) {
@@ -319,6 +360,66 @@ export default function AusenciasView({ token, initialAbsences, vacationSummary 
                           <span className="text-stone-400">Nota admin:</span> {a.decision_notes}
                         </div>
                       )}
+
+                      {/* Si tiene petición de cancelación viva (no decidida todavía) */}
+                      {a.cancellation_requested_at && !a.cancellation_decided_at && (
+                        <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+                          ⏳ Has pedido cancelarla.
+                          {a.cancellation_requested_motivo && (
+                            <span className="block text-amber-700 mt-0.5">Motivo: {a.cancellation_requested_motivo}</span>
+                          )}
+                          <span className="block text-[10px] text-amber-600 mt-0.5">Pendiente de respuesta del admin.</span>
+                        </div>
+                      )}
+                      {a.cancellation_decision === 'rejected' && a.cancellation_decided_at && (
+                        <div className="mt-2 rounded border border-stone-200 bg-stone-50 px-2 py-1.5 text-xs text-stone-700">
+                          El admin rechazó tu petición de cancelación.
+                        </div>
+                      )}
+
+                      {/* Acciones contextuales */}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {a.status === 'pending' && (
+                          <button
+                            type="button"
+                            disabled={busyId === a.id}
+                            onClick={() => {
+                              if (!confirm('¿Cancelar esta solicitud pendiente?')) return
+                              patchAbsence(a.id, 'cancel')
+                            }}
+                            className="rounded border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100 disabled:opacity-50"
+                          >
+                            {busyId === a.id ? '...' : 'Cancelar solicitud'}
+                          </button>
+                        )}
+                        {a.status === 'approved' && !a.cancellation_requested_at && (
+                          <button
+                            type="button"
+                            disabled={busyId === a.id}
+                            onClick={() => {
+                              const motivo = prompt('Motivo de cancelación (opcional):') ?? undefined
+                              if (motivo === null) return
+                              patchAbsence(a.id, 'request_cancellation', motivo || undefined)
+                            }}
+                            className="rounded border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100 disabled:opacity-50"
+                          >
+                            {busyId === a.id ? '...' : 'Pedir cancelación'}
+                          </button>
+                        )}
+                        {a.status === 'approved' && a.cancellation_requested_at && !a.cancellation_decided_at && (
+                          <button
+                            type="button"
+                            disabled={busyId === a.id}
+                            onClick={() => {
+                              if (!confirm('¿Retirar la petición de cancelación?')) return
+                              patchAbsence(a.id, 'cancel_request')
+                            }}
+                            className="rounded border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100 disabled:opacity-50"
+                          >
+                            {busyId === a.id ? '...' : 'Retirar petición'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </li>

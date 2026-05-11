@@ -25,6 +25,11 @@ interface Absence {
   decided_by_email: string | null
   decision_notes: string | null
   justificante_attachment_id: string | null
+  cancellation_requested_at?: string | null
+  cancellation_requested_motivo?: string | null
+  cancellation_decided_at?: string | null
+  cancellation_decision?: 'approved' | 'rejected' | null
+  cancellation_admin_motivo?: string | null
   employee: { id: string; nombre: string | null; nif: string | null }
     | { id: string; nombre: string | null; nif: string | null }[]
     | null
@@ -99,6 +104,49 @@ export default function AusenciasAdminView({ initialAbsences, employees }: Props
       } else {
         setAbsences((prev) => prev.map((a) => (a.id === id ? { ...a, ...json.row } : a)))
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  // Cancelar directamente (admin) — pide motivo
+  async function cancelarDirecto(id: string) {
+    const motivo = prompt('Motivo de la cancelación (queda registrado):')
+    if (motivo === null) return // canceló el prompt
+    setBusyId(id); setError(null)
+    try {
+      const res = await fetch(`/api/admin/personal/ausencias/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+          cancellation_admin_motivo: motivo.trim() || 'Cancelada por admin',
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setError(json.error ?? 'Error al cancelar'); return }
+      setAbsences((prev) => prev.map((a) => (a.id === id ? { ...a, ...json.row } : a)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de red')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  // Decisión sobre solicitud de cancelación del trabajador
+  async function decidirCancelacion(id: string, decision: 'approved' | 'rejected') {
+    setBusyId(id); setError(null)
+    try {
+      const res = await fetch(`/api/admin/personal/ausencias/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancellation_decision: decision }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setError(json.error ?? 'Error al decidir cancelación'); return }
+      setAbsences((prev) => prev.map((a) => (a.id === id ? { ...a, ...json.row } : a)))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error de red')
     } finally {
@@ -300,7 +348,43 @@ export default function AusenciasAdminView({ initialAbsences, employees }: Props
                         </span>
                       </td>
                       <td className="px-3 py-2.5">
-                        {a.status === 'pending' ? (
+                        {/* Solicitud de cancelación del trabajador, pendiente de respuesta */}
+                        {a.status === 'approved' && a.cancellation_requested_at && !a.cancellation_decided_at ? (
+                          <div className="flex flex-col gap-1 min-w-[160px]">
+                            <span className="rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] text-amber-800">
+                              ⏳ Pide cancelar
+                            </span>
+                            {a.cancellation_requested_motivo && (
+                              <span className="text-[10px] text-stone-500 line-clamp-2">
+                                {a.cancellation_requested_motivo}
+                              </span>
+                            )}
+                            <div className="flex gap-1 mt-1">
+                              <button
+                                type="button"
+                                disabled={busyId === a.id}
+                                onClick={() => {
+                                  if (!confirm('¿Aceptar la cancelación? (si es banco_horas se restituyen las horas)')) return
+                                  decidirCancelacion(a.id, 'approved')
+                                }}
+                                className="rounded bg-stone-900 px-2 py-1 text-[10px] text-white hover:bg-stone-800 disabled:opacity-50"
+                              >
+                                Aceptar cancelación
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busyId === a.id}
+                                onClick={() => {
+                                  if (!confirm('¿Rechazar la cancelación? La ausencia sigue aprobada.')) return
+                                  decidirCancelacion(a.id, 'rejected')
+                                }}
+                                className="rounded border border-stone-300 px-2 py-1 text-[10px] hover:bg-stone-100 disabled:opacity-50"
+                              >
+                                Rechazar
+                              </button>
+                            </div>
+                          </div>
+                        ) : a.status === 'pending' ? (
                           <div className="flex gap-1">
                             <button
                               type="button"
@@ -320,6 +404,21 @@ export default function AusenciasAdminView({ initialAbsences, employees }: Props
                               className="rounded border border-stone-300 px-2 py-1 text-[10px] hover:bg-stone-100 disabled:opacity-50"
                             >
                               ✕ Rechazar
+                            </button>
+                          </div>
+                        ) : a.status === 'approved' ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-stone-400">
+                              {a.decided_by_email ?? '—'}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={busyId === a.id}
+                              onClick={() => cancelarDirecto(a.id)}
+                              className="rounded border border-red-300 px-2 py-1 text-[10px] text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              title="Cancelar directamente esta ausencia (con motivo). Si es banco_horas, restituye saldo."
+                            >
+                              Cancelar
                             </button>
                           </div>
                         ) : (

@@ -18,6 +18,8 @@ export default async function AusenciasAdminPage() {
         `id, tipo, motivo_detalle, fecha_inicio, fecha_fin, dias_total, horas_total,
          solicitado_at, solicitado_por, solicitud_fuente, status, decided_at,
          decided_by_email, decision_notes, justificante_attachment_id, created_at,
+         cancellation_requested_at, cancellation_requested_motivo,
+         cancellation_decided_at, cancellation_decision, cancellation_admin_motivo,
          employee:employee_id (id, nombre, nif)`,
       )
       .eq('company_id', activeCompanyId)
