@@ -110,6 +110,10 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Dashboard',      href: '/admin',               icon: <IconDashboard /> },
       {
+        label: 'Calendario',     href: '/admin/calendario',    icon: <IconDashboard />,
+        description: 'Qué pasa cada día: asignaciones, ausencias, festivos, tareas, fichajes (día/semana/mes)',
+      },
+      {
         label: 'Grupo',          href: '/admin/grupo',         icon: <IconCorporativo />,
         description: 'Empresas del grupo (multi-SL): Cathedral House Investment + futuras SL hermanas',
       },
