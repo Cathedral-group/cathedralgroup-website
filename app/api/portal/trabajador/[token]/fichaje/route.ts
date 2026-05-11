@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
+import { enforce, getClientIp } from '@/lib/rate-limit-portal'
 
 export async function POST(
   request: NextRequest,
@@ -26,6 +27,15 @@ export async function POST(
   if (!token || token.length < 30) {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
   }
+
+  // Rate limit: máx 20 fichajes/min/IP+token (entrada+salida + algunos retries en zona pobre cobertura).
+  const rl = enforce({
+    category: 'fichaje-write',
+    max: 20,
+    windowMs: 60_000,
+    key: `${getClientIp(request)}|${token.slice(0, 8)}`,
+  })
+  if (rl) return rl
 
   const supabase = createAdminSupabaseClient()
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null

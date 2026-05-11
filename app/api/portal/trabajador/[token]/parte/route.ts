@@ -23,6 +23,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
+import { enforce, getClientIp } from '@/lib/rate-limit-portal'
 
 interface ParteBody {
   fecha?: string
@@ -46,6 +47,15 @@ export async function POST(
   if (!token || token.length < 30) {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
   }
+
+  // Rate limit: máx 60 partes/min/IP+token (un trabajador legítimo edita ~5 al día).
+  const rl = enforce({
+    category: 'parte-write',
+    max: 60,
+    windowMs: 60_000,
+    key: `${getClientIp(request)}|${token.slice(0, 8)}`,
+  })
+  if (rl) return rl
 
   const supabase = createAdminSupabaseClient()
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null

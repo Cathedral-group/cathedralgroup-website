@@ -39,7 +39,10 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+          // camera y geolocation permitidos en el propio dominio: el portal trabajador
+          // los usa (foto ticket/albarán/foto avance + GPS al fichar). microphone
+          // y FLoC bloqueados (no se usa, privacy).
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(self), interest-cohort=()' },
           { key: 'Content-Security-Policy', value: CSP_HEADER },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
         ],

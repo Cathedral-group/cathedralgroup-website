@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { extractReceiptData, isOcrAvailable } from '@/lib/ocr-gemini'
 import { notifyAdmins } from '@/lib/admin-notify'
+import { enforce, getClientIp } from '@/lib/rate-limit-portal'
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
@@ -57,6 +58,15 @@ export async function POST(
   if (!token || token.length < 30) {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
   }
+
+  // Rate limit: máx 30 subidas/min/IP+token (uso normal ~5-10 al día; protege storage).
+  const rl = enforce({
+    category: 'upload-receipt',
+    max: 30,
+    windowMs: 60_000,
+    key: `${getClientIp(request)}|${token.slice(0, 8)}`,
+  })
+  if (rl) return rl
 
   const supabase = createAdminSupabaseClient()
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null

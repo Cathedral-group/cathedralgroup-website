@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
+import { enforce, getClientIp } from '@/lib/rate-limit-portal'
 
 const SESSION_COOKIE_NAME = 'cathedral_worker_session'
 const SESSION_DAYS = 90
@@ -25,6 +26,18 @@ export async function POST(
   if (!token || token.length < 30) {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
   }
+
+  // Rate limit por IP — complementa al lockout BD (5 intentos → 15 min) protegiendo
+  // contra brute-force que prueba muchos tokens distintos desde la misma IP.
+  // Máx 30 intentos / minuto / IP (defensa contra escaneo automatizado).
+  const ipForRl = getClientIp(request)
+  const rl = enforce({
+    category: 'pin-login',
+    max: 30,
+    windowMs: 60_000,
+    key: ipForRl,
+  })
+  if (rl) return rl
 
   let body: { pin?: string }
   try {

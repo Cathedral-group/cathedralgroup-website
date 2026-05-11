@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { notifyAdmins } from '@/lib/admin-notify'
+import { enforce, getClientIp } from '@/lib/rate-limit-portal'
 
 const ALLOWED_TIPOS = ['dieta', 'kilometraje', 'material', 'aparcamiento', 'peaje', 'otro']
 const ALLOWED_MEDIOS_PAGO = ['bolsillo_personal', 'tarjeta_empresa', 'coche_empresa', 'efectivo_caja_obra']
@@ -93,6 +94,15 @@ export async function POST(
 ) {
   const { token } = await params
   if (!token || token.length < 30) return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+
+  // Rate limit antes de tocar BD
+  const rl = enforce({
+    category: 'expense-write',
+    max: 40,
+    windowMs: 60_000,
+    key: `${getClientIp(request)}|${token.slice(0, 8)}`,
+  })
+  if (rl) return rl
 
   const supabase = createAdminSupabaseClient()
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
@@ -270,6 +280,7 @@ export async function DELETE(
     .from('worker_expense_items')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('employee_id', validation.employeeId) // defensa en profundidad (ya validado arriba)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

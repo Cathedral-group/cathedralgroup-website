@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { notifyAdmins } from '@/lib/admin-notify'
+import { enforce, getClientIp } from '@/lib/rate-limit-portal'
 
 const ALLOWED_TIPOS = [
   'vacaciones',
@@ -81,6 +82,15 @@ export async function POST(
 ) {
   const { token } = await params
   if (!token || token.length < 30) return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+
+  // Rate limit: máx 10 solicitudes ausencia/min/IP+token (legítimo: 1-2 al mes)
+  const rl = enforce({
+    category: 'ausencia-write',
+    max: 10,
+    windowMs: 60_000,
+    key: `${getClientIp(request)}|${token.slice(0, 8)}`,
+  })
+  if (rl) return rl
 
   const supabase = createAdminSupabaseClient()
   const validation = await validateToken(supabase, token)

@@ -61,11 +61,14 @@ export default async function PortalTrabajadorPage({ params }: Params) {
     tokenInfoRes,
     overtimeBalanceRes,
   ] = await Promise.all([
+    // No exponer al trabajador proyectos cancelados/completados/finalizados:
+    // ahí no debería fichar (info-disclosure + datos irrelevantes en el selector).
     supabase
       .from('projects')
       .select('id, code, name, description, status')
       .eq('company_id', companyId)
       .is('deleted_at', null)
+      .not('status', 'in', '(cancelado,completado,finalizado)')
       .order('code', { ascending: false })
       .limit(50),
     supabase
