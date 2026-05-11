@@ -134,9 +134,11 @@ function EmployeesTable({ rows, muted = false }: RowProps) {
             const portal = e.portal
             const active = portal && !portal.revoked_at
             return (
-              <tr key={e.id} className={muted ? 'text-stone-500' : ''}>
+              <tr key={e.id} className={`${muted ? 'text-stone-500' : ''} hover:bg-stone-50 cursor-pointer`}>
                 <td className="px-4 py-2.5">
-                  {(e.nombre ?? '').trim() || '—'}
+                  <Link href={`/admin/personal/trabajadores/${e.id}`} className="hover:underline">
+                    {(e.nombre ?? '').trim() || '—'}
+                  </Link>
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs">{e.nif ?? '—'}</td>
                 <td className="px-4 py-2.5">
@@ -172,12 +174,21 @@ function EmployeesTable({ rows, muted = false }: RowProps) {
                   {portal?.uses_count ?? 0}
                 </td>
                 <td className="px-4 py-2.5">
-                  <Link
-                    href={`/admin/personal/trabajadores/${e.id}/portal`}
-                    className="text-xs text-stone-600 underline hover:text-stone-900"
-                  >
-                    Gestionar →
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <Link
+                      href={`/admin/personal/trabajadores/${e.id}`}
+                      className="text-xs text-stone-600 hover:text-stone-900 hover:underline"
+                    >
+                      Ver ficha →
+                    </Link>
+                    <Link
+                      href={`/admin/personal/trabajadores/${e.id}/portal`}
+                      className="text-xs text-stone-400 hover:text-stone-700"
+                      title="Solo PIN + token"
+                    >
+                      PIN
+                    </Link>
+                  </div>
                 </td>
               </tr>
             )
