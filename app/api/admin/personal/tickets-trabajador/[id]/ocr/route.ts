@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { isAdminEmail } from '@/lib/auth-allowlist'
-import { extractReceiptData, isOcrAvailable } from '@/lib/ocr-gemini'
+import { extractReceiptDataCascade, isCascadeAvailable, availableProviders } from '@/lib/ocr'
 import {
   resolveCompanyIdForRequest,
   getCompanyContextFromUser,
@@ -48,11 +48,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!isOcrAvailable()) {
+  if (!isCascadeAvailable()) {
     return NextResponse.json(
       {
-        error: 'OCR no disponible: falta GEMINI_API_KEY en variables de entorno',
-        action_required: 'Configurar GEMINI_API_KEY en Vercel env (production)',
+        error: 'OCR no disponible: ningún provider configurado (Gemini / OpenAI / Mistral)',
+        action_required: 'Configurar al menos uno: GEMINI_API_KEY, OPENAI_API_KEY o MISTRAL_API_KEY en Vercel env',
       },
       { status: 503 },
     )
@@ -110,24 +110,25 @@ export async function POST(
 
   const arrayBuffer = await blob.arrayBuffer()
 
-  // Llamar Gemini
-  const extracted = await extractReceiptData(arrayBuffer, attachment.mime_type ?? 'image/jpeg')
+  // Llamar OCR con cascada (Gemini → OpenAI → Mistral)
+  void availableProviders // import-side-effect: lo dejamos en bundle por si lo usa el front
+  const extracted = await extractReceiptDataCascade(arrayBuffer, attachment.mime_type ?? 'image/jpeg')
 
   if (!extracted) {
     await supabase
       .from('worker_attachments')
       .update({ status: 'error' })
       .eq('id', id)
-    return NextResponse.json({ error: 'OCR no devolvió datos' }, { status: 500 })
+    return NextResponse.json({ error: 'OCR no devolvió datos (todos los providers fallaron)' }, { status: 500 })
   }
 
-  // Guardar
+  // Guardar (el provider que finalmente devolvió viene en extracted.provider)
   const { error: updError } = await supabase
     .from('worker_attachments')
     .update({
       extracted_data: extracted,
       extracted_at: new Date().toISOString(),
-      extraction_provider: 'gemini-flash-2',
+      extraction_provider: extracted.provider,
       status: 'extracted',
       updated_at: new Date().toISOString(),
     })

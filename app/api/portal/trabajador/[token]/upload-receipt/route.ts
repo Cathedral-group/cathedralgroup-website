@@ -25,7 +25,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
-import { extractReceiptData, isOcrAvailable } from '@/lib/ocr-gemini'
+import { extractReceiptDataCascade, isCascadeAvailable } from '@/lib/ocr'
 import { notifyAdmins } from '@/lib/admin-notify'
 import { enforce, getClientIp } from '@/lib/rate-limit-portal'
 
@@ -194,9 +194,9 @@ export async function POST(
     .from('worker-receipts')
     .createSignedUrl(storagePath, 3600)
 
-  // OCR automático async (best-effort, no bloquea respuesta al trabajador)
-  // Solo si imagen + GEMINI_API_KEY disponible.
-  if (isOcrAvailable() && file.type.startsWith('image/')) {
+  // OCR automático async con CASCADA Gemini → OpenAI → Mistral.
+  // Solo si imagen + al menos un provider configurado en env.
+  if (isCascadeAvailable() && file.type.startsWith('image/')) {
     void (async () => {
       try {
         await supabase
@@ -204,14 +204,16 @@ export async function POST(
           .update({ status: 'processing' })
           .eq('id', id)
 
-        const extracted = await extractReceiptData(arrayBuffer, file.type)
+        const extracted = await extractReceiptDataCascade(arrayBuffer, file.type)
         if (extracted) {
+          // El provider que finalmente acertó queda registrado en extraction_provider.
+          // fallbacks documenta los que se intentaron antes (útil para análisis).
           await supabase
             .from('worker_attachments')
             .update({
               extracted_data: extracted,
               extracted_at: new Date().toISOString(),
-              extraction_provider: 'gemini-flash-2',
+              extraction_provider: extracted.provider,
               status: 'extracted',
             })
             .eq('id', id)
@@ -222,7 +224,7 @@ export async function POST(
             .eq('id', id)
         }
       } catch (e) {
-        console.error('[upload-receipt async OCR]', e)
+        console.error('[upload-receipt async OCR cascade]', e)
         await supabase
           .from('worker_attachments')
           .update({ status: 'error' })
@@ -265,7 +267,7 @@ export async function POST(
     ok: true,
     attachment,
     preview_url: signed?.signedUrl ?? null,
-    ocr_queued: isOcrAvailable() && file.type.startsWith('image/'),
+    ocr_queued: isCascadeAvailable() && file.type.startsWith('image/'),
     message:
       'Subido correctamente. La administración lo procesará para anotarlo en la contabilidad.',
   })
