@@ -41,21 +41,32 @@ async function authCheck() {
   return data.user
 }
 
-function auditLog(
+async function auditLog(
   userEmail: string,
   action: 'create' | 'update' | 'delete' | 'restore' | 'permanent_delete' | 'permanent_delete_bulk',
   tableName: string,
   recordId: string | null,
   ip: string,
-) {
+): Promise<void> {
   const supabase = createAdminSupabaseClient()
-  void supabase.from('admin_audit_log').insert({
-    user_email: userEmail,
-    action,
-    table_name: tableName,
-    record_id: recordId,
-    ip,
-  }) // fire-and-forget: never blocks the main request
+  try {
+    const { error } = await supabase.from('admin_audit_log').insert({
+      user_email: userEmail,
+      action,
+      table_name: tableName,
+      record_id: recordId,
+      ip,
+    })
+    if (error) {
+      console.error('[auditLog] INSERT failed:', error.message, error.details, error.hint, {
+        userEmail, action, tableName, recordId,
+      })
+    }
+  } catch (e) {
+    console.error('[auditLog] unexpected error:', e instanceof Error ? e.message : String(e), {
+      userEmail, action, tableName, recordId,
+    })
+  }
 }
 
 // Resources that support soft delete (deleted_at field)
@@ -826,14 +837,14 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       .select()
       .maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    auditLog(user.email ?? user.id, 'create', table, (data as Record<string, unknown>)?.id as string ?? null, ip)
+    await auditLog(user.email ?? user.id, 'create', table, (data as Record<string, unknown>)?.id as string ?? null, ip)
     return NextResponse.json({ data })
   }
 
   const { data, error } = await supabase.from(table).insert(body).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  auditLog(user.email ?? user.id, 'create', table, (data as Record<string, unknown>)?.id as string ?? null, ip)
+  await auditLog(user.email ?? user.id, 'create', table, (data as Record<string, unknown>)?.id as string ?? null, ip)
   return NextResponse.json({ data })
 }
 
@@ -850,9 +861,15 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     if (!id || !table) return NextResponse.json({ error: 'ID y tabla requeridos' }, { status: 400 })
     if (!SOFT_DELETE_TABLES.has(table)) return NextResponse.json({ error: 'Tabla no permitida' }, { status: 400 })
     const supabase = createAdminSupabaseClient()
-    const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id)
+    const { error, count } = await supabase
+      .from(table)
+      .update({ deleted_at: null }, { count: 'exact' })
+      .eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    auditLog(user.email ?? user.id, 'restore', table, id, ip)
+    if ((count ?? 0) === 0) {
+      return NextResponse.json({ error: 'Registro no encontrado o ya restaurado' }, { status: 404 })
+    }
+    await auditLog(user.email ?? user.id, 'restore', table, id, ip)
     return NextResponse.json({ ok: true })
   }
 
@@ -905,14 +922,22 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   const payload = resource === 'quality-coefficients'
     ? { ...updates, updated_at: new Date().toISOString() }
     : updates
-  const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single()
+  const { data, error, count } = await supabase
+    .from(table)
+    .update(payload, { count: 'exact' })
+    .eq('id', id)
+    .select()
+    .maybeSingle()
 
   if (error) {
     // Loggear server-side con detalle completo (Vercel logs), devolver mensaje genérico al cliente
     console.error(`[PATCH ${table}] id=${id} error:`, error.message, error.details, error.hint, 'code:', error.code)
     return NextResponse.json({ error: 'Error al actualizar el registro' }, { status: 500 })
   }
-  auditLog(user.email ?? user.id, 'update', table, id, ip)
+  if ((count ?? 0) === 0 || data === null) {
+    return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 })
+  }
+  await auditLog(user.email ?? user.id, 'update', table, id, ip)
   return NextResponse.json({ ok: true, data })
 }
 
@@ -951,7 +976,7 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
           return NextResponse.json({ error: 'Error al vaciar papelera' }, { status: 500 })
         }
         totalDeleted += count ?? 0
-        auditLog(user.email ?? user.id, 'permanent_delete_bulk', tbl, ids.join(','), ip)
+        await auditLog(user.email ?? user.id, 'permanent_delete_bulk', tbl, ids.join(','), ip)
       }
       return NextResponse.json({ ok: true, deleted: totalDeleted })
     }
@@ -972,7 +997,7 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
     if (count === 0) {
       return NextResponse.json({ error: 'El registro no está en la papelera' }, { status: 400 })
     }
-    auditLog(user.email ?? user.id, 'permanent_delete', table, id, ip)
+    await auditLog(user.email ?? user.id, 'permanent_delete', table, id, ip)
     return NextResponse.json({ ok: true })
   }
 
@@ -1017,14 +1042,27 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
 
   if (SOFT_DELETE_TABLES.has(table)) {
     // Soft delete
-    const { error } = await supabase.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error, count } = await supabase
+      .from(table)
+      .update({ deleted_at: new Date().toISOString() }, { count: 'exact' })
+      .eq('id', id)
+      .is('deleted_at', null)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if ((count ?? 0) === 0) {
+      return NextResponse.json({ error: 'Registro no encontrado o ya eliminado' }, { status: 404 })
+    }
   } else {
     // Hard delete (project_phases, communications)
-    const { error } = await supabase.from(table).delete().eq('id', id)
+    const { error, count } = await supabase
+      .from(table)
+      .delete({ count: 'exact' })
+      .eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if ((count ?? 0) === 0) {
+      return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 })
+    }
   }
 
-  auditLog(user.email ?? user.id, 'delete', table, id, ip)
+  await auditLog(user.email ?? user.id, 'delete', table, id, ip)
   return NextResponse.json({ ok: true })
 }

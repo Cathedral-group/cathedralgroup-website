@@ -1,10 +1,14 @@
 /**
- * Vercel Cron: ejecuta /api/health/workflow cada 30 min y, si el estado
- * es 'critical', registra una alerta en BD para que se vea destacada en
- * /admin/sistema.
+ * Vercel Cron: ejecuta /api/health/workflow y, si el estado es 'critical' o
+ * 'warning', registra una alerta en BD para que se vea destacada en /admin/sistema.
  *
- * Vercel llama a este endpoint según el schedule en vercel.json:
- *   "schedule": "0,30 * * * *"  (cada 30 min)
+ * Vercel llama a este endpoint según el schedule en vercel.json.
+ * Schedule actual (plan Hobby — solo permite 1 cron/día):
+ *   "schedule": "0 9 * * *"  (1× al día, 09:00 UTC ≈ 10/11 Madrid)
+ *
+ * IMPORTANTE: ventana de detección real = 24h. Si plan Vercel pasa a Pro,
+ * cambiar a "*/30 * * * *" (cada 30 min) o "0,30 * * * *" en vercel.json
+ * + actualizar este docstring.
  *
  * Vercel firma la request con el header 'x-vercel-cron' = '1' (en producción)
  * para evitar ejecuciones manuales no autorizadas. En desarrollo no se valida.
@@ -44,21 +48,61 @@ export async function GET(request: NextRequest) {
 
   // Llamar al healthcheck (mismo origen)
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://cathedralgroup.es'
-  const healthRes = await fetch(`${baseUrl}/api/health/workflow`, {
-    cache: 'no-store',
-  })
+  let healthRes: Response
+  try {
+    healthRes = await fetch(`${baseUrl}/api/health/workflow`, { cache: 'no-store' })
+  } catch (e) {
+    console.error('[cron healthcheck] fetch /api/health/workflow failed:',
+      e instanceof Error ? e.message : String(e))
+    return NextResponse.json(
+      { cron_executed_at: new Date().toISOString(), error: 'health endpoint unreachable' },
+      { status: 502 },
+    )
+  }
+
+  // FP17 fix: verificar HTTP status antes de parsear JSON
+  if (!healthRes.ok) {
+    const bodyText = await healthRes.text().catch(() => '')
+    console.error(`[cron healthcheck] /api/health/workflow HTTP ${healthRes.status}:`, bodyText.slice(0, 300))
+    // Registrar alerta crítica — el propio healthcheck endpoint está roto
+    try {
+      const supabase = createAdminSupabaseClient()
+      await supabase.from('exceptions_log').insert({
+        source: 'workflow_healthcheck',
+        severity: 'critical',
+        message: `Health endpoint returned HTTP ${healthRes.status}`,
+        metadata: { status: healthRes.status, body: bodyText.slice(0, 500) },
+      })
+    } catch (e) {
+      console.error('[cron healthcheck] exceptions_log insert failed:',
+        e instanceof Error ? e.message : String(e))
+    }
+    return NextResponse.json(
+      { cron_executed_at: new Date().toISOString(), health_status: 'endpoint_error', http_status: healthRes.status },
+      { status: 502 },
+    )
+  }
+
   const health = await healthRes.json()
 
   // Solo guardar log si hay alarma (warning o critical)
   if (health.status === 'critical' || health.status === 'warning') {
-    const supabase = createAdminSupabaseClient()
-    // Registrar en exceptions_log (tabla ya existente)
-    await supabase.from('exceptions_log').insert({
-      source: 'workflow_healthcheck',
-      severity: health.status === 'critical' ? 'critical' : 'warning',
-      message: health.reasons?.join(' | ') || 'Workflow healthcheck alert',
-      metadata: health,
-    })
+    try {
+      const supabase = createAdminSupabaseClient()
+      // Registrar en exceptions_log (tabla ya existente)
+      const { error: insertErr } = await supabase.from('exceptions_log').insert({
+        source: 'workflow_healthcheck',
+        severity: health.status === 'critical' ? 'critical' : 'warning',
+        message: health.reasons?.join(' | ') || 'Workflow healthcheck alert',
+        metadata: health,
+      })
+      if (insertErr) {
+        console.error('[cron healthcheck] exceptions_log INSERT failed:', insertErr.message)
+      }
+    } catch (e) {
+      console.error('[cron healthcheck] exceptions_log unexpected:',
+        e instanceof Error ? e.message : String(e))
+    }
     // TODO (próxima sesión): enviar email a David + socios cuando tengamos
     // RESEND_API_KEY o similar configurado.
   }

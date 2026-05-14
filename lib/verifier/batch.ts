@@ -70,13 +70,20 @@ export function batchVerify(
         fields: row,
       })
       out[String(row.id)] = summarize(result)
-    } catch {
+    } catch (e) {
+      // FP19 fix: loggear excepción real con contexto (antes silenciada)
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error('[batchVerify] verify exception:', msg, {
+        documentType,
+        rowId: row.id,
+        stack: e instanceof Error ? e.stack : undefined,
+      })
       out[String(row.id)] = {
         status: 'error',
         needs_review: true,
         error_count: 1,
         warning_count: 0,
-        reasons: ['Error inesperado al verificar (excepción interna)'],
+        reasons: [`Error inesperado al verificar: ${msg.slice(0, 200)}`],
         suggestions: {},
       }
     }

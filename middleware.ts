@@ -51,20 +51,38 @@ export async function middleware(request: NextRequest) {
   }
 
   // MFA enforcement: check assurance level
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  if (aal) {
-    if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
-      // User has MFA enrolled but hasn't verified it this session
-      const mfaUrl = request.nextUrl.clone()
-      mfaUrl.pathname = '/admin/mfa'
-      return NextResponse.redirect(mfaUrl)
-    }
-    if (aal.nextLevel !== 'aal2') {
-      // User has no MFA factor enrolled yet — force setup
-      const setupUrl = request.nextUrl.clone()
-      setupUrl.pathname = '/admin/mfa/setup'
-      return NextResponse.redirect(setupUrl)
-    }
+  // FP18 fix: chequear error explícito. Si MFA endpoint falla, denegar acceso
+  // (fail-closed) en vez de continuar con aal=null y arriesgar redirect-loop.
+  const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aalError) {
+    console.error('[middleware] MFA getAuthenticatorAssuranceLevel error:', aalError.message, {
+      user: data.user.email,
+    })
+    // Fail-closed: redirigir a login con error genérico (NO revelar detalle)
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/admin/login'
+    loginUrl.searchParams.set('error', 'mfa_check_failed')
+    return NextResponse.redirect(loginUrl)
+  }
+  if (!aal) {
+    // Caso atípico: sin error pero sin data. Fail-closed igual.
+    console.warn('[middleware] MFA aal data is null without error, fail-closed', { user: data.user.email })
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/admin/login'
+    loginUrl.searchParams.set('error', 'mfa_check_failed')
+    return NextResponse.redirect(loginUrl)
+  }
+  if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+    // User has MFA enrolled but hasn't verified it this session
+    const mfaUrl = request.nextUrl.clone()
+    mfaUrl.pathname = '/admin/mfa'
+    return NextResponse.redirect(mfaUrl)
+  }
+  if (aal.nextLevel !== 'aal2') {
+    // User has no MFA factor enrolled yet — force setup
+    const setupUrl = request.nextUrl.clone()
+    setupUrl.pathname = '/admin/mfa/setup'
+    return NextResponse.redirect(setupUrl)
   }
 
   return response

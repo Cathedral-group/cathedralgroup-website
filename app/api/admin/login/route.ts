@@ -70,13 +70,20 @@ export async function POST(request: NextRequest) {
   const supabase = await createServerSupabaseClient()
   const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
-  // 4. Registrar intento (fire-and-forget)
-  void adminClient.from('login_attempts').insert({
-    ip,
-    email,
-    success: !authError,
-    user_agent: userAgent,
-  })
+  // 4. Registrar intento (await + try/catch — fix FP16 fire-and-forget)
+  try {
+    const { error: insertErr } = await adminClient.from('login_attempts').insert({
+      ip,
+      email,
+      success: !authError,
+      user_agent: userAgent,
+    })
+    if (insertErr) {
+      console.error('[login] login_attempts INSERT failed:', insertErr.message, { ip, email, success: !authError })
+    }
+  } catch (e) {
+    console.error('[login] login_attempts unexpected error:', e instanceof Error ? e.message : String(e))
+  }
 
   if (authError) {
     // Mensaje genérico — no revelar si el email existe o no (anti-enumeration)
@@ -85,7 +92,14 @@ export async function POST(request: NextRequest) {
 
   // 5. Limpieza periódica oportunista (1% de los logins exitosos)
   if (Math.random() < 0.01) {
-    void adminClient.rpc('cleanup_old_login_attempts')
+    try {
+      const { error: cleanupErr } = await adminClient.rpc('cleanup_old_login_attempts')
+      if (cleanupErr) {
+        console.error('[login] cleanup_old_login_attempts failed:', cleanupErr.message)
+      }
+    } catch (e) {
+      console.error('[login] cleanup unexpected error:', e instanceof Error ? e.message : String(e))
+    }
   }
 
   return NextResponse.json({ ok: true })

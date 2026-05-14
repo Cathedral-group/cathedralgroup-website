@@ -108,18 +108,28 @@ export async function POST(request: Request) {
           }
         )
 
-        const turnstileResult = await turnstileResponse.json()
-        if (turnstileResult.success) {
-          turnstileValid = true
+        // FP23 fix: verificar HTTP status antes de parsear JSON
+        if (!turnstileResponse.ok) {
+          console.error('[contact] Turnstile siteverify HTTP', turnstileResponse.status,
+            await turnstileResponse.text().catch(() => '').then(t => t.slice(0, 200)))
+          // Cloudflare 5xx: permitir envío (no bloquear usuarios reales por outage Cloudflare)
+          turnstileValid = false
         } else {
-          // Token present but invalid — likely a bot
-          return NextResponse.json(
-            { error: 'Validación anti-bot no superada' },
-            { status: 400 }
-          )
+          const turnstileResult = await turnstileResponse.json()
+          if (turnstileResult.success) {
+            turnstileValid = true
+          } else {
+            // Token present but invalid — likely a bot
+            return NextResponse.json(
+              { error: 'Validación anti-bot no superada' },
+              { status: 400 }
+            )
+          }
         }
-      } catch {
+      } catch (e) {
         // Turnstile API error — allow submission (don't block real users)
+        console.error('[contact] Turnstile fetch exception:',
+          e instanceof Error ? e.message : String(e))
         turnstileValid = false
       }
     }
