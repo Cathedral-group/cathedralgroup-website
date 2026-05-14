@@ -7,7 +7,7 @@
  *   "schedule": "0 9 * * *"  (1× al día, 09:00 UTC ≈ 10/11 Madrid)
  *
  * IMPORTANTE: ventana de detección real = 24h. Si plan Vercel pasa a Pro,
- * cambiar a "*/30 * * * *" (cada 30 min) o "0,30 * * * *" en vercel.json
+ * cambiar a "0,30 (asterisco) (asterisco) (asterisco) (asterisco)" (cada 30 min) en vercel.json
  * + actualizar este docstring.
  *
  * Vercel firma la request con el header 'x-vercel-cron' = '1' (en producción)
