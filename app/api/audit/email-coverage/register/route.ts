@@ -56,6 +56,38 @@ export const dynamic = 'force-dynamic'
 
 const MAX_ATTEMPTS = 2
 
+// Pre-filter conservador (15/05/2026, research-validated Outbox/Stripe pattern).
+// Marca como 'ignored' tráfico que NUNCA puede ser factura. Workflow general
+// igualmente tiene Pre-Filtro Basura con safety-net binary; esto es defense in depth
+// del lado del registro para evitar acumulación pending de no-facturas.
+const NOISE_FROM_PATTERNS = [
+  'mailer-daemon@',
+  'mail-daemon@',
+  'postmaster@',
+  'mailer-daemon@googlemail.com',
+]
+const NOISE_SUBJECT_PATTERNS = [
+  'delivery status notification',
+  'returned mail',
+  'undeliverable',
+  'mail delivery failed',
+]
+const REPLY_PREFIX_RE = /^(re|fwd?|aw|tr|rv|res):\s/i
+
+function classifyNoise(from: string, subject: string): string | null {
+  const fLow = (from || '').toLowerCase()
+  const sLow = (subject || '').toLowerCase()
+  for (const p of NOISE_FROM_PATTERNS) if (fLow.includes(p)) return `bounce:${p}`
+  for (const p of NOISE_SUBJECT_PATTERNS) if (sLow.includes(p)) return `bounce:${p}`
+  // Reply-thread interno: prefix "Re:/Fwd:" Y from termina en dominio propio.
+  // Conservador: solo si AMBAS condiciones — internal forward con prefijo nuevo
+  // (sin reply prefix) de un proveedor sí debe pasar.
+  if (REPLY_PREFIX_RE.test(subject) && fLow.endsWith('@cathedralgroup.es')) {
+    return 'reply_thread:internal'
+  }
+  return null
+}
+
 function authCronCheck(request: NextRequest): boolean {
   const expected = process.env.AUDIT_CRON_SECRET
   if (!expected) return false
@@ -145,16 +177,23 @@ export async function POST(request: NextRequest) {
 
   // === mode='register' (default, idempotente — el cron lista emails y registra) ===
   if (mode === 'register') {
+    const noiseReason = classifyNoise(body.from_address ?? '', body.subject ?? '')
+
     if (existing) {
       // Refrescar metadata por si Gmail cambia algo (improbable pero defensivo).
-      // NO tocar attempt_count ni status.
+      // NO tocar attempt_count ni status (salvo upgrade a 'ignored' por noise).
+      const patch: Record<string, unknown> = {
+        subject: body.subject ?? null,
+        from_address: body.from_address ?? null,
+        received_at: body.received_at ?? null,
+      }
+      if (noiseReason && existing.status === 'pending') {
+        patch.status = 'ignored'
+        patch.last_error = `auto_skipped:${noiseReason}`
+      }
       const { data, error } = await supabase
         .from('email_audit_attempts')
-        .update({
-          subject: body.subject ?? null,
-          from_address: body.from_address ?? null,
-          received_at: body.received_at ?? null,
-        })
+        .update(patch)
         .eq('id', existing.id)
         .select('id, attempt_count, status')
         .single()
@@ -167,7 +206,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ...data, should_retry: shouldRetry })
     }
 
-    // Insert nuevo con attempt_count=0
+    // Insert nuevo. Si es noise → ignored directo, no entra al pool de reintentos.
+    const insertStatus = noiseReason ? 'ignored' : 'pending'
     const { data, error } = await supabase
       .from('email_audit_attempts')
       .insert({
@@ -177,7 +217,8 @@ export async function POST(request: NextRequest) {
         from_address: body.from_address ?? null,
         received_at: body.received_at ?? null,
         attempt_count: 0,
-        status: 'pending',
+        status: insertStatus,
+        last_error: noiseReason ? `auto_skipped:${noiseReason}` : null,
       })
       .select('id, attempt_count, status')
       .single()
@@ -185,7 +226,7 @@ export async function POST(request: NextRequest) {
       console.error('[audit/register] insert error:', error)
       return NextResponse.json({ error: 'DB error' }, { status: 500 })
     }
-    return NextResponse.json({ ...data, should_retry: true })
+    return NextResponse.json({ ...data, should_retry: !noiseReason })
   }
 
   // === mode='attempt': INCREMENTA attempt_count tras intento real de procesamiento ===
