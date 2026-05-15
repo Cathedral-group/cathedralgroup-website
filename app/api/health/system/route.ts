@@ -151,11 +151,13 @@ export async function GET(request: NextRequest) {
     alerts.push('Sin snapshots eval registrados todavía')
   }
 
-  // 4. Exceptions pendientes
+  // 4. Exceptions pendientes (filtro recency: solo últimos 7d para no contar histórico drenado)
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: pendingExceptions } = await supabase
     .from('exceptions_log')
     .select('id, created_at')
     .eq('resolved', false)
+    .gte('created_at', sevenDaysAgo)
     .order('created_at', { ascending: true })
     .limit(1000)
   const exceptionsCount = pendingExceptions?.length ?? 0
@@ -164,7 +166,7 @@ export async function GET(request: NextRequest) {
     const oldest = new Date(pendingExceptions[0].created_at as string)
     oldestMinutes = Math.round((Date.now() - oldest.getTime()) / 60000)
     if (exceptionsCount > 50) {
-      alerts.push(`${exceptionsCount} exceptions sin resolver (>50 — investigar acumulación)`)
+      alerts.push(`${exceptionsCount} exceptions sin resolver últimos 7d (>50 — investigar acumulación)`)
     }
   }
 
