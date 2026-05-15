@@ -13,3 +13,4 @@ _legacy_html/
 
 # Backups locales de workflows n8n (sesión 28-30)
 backups/
+supabase/.temp/

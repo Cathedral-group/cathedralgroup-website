@@ -1,6 +1,6 @@
 # `n8n-workflows/` — JS code de nodos versionado
 
-Los Code nodes del workflow general LWZWxjo9O5ku7tF7 viven en n8n DB
+Los Code nodes del workflow general FwpGF7L2GbFB84kL viven en n8n DB
 (no en repo). Esta carpeta contiene **copias de las últimas versiones**
 de los Code nodes críticos para versionado y trazabilidad.
 
@@ -25,7 +25,7 @@ Para aplicar cambios al workflow live:
 # Generar JSON modificado del workflow
 KEY=$(jq -r '.mcpServers.n8n.env.N8N_API_KEY' ~/.mcp.json)
 curl -sS -H "X-N8N-API-KEY: $KEY" \
-  https://n8n.cathedralgroup.es/api/v1/workflows/LWZWxjo9O5ku7tF7 \
+  https://n8n.cathedralgroup.es/api/v1/workflows/FwpGF7L2GbFB84kL \
   > /tmp/general.json
 
 jq --rawfile js scripts/n8n-workflows/Parsear_GPT-4o_Vision.js '
@@ -34,10 +34,10 @@ jq --rawfile js scripts/n8n-workflows/Parsear_GPT-4o_Vision.js '
 ' /tmp/general.json > /tmp/general.fix.json
 
 # Backup + PUT
-cp /tmp/general.json backups/workflows-pruebas-handoff/LWZWxjo9O5ku7tF7-pre-$(date +%Y%m%dT%H%M%SZ).json
+cp /tmp/general.json backups/workflows-pruebas-handoff/FwpGF7L2GbFB84kL-pre-$(date +%Y%m%dT%H%M%SZ).json
 curl -sS -X PUT -H "X-N8N-API-KEY: $KEY" -H "Content-Type: application/json" \
   -d @/tmp/general.fix.json \
-  https://n8n.cathedralgroup.es/api/v1/workflows/LWZWxjo9O5ku7tF7
+  https://n8n.cathedralgroup.es/api/v1/workflows/FwpGF7L2GbFB84kL
 ```
 
 ## Bugs conocidos pendientes
