@@ -153,3 +153,44 @@ test('subject with null bytes handled correctly', () => {
   assert.equal(typeof a, 'boolean')
   assert.equal(isInRollout('k', subjectWithNull, 50), a) // deterministic
 })
+
+test('bucket distribution chi-square within NIST 95% confidence (df=99)', () => {
+  // 10000 subjects únicos distribuidos en 100 buckets via SHA-256 mod 100.
+  // Expected = N/100 = 100 per bucket si distribución uniforme.
+  // Pearson chi-square = sum((observed - expected)^2 / expected).
+  // Threshold crítico df=99 + 95% confidence = 123.225 (tabla NIST).
+  // Fuente: https://www.itl.nist.gov/div898/handbook/eda/section3/eda3674.htm
+  const N = 10000
+  const buckets = new Array(100).fill(0)
+  for (let i = 0; i < N; i++) {
+    const hash = createHash('sha256').update(`chi_test:subj_${i}`).digest()
+    const bucket = hash.readUInt32BE(0) % 100
+    buckets[bucket]++
+  }
+  const expected = N / 100
+  const chiSquare = buckets.reduce(
+    (acc, observed) => acc + Math.pow(observed - expected, 2) / expected,
+    0
+  )
+  assert.ok(
+    chiSquare < 123.225,
+    `chi-square=${chiSquare.toFixed(2)} supera crítico 123.225 (df=99, 95% conf NIST)`
+  )
+})
+
+test('no-colision inputs adyacentes (smoke avalanche sanity)', () => {
+  // 3 subjects con strings adyacentes deben producir buckets distintos.
+  // Probabilidad random 3 buckets iguales = (1/100)^2 = 1/10000 (0.01%).
+  // Smoke test rapido — NO mide avalanche bit-level real (eso requiere
+  // distancia Hamming sobre 256 bits hash completo, no bucket mod 100).
+  const flagKey = 'collision_smoke_test'
+  const a = createHash('sha256').update(`${flagKey}:subject-1`).digest().readUInt32BE(0) % 100
+  const b = createHash('sha256').update(`${flagKey}:subject-2`).digest().readUInt32BE(0) % 100
+  const c = createHash('sha256').update(`${flagKey}:subject-3`).digest().readUInt32BE(0) % 100
+  const allEqual = a === b && b === c
+  assert.equal(
+    allEqual,
+    false,
+    `consecutive subjects bucketed identically (${a}/${b}/${c}) — no-colision sanity failure`
+  )
+})
