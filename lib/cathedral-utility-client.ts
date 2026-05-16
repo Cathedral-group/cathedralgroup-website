@@ -167,6 +167,116 @@ export async function callFuzzySupplier(
 }
 
 // =============================================================================
+// /api/fuzzy-ticket-invoice — fuzzy ticket → invoice/quote (NIF + importe + fecha)
+// NO confundir con /api/fuzzy-supplier (fuzzy nombre proveedor).
+// =============================================================================
+
+export interface FuzzyTicketInvoiceResult {
+  candidates: Array<{
+    id: string
+    number: string | null
+    issue_date: string
+    amount: number
+    empresa: string | null
+  }>
+  query_params: {
+    min_amt: number
+    max_amt: number
+    start_date: string
+    end_date: string
+  }
+}
+
+export async function callFuzzyTicketInvoice(input: {
+  supplier_nif: string
+  amount: number
+  issue_date: string
+  number?: string | null
+  target_table?: 'invoices' | 'quotes'
+}): Promise<FuzzyTicketInvoiceResult | null> {
+  const url = `${getBaseUrl()}/api/fuzzy-ticket-invoice`
+  const body: Record<string, unknown> = {
+    supplier_nif: input.supplier_nif,
+    amount: input.amount,
+    issue_date: input.issue_date,
+  }
+  if (input.number) body.number = input.number
+  if (input.target_table) body.target_table = input.target_table
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    },
+    DEFAULT_TIMEOUT_MS
+  )
+  if (!res || !res.ok) return null
+  try {
+    return (await res.json()) as FuzzyTicketInvoiceResult
+  } catch {
+    return null
+  }
+}
+
+// =============================================================================
+// /api/decide-table — decide tabla destino + corroboración proyecto
+// =============================================================================
+
+export interface DecideTableResult {
+  table:
+    | 'invoices'
+    | 'quotes'
+    | 'tax_filings'
+    | 'payrolls'
+    | 'payroll_summaries'
+    | 'documents'
+  table_reason: string
+  project_id: string | null
+  project_code: string | null
+  project_match_type:
+    | 'code_literal'
+    | 'history_confirmed'
+    | 'history_exclusive'
+    | null
+  project_confidence: number
+  action: 'auto_assign' | 'suggest' | 'needs_review'
+  razones: string[]
+}
+
+export async function callDecideTable(input: {
+  doc_type: string
+  supplier_id?: string | null
+  supplier_nif?: string | null
+  supplier_name?: string | null
+  extracted_text?: string | null
+  concept?: string | null
+  amount_total?: number | null
+  issue_date?: string | null
+  company_id?: string
+}): Promise<DecideTableResult | null> {
+  const url = `${getBaseUrl()}/api/decide-table`
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(input),
+      cache: 'no-store',
+    },
+    DEFAULT_TIMEOUT_MS
+  )
+  if (!res || !res.ok) return null
+  try {
+    return (await res.json()) as DecideTableResult
+  } catch {
+    return null
+  }
+}
+
+// =============================================================================
 // Helper SHA-256 hex (lowercase 64 chars) — Web Crypto API
 // Funciona en Node.js 18+ runtime (Vercel Hobby Fluid Compute compatible).
 // =============================================================================
