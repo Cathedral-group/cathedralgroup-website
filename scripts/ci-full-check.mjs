@@ -6,9 +6,10 @@
  *
  * Ejecuta:
  *   1. node --test scripts/test-feature-flags-rollout.mjs (8 tests determinismo)
- *   2. scripts/smoke-test-utilities.mjs (26 tests integración 4 endpoints prod)
- *   3. GET /api/health/utilities (status check + flags presentes)
- *   4. scripts/golden-dataset-compare.mjs <latest-baseline> (regresión BD)
+ *   2. node --test scripts/test-cathedral-utility-client.mjs (10 tests wrappers)
+ *   3. scripts/smoke-test-utilities.mjs (28 tests integración endpoints prod)
+ *   4. GET /api/health/utilities (status check + flags presentes)
+ *   5. scripts/golden-dataset-compare.mjs <latest-baseline> (regresión BD)
  *
  * Uso:
  *   CATHEDRAL_INTERNAL_TOKEN=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
@@ -48,7 +49,7 @@ function recordStep(name, success, durationMs, detail = '') {
 }
 
 // ─── Step 1: rollout determinism tests ───────────────────────────────────────
-console.log('\n[1/4] node --test scripts/test-feature-flags-rollout.mjs')
+console.log('\n[1/5] node --test scripts/test-feature-flags-rollout.mjs')
 {
   const t0 = performance.now()
   const r = spawnSync('node', ['--test', 'scripts/test-feature-flags-rollout.mjs'], { cwd })
@@ -61,8 +62,22 @@ console.log('\n[1/4] node --test scripts/test-feature-flags-rollout.mjs')
   }
 }
 
-// ─── Step 2: smoke test 26 integration ───────────────────────────────────────
-console.log('\n[2/4] scripts/smoke-test-utilities.mjs')
+// ─── Step 2: cathedral-utility-client unit tests ─────────────────────────────
+console.log('\n[2/5] node --test scripts/test-cathedral-utility-client.mjs')
+{
+  const t0 = performance.now()
+  const r = spawnSync('node', ['--test', 'scripts/test-cathedral-utility-client.mjs'], { cwd })
+  const dt = performance.now() - t0
+  recordStep('utility-client unit tests', r.status === 0, dt,
+    r.status === 0 ? '10 tests' : `exit ${r.status}`)
+  if (r.status !== 0) {
+    console.error(r.stdout?.toString())
+    console.error(r.stderr?.toString())
+  }
+}
+
+// ─── Step 3: smoke test 28 integration ───────────────────────────────────────
+console.log('\n[3/5] scripts/smoke-test-utilities.mjs')
 {
   const t0 = performance.now()
   const r = spawnSync('node', ['scripts/smoke-test-utilities.mjs'], {
@@ -80,8 +95,8 @@ console.log('\n[2/4] scripts/smoke-test-utilities.mjs')
   }
 }
 
-// ─── Step 3: health/utilities check ──────────────────────────────────────────
-console.log('\n[3/4] GET /api/health/utilities')
+// ─── Step 4: health/utilities check ──────────────────────────────────────────
+console.log('\n[4/5] GET /api/health/utilities')
 {
   const t0 = performance.now()
   try {
@@ -107,8 +122,8 @@ console.log('\n[3/4] GET /api/health/utilities')
   }
 }
 
-// ─── Step 4: golden dataset compare (opcional, --skip-golden) ────────────────
-console.log('\n[4/4] scripts/golden-dataset-compare.mjs <latest baseline>')
+// ─── Step 5: golden dataset compare (opcional, --skip-golden) ───────────────
+console.log('\n[5/5] scripts/golden-dataset-compare.mjs <latest baseline>')
 if (SKIP_GOLDEN) {
   console.log('  ⊘ skipped (--skip-golden)')
   results.push({ name: 'golden dataset compare', success: true, durationMs: 0, detail: 'skipped' })
