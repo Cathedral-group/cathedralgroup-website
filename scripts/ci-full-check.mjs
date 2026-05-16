@@ -55,7 +55,7 @@ console.log('\n[1/5] node --test scripts/test-feature-flags-rollout.mjs')
   const r = spawnSync('node', ['--test', 'scripts/test-feature-flags-rollout.mjs'], { cwd })
   const dt = performance.now() - t0
   recordStep('rollout determinism tests', r.status === 0, dt,
-    r.status === 0 ? '8 tests' : `exit ${r.status}`)
+    r.status === 0 ? '14 tests' : `exit ${r.status}`)
   if (r.status !== 0) {
     console.error(r.stdout?.toString())
     console.error(r.stderr?.toString())
