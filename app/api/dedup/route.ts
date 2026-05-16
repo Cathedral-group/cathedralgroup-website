@@ -1,7 +1,8 @@
 /**
  * POST /api/dedup
  *
- * Microutility endpoint: dedup lookup contra tablas Supabase (v2).
+ * Microutility endpoint: dedup lookup contra tablas Supabase.
+ * Versión v3 (17/05/2026) — Smart dedup con gate de protección trabajo manual.
  *
  * Llamado por:
  *   - workflow n8n general (HTTP Request node) — cutover Tarea 4 (ADR-0008)
@@ -13,42 +14,55 @@
  *     "file_hash"?: string,                  // SHA-256 hex 64 chars — preferido
  *     "email_message_id"?: string,           // fallback si no hay file_hash
  *     "filename"?: string,                   // requerido con email_message_id
- *     "include_deleted"?: boolean            // default false (portal no quiere soft-deleted)
+ *     "include_deleted"?: boolean            // default false
  *   }
  *
- * Response 200:
+ * Response 200 (v3 = superconjunto v2, backward compat):
  *   {
- *     // Campos v1 (backward compat con consumers actuales):
+ *     // Campos v1 (backward compat):
  *     "is_duplicate": boolean,
  *     "existing_id": uuid | null,
  *     "table": "invoices" | "quotes" | "documents" | null,
  *     "created_at": ISO8601 | null,
- *     // Campos v2 (paridad funcional n8n legacy):
- *     "duplicate_reason": string | null,     // formato: "<method> ya procesado en <table> (<number|id>)..."
- *     "linked_doc_id": uuid | null,          // = existing_id (alias por compat n8n)
- *     "was_deleted": boolean,                // true si match es soft-deleted (solo cuando include_deleted=true)
+ *     // Campos v2 (paridad n8n legacy):
+ *     "duplicate_reason": string | null,
+ *     "linked_doc_id": uuid | null,
+ *     "was_deleted": boolean,
  *     "dedup_method": "file_hash" | "email_message_id" | null,
- *     "source": "cathedral-dedup-v2"
+ *     // Campos v3 (Smart dedup):
+ *     "reprocess_existing": boolean,         // true si row existe pero permite UPDATE (gate abierto)
+ *     "existing_updated_at": ISO8601 | null, // optimistic lock — n8n usa en PATCH ?updated_at=eq.{X}
+ *     "existing_review_status": string | null,
+ *     "existing_ai_confidence": number | null,
+ *     "existing_reprocess_attempts": number | null,
+ *     "skip_reason": string | null,          // por qué NO reprocesar (UI/debug)
+ *     "source": "cathedral-dedup-v3"
  *   }
  *
+ * Lógica Smart dedup gate (skip reprocess = "is_duplicate=true + reprocess_existing=false"):
+ *   - table='documents'                       → siempre skip (sin review fields)
+ *   - manually_edited=true                    → skip (humano editó)
+ *   - review_status IN (revisado,confirmado)  → skip (humano marcó OK)
+ *   - reviewed_at IS NOT NULL OR reviewed_by IS NOT NULL → skip (humano tocó)
+ *   - ai_confidence >= CONFIDENCE_THRESHOLD   → skip (OCR ya bueno)
+ *   - reprocess_attempts >= MAX_REPROCESS     → skip (cap anti-loop)
+ *   - else                                    → reprocess_existing=true (UPDATE permitido)
+ *
+ * Feature flag `use_smart_dedup` (tabla feature_flags):
+ *   - OFF (default) → reprocess_existing siempre false (comportamiento v2 legacy)
+ *   - ON + rollout determinista por file_hash → activa gate
+ *
  * Auth: header `Authorization: Bearer ${CATHEDRAL_INTERNAL_TOKEN}`.
- * NO público. Llamado solo desde n8n + endpoints internos Cathedral.
  *
- * Cambios v2 (16/05/2026 noche):
- *   - 3 tablas (añadido `quotes`): invoices > quotes > documents prioridad
- *   - OR lookup: file_hash prioridad, fallback email+filename
- *   - `include_deleted` flag → n8n envía true (paridad legacy), portal omite (default false)
- *   - Campos extra: duplicate_reason, linked_doc_id, was_deleted, dedup_method
- *   - source bumpeado a v2 (v1 consumers reciben superconjunto, sin breaking change)
- *
- * Tabla `documents` NO tiene columna `number` → SELECT condicional.
- *
- * Performance: ambos lookups (file_hash y email_message_id+filename) cubiertos por
- * indexes B-tree existentes en las 3 tablas (verificado empíricamente 16/05).
+ * Refs:
+ *   - docs/adr/0008-cutover-workflow-general-deferido.md (Plan A 100%)
+ *   - sesión 17/05/2026 Smart dedup (estudio 4 agentes industria + validación)
+ *   - migration 20260517000000_smart_dedup_columns.sql
  */
 
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { checkCathedralInternalAuth } from '@/lib/api-auth'
+import { getFlag, isInRollout } from '@/lib/feature-flags'
 import { z } from 'zod'
 
 const BodySchema = z
@@ -69,17 +83,28 @@ const BodySchema = z
 
 type DedupBody = z.infer<typeof BodySchema>
 
-// Auth via lib/api-auth (refactor 16/05 noche — consolida 7 endpoints).
-
-// Tablas en orden de prioridad para lookup (primer match gana).
 const DEDUP_TABLES = ['invoices', 'quotes', 'documents'] as const
 type DedupTable = (typeof DEDUP_TABLES)[number]
+
+// Industry standard: Mindee 0.7-0.8, Rossum 0.975. Cathedral usa 0.75 (compromise PYME).
+// Subir a 0.85+ cuando flow estable post-cutover.
+const CONFIDENCE_THRESHOLD = 0.75
+const MAX_REPROCESS = 3
+const SMART_DEDUP_FLAG_KEY = 'use_smart_dedup'
 
 interface MatchRow {
   id: string
   number: string | null
   created_at: string
   deleted_at: string | null
+  // Smart dedup fields (NULL si tabla=documents)
+  updated_at: string | null
+  review_status: string | null
+  reviewed_at: string | null
+  reviewed_by: string | null
+  ai_confidence: number | null
+  manually_edited: boolean | null
+  reprocess_attempts: number | null
 }
 
 async function lookupInTable(
@@ -87,11 +112,11 @@ async function lookupInTable(
   table: DedupTable,
   body: DedupBody
 ): Promise<MatchRow | null> {
-  // `documents` no tiene columna `number` → SELECT condicional
+  // SELECT condicional: documents no tiene review/confidence/manually_edited columns
   const cols =
     table === 'documents'
       ? 'id, created_at, deleted_at'
-      : 'id, number, created_at, deleted_at'
+      : 'id, number, created_at, deleted_at, updated_at, review_status, reviewed_at, reviewed_by, ai_confidence, manually_edited, reprocess_attempts'
 
   let query = supabase.from(table).select(cols).limit(1)
 
@@ -105,31 +130,86 @@ async function lookupInTable(
     return null
   }
 
-  // Política deleted_at: solo filtra cuando include_deleted=false (default portal)
   if (!body.include_deleted) {
     query = query.is('deleted_at', null)
   }
 
   const { data, error } = await query.maybeSingle()
   if (error) {
-    console.error(`[dedup v2] ${table} lookup error:`, error.message)
+    console.error(`[dedup v3] ${table} lookup error:`, error.message)
     return null
   }
   if (!data) return null
-  // Supabase TS infiere ParserError con select string dinámico — cast via unknown.
-  // `documents` no tiene `number` → undefined → null en el row final.
+
   const row = data as unknown as {
     id: string
     number?: string
     created_at: string
     deleted_at: string | null
+    updated_at?: string
+    review_status?: string
+    reviewed_at?: string
+    reviewed_by?: string
+    ai_confidence?: number
+    manually_edited?: boolean
+    reprocess_attempts?: number
   }
+
   return {
     id: row.id,
     number: row.number ?? null,
     created_at: row.created_at,
     deleted_at: row.deleted_at,
+    updated_at: row.updated_at ?? null,
+    review_status: row.review_status ?? null,
+    reviewed_at: row.reviewed_at ?? null,
+    reviewed_by: row.reviewed_by ?? null,
+    ai_confidence: row.ai_confidence ?? null,
+    manually_edited: row.manually_edited ?? null,
+    reprocess_attempts: row.reprocess_attempts ?? null,
   }
+}
+
+/**
+ * Smart dedup gate. Devuelve {reprocess, skipReason}.
+ * reprocess=true → workflow debe UPDATEar row existente.
+ * reprocess=false → workflow debe SKIPear (dedup tradicional).
+ */
+function evaluateGate(
+  table: DedupTable,
+  row: MatchRow
+): { reprocess: boolean; skipReason: string | null } {
+  if (table === 'documents') {
+    return { reprocess: false, skipReason: 'table=documents (sin review fields)' }
+  }
+  if (row.manually_edited === true) {
+    return { reprocess: false, skipReason: 'manually_edited=true (humano editó)' }
+  }
+  if (
+    row.review_status &&
+    ['revisado', 'confirmado'].includes(row.review_status)
+  ) {
+    return {
+      reprocess: false,
+      skipReason: `review_status=${row.review_status} (humano marcó OK)`,
+    }
+  }
+  if (row.reviewed_at !== null || row.reviewed_by !== null) {
+    return { reprocess: false, skipReason: 'reviewed_at/by set (humano tocó)' }
+  }
+  if ((row.ai_confidence ?? 0) >= CONFIDENCE_THRESHOLD) {
+    return {
+      reprocess: false,
+      skipReason: `ai_confidence=${row.ai_confidence} >= ${CONFIDENCE_THRESHOLD} (OCR bueno)`,
+    }
+  }
+  if ((row.reprocess_attempts ?? 0) >= MAX_REPROCESS) {
+    return {
+      reprocess: false,
+      skipReason: `reprocess_attempts=${row.reprocess_attempts} >= ${MAX_REPROCESS} (cap anti-loop)`,
+    }
+  }
+  return { reprocess: true, skipReason: null }
 }
 
 export async function POST(request: Request) {
@@ -162,11 +242,28 @@ export async function POST(request: Request) {
     ? 'file_hash'
     : 'email_message_id'
 
+  // Feature flag check — rollout determinista por file_hash
+  let smartDedupActive = false
+  try {
+    const flag = await getFlag(SMART_DEDUP_FLAG_KEY)
+    if (flag?.enabled) {
+      const subjectId = body.file_hash ?? body.email_message_id ?? 'no-subject'
+      smartDedupActive = isInRollout(
+        SMART_DEDUP_FLAG_KEY,
+        subjectId,
+        flag.rollout_pct
+      )
+    }
+  } catch (err) {
+    console.warn(
+      '[dedup v3] feature flag lookup failed, defaulting OFF:',
+      err instanceof Error ? err.message : err
+    )
+  }
+
   const supabase = createAdminSupabaseClient()
 
   try {
-    // 3 lookups paralelos. Resultado por tabla, primer match gana en prioridad
-    // invoices > quotes > documents.
     const results = await Promise.all(
       DEDUP_TABLES.map(async (table) => ({
         table,
@@ -174,13 +271,12 @@ export async function POST(request: Request) {
       }))
     )
 
-    // Prioridad lookup: invoices > quotes > documents
     const matched = results.find((r) => r.row !== null)
     const elapsedMs = Date.now() - startedAt
 
     if (!matched) {
       console.log(
-        `[dedup v2] method=${dedupMethod} match=none include_deleted=${body.include_deleted} t=${elapsedMs}ms`
+        `[dedup v3] method=${dedupMethod} match=none smart=${smartDedupActive} t=${elapsedMs}ms`
       )
       return Response.json({
         is_duplicate: false,
@@ -191,13 +287,18 @@ export async function POST(request: Request) {
         linked_doc_id: null,
         was_deleted: false,
         dedup_method: dedupMethod,
-        source: 'cathedral-dedup-v2',
+        reprocess_existing: false,
+        existing_updated_at: null,
+        existing_review_status: null,
+        existing_ai_confidence: null,
+        existing_reprocess_attempts: null,
+        skip_reason: null,
+        source: 'cathedral-dedup-v3',
       })
     }
 
     const { table, row } = matched
     if (!row) {
-      // defensive — type narrowing
       throw new Error('matched.row null — unexpected')
     }
 
@@ -207,12 +308,21 @@ export async function POST(request: Request) {
       ? `${dedupMethod} ya procesado en ${table} (${docLabel}) — soft-deleted ${row.deleted_at}`
       : `${dedupMethod} ya procesado en ${table} (${docLabel})`
 
+    // Evaluar gate solo si Smart dedup activo. Si OFF: comportamiento v2 (siempre dedup tradicional).
+    const gate = smartDedupActive
+      ? evaluateGate(table, row)
+      : { reprocess: false, skipReason: 'smart_dedup flag OFF (rollout)' }
+
     console.log(
-      `[dedup v2] method=${dedupMethod} match=${table} id=${row.id.slice(0, 8)} deleted=${wasDeleted} t=${elapsedMs}ms`
+      `[dedup v3] method=${dedupMethod} match=${table} id=${row.id.slice(0, 8)} ` +
+        `smart=${smartDedupActive} reprocess=${gate.reprocess} skip=${gate.skipReason ?? '—'} ` +
+        `t=${elapsedMs}ms`
     )
 
     return Response.json({
-      is_duplicate: true,
+      // is_duplicate semántica v3: TRUE = no reprocesar (skip).
+      // FALSE = ya existe pero gate permite reproceso (UPDATE).
+      is_duplicate: !gate.reprocess,
       existing_id: row.id,
       table,
       created_at: row.created_at,
@@ -220,11 +330,17 @@ export async function POST(request: Request) {
       linked_doc_id: row.id,
       was_deleted: wasDeleted,
       dedup_method: dedupMethod,
-      source: 'cathedral-dedup-v2',
+      reprocess_existing: gate.reprocess,
+      existing_updated_at: row.updated_at,
+      existing_review_status: row.review_status,
+      existing_ai_confidence: row.ai_confidence,
+      existing_reprocess_attempts: row.reprocess_attempts,
+      skip_reason: gate.skipReason,
+      source: 'cathedral-dedup-v3',
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
-    console.error('[dedup v2] Unexpected error:', message)
+    console.error('[dedup v3] Unexpected error:', message)
     return Response.json(
       { error: 'Upstream error', detail: message },
       { status: 503, headers: { 'Retry-After': '5' } }
@@ -232,6 +348,5 @@ export async function POST(request: Request) {
   }
 }
 
-// Endpoint solo POST. GET/etc devuelve 405 implícito.
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
