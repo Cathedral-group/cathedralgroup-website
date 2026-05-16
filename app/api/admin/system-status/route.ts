@@ -33,10 +33,6 @@ export async function GET() {
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  const headCount = (table: 'invoices' | 'quotes' | 'documents', filter: (q: ReturnType<typeof supabase.from>) => unknown) => {
-    return filter(supabase.from(table)) as ReturnType<ReturnType<typeof supabase.from>['select']>
-  }
-
   const [
     inv24h, quo24h, doc24h,
     inv7d, quo7d, doc7d,
@@ -59,23 +55,13 @@ export async function GET() {
     supabase.from('quotes').select('id', { count: 'exact', head: true }).is('deleted_at', null).not('drive_url', 'is', null),
     supabase.from('documents').select('id', { count: 'exact', head: true }).is('deleted_at', null).not('drive_url', 'is', null),
   ])
-  void headCount
 
-  // Última fila insertada en CUALQUIERA de las 3 tablas (señal indirecta workflow vivo)
-  const lastQuery = (table: 'invoices' | 'quotes' | 'documents') =>
-    supabase
-      .from(table)
-      .select('created_at, empresa, amount_total')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-  const [lastInv, lastQuo, lastDoc] = await Promise.all([
-    lastQuery('invoices'),
+  // Última fila insertada (señal workflow vivo). Solo invoices + quotes ya que
+  // documents.titulo no se usa en lastCandidates output. Reduce 1 SELECT Supabase.
+  const [lastInv, lastQuo] = await Promise.all([
+    supabase.from('invoices').select('created_at, empresa, amount_total').is('deleted_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('quotes').select('created_at, empresa, total').is('deleted_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    supabase.from('documents').select('created_at, titulo').is('deleted_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ])
-  void lastDoc
   const lastCandidates = [
     lastInv.data ? { table: 'invoices', created_at: lastInv.data.created_at, empresa: lastInv.data.empresa, amount: lastInv.data.amount_total } : null,
     lastQuo.data ? { table: 'quotes',   created_at: lastQuo.data.created_at, empresa: lastQuo.data.empresa, amount: lastQuo.data.total } : null,
