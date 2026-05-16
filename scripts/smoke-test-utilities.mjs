@@ -424,6 +424,30 @@ await run('sin auth → 401', async () => {
   await expectStatus(res, 401)
 })
 
+// ─── /api/admin/feature-flag-snapshot ─────────────────────────────────────────
+console.log('\n[/api/admin/feature-flag-snapshot]')
+
+await run('GET snapshot → snapshot_at + flags array + count + metadata', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-snapshot`, { headers: authHeaders })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (typeof json.snapshot_at !== 'string') throw new Error('snapshot_at not string')
+  if (!Array.isArray(json.flags)) throw new Error('flags not array')
+  if (typeof json.count !== 'number') throw new Error('count not number')
+  if (json.flags.length < 4) throw new Error(`expected ≥4 flags, got ${json.flags.length}`)
+  // Cada flag debe tener campos snapshot completos (no solo essential como list)
+  for (const f of json.flags) {
+    if (typeof f.created_at !== 'string') throw new Error(`flag ${f.key} missing created_at`)
+    if (typeof f.updated_at !== 'string') throw new Error(`flag ${f.key} missing updated_at`)
+    if (f.metadata === undefined) throw new Error(`flag ${f.key} missing metadata field`)
+  }
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-snapshot`)
+  await expectStatus(res, 401)
+})
+
 // ─── /api/admin/audit-log-recent ──────────────────────────────────────────────
 console.log('\n[/api/admin/audit-log-recent]')
 
