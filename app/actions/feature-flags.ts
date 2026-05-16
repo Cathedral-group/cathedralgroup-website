@@ -51,6 +51,31 @@ async function requireAdmin(): Promise<{ email: string } | { error: string }> {
   return { email: data.user.email }
 }
 
+/**
+ * Audit log persistente para Server Actions feature_flags.
+ * Tabla admin_audit_log existente Cathedral. Fire-and-forget (no bloquea
+ * acción si log falla — defensive, audit trail es nice-to-have).
+ */
+async function auditAction(
+  email: string,
+  action: 'flag_create' | 'flag_update' | 'flag_delete',
+  key: string
+): Promise<void> {
+  try {
+    const supabase = createAdminSupabaseClient()
+    await supabase.from('admin_audit_log').insert({
+      user_email: email,
+      action,
+      table_name: 'feature_flags',
+      record_id: key,
+      ip: null, // Server Action no expone req.ip directo, omitir
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'unknown'
+    console.warn('[feature-flags] audit log failed (non-blocking):', msg)
+  }
+}
+
 export async function updateFlagAction(input: z.infer<typeof UpdateSchema>): Promise<ActionResult> {
   const auth = await requireAdmin()
   if ('error' in auth) return { ok: false, error: auth.error }
@@ -79,6 +104,7 @@ export async function updateFlagAction(input: z.infer<typeof UpdateSchema>): Pro
 
   revalidateTag(FLAG_CACHE_TAG)
   console.log(`[feature-flags] ${auth.email} updated key=${key} enabled=${enabled} pct=${rollout_pct}`)
+  await auditAction(auth.email, 'flag_update', key)
   return { ok: true }
 }
 
@@ -110,6 +136,7 @@ export async function createFlagAction(input: z.infer<typeof CreateSchema>): Pro
 
   revalidateTag(FLAG_CACHE_TAG)
   console.log(`[feature-flags] ${auth.email} created key=${key}`)
+  await auditAction(auth.email, 'flag_create', key)
   return { ok: true }
 }
 
@@ -135,5 +162,6 @@ export async function deleteFlagAction(input: z.infer<typeof DeleteSchema>): Pro
 
   revalidateTag(FLAG_CACHE_TAG)
   console.log(`[feature-flags] ${auth.email} deleted key=${parsed.data.key}`)
+  await auditAction(auth.email, 'flag_delete', parsed.data.key)
   return { ok: true }
 }
