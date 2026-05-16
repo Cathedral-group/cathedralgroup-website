@@ -59,7 +59,12 @@ Reglas:
 - categoria_gasto: deduce del tipo de comercio (Leroy Merlin/ferretería/almacén → material; restaurante → otros (dieta); subcontratista con factura → subcontratas).
 - Devuelve SOLO el JSON, sin markdown ni texto adicional.`
 
-const MODEL = 'gemini-2.0-flash-exp'
+// Modelo actualizado 16/05/2026: `gemini-2.0-flash-exp` quedó deprecated
+// (HTTP 404 observado empíricamente en gateway logs). Reemplazado por
+// `gemini-2.5-flash` (GA mayo 2026 en Google AI Studio, verificado funcional
+// vía Cloudflare AI Gateway con status 200).
+// Fuente: https://ai.google.dev/gemini-api/docs/models
+const MODEL = 'gemini-2.5-flash'
 
 /**
  * Cloudflare AI Gateway opt-in.
