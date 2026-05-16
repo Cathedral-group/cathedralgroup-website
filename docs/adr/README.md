@@ -39,3 +39,4 @@ Cada ADR tiene:
 | [0002](0002-hosting-endpoint-llm.md) | Hosting endpoint cascade LLM | Aceptada |
 | [0003](0003-verifactu-emision-timing.md) | Timing implementación Verifactu emisión | Aceptada |
 | [0004](0004-refactor-solo-vs-outsource.md) | Refactor en solitario vs outsource | Aceptada |
+| [0005](0005-migracion-sdk-google-genai.md) | Migración SDK Gemini `@google/generative-ai` → `@google/genai` | Aceptada (sesión pendiente) |

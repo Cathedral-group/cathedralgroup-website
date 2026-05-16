@@ -101,6 +101,12 @@ export async function extractReceiptData(
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
+    // NOTE 16/05/2026: SDK `@google/generative-ai` deprecated desde 30/11/2025,
+    // repo archivado 16/12/2025. NO soporta `thinkingConfig` en TypeScript types.
+    // Migración a SDK `@google/genai` (oficial successor) + `thinkingBudget: 0`
+    // + `responseSchema` Zod planificada en ADR-0005. Hasta entonces, Gemini
+    // 2.5 Flash funciona pero con thinking tokens activos (coste +10% output).
+    // Doc validator (sesión 16/05): https://ai.google.dev/gemini-api/docs/libraries
     const model = genAI.getGenerativeModel(
       {
         model: MODEL,
