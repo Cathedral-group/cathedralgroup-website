@@ -178,10 +178,65 @@ return Response.json({
 - Reconectar `Check Duplicado Supabase → HTTP /api/dedup v2` directo
 - Eliminar `Check Duplicados Unificado` Code legacy
 
-**Paso 5 — Mismo patrón para `/api/fuzzy-supplier` y `/api/decide-table`**:
-- Cada uno requiere análisis empírico topología legacy (Nodo "Buscar Fuzzy Match", "Decidir Tabla Destino")
-- Repetir pasos 1-4 secuencialmente, no en paralelo
-- 1 utility cutover = 1 sesión dedicada estimada (~3-5h)
+**Paso 5 — Análisis empírico fuzzy + decide-table (16/05 noche):**
+
+DESCUBRIMIENTO CRÍTICO: los endpoints actuales `/api/fuzzy-supplier` y
+`/api/decide-table` NO son drop-in replacements para los nodos n8n legacy.
+
+**Nodo `Buscar Fuzzy Match V2` (14/05/2026)** ≠ `/api/fuzzy-supplier`:
+
+```javascript
+// n8n: fuzzy TICKET → INVOICE histórica (NO fuzzy nombre proveedor)
+const supplier_nif = item.nif_emisor || item.nif_proveedor || ...
+const amt = parseFloat(item.importe_total || ...)
+const issue_date = item.fecha_emision || ...
+const tol = 0.005;  // ±0.5% importe
+const startD = new Date(dt.getTime() - 20 * 86400000)  // ±20 días
+// Busca invoices ANTERIORES del mismo NIF con importe similar
+// Output: candidates con score (mismo importe + fecha cercana = más probable
+// que este ticket ya esté contabilizado como factura)
+```
+
+vs `/api/fuzzy-supplier` actual (lib/feature-flags.ts):
+- Input: nombre proveedor (OCR text) + nif opcional
+- Lógica: NIF exact match → fallback pg_trgm similarity sobre suppliers.name
+- Propósito: asignar `supplier_id` a una factura nueva
+
+**Funcionalmente diferentes** — el endpoint actual hace asignación de
+proveedor, el nodo n8n hace detección de duplicado ticket↔invoice. Para
+cutover real necesitamos:
+
+1. Crear endpoint NUEVO `/api/fuzzy-ticket-invoice` con la lógica n8n
+   (NIF + importe ±0.5% + fecha ±20 días)
+2. `/api/fuzzy-supplier` actual sigue como utility separada para
+   portal trabajador + casos donde el OCR solo da nombre, no NIF
+
+**Nodo `Decidir Tabla Destino`** maneja 7 tablas vs 4 del endpoint actual:
+
+| Tipo | Tabla n8n | `/api/decide-table` actual |
+|---|---|---|
+| factura/ticket/proforma/abono | invoices | invoices |
+| nomina | payrolls | ❌ NO soportado |
+| resumen_nominas | payroll_summaries | ❌ NO soportado |
+| presupuesto/cotizacion | quotes | quotes |
+| modelo_fiscal (Cathedral NIF) | tax_filings | tax_filings |
+| recibo_prestamo/cuota_hipoteca | mortgages | invoices (needs_review) |
+| contrato/escritura/seguro/etc | documents | ❓ verificar |
+
+Plus reglas regex sobre `concepto` para detectar hipotecas:
+`/(hipoteca|préstamo|recibo de préstamo|cuota mensual.*préstamo)/i`
+
+**Cutover de decide-table requiere ampliar endpoint a v2** con:
+- Soporte payrolls + payroll_summaries (verificar tablas existen)
+- Detección hipotecas via regex concepto (no solo NIF + recibo type)
+- Verificar tabla `mortgages` requirements (operation_id NOT NULL FK)
+
+**Estimación trabajo restante por utility**:
+- `/api/dedup` v2 paridad funcional: 1-2h (ALCANZADO commit `7bc004a`)
+- `/api/fuzzy-ticket-invoice` (endpoint NUEVO): 3-5h (incluye fuzzy logic + tests + golden dataset comparison)
+- `/api/decide-table` v2 paridad: 2-4h (ampliación lógica existente)
+- Cutover cada utility en workflow general: 2-3h cada uno (con golden dataset comparison)
+- **Total estimado**: ~12-18h trabajo restante distribuido en 3-4 sesiones dedicadas
 
 ### Por qué no shadow comparison
 
