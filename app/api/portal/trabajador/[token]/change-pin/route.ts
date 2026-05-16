@@ -13,15 +13,31 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
+import { enforce, getClientIp } from '@/lib/rate-limit-portal'
+
+const TOKEN_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
-  if (!token || token.length < 30) {
+  // Audit 16/05: regex UUID v4 estricto (era token.length < 30 que aceptaba
+  // strings malformadas 30+ chars sin ser UUIDs reales).
+  if (!token || !TOKEN_REGEX.test(token)) {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
   }
+
+  // Audit 16/05: rate limit anti-brute force. Sin esto, attacker con PIN 0000
+  // default conocido podía cambiarlo unlimited times. 5 cambios/min/IP+token
+  // (uso normal cambio PIN es 1x/año por trabajador).
+  const rl = enforce({
+    category: 'change-pin',
+    max: 5,
+    windowMs: 60_000,
+    key: `${getClientIp(request)}|${token.slice(0, 8)}`,
+  })
+  if (rl) return rl
 
   let body: { pin_actual?: string; pin_nuevo?: string }
   try {

@@ -95,10 +95,14 @@ export async function POST(
     )
   }
 
-  // Validación horas
+  // Validación horas. Audit 16/05: Number('abc')=NaN, NaN < 0 es false →
+  // bypass validation. Number.isFinite() catch all (NaN/Infinity/-Infinity).
   const hOrd = Number(body.horas_ordinarias ?? 0)
   const hExt = Number(body.horas_extra ?? 0)
   const hNoc = Number(body.horas_nocturnas ?? 0)
+  if (!Number.isFinite(hOrd) || !Number.isFinite(hExt) || !Number.isFinite(hNoc)) {
+    return NextResponse.json({ error: 'Las horas deben ser números válidos' }, { status: 400 })
+  }
   if (hOrd < 0 || hExt < 0 || hNoc < 0) {
     return NextResponse.json({ error: 'Las horas no pueden ser negativas' }, { status: 400 })
   }

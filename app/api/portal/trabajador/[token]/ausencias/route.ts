@@ -117,6 +117,13 @@ export async function POST(
   if (!body.fecha_inicio || !body.fecha_fin) {
     return NextResponse.json({ error: 'fecha_inicio y fecha_fin requeridas' }, { status: 400 })
   }
+  // Audit 16/05: validar formato YYYY-MM-DD estricto. Antes solo presence check
+  // → strings malformadas slipped through ("hoy", "31/12/2025") generaban
+  // errores SQL downstream confusos al cliente.
+  const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
+  if (!DATE_REGEX.test(body.fecha_inicio) || !DATE_REGEX.test(body.fecha_fin)) {
+    return NextResponse.json({ error: 'Fechas deben tener formato YYYY-MM-DD' }, { status: 400 })
+  }
   if (body.fecha_fin < body.fecha_inicio) {
     return NextResponse.json({ error: 'fecha_fin debe ser >= fecha_inicio' }, { status: 400 })
   }

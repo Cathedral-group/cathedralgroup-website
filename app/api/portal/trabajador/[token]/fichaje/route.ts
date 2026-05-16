@@ -204,7 +204,10 @@ export async function POST(
     horasExt = Math.round((horasCalculadas - jornadaEsperada) * 100) / 100
   }
 
-  const { error } = await supabase
+  // Audit 16/05: WHERE hora_salida IS NULL para prevenir race condition
+  // (dos requests concurrent overwrite — segundo silently sobrescribe primero).
+  // Si row ya tiene hora_salida, count=0 → devolver 409 al cliente.
+  const { error, count } = await supabase
     .from('time_records')
     .update({
       hora_salida: horaActual,
@@ -216,9 +219,13 @@ export async function POST(
       salida_geo_accuracy_m: geoAcc,
       salida_geofence_status: geofenceStatus,
       worker_signed_at: now.toISOString(),
-    })
+    }, { count: 'exact' })
     .eq('id', existing.id)
+    .is('hora_salida', null)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if ((count ?? 0) === 0) {
+    return NextResponse.json({ error: 'Salida ya registrada (race condition prevenida)' }, { status: 409 })
+  }
 
   // Devolver banco horas actualizado
   const { data: balance } = await supabase.rpc('get_worker_overtime_balance', {
