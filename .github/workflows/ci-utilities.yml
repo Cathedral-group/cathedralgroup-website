@@ -1,0 +1,91 @@
+name: CI utilities (Plan A)
+
+# Por qué este workflow existe
+#   Ejecuta scripts/ci-full-check.mjs en cada push a main + PR a main para
+#   detectar regresiones antes de merge. Cubre los utility endpoints Cathedral
+#   (Plan A — ADR-0001) + sistema feature flags + helper wrappers.
+#
+#   Si los tests fallan → el job falla → bloquea merge si branch protection
+#   tiene "require status check" configurado.
+#
+# Tests ejecutados (scripts/ci-full-check.mjs):
+#   1/5 node --test scripts/test-feature-flags-rollout.mjs (8 tests determinismo)
+#   2/5 node --test scripts/test-cathedral-utility-client.mjs (10 tests wrappers)
+#   3/5 scripts/smoke-test-utilities.mjs (29 tests integración vs prod)
+#   4/5 GET /api/health/utilities (status + flags + supabase latency)
+#   5/5 (skipped en CI — requiere baseline + Supabase service_role key)
+#
+# Steps 1 + 2 son unit tests offline (no requieren red).
+# Steps 3 + 4 requieren CATHEDRAL_INTERNAL_TOKEN secret + endpoints prod live.
+#
+# Cuándo se ejecuta
+#   - Push a main
+#   - PR a main (solo si cambios api/ o lib/ o scripts/)
+#   - Manual workflow_dispatch
+#
+# Secrets necesarios
+#   CATHEDRAL_INTERNAL_TOKEN — Bearer token para utilities. Setup en repo:
+#     Settings → Secrets and variables → Actions → New repository secret
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/api/**'
+      - 'lib/**'
+      - 'scripts/test-*.mjs'
+      - 'scripts/smoke-test-utilities.mjs'
+      - 'scripts/ci-full-check.mjs'
+      - '.github/workflows/ci-utilities.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/api/**'
+      - 'lib/**'
+      - 'scripts/test-*.mjs'
+      - 'scripts/smoke-test-utilities.mjs'
+      - 'scripts/ci-full-check.mjs'
+
+jobs:
+  ci-full-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No npm install — scripts ESM puros sin deps externas.
+
+      - name: Unit tests offline (rollout + utility-client)
+        run: |
+          node --test scripts/test-feature-flags-rollout.mjs
+          node --test scripts/test-cathedral-utility-client.mjs
+
+      - name: Integration smoke tests vs prod
+        env:
+          CATHEDRAL_INTERNAL_TOKEN: ${{ secrets.CATHEDRAL_INTERNAL_TOKEN }}
+        run: |
+          if [ -z "$CATHEDRAL_INTERNAL_TOKEN" ]; then
+            echo "::warning::CATHEDRAL_INTERNAL_TOKEN secret no set — skip integration"
+            exit 0
+          fi
+          node scripts/smoke-test-utilities.mjs
+
+      - name: Health check production
+        env:
+          CATHEDRAL_INTERNAL_TOKEN: ${{ secrets.CATHEDRAL_INTERNAL_TOKEN }}
+        run: |
+          if [ -z "$CATHEDRAL_INTERNAL_TOKEN" ]; then
+            echo "::warning::skip health check (no token)"
+            exit 0
+          fi
+          curl -s -f -H "Authorization: Bearer $CATHEDRAL_INTERNAL_TOKEN" \
+            https://cathedralgroup-website.vercel.app/api/health/utilities | \
+            jq -e '.status == "ok"'
