@@ -1,0 +1,110 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Cathedral health-utilities cron Hetzner
+#
+# Deploy: copiar este script a Hetzner (`/opt/cathedral/scripts/`) + crontab.
+# NO ejecutar localmente — diseñado para servidor Hetzner.
+#
+# Función: cada hora consulta /api/health/utilities. Si status != "ok" tres
+# veces consecutivas, alerta a `admin_notifications` table (banner admin)
+# vía endpoint webhook Cathedral.
+#
+# Setup (próxima sesión SSH Hetzner):
+#   1. Copiar este script a /opt/cathedral/scripts/cathedral-health-cron.sh
+#   2. chmod +x /opt/cathedral/scripts/cathedral-health-cron.sh
+#   3. Crear /opt/cathedral/scripts/.env-health con (sin commitear):
+#        CATHEDRAL_INTERNAL_TOKEN=<valor real, ver cathedral-credentials.md>
+#        SUPABASE_URL=<URL Supabase>
+#        SUPABASE_SERVICE_ROLE_KEY=<service role key>
+#   4. chmod 600 /opt/cathedral/scripts/.env-health
+#   5. crontab -e + añadir:
+#        0 * * * * /opt/cathedral/scripts/cathedral-health-cron.sh >> /var/log/cathedral-health.log 2>&1
+#
+# Estado consecutivos persistido en /var/lib/cathedral/health-state.txt
+# (1 número entero, fallos consecutivos hasta ahora).
+# ─────────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+# Config
+ENV_FILE="/opt/cathedral/scripts/.env-health"
+STATE_FILE="/var/lib/cathedral/health-state.txt"
+ENDPOINT="https://cathedralgroup-website.vercel.app/api/health/utilities"
+ALERT_THRESHOLD=3  # fallos consecutivos antes alertar
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Source env file (no log secrets)
+if [ ! -f "$ENV_FILE" ]; then
+  echo "[$TIMESTAMP] FATAL: $ENV_FILE not found"
+  exit 1
+fi
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+
+if [ -z "${CATHEDRAL_INTERNAL_TOKEN:-}" ]; then
+  echo "[$TIMESTAMP] FATAL: CATHEDRAL_INTERNAL_TOKEN no set"
+  exit 1
+fi
+
+# Ensure state dir
+mkdir -p "$(dirname "$STATE_FILE")"
+
+# Leer counter actual
+CONSECUTIVE_FAILS=0
+if [ -f "$STATE_FILE" ]; then
+  CONSECUTIVE_FAILS=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+  CONSECUTIVE_FAILS=${CONSECUTIVE_FAILS:-0}
+fi
+
+# Call health endpoint
+RESPONSE=$(curl -s --max-time 15 \
+  -H "Authorization: Bearer ${CATHEDRAL_INTERNAL_TOKEN}" \
+  "${ENDPOINT}" || echo '{"status":"network_error"}')
+
+STATUS=$(echo "$RESPONSE" | grep -oE '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+if [ "$STATUS" = "ok" ]; then
+  # Reset counter
+  if [ "$CONSECUTIVE_FAILS" -gt 0 ]; then
+    echo "[$TIMESTAMP] RECOVERY — status=ok después de $CONSECUTIVE_FAILS fallos"
+  fi
+  echo "0" > "$STATE_FILE"
+  exit 0
+fi
+
+# Status no-ok
+CONSECUTIVE_FAILS=$((CONSECUTIVE_FAILS + 1))
+echo "$CONSECUTIVE_FAILS" > "$STATE_FILE"
+echo "[$TIMESTAMP] FAIL #${CONSECUTIVE_FAILS} status=${STATUS} response=$(echo "$RESPONSE" | head -c 200)"
+
+# Alertar admin_notifications cuando alcanza threshold
+if [ "$CONSECUTIVE_FAILS" -ge "$ALERT_THRESHOLD" ]; then
+  if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+    echo "[$TIMESTAMP] ALERT THRESHOLD reached pero Supabase env vars faltan — no alerta enviada"
+    exit 1
+  fi
+
+  # INSERT en admin_notifications (banner admin Cathedral)
+  ALERT_TITLE="Cathedral health-utilities degraded"
+  ALERT_MESSAGE="Endpoint /api/health/utilities devolvió status='${STATUS}' por ${CONSECUTIVE_FAILS} consultas consecutivas (~${CONSECUTIVE_FAILS}h). Verificar Vercel deploy + Supabase + feature_flags."
+
+  curl -s --max-time 10 -X POST \
+    "${SUPABASE_URL}/rest/v1/admin_notifications" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Content-Type: application/json" \
+    -H "Prefer: return=minimal" \
+    -d "{
+      \"severity\": \"warning\",
+      \"title\": \"${ALERT_TITLE}\",
+      \"message\": \"${ALERT_MESSAGE}\",
+      \"source\": \"hetzner-health-cron\",
+      \"dedup_key\": \"health-utilities-degraded\",
+      \"action_url\": \"/admin/sistema\",
+      \"action_label\": \"Revisar sistema\"
+    }" > /dev/null || echo "[$TIMESTAMP] WARN: no se pudo enviar alerta a admin_notifications"
+
+  echo "[$TIMESTAMP] ALERT sent — threshold ${ALERT_THRESHOLD} alcanzado"
+fi
+
+exit 1
