@@ -427,6 +427,41 @@ await run('sin auth → 401', async () => {
 // ─── /api/admin/audit-log-recent ──────────────────────────────────────────────
 console.log('\n[/api/admin/audit-log-recent]')
 
+await run('E2E: toggle endpoint → audit row aparece con flag_toggle_api', async () => {
+  // 1. Trigger toggle (no-op preview, mismo description que ya tiene)
+  const triggerRes = await fetch(`${BASE}/api/admin/feature-flag-toggle`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      key: 'use_dedup_endpoint',
+      description:
+        'Workflow general: enrutar dedup SHA-256 via /api/dedup en vez de Code node Supabase directo',
+    }),
+  })
+  await expectStatus(triggerRes, 200)
+
+  // 2. Esperar 500ms para que async INSERT propague (con catch defensive
+  // en route handler, INSERT no bloquea response — leve race)
+  await new Promise((r) => setTimeout(r, 500))
+
+  // 3. Verificar audit row aparece
+  const auditRes = await fetch(
+    `${BASE}/api/admin/audit-log-recent?table=feature_flags&limit=5`,
+    { headers: authHeaders }
+  )
+  await expectStatus(auditRes, 200)
+  const json = await auditRes.json()
+  const recentApiRows = json.rows.filter(
+    (r) =>
+      r.action === 'flag_toggle_api' && r.record_id === 'use_dedup_endpoint'
+  )
+  if (recentApiRows.length === 0) {
+    throw new Error(
+      'expected audit row con action=flag_toggle_api record_id=use_dedup_endpoint'
+    )
+  }
+})
+
 await run('GET default limit → rows array + count', async () => {
   const res = await fetch(`${BASE}/api/admin/audit-log-recent?limit=5`, { headers: authHeaders })
   await expectStatus(res, 200)
