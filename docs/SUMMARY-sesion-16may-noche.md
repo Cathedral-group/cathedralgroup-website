@@ -147,4 +147,54 @@ Bootstrap: `bash scripts/install-git-hooks.sh`
 
 ## Final commit count
 
-**38 commits** sesión 16/05/2026 noche entre `2784367` (mañana) y `58ba9c6` (cierre noche).
+**56 commits** sesión 16/05/2026 noche entre `2784367` (mañana) y `10fed68` (cierre extendido).
+
+### Endpoints utility totales: 10
+
+1. `/api/dedup` v2 (3 tablas + OR lookup)
+2. `/api/fuzzy-supplier` v1 (pg_trgm)
+3. `/api/fuzzy-ticket-invoice` v1 (NIF + importe ±0.5% + fecha ±20d)
+4. `/api/decide-table` v2 (7 tablas + regex hipoteca)
+5. `/api/feature-flag-check` v1 (rollout determinista)
+6. `/api/admin/feature-flag-toggle` v1 (1 flag)
+7. `/api/admin/feature-flag-list` v1 (read-only)
+8. `/api/admin/feature-flag-batch` v1 (múltiples atomic)
+9. `/api/admin/feature-flag-delete` v1 (cleanup con safety confirm)
+10. `/api/health/utilities` v1 (monitoring)
+
+### Cobertura tests acumulada: 54 tests automatizados
+
+- 8 rollout determinism (node:test)
+- 10 utility-client unit (mock fetch)
+- 36 smoke integration vs prod
+- + 1 CI runner unificado 5 steps
+- + 1 health check runtime
+- + 1 golden dataset comparator manual
+
+### 9 ADRs documentados
+
+- 0001 Arquitectura procesamiento facturas
+- 0002 Hosting endpoint Vercel Hobby
+- 0003 Verifactu emisión timing
+- 0004 Refactor solo vs outsource
+- 0005 Migración SDK @google/genai
+- 0006 XML detector Facturae
+- 0007 Cloudflare Workers diferido
+- 0008 Cutover workflow general diferido
+- 0009 Testing + performance strategy
+
+### Auditoría seguridad
+
+13 rondas con `caveman:cavecrew-reviewer`. **18 bugs reales fixed** (3 propios Plan A + 15 sistema anterior latentes).
+
+### Deploys reales
+
+- 56 commits Vercel auto-deploy
+- 2 SQL migrations Supabase (feature_flags + change_worker_pin lockout)
+- 1 cron Hetzner instalado (`5 * * * *` health-check)
+- 1 GitHub Actions workflow + branch protection main + secret CI
+- 1 git pre-push hook local
+
+### Workflow productivo n8n general (`FwpGF7L2GbFB84kL`)
+
+INTACTO. 0 regresiones. Cutover real diferido sesión dedicada con David presente.
