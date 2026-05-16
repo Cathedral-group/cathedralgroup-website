@@ -89,17 +89,33 @@ async function fetchFlag(key) {
   return res.json()
 }
 
-async function readFlagFromSupabase(key) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    throw new Error('SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY requeridas para leer estado actual flag')
+async function readFlagFromEndpoint(key) {
+  // Usa /api/admin/feature-flag-list — independiza de Supabase env vars
+  // (solo precisa CATHEDRAL_INTERNAL_TOKEN). Si no disponible (HTTP error)
+  // fallback a Supabase direct si env vars presentes.
+  try {
+    const res = await fetch(`${BASE}/api/admin/feature-flag-list`, {
+      headers: authHeaders,
+    })
+    if (res.ok) {
+      const json = await res.json()
+      const flag = (json.flags ?? []).find((f) => f.key === key)
+      return flag ?? null
+    }
+  } catch {
+    // fallback abajo
   }
-  const url = `${SUPABASE_URL}/rest/v1/feature_flags?key=eq.${encodeURIComponent(key)}&select=enabled,rollout_pct,description,updated_at,updated_by`
-  const res = await fetch(url, {
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-  })
-  if (!res.ok) throw new Error(`Supabase read failed: HTTP ${res.status}`)
-  const rows = await res.json()
-  return rows[0] ?? null
+  // Fallback Supabase direct (legacy path si endpoint no deployed aún)
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    const url = `${SUPABASE_URL}/rest/v1/feature_flags?key=eq.${encodeURIComponent(key)}&select=enabled,rollout_pct,description,updated_at,updated_by`
+    const res = await fetch(url, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    })
+    if (!res.ok) throw new Error(`Supabase fallback read failed: HTTP ${res.status}`)
+    const rows = await res.json()
+    return rows[0] ?? null
+  }
+  throw new Error('No se pudo leer flag: /api/admin/feature-flag-list falló y sin Supabase env vars')
 }
 
 async function fetchInvoicesStats() {
@@ -183,7 +199,7 @@ function runGoldenCompare(baseline) {
 
 async function actionStatus() {
   console.log(`\n=== STATUS flag '${flagKey}' ===`)
-  const flag = await readFlagFromSupabase(flagKey)
+  const flag = await readFlagFromEndpoint(flagKey)
   if (!flag) {
     console.error(`Flag '${flagKey}' no encontrado en BD`)
     process.exit(1)
@@ -211,7 +227,7 @@ async function actionStatus() {
 
 async function actionPreview() {
   console.log(`\n=== PREVIEW activación '${flagKey}' (NO modifica BD) ===`)
-  const flag = await readFlagFromSupabase(flagKey)
+  const flag = await readFlagFromEndpoint(flagKey)
   console.log(`Current: enabled=${flag.enabled} rollout_pct=${flag.rollout_pct}`)
   console.log(`If activate-10: enabled=true rollout_pct=10`)
   console.log(`If activate-50: enabled=true rollout_pct=50`)
@@ -233,7 +249,7 @@ async function actionActivate(targetPct) {
   }
   console.log('  ✓ Health ok')
 
-  const flag = await readFlagFromSupabase(flagKey)
+  const flag = await readFlagFromEndpoint(flagKey)
   console.log(`  Estado actual: enabled=${flag.enabled} rollout_pct=${flag.rollout_pct}`)
 
   // Validación rollout ascendente
