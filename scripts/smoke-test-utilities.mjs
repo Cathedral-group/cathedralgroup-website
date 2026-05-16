@@ -366,6 +366,64 @@ await run('sin auth → 401', async () => {
   await expectStatus(res, 401)
 })
 
+// ─── /api/admin/feature-flag-batch ────────────────────────────────────────────
+console.log('\n[/api/admin/feature-flag-batch]')
+
+await run('batch update 2 flags no-op (preview)', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-batch`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      updates: [
+        {
+          key: 'use_dedup_endpoint',
+          description: 'Workflow general: enrutar dedup SHA-256 via /api/dedup en vez de Code node Supabase directo',
+        },
+        {
+          key: 'use_fuzzy_supplier_endpoint',
+          description: 'Workflow general: enrutar fuzzy supplier via /api/fuzzy-supplier (pg_trgm server-side) en vez de Code node JS',
+        },
+      ],
+    }),
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (!json.ok) throw new Error(`batch failed: ${JSON.stringify(json)}`)
+  if (json.succeeded !== 2) throw new Error(`expected succeeded=2, got ${json.succeeded}`)
+  if (json.failed !== 0) throw new Error(`expected failed=0, got ${json.failed}`)
+})
+
+await run('batch flag inexistente → 200 con failed=1', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-batch`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ updates: [{ key: 'nonexistent_batch_smoke', enabled: true }] }),
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (json.ok !== false) throw new Error(`expected ok=false`)
+  if (json.failed !== 1) throw new Error(`expected failed=1`)
+})
+
+await run('cap >20 items → 400', async () => {
+  const updates = Array.from({ length: 25 }, (_, i) => ({ key: `x_${i}`, enabled: false }))
+  const res = await fetch(`${BASE}/api/admin/feature-flag-batch`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ updates }),
+  })
+  await expectStatus(res, 400)
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ updates: [{ key: 'x', enabled: false }] }),
+  })
+  await expectStatus(res, 401)
+})
+
 // ─── /api/admin/feature-flag-list ─────────────────────────────────────────────
 console.log('\n[/api/admin/feature-flag-list]')
 
