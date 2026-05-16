@@ -28,6 +28,12 @@ import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { extractReceiptDataCascade, isCascadeAvailable } from '@/lib/ocr'
 import { notifyAdmins } from '@/lib/admin-notify'
 import { enforce, getClientIp } from '@/lib/rate-limit-portal'
+import {
+  sha256Hex,
+  callDedup,
+  callFuzzySupplier,
+  callFeatureFlagCheck,
+} from '@/lib/cathedral-utility-client'
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
@@ -143,15 +149,17 @@ export async function POST(
   const ext = extFromMime(file.type)
   const storagePath = `${companyId}/${employeeId}/${yearMonth}/${id}.${ext}`
 
-  // Subir a Supabase Storage
+  // Subir a Supabase Storage + computar SHA-256 file_hash en paralelo.
+  // Hash siempre se calcula (útil para auditoría/dedup local incluso si flag off).
   const arrayBuffer = await file.arrayBuffer()
-  const { error: uploadError } = await supabase.storage
-    .from('worker-receipts')
-    .upload(storagePath, arrayBuffer, {
+  const [{ error: uploadError }, fileHash] = await Promise.all([
+    supabase.storage.from('worker-receipts').upload(storagePath, arrayBuffer, {
       contentType: file.type,
       cacheControl: '3600',
       upsert: false,
-    })
+    }),
+    sha256Hex(arrayBuffer),
+  ])
 
   if (uploadError) {
     return NextResponse.json(
@@ -160,7 +168,7 @@ export async function POST(
     )
   }
 
-  // INSERT en worker_attachments
+  // INSERT en worker_attachments (incluye file_hash columna añadida 16/05/2026)
   const { data: attachment, error: insertError } = await supabase
     .from('worker_attachments')
     .insert({
@@ -172,6 +180,7 @@ export async function POST(
       storage_bucket: 'worker-receipts',
       mime_type: file.type,
       size_bytes: file.size,
+      file_hash: fileHash,
       original_filename: (file as File).name || null,
       doc_type: docType,
       status: 'uploaded',
@@ -214,12 +223,52 @@ export async function POST(
 
         const extracted = await extractReceiptDataCascade(arrayBuffer, file.type)
         if (extracted) {
-          // El provider que finalmente acertó queda registrado en extraction_provider.
-          // fallbacks documenta los que se intentaron antes (útil para análisis).
+          // Enrich opcional via utility endpoints (flag-gated por employee_id).
+          // Si flag `portal_use_unified_ocr` on para este employee → dedup +
+          // fuzzy supplier match. Si flag off → solo OCR sin enriquecimiento.
+          // Llamadas son defensivas: nunca tiran el callback, solo enriquecen.
+          const flagCheck = await callFeatureFlagCheck(
+            'portal_use_unified_ocr',
+            employeeId
+          )
+          const enrichOn = flagCheck?.should_use === true
+
+          // Tipo extracted desde lib/ocr (parcial; campos opcionales por provider).
+          type Extracted = typeof extracted & {
+            supplier_name?: string | null
+            supplier_nif?: string | null
+          }
+          const extractedTyped = extracted as Extracted
+
+          let dedup: Awaited<ReturnType<typeof callDedup>> = null
+          let supplierMatch: Awaited<ReturnType<typeof callFuzzySupplier>> = null
+
+          if (enrichOn) {
+            const supplierName = extractedTyped.supplier_name ?? null
+            const supplierNif = extractedTyped.supplier_nif ?? null
+
+            const [d, s] = await Promise.all([
+              callDedup(fileHash),
+              supplierName && supplierName.trim().length >= 2
+                ? callFuzzySupplier(supplierName, supplierNif)
+                : Promise.resolve(null),
+            ])
+            dedup = d
+            supplierMatch = s
+          }
+
+          // Merge enrichment en extracted_data sin perder los campos del OCR.
+          const enrichedData = {
+            ...extractedTyped,
+            file_hash: fileHash,
+            ...(enrichOn && dedup ? { dedup } : {}),
+            ...(enrichOn && supplierMatch ? { supplier_match: supplierMatch } : {}),
+          }
+
           await supabase
             .from('worker_attachments')
             .update({
-              extracted_data: extracted,
+              extracted_data: enrichedData,
               extracted_at: new Date().toISOString(),
               extraction_provider: extracted.provider,
               status: 'extracted',
