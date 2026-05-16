@@ -424,6 +424,36 @@ await run('sin auth → 401', async () => {
   await expectStatus(res, 401)
 })
 
+// ─── /api/admin/audit-log-cleanup ─────────────────────────────────────────────
+console.log('\n[/api/admin/audit-log-cleanup]')
+
+await run('dry_run preview → preview_count + dry_run=true', async () => {
+  const res = await fetch(`${BASE}/api/admin/audit-log-cleanup`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ dry_run: true }),
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (json.dry_run !== true) throw new Error('dry_run not true')
+  if (typeof json.preview_count !== 'number') throw new Error('preview_count not number')
+  if (json.deleted_count !== null) throw new Error('deleted_count debe ser null en dry_run')
+})
+
+await run('older_than_days < 30 → 400 safety', async () => {
+  const res = await fetch(`${BASE}/api/admin/audit-log-cleanup`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ older_than_days: 1 }),
+  })
+  await expectStatus(res, 400)
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/audit-log-cleanup`, { method: 'POST' })
+  await expectStatus(res, 401)
+})
+
 // ─── /api/admin/flags-metrics ─────────────────────────────────────────────────
 console.log('\n[/api/admin/flags-metrics]')
 
