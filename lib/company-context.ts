@@ -122,7 +122,10 @@ export function getActiveCompanyId(
 ): CompanyId | null {
   const ctx = getCompanyContextFromUser(user)
   if (!ctx) return null
-  const headerVal = headers?.get('x-active-company-id')
+  // UUIDs RFC 4122 son case-insensitive. JWT app_metadata.companies viene en
+  // formato canónico lowercase desde Postgres. Normalizamos header igual antes
+  // de comparar para evitar false-negative cuando frontend manda mixed-case.
+  const headerVal = headers?.get('x-active-company-id')?.toLowerCase()
   if (headerVal && ctx.companies.includes(headerVal)) return headerVal
   return ctx.active_company_id
 }
@@ -265,7 +268,8 @@ export function resolveCompanyIdForRequest(
 ): CompanyId | null {
   const ctx = getCompanyContextFromUser(user)
   if (!ctx) return null
-  const headerVal = headers.get('x-active-company-id')
+  // UUIDs case-insensitive RFC 4122 — normalizar lowercase para match consistente.
+  const headerVal = headers.get('x-active-company-id')?.toLowerCase()
   if (!headerVal) return null
   if (!ctx.companies.includes(headerVal)) {
     throw new Error(
