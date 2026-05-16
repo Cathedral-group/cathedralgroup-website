@@ -63,13 +63,21 @@ console.log('\n[1/5] node --test scripts/test-feature-flags-rollout.mjs')
 }
 
 // ─── Step 2: cathedral-utility-client unit tests ─────────────────────────────
-console.log('\n[2/5] node --test scripts/test-cathedral-utility-client.mjs')
+console.log('\n[2/5] node --test scripts/test-cathedral-utility-client.mjs + test-api-auth.mjs')
 {
   const t0 = performance.now()
-  const r = spawnSync('node', ['--test', 'scripts/test-cathedral-utility-client.mjs'], { cwd })
+  const r = spawnSync(
+    'node',
+    [
+      '--test',
+      'scripts/test-cathedral-utility-client.mjs',
+      'scripts/test-api-auth.mjs',
+    ],
+    { cwd }
+  )
   const dt = performance.now() - t0
-  recordStep('utility-client unit tests', r.status === 0, dt,
-    r.status === 0 ? '10 tests' : `exit ${r.status}`)
+  recordStep('unit tests offline', r.status === 0, dt,
+    r.status === 0 ? '22 tests (10 client + 12 api-auth)' : `exit ${r.status}`)
   if (r.status !== 0) {
     console.error(r.stdout?.toString())
     console.error(r.stderr?.toString())
