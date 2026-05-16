@@ -177,47 +177,14 @@ export async function POST(
     fotoAvancePath = att.storage_path
   }
 
-  // UPSERT por (employee_id, fecha) — UNIQUE existente
-  const { data: existing } = await supabase
-    .from('time_records')
-    .select('id')
-    .eq('employee_id', employeeId)
-    .eq('fecha', fecha)
-    .is('deleted_at', null)
-    .maybeSingle()
-
   const nowIso = new Date().toISOString()
 
-  if (existing) {
-    const { data, error } = await supabase
-      .from('time_records')
-      .update({
-        project_id: body.project_id ?? null,
-        horas_ordinarias: hOrd,
-        horas_extra: hExt,
-        horas_nocturnas: hNoc,
-        horas_extra_modo: horasExtraModo,
-        observaciones: body.observaciones ?? null,
-        fuente: 'app_movil',
-        modificado_at: nowIso,
-        modificado_por: registradoPor,
-        worker_signed_at: nowIso,
-        device_geo_lat: geoOk ? geoLat : null,
-        device_geo_lng: geoOk ? geoLng : null,
-        device_geo_accuracy_m: geoAcc,
-        geofence_distance_m: geofenceDistance,
-        geofence_status: geofenceStatus,
-        foto_avance_path: fotoAvancePath,
-      })
-      .eq('id', existing.id)
-      .select()
-      .single()
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true, action: 'updated', row: data })
-  }
-
-  const { data, error } = await supabase
+  // UPSERT race-safe (audit 16/05 deferred fix): patrón "try INSERT, catch
+  // 23505 → UPDATE" en lugar SELECT + UPDATE-or-INSERT (race window concurrent
+  // requests podían dar 23505 unique violation al cliente).
+  //
+  // INSERT primero (camino feliz para fecha nueva).
+  const { data: inserted, error: insertErr } = await supabase
     .from('time_records')
     .insert({
       company_id: companyId,
@@ -239,10 +206,51 @@ export async function POST(
       geofence_status: geofenceStatus,
     })
     .select()
-    .single()
+    .maybeSingle()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, action: 'created', row: data })
+  if (!insertErr && inserted) {
+    return NextResponse.json({ ok: true, action: 'created', row: inserted })
+  }
+
+  // INSERT falló — verificar si es UNIQUE violation (23505) en
+  // time_records_unique_day (employee_id, fecha). Si sí, hacer UPDATE.
+  // Cualquier otro error: propagar.
+  const isUniqueViolation = insertErr?.code === '23505'
+  if (!isUniqueViolation) {
+    return NextResponse.json({ error: insertErr?.message ?? 'INSERT falló' }, { status: 500 })
+  }
+
+  // Fallback UPDATE row existente (puede ser create concurrente reciente o
+  // re-envío del mismo parte). NO incluir registrado_por (set solo en CREATE).
+  const { data: updated, error: updErr } = await supabase
+    .from('time_records')
+    .update({
+      project_id: body.project_id ?? null,
+      horas_ordinarias: hOrd,
+      horas_extra: hExt,
+      horas_nocturnas: hNoc,
+      horas_extra_modo: horasExtraModo,
+      observaciones: body.observaciones ?? null,
+      fuente: 'app_movil',
+      modificado_at: nowIso,
+      modificado_por: registradoPor,
+      worker_signed_at: nowIso,
+      device_geo_lat: geoOk ? geoLat : null,
+      device_geo_lng: geoOk ? geoLng : null,
+      device_geo_accuracy_m: geoAcc,
+      geofence_distance_m: geofenceDistance,
+      geofence_status: geofenceStatus,
+      foto_avance_path: fotoAvancePath,
+    })
+    .eq('employee_id', employeeId)
+    .eq('fecha', fecha)
+    .is('deleted_at', null)
+    .select()
+    .maybeSingle()
+
+  if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
+  if (!updated) return NextResponse.json({ error: 'Row no encontrada tras UNIQUE violation (race deleted?)' }, { status: 409 })
+  return NextResponse.json({ ok: true, action: 'updated', row: updated })
 }
 
 export const dynamic = 'force-dynamic'
