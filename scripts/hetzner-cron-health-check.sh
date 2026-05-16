@@ -61,7 +61,10 @@ RESPONSE=$(curl -s --max-time 15 \
   -H "Authorization: Bearer ${CATHEDRAL_INTERNAL_TOKEN}" \
   "${ENDPOINT}" || echo '{"status":"network_error"}')
 
-STATUS=$(echo "$RESPONSE" | grep -oE '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+# `|| true` para tolerar grep no-match (response sin campo status, e.g. 401
+# {"error":"Unauthorized"}). Sin esto pipefail mata el script antes de llegar
+# al increment counter. Bug detectado empíricamente 16/05 noche test alerting.
+STATUS=$(echo "$RESPONSE" | grep -oE '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
 
 if [ "$STATUS" = "ok" ]; then
   # Reset counter
@@ -84,12 +87,15 @@ if [ "$CONSECUTIVE_FAILS" -ge "$ALERT_THRESHOLD" ]; then
     exit 1
   fi
 
-  # INSERT en admin_notifications (banner admin Cathedral)
+  # INSERT en system_notifications (banner admin Cathedral)
+  # Schema: severity, title, message, source, metadata (jsonb), dedup_key
+  # NO existe action_url/action_label en schema actual (verificado empíricamente
+  # 16/05 noche con information_schema.columns).
   ALERT_TITLE="Cathedral health-utilities degraded"
   ALERT_MESSAGE="Endpoint /api/health/utilities devolvió status='${STATUS}' por ${CONSECUTIVE_FAILS} consultas consecutivas (~${CONSECUTIVE_FAILS}h). Verificar Vercel deploy + Supabase + feature_flags."
 
   curl -s --max-time 10 -X POST \
-    "${SUPABASE_URL}/rest/v1/admin_notifications" \
+    "${SUPABASE_URL}/rest/v1/system_notifications" \
     -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Content-Type: application/json" \
@@ -100,9 +106,8 @@ if [ "$CONSECUTIVE_FAILS" -ge "$ALERT_THRESHOLD" ]; then
       \"message\": \"${ALERT_MESSAGE}\",
       \"source\": \"hetzner-health-cron\",
       \"dedup_key\": \"health-utilities-degraded\",
-      \"action_url\": \"/admin/sistema\",
-      \"action_label\": \"Revisar sistema\"
-    }" > /dev/null || echo "[$TIMESTAMP] WARN: no se pudo enviar alerta a admin_notifications"
+      \"metadata\": {\"consecutive_fails\": ${CONSECUTIVE_FAILS}, \"endpoint\": \"/api/health/utilities\"}
+    }" > /dev/null || echo "[$TIMESTAMP] WARN: no se pudo enviar alerta a system_notifications"
 
   echo "[$TIMESTAMP] ALERT sent — threshold ${ALERT_THRESHOLD} alcanzado"
 fi
