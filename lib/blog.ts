@@ -19,7 +19,14 @@ export interface BlogPost {
   content: string
 }
 
+// Cache in-memory build-time. Posts MDX no cambian en runtime (Next.js SSG/RSC
+// con archivo system). 1 lectura disk + parse por proceso, no por request.
+// Audit 16/05: detectado O(n²) cuando paginaciones llamaban getAllPosts repetido.
+let _cachedPosts: BlogPost[] | null = null
+
 export function getAllPosts(): BlogPost[] {
+  if (_cachedPosts) return _cachedPosts
+
   const files = fs.readdirSync(BLOG_DIR).filter((f) => f.endsWith('.mdx'))
 
   const posts = files.map((filename) => {
@@ -44,7 +51,8 @@ export function getAllPosts(): BlogPost[] {
     }
   })
 
-  return posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  _cachedPosts = posts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  return _cachedPosts
 }
 
 export function getPostBySlug(slug: string): BlogPost | undefined {
