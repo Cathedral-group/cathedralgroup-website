@@ -36,7 +36,7 @@
 
 import { type NextRequest } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
-import { timingSafeEqual } from 'node:crypto'
+import { checkCathedralInternalAuth } from '@/lib/api-auth'
 
 const EXPECTED_FLAG_KEYS = [
   'use_dedup_endpoint',
@@ -45,18 +45,7 @@ const EXPECTED_FLAG_KEYS = [
   'portal_use_unified_ocr',
 ]
 
-function checkAuth(request: NextRequest): boolean {
-  const authHeader = request.headers.get('Authorization') ?? ''
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-  const expected = (process.env.CATHEDRAL_INTERNAL_TOKEN ?? '').trim()
-  if (!token || !expected) return false
-  if (token.length !== expected.length) return false
-  try {
-    return timingSafeEqual(Buffer.from(token), Buffer.from(expected))
-  } catch {
-    return false
-  }
-}
+// Auth via lib/api-auth (refactor 16/05 noche).
 
 interface CheckResult {
   ok: boolean
@@ -71,7 +60,7 @@ interface FlagStatus {
 }
 
 export async function GET(request: NextRequest) {
-  if (!checkAuth(request)) {
+  if (!checkCathedralInternalAuth(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

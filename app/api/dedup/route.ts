@@ -48,7 +48,7 @@
  */
 
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
-import { timingSafeEqual } from 'node:crypto'
+import { checkCathedralInternalAuth } from '@/lib/api-auth'
 import { z } from 'zod'
 
 const BodySchema = z
@@ -69,20 +69,7 @@ const BodySchema = z
 
 type DedupBody = z.infer<typeof BodySchema>
 
-function checkAuth(request: Request): boolean {
-  const authHeader = request.headers.get('Authorization') ?? ''
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-  const expected = (process.env.CATHEDRAL_INTERNAL_TOKEN ?? '').trim()
-
-  if (!token || !expected) return false
-  if (token.length !== expected.length) return false
-
-  try {
-    return timingSafeEqual(Buffer.from(token), Buffer.from(expected))
-  } catch {
-    return false
-  }
-}
+// Auth via lib/api-auth (refactor 16/05 noche — consolida 7 endpoints).
 
 // Tablas en orden de prioridad para lookup (primer match gana).
 const DEDUP_TABLES = ['invoices', 'quotes', 'documents'] as const
@@ -148,7 +135,7 @@ async function lookupInTable(
 export async function POST(request: Request) {
   const startedAt = Date.now()
 
-  if (!checkAuth(request)) {
+  if (!checkCathedralInternalAuth(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
