@@ -15,6 +15,7 @@
  *   - /api/fuzzy-ticket-invoice
  *   - /api/decide-table (v2)
  *   - /api/admin/feature-flag-toggle
+ *   - /api/admin/feature-flag-list
  *   - /api/health/utilities
  *
  * Para cada endpoint: 3-5 casos (happy path + edge + auth).
@@ -341,6 +342,30 @@ await run('sin auth → 401', async () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key: 'use_dedup_endpoint', enabled: false }),
   })
+  await expectStatus(res, 401)
+})
+
+// ─── /api/admin/feature-flag-list ─────────────────────────────────────────────
+console.log('\n[/api/admin/feature-flag-list]')
+
+await run('GET con auth → flags array + count', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-list`, { headers: authHeaders })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (!Array.isArray(json.flags)) throw new Error('flags not array')
+  if (typeof json.count !== 'number') throw new Error('count not number')
+  if (json.count !== json.flags.length) throw new Error('count mismatch flags.length')
+  if (json.flags.length < 4) throw new Error(`expected ≥4 flags seed, got ${json.flags.length}`)
+  // Cada flag debe tener campos canónicos
+  for (const f of json.flags) {
+    if (typeof f.key !== 'string') throw new Error(`flag missing key: ${JSON.stringify(f)}`)
+    if (typeof f.enabled !== 'boolean') throw new Error(`flag ${f.key} enabled not boolean`)
+    if (typeof f.rollout_pct !== 'number') throw new Error(`flag ${f.key} rollout_pct not number`)
+  }
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-list`)
   await expectStatus(res, 401)
 })
 
