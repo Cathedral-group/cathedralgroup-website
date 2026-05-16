@@ -424,6 +424,39 @@ await run('sin auth → 401', async () => {
   await expectStatus(res, 401)
 })
 
+// ─── /api/admin/feature-flag-delete ───────────────────────────────────────────
+console.log('\n[/api/admin/feature-flag-delete]')
+
+await run('flag inexistente → 404', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-delete`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      key: 'nonexistent_smoke_delete',
+      confirm: 'DELETE-nonexistent_smoke_delete',
+    }),
+  })
+  await expectStatus(res, 404)
+})
+
+await run('confirm wrong → 400', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-delete`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ key: 'use_dedup_endpoint', confirm: 'WRONG' }),
+  })
+  await expectStatus(res, 400)
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'x', confirm: 'DELETE-x' }),
+  })
+  await expectStatus(res, 401)
+})
+
 // ─── /api/admin/feature-flag-list ─────────────────────────────────────────────
 console.log('\n[/api/admin/feature-flag-list]')
 
