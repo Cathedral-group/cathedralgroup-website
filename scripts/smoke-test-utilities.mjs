@@ -14,6 +14,8 @@
  *   - /api/fuzzy-supplier
  *   - /api/fuzzy-ticket-invoice
  *   - /api/decide-table (v2)
+ *   - /api/admin/feature-flag-toggle
+ *   - /api/health/utilities
  *
  * Para cada endpoint: 3-5 casos (happy path + edge + auth).
  *
@@ -284,6 +286,82 @@ await run('doc_type ausente → 400', async () => {
     body: '{}',
   })
   await expectStatus(res, 400)
+})
+
+// ─── /api/admin/feature-flag-toggle ──────────────────────────────────────────
+console.log('\n[/api/admin/feature-flag-toggle]')
+
+await run('preview update no-op (description igual a actual)', async () => {
+  // No-op: description ya es esa, preview previous/current iguales
+  const res = await fetch(`${BASE}/api/admin/feature-flag-toggle`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      key: 'use_dedup_endpoint',
+      description: 'Workflow general: enrutar dedup SHA-256 via /api/dedup en vez de Code node Supabase directo',
+    }),
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (!json.ok) throw new Error('ok=false')
+  if (json.previous.enabled !== json.current.enabled) throw new Error('preview enabled mismatch')
+  if (json.previous.rollout_pct !== json.current.rollout_pct) throw new Error('preview rollout mismatch')
+})
+
+await run('flag inexistente → 404', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-toggle`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ key: 'nonexistent_smoke', enabled: true }),
+  })
+  await expectStatus(res, 404)
+})
+
+await run('body sin campos a actualizar → 400', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-toggle`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ key: 'use_dedup_endpoint' }),
+  })
+  await expectStatus(res, 400)
+})
+
+await run('rollout_pct fuera rango → 400', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-toggle`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ key: 'use_dedup_endpoint', rollout_pct: 150 }),
+  })
+  await expectStatus(res, 400)
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/feature-flag-toggle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'use_dedup_endpoint', enabled: false }),
+  })
+  await expectStatus(res, 401)
+})
+
+// ─── /api/health/utilities ────────────────────────────────────────────────────
+console.log('\n[/api/health/utilities]')
+
+await run('GET con auth → status ok + 4 flags presentes', async () => {
+  const res = await fetch(`${BASE}/api/health/utilities`, { headers: authHeaders })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (json.status !== 'ok') throw new Error(`status=${json.status}`)
+  if (!Array.isArray(json.flags_status)) throw new Error('flags_status not array')
+  if (json.flags_status.length < 4) throw new Error(`expected ≥4 flags, got ${json.flags_status.length}`)
+  if (!json.checks?.supabase_connectivity?.ok) throw new Error('supabase down')
+  if (!json.checks?.feature_flags_table?.ok) throw new Error('feature_flags table fail')
+  if (!json.checks?.expected_flags_present?.ok) throw new Error('expected flags missing')
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/health/utilities`)
+  await expectStatus(res, 401)
 })
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
