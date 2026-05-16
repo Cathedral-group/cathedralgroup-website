@@ -81,22 +81,31 @@ export async function GET(request: NextRequest) {
 
   const { key, subject_id } = parsed.data
 
-  const flag = await getFlag(key)
-  if (!flag) {
+  try {
+    const flag = await getFlag(key)
+    if (!flag) {
+      return Response.json(
+        { error: 'Flag not found', key, source: 'cathedral-flag-check-v1' },
+        { status: 404 }
+      )
+    }
+
+    const should_use = flag.enabled && isInRollout(key, subject_id, flag.rollout_pct)
+
+    return Response.json({
+      should_use,
+      flag_enabled: flag.enabled,
+      rollout_pct: flag.rollout_pct,
+      source: 'cathedral-flag-check-v1',
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'unknown error'
+    console.error('[feature-flag-check] error:', message)
     return Response.json(
-      { error: 'Flag not found', key, source: 'cathedral-flag-check-v1' },
-      { status: 404 }
+      { error: 'Upstream error', detail: message },
+      { status: 503, headers: { 'Retry-After': '5' } }
     )
   }
-
-  const should_use = flag.enabled && isInRollout(key, subject_id, flag.rollout_pct)
-
-  return Response.json({
-    should_use,
-    flag_enabled: flag.enabled,
-    rollout_pct: flag.rollout_pct,
-    source: 'cathedral-flag-check-v1',
-  })
 }
 
 export const dynamic = 'force-dynamic'

@@ -39,10 +39,11 @@ export interface FeatureFlag {
 
 /**
  * Lee TODOS los flags (cache 60s).
- * Devuelve Map<key, FeatureFlag> para lookup O(1).
+ * Devuelve Record<key, FeatureFlag> (NO Map — `unstable_cache` serializa con JSON
+ * y `Map` se pierde en el round-trip; objetos planos sí sobreviven).
  */
 export const getAllFlags = unstable_cache(
-  async (): Promise<Map<string, FeatureFlag>> => {
+  async (): Promise<Record<string, FeatureFlag>> => {
     const supabase = createAdminSupabaseClient()
     const { data, error } = await supabase
       .from('feature_flags')
@@ -50,14 +51,14 @@ export const getAllFlags = unstable_cache(
 
     if (error) {
       console.error('[feature-flags] read error:', error.message)
-      return new Map()
+      return {}
     }
 
-    const map = new Map<string, FeatureFlag>()
+    const flags: Record<string, FeatureFlag> = {}
     for (const row of (data ?? []) as FeatureFlag[]) {
-      map.set(row.key, row)
+      flags[row.key] = row
     }
-    return map
+    return flags
   },
   ['feature-flags:all'],
   {
@@ -72,7 +73,7 @@ export const getAllFlags = unstable_cache(
  */
 export async function getFlag(key: string): Promise<FeatureFlag | null> {
   const all = await getAllFlags()
-  return all.get(key) ?? null
+  return all[key] ?? null
 }
 
 /**
