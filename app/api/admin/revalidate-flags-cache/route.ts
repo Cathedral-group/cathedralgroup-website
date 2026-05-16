@@ -25,6 +25,7 @@
 
 import { checkCathedralInternalAuth } from '@/lib/api-auth'
 import { FLAG_CACHE_TAG } from '@/lib/feature-flags'
+import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { revalidateTag } from 'next/cache'
 
 export async function POST(request: Request) {
@@ -35,6 +36,21 @@ export async function POST(request: Request) {
   revalidateTag(FLAG_CACHE_TAG)
 
   console.log(`[revalidate-flags-cache] tag=${FLAG_CACHE_TAG} invalidated`)
+
+  // Audit log persistente (action='update' coincide CHECK constraint existente)
+  try {
+    const supabase = createAdminSupabaseClient()
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+    await supabase.from('admin_audit_log').insert({
+      user_email: 'api:cathedral-internal-token',
+      action: 'update', // genérico (cache revalidation no es flag-specific)
+      table_name: 'feature_flags_cache',
+      record_id: FLAG_CACHE_TAG,
+      ip,
+    })
+  } catch (err) {
+    console.warn('[revalidate-flags-cache] audit failed (non-blocking):', err)
+  }
 
   return Response.json({
     ok: true,

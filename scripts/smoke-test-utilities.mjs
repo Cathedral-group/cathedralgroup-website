@@ -424,6 +424,26 @@ await run('sin auth → 401', async () => {
   await expectStatus(res, 401)
 })
 
+// ─── /api/admin/revalidate-flags-cache ────────────────────────────────────────
+console.log('\n[/api/admin/revalidate-flags-cache]')
+
+await run('POST trigger → ok + tag + revalidated_at', async () => {
+  const res = await fetch(`${BASE}/api/admin/revalidate-flags-cache`, {
+    method: 'POST',
+    headers: authHeaders,
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (json.ok !== true) throw new Error('ok=false')
+  if (json.tag !== 'feature-flags') throw new Error(`tag=${json.tag}`)
+  if (typeof json.revalidated_at !== 'string') throw new Error('revalidated_at not string')
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/revalidate-flags-cache`, { method: 'POST' })
+  await expectStatus(res, 401)
+})
+
 // ─── /api/admin/feature-flag-snapshot ─────────────────────────────────────────
 console.log('\n[/api/admin/feature-flag-snapshot]')
 
