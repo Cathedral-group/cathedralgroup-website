@@ -10,7 +10,7 @@ Sesión maratoniana ~17h. 67 commits desplegados Vercel + 4 SQL migrations Supab
 
 ### Added
 
-#### 12 utility endpoints internos (`/api/*`)
+#### 13 utility endpoints internos (`/api/*`)
 
 - `POST /api/dedup` v2 (3 tablas + OR lookup file_hash o email+filename)
 - `POST /api/fuzzy-supplier` v1 (pg_trgm RPC)
@@ -22,6 +22,7 @@ Sesión maratoniana ~17h. 67 commits desplegados Vercel + 4 SQL migrations Supab
 - `POST /api/admin/feature-flag-batch` v1 (múltiples atomic, cap 20)
 - `POST /api/admin/feature-flag-delete` v1 (cleanup con safety confirm)
 - `GET /api/admin/feature-flag-snapshot` v1 (backup completo + metadata)
+- `POST /api/admin/revalidate-flags-cache` v1 (force invalidate unstable_cache)
 - `GET /api/admin/audit-log-recent` v1 (inspect audit trail)
 - `GET /api/health/utilities` v1 (monitoring Supabase + flags)
 
@@ -66,6 +67,7 @@ Sesión maratoniana ~17h. 67 commits desplegados Vercel + 4 SQL migrations Supab
 - 0008 Cutover workflow general n8n diferido (plan 5 pasos)
 - 0009 Testing + performance strategy
 - 0010 Deployment + rollback strategy 4 niveles
+- 0011 Audit trail strategy (Server Actions + API + cron)
 
 #### Infrastructure
 
@@ -131,10 +133,10 @@ Sesión maratoniana ~17h. 67 commits desplegados Vercel + 4 SQL migrations Supab
 
 ### Tests cobertura
 
-- 8 rollout determinism (node:test offline)
-- 10 utility-client unit (mock fetch)
-- 43 smoke integration vs prod (incluye E2E audit log)
-- **61 tests automatizados** + 1 CI runner unificado 5 steps + 1 health check runtime + 1 golden dataset comparator manual
+- 14 rollout determinism (node:test offline) — incluye edge cases unicode + null bytes + pct extremes
+- 22 unit offline (10 utility-client wrappers + 12 api-auth Bearer)
+- 45 smoke integration vs prod (incluye E2E audit log + 13 endpoints)
+- **81 tests automatizados** + 1 CI runner unificado 5 steps + 1 health check runtime + 1 golden dataset comparator manual
 
 ### Performance baseline (16/05 noche, N=20 warmed)
 

@@ -25,6 +25,10 @@ Microservicio Cathedral para tareas comunes facturación. Auth Bearer `CATHEDRAL
 | `POST /api/admin/feature-flag-toggle` | Activar/cambiar 1 flag via curl |
 | `GET /api/admin/feature-flag-list` | Listar todos los flags + estado |
 | `POST /api/admin/feature-flag-batch` | Activar/desactivar múltiples flags atomic (rollback masivo) |
+| `POST /api/admin/feature-flag-delete` | Cleanup flag con safety confirm |
+| `GET /api/admin/feature-flag-snapshot` | Backup completo + metadata pre-cutover |
+| `POST /api/admin/revalidate-flags-cache` | Force invalidate unstable_cache |
+| `GET /api/admin/audit-log-recent` | Inspect audit trail |
 | `GET /api/health/utilities` | Health check Supabase + flags |
 
 Reference completa: [docs/utilities-cathedral.md](docs/utilities-cathedral.md)
