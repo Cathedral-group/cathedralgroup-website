@@ -84,6 +84,7 @@ export async function extractWithMistral(
     }
 
     const { url, extraHeaders } = buildEndpoint()
+    // Timeout 30s (audit 16/05): prevenir hang indefinido + cost leak.
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -93,6 +94,7 @@ export async function extractWithMistral(
         ...extraHeaders,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30000),
     })
     if (!res.ok) {
       const errText = await res.text().catch(() => '')

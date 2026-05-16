@@ -88,6 +88,9 @@ export async function extractWithOpenAi(
     }
 
     const { url, extraHeaders } = buildEndpoint()
+    // Timeout 30s: prevenir hang indefinido (audit 16/05) que dejaría worker
+    // bloqueado + tokens en flight sin cap. AbortSignal.timeout disponible
+    // en Node.js 17.3+ y Vercel Fluid Compute runtime nodejs.
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -96,6 +99,7 @@ export async function extractWithOpenAi(
         ...extraHeaders,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30000),
     })
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
