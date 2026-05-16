@@ -23,7 +23,7 @@
  * Aislamiento: NO usa Supabase Auth. Solo token UUID.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { extractReceiptDataCascade, isCascadeAvailable } from '@/lib/ocr'
 import { notifyAdmins } from '@/lib/admin-notify'
@@ -194,10 +194,18 @@ export async function POST(
     .from('worker-receipts')
     .createSignedUrl(storagePath, 3600)
 
-  // OCR automático async con CASCADA Gemini → OpenAI → Mistral.
+  // OCR automático tras-response con CASCADA Gemini → OpenAI → Mistral.
   // Solo si imagen + al menos un provider configurado en env.
+  //
+  // Usa `after()` de Next.js 15.1+ (estable) — patron oficial Vercel para
+  // background tasks tras response. Refs:
+  //   https://nextjs.org/docs/app/api-reference/functions/after
+  //   https://vercel.com/docs/functions/functions-api-reference#cancelling-requests
+  // Reemplaza el antiguo `void (async () => {...})()` que Vercel serverless
+  // cancelaba al terminar el handler (status quedaba en 'processing'
+  // indefinidamente — bug observado empíricamente 16/05/2026).
   if (isCascadeAvailable() && file.type.startsWith('image/')) {
-    void (async () => {
+    after(async () => {
       try {
         await supabase
           .from('worker_attachments')
@@ -224,13 +232,16 @@ export async function POST(
             .eq('id', id)
         }
       } catch (e) {
-        console.error('[upload-receipt async OCR cascade]', e)
+        console.error('[upload-receipt after OCR cascade]', e)
+        // Importante: si el callback falla, dejamos status='error' para que
+        // el admin lo vea en `/admin/personal/tickets-trabajador` y nunca
+        // quede colgado en 'processing'.
         await supabase
           .from('worker_attachments')
           .update({ status: 'error' })
           .eq('id', id)
       }
-    })()
+    })
   }
 
   // Notificar admins: tienen un ticket/albarán/factura nuevo del trabajador.
@@ -274,5 +285,11 @@ export async function POST(
 }
 
 export const dynamic = 'force-dynamic'
-// Aumentar límite de body para multipart (Next.js 15 default es 1MB en route handlers)
-export const maxDuration = 30
+// Aumentar límite de body para multipart (Next.js 15 default es 1MB en route handlers).
+// maxDuration cubre la suma de:
+//   - Response síncrona (upload Supabase Storage + INSERT row)  ~2-5s
+//   - OCR cascade `after()` post-response (Gemini→GPT→Mistral)   ~5-30s
+// El callback `after()` hereda maxDuration del route; valor anterior 30s
+// era insuficiente para cascade worst-case con fallbacks. 60s da margen
+// holgado dentro del límite Hobby Fluid Compute (max 300s).
+export const maxDuration = 60
