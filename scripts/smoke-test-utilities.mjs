@@ -424,6 +424,42 @@ await run('sin auth → 401', async () => {
   await expectStatus(res, 401)
 })
 
+// ─── /api/admin/audit-log-recent ──────────────────────────────────────────────
+console.log('\n[/api/admin/audit-log-recent]')
+
+await run('GET default limit → rows array + count', async () => {
+  const res = await fetch(`${BASE}/api/admin/audit-log-recent?limit=5`, { headers: authHeaders })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (!Array.isArray(json.rows)) throw new Error('rows not array')
+  if (typeof json.count !== 'number') throw new Error('count not number')
+  if (json.count !== json.rows.length) throw new Error('count mismatch')
+})
+
+await run('filter table=feature_flags', async () => {
+  const res = await fetch(`${BASE}/api/admin/audit-log-recent?table=feature_flags&limit=5`, {
+    headers: authHeaders,
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  // Si hay rows, deben tener table_name='feature_flags'
+  for (const row of json.rows) {
+    if (row.table_name !== 'feature_flags') {
+      throw new Error(`table filter broken: got ${row.table_name}`)
+    }
+  }
+})
+
+await run('limit > 200 → 400 validation', async () => {
+  const res = await fetch(`${BASE}/api/admin/audit-log-recent?limit=500`, { headers: authHeaders })
+  await expectStatus(res, 400)
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/audit-log-recent`)
+  await expectStatus(res, 401)
+})
+
 // ─── /api/admin/feature-flag-delete ───────────────────────────────────────────
 console.log('\n[/api/admin/feature-flag-delete]')
 
