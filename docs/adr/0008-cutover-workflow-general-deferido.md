@@ -19,12 +19,22 @@ Se evaluaron 2 estrategias:
 
 ## Motivos
 
-### 1. El nodo "Check Duplicado Supabase" NO es el dedup decisivo
+### 1. Topología real del dedup en workflow general
 
-Análisis empírico (lectura código JS del nodo via API n8n):
+Análisis empírico completo (lectura código JS via API n8n, 16/05/2026 noche):
+
+```
+Evaluar Pre-Clasificacion
+  → Check Duplicado Supabase (Code, construye dedup_query string + dedup_method)
+    → Check Duplicados Unificado (Code V8 12/05/2026, EJECUTA dedup en 3 tablas)
+      → ¿Es Duplicado? (IF sobre isDuplicate)
+        → output[0] (true): drop duplicate
+        → output[1] (false): Obtener Proyectos Activos → continúa flow main
+```
+
+**`Check Duplicado Supabase`** (id `2fb311e3-b10d-492c-96ef-04fb28adf9af`) solo construye la query string. Cuerpo:
 
 ```javascript
-// Code "Check Duplicado Supabase" — solo construye query string
 const fileHash = item.fileHash || '';
 let dedup_query = null;
 let dedup_method = null;
@@ -32,15 +42,46 @@ if (fileHash) {
   dedup_query = `file_hash=eq.${encodeURIComponent(fileHash)}&select=...`;
   dedup_method = 'file_hash';
 } else if (emailMessageId) {
-  dedup_query = `email_message_id=eq.${encodeURIComponent(emailMessageId)}&...`;
+  dedup_query = `email_message_id=eq.${encodeURIComponent(emailMessageId)}&original_filename=eq.${encodeURIComponent(fileName)}&...`;
   dedup_method = 'email_message_id';
 }
 return { json: { ...item, dedup_query, dedup_method } };
 ```
 
-Este nodo **NO ejecuta el dedup** — solo prepara la query. El dedup real lo hace un nodo siguiente (probablemente `Check Duplicados Unificado` que ejecuta el HTTP request a Supabase).
+**`Check Duplicados Unificado`** (sin id fijo, name-based) es el dedup real V8. Hace `Promise.all` 3 tablas paralelas vía `this.helpers.httpRequest`:
 
-Sustituir solo "Check Duplicado Supabase" por `/api/dedup` **no haría nada útil** porque `/api/dedup` ya ejecuta la query completa (no devuelve un query string). El cutover correcto debe afectar al nodo que actualmente ejecuta el dedup, no al que prepara la query.
+```javascript
+const tables = ['invoices', 'quotes', 'documents'];
+const results = await Promise.all(tables.map(async (table) => {
+  const rows = await this.helpers.httpRequest({
+    method: 'GET',
+    url: `${SUPABASE_URL}/rest/v1/${table}?${dedupQuery}`,
+    headers: { apikey: SUPABASE_SECRET, Authorization: `Bearer ${SUPABASE_SECRET}` },
+    json: true, timeout: 10000, ignoreHttpStatusErrors: true,
+  });
+  return { table, found: rows.length > 0, row: rows[0] ?? null };
+}));
+const match = matchInv?.row || matchQuotes?.row || matchDocs?.row || null;
+// ... isDuplicate, duplicateReason, linkedDocId
+```
+
+### 2. Diferencias críticas vs `/api/dedup` actual
+
+| Aspecto | n8n `Check Duplicados Unificado` | `/api/dedup` Next.js |
+|---|---|---|
+| Input | `dedup_query` string (file_hash OR email_message_id+filename) | `{file_hash}` solo |
+| Tablas | 3: invoices + quotes + documents | 2: invoices + documents |
+| Soft-deleted | Devuelve `deleted_at` informativo (no filtra) | Filtra `is.null` (no devuelve) |
+| Response | `{isDuplicate, duplicateReason, linkedDocId, isOwnDocument, isUpdatedVersion}` | `{is_duplicate, existing_id, table, created_at, source}` |
+| Auth | `$env.SUPABASE_SECRET_KEY` | Bearer `CATHEDRAL_INTERNAL_TOKEN` |
+| Timeout | 10s por tabla | sin timeout explícito (default fetch) |
+
+**Cutover drop-in NO es posible hoy.** Requiere ampliar `/api/dedup`:
+
+1. Body acepta `{file_hash?, email_message_id?, filename?}` con OR lookup
+2. Buscar en 3 tablas (añadir `quotes`)
+3. Devolver shape compatible: `{is_duplicate, duplicate_reason, linked_doc_id, table, dedup_method}`
+4. Política soft-deleted: devolver con flag `was_deleted` (cliente decide)
 
 ### 2. Validador encontró 2 refutaciones críticas al diseño shadow
 
@@ -80,28 +121,67 @@ Estos incidentes demuestran que tocar el workflow productivo sin análisis exhau
    - Comando exacto para restaurar (`POST /rest/workflows/{id}/activate` con versionId previo)
    - Tiempo objetivo de rollback: <2 minutos
 
-### Estrategia recomendada
+### Pasos pre-cutover (próxima sesión)
 
-**Cutover progresivo con feature flag** (no shadow comparison):
+**Paso 1 — Ampliar `/api/dedup` a paridad funcional**:
+
+```typescript
+// app/api/dedup/route.ts (refactor)
+const BodySchema = z.object({
+  file_hash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  email_message_id: z.string().max(200).optional(),
+  filename: z.string().max(500).optional(),
+}).refine(d => d.file_hash || (d.email_message_id && d.filename), {
+  message: 'Requiere file_hash O (email_message_id + filename)'
+})
+
+// Buscar en 3 tablas paralelas (añadir quotes)
+const [invoicesRes, quotesRes, documentsRes] = await Promise.all([...])
+
+// Response shape compatible n8n legacy
+return Response.json({
+  is_duplicate: bool,
+  duplicate_reason: string | null,
+  linked_doc_id: string | null,
+  table: 'invoices' | 'quotes' | 'documents' | null,
+  was_deleted: bool,        // soft-deleted flag (cliente decide)
+  dedup_method: 'file_hash' | 'email_message_id',
+  source: 'cathedral-dedup-v2',  // bump version
+})
+```
+
+**Paso 2 — Cutover progresivo con feature flag**:
 
 ```
-... → Evaluar Pre-Clasificacion → Check Flag Dedup (HTTP /api/feature-flag-check)
+... → Evaluar Pre-Clasificacion → Check Duplicado Supabase (legacy, intacto, construye query)
+                                        ↓
+                              Check Flag Dedup (HTTP /api/feature-flag-check?key=use_dedup_endpoint&subject_id={file_hash})
                                         ↓
                               IF should_use=true
                               │              │
                               ▼              ▼
-                       /api/dedup HTTP    Check Duplicado + Check Duplicados Unificado (legacy)
+                       HTTP /api/dedup v2   Check Duplicados Unificado (legacy)
                               │              │
-                              └──→ Normalize Output ←──┘
+                              └──→ Normalize Output (Set) ←──┘
                                         ↓
                               ¿Es Duplicado? → ...
 ```
 
-Rollout activado via `/admin/sistema/flags`:
+**Paso 3 — Rollout activado via `/admin/sistema/flags`**:
 - `use_dedup_endpoint`: enabled=true, rollout_pct=10 (primer día)
-- 24h monitor → pct=50
-- 24h monitor → pct=100
-- Sesión dedicada cleanup: eliminar nodos Code legacy
+- 24h monitor: comparar tasa duplicados detectados vs baseline
+- pct=50 (segundo día)
+- pct=100 (tercer día)
+
+**Paso 4 — Cleanup**:
+- Sesión dedicada: eliminar nodos `Check Flag Dedup` + IF + branch legacy
+- Reconectar `Check Duplicado Supabase → HTTP /api/dedup v2` directo
+- Eliminar `Check Duplicados Unificado` Code legacy
+
+**Paso 5 — Mismo patrón para `/api/fuzzy-supplier` y `/api/decide-table`**:
+- Cada uno requiere análisis empírico topología legacy (Nodo "Buscar Fuzzy Match", "Decidir Tabla Destino")
+- Repetir pasos 1-4 secuencialmente, no en paralelo
+- 1 utility cutover = 1 sesión dedicada estimada (~3-5h)
 
 ### Por qué no shadow comparison
 
