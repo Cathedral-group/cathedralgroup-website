@@ -14,12 +14,15 @@
  *     2. Historial proveedor confirma (≥2 facturas mismo project_id, lealtad ≥70%)
  *     3. Historial exclusivo (≥85% lealtad, mín 5 facturas) → auto sin IA
  *
- * Decisión tabla destino:
- *   - doc_type=presupuesto → quotes (early return)
+ * Decisión tabla destino (v2 16/05/2026 noche — paridad n8n `Decidir Tabla Destino`):
+ *   - doc_type=nomina | nomina_lote → payrolls
+ *   - doc_type=resumen_nominas → payroll_summaries
+ *   - doc_type=presupuesto | cotizacion → quotes (early return)
  *   - doc_type=modelo_fiscal + emisor Cathedral (B19761915) → tax_filings
- *   - recibo préstamo/hipoteca → invoices (needs_review). `mortgages` NO es
- *     insertable directamente (operation_id NOT NULL FK flipping_operations).
- *   - default → invoices
+ *   - doc_type=recibo_prestamo | hipoteca | cuota_hipoteca → invoices needs_review
+ *     (`mortgages` requiere operation_id NOT NULL FK flipping_operations — no insertable directo)
+ *   - doc_type=contrato | escritura | licencia | informe | seguro | nota_simple → documents
+ *   - default (factura, ticket, albarán, etc.) → invoices con búsqueda proyecto
  *
  * Body POST:
  *   {
@@ -36,7 +39,7 @@
  *
  * Response 200:
  *   {
- *     "table": "invoices" | "quotes" | "tax_filings",
+ *     "table": "invoices" | "quotes" | "tax_filings" | "payrolls" | "payroll_summaries" | "documents",
  *     "table_reason": string,
  *     "project_id": uuid | null,
  *     "project_code": string | null,
@@ -153,51 +156,78 @@ export async function POST(request: Request) {
   const supabase = createAdminSupabaseClient()
   const razones: string[] = []
 
-  // ── PASO A: Decidir tabla destino ───────────────────────────────────────
+  // ── PASO A: Decidir tabla destino (v2: paridad n8n Decidir Tabla Destino) ──
 
-  // A1. Presupuesto → quotes (early return)
-  if (doc_type === 'presupuesto') {
+  // Helper para respuesta temprana cuando tabla destino no es invoices.
+  // No hace búsqueda de proyecto porque las otras tablas no tienen project_id
+  // (excepto quotes que se asigna manualmente).
+  function earlyReturn(
+    table: 'quotes' | 'tax_filings' | 'payrolls' | 'payroll_summaries' | 'documents' | 'invoices',
+    reason: string,
+    razon: string,
+    action: Action = 'needs_review'
+  ) {
     const elapsed = Date.now() - startedAt
-    console.log(`[decide-table] doc_type=presupuesto → quotes t=${elapsed}ms`)
+    console.log(`[decide-table v2] doc_type=${doc_type} → ${table} t=${elapsed}ms`)
     return Response.json({
-      table: 'quotes',
-      table_reason: 'doc_type=presupuesto → tabla quotes',
+      table,
+      table_reason: reason,
       project_id: null,
       project_code: null,
       project_match_type: null,
       project_confidence: 0,
-      action: 'needs_review' as Action,
-      razones: ['Presupuesto: tabla quotes, sin auto-asignación proyecto'],
-      source: 'cathedral-decide-table-v1',
+      action,
+      razones: [razon],
+      source: 'cathedral-decide-table-v2',
     })
   }
 
-  // A2. modelo_fiscal emitido por Cathedral → tax_filings
+  // A1. Nóminas → payrolls / payroll_summaries (paridad n8n)
+  if (doc_type === 'nomina' || doc_type === 'nomina_lote') {
+    return earlyReturn(
+      'payrolls',
+      `doc_type=${doc_type} → tabla payrolls`,
+      'Nómina individual → payrolls (asignación trabajador manual)'
+    )
+  }
+  if (doc_type === 'resumen_nominas') {
+    return earlyReturn(
+      'payroll_summaries',
+      'doc_type=resumen_nominas → tabla payroll_summaries',
+      'Resumen mensual nóminas → payroll_summaries'
+    )
+  }
+
+  // A2. Presupuesto / Cotización → quotes (n8n: ['presupuesto','cotizacion'])
+  if (doc_type === 'presupuesto' || doc_type === 'cotizacion') {
+    return earlyReturn(
+      'quotes',
+      `doc_type=${doc_type} → tabla quotes`,
+      'Presupuesto/cotización: tabla quotes, sin auto-asignación proyecto'
+    )
+  }
+
+  // A3. modelo_fiscal emitido por Cathedral → tax_filings
   const normalizedNif = supplier_nif ? normalizeNif(supplier_nif) : ''
   if (doc_type === 'modelo_fiscal' && normalizedNif === normalizeNif(CATHEDRAL_NIF)) {
-    const elapsed = Date.now() - startedAt
-    console.log(`[decide-table] doc_type=modelo_fiscal + Cathedral NIF → tax_filings t=${elapsed}ms`)
-    return Response.json({
-      table: 'tax_filings',
-      table_reason: 'doc_type=modelo_fiscal + emisor Cathedral (B19761915) → tax_filings',
-      project_id: null,
-      project_code: null,
-      project_match_type: null,
-      project_confidence: 0,
-      action: 'needs_review' as Action,
-      razones: ['Modelo fiscal propio Cathedral → tax_filings'],
-      source: 'cathedral-decide-table-v1',
-    })
+    return earlyReturn(
+      'tax_filings',
+      'doc_type=modelo_fiscal + emisor Cathedral (B19761915) → tax_filings',
+      'Modelo fiscal propio Cathedral → tax_filings'
+    )
   }
 
-  // A3. Recibos préstamo/hipoteca → invoices con needs_review.
+  // A4. Recibos préstamo/hipoteca → invoices con needs_review.
   // mortgages.operation_id NOT NULL FK flipping_operations → NO insertable directo.
+  // Regex paridad n8n: /(hipoteca|préstamo|recibo de préstamo|cuota mensual.*préstamo)/i
   const isLoanDoc =
     ['recibo_prestamo', 'hipoteca', 'cuota_hipoteca'].includes(doc_type) ||
-    /préstamo|prestamo|hipoteca|cuota.*(hipotec|préstam|prestam)/i.test(concept ?? '')
+    /hipoteca|préstamo|prestamo|recibo de préstamo|cuota mensual.*(préstam|prestam)/i.test(
+      concept ?? ''
+    )
   if (isLoanDoc) {
     const elapsed = Date.now() - startedAt
-    console.log(`[decide-table] loan doc → invoices needs_review t=${elapsed}ms`)
+    console.log(`[decide-table v2] loan doc → invoices needs_review t=${elapsed}ms`)
     return Response.json({
       table: 'invoices',
       table_reason:
@@ -211,11 +241,35 @@ export async function POST(request: Request) {
         'Recibo préstamo/hipoteca detectado',
         'Insertado en invoices con needs_review=true para asignar operación manual',
       ],
-      source: 'cathedral-decide-table-v1',
+      source: 'cathedral-decide-table-v2',
     })
   }
 
-  // A4. Default → invoices con búsqueda proyecto
+  // A5. Documentos legales / contractuales → documents (paridad n8n)
+  // n8n: ['contrato','escritura','licencia','informe','seguro','nota_simple','modelo_fiscal']
+  // 'modelo_fiscal' ya cubierto en A3 cuando es Cathedral. Si no es Cathedral
+  // (modelo de un proveedor externo) → cae aquí.
+  const documentDocTypes = [
+    'contrato',
+    'escritura',
+    'licencia',
+    'informe',
+    'seguro',
+    'nota_simple',
+    'modelo_fiscal', // modelos no-Cathedral
+    'certificado',
+    'certificacion',
+  ]
+  if (documentDocTypes.includes(doc_type)) {
+    return earlyReturn(
+      'documents',
+      `doc_type=${doc_type} → tabla documents (documento legal/contractual)`,
+      `Documento ${doc_type} → tabla documents`
+    )
+  }
+
+  // A6. Default → invoices con búsqueda proyecto (factura, ticket, albarán,
+  // proforma, rectificativa, abono, justificante_pago, otro, etc.)
 
   // ── PASO B: Buscar proyecto (2 queries paralelas) ───────────────────────
   const fullText = [extracted_text ?? '', concept ?? ''].join(' ')
@@ -387,7 +441,7 @@ export async function POST(request: Request) {
     project_confidence,
     action,
     razones: finalRazones,
-    source: 'cathedral-decide-table-v1',
+    source: 'cathedral-decide-table-v2',
   })
 }
 
