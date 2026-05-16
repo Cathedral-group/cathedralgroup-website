@@ -87,11 +87,17 @@ export async function getFlag(key: string): Promise<FeatureFlag | null> {
  *   - rollout_pct = 100 → siempre true si `enabled = true`
  *   - rollout_pct = N   → ~N% de subjects únicos caen en TRUE
  *
+ * Guards defensive (audit 16/05):
+ *   - subjectId vacío → return false (semánticamente no aplica rollout)
+ *   - pct no es número finito → return false (corrupción flag)
+ *
  * @param flagKey clave del flag (debe coincidir con feature_flags.key)
  * @param subjectId identificador estable (file_hash, supplier_id, employee_id...)
  * @param pct entero 0-100
  */
 export function isInRollout(flagKey: string, subjectId: string, pct: number): boolean {
+  if (!subjectId || subjectId.length === 0) return false
+  if (!Number.isFinite(pct)) return false
   if (pct <= 0) return false
   if (pct >= 100) return true
 
