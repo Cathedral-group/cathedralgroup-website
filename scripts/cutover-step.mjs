@@ -18,6 +18,7 @@
  *   - activate-100  Sube a 100 (requiere previous=50 + golden compare OK)
  *   - rollback      Bajar enabled=false + rollout_pct=0 (emergencia)
  *   - compare       Correr golden-dataset-compare con baseline más reciente
+ *   - audit         Listar audit log entries recientes del flag
  *
  * Pre-condiciones cada activate-N:
  *   - smoke-test-utilities.mjs exit 0 (sanity check)
@@ -64,7 +65,7 @@ if (!VALID_FLAGS.has(flagKey)) {
   process.exit(1)
 }
 
-const VALID_ACTIONS = new Set(['status', 'preview', 'activate-10', 'activate-50', 'activate-100', 'rollback', 'compare'])
+const VALID_ACTIONS = new Set(['status', 'preview', 'activate-10', 'activate-50', 'activate-100', 'rollback', 'compare', 'audit'])
 if (!VALID_ACTIONS.has(action)) {
   console.error(`Error: action inválida. Permitidas: ${[...VALID_ACTIONS].join(', ')}`)
   process.exit(1)
@@ -284,6 +285,29 @@ async function actionRollback() {
   console.log(`\n✓ Rollback completo. Workflow general vuelve a Code legacy 100% inmediato.`)
 }
 
+async function actionAudit() {
+  console.log(`\n=== AUDIT LOG '${flagKey}' (últimos 20) ===`)
+  const res = await fetch(`${BASE}/api/admin/audit-log-recent?table=feature_flags&limit=20`, {
+    headers: authHeaders,
+  })
+  if (!res.ok) {
+    console.error(`Error HTTP ${res.status}`)
+    process.exit(1)
+  }
+  const json = await res.json()
+  const filtered = json.rows.filter((r) => r.record_id === flagKey)
+  if (filtered.length === 0) {
+    console.log(`  (sin audit entries para '${flagKey}')`)
+    return
+  }
+  console.log(`  Total: ${filtered.length} entries`)
+  console.log()
+  for (const row of filtered) {
+    const dt = new Date(row.created_at).toISOString().replace('T', ' ').slice(0, 19)
+    console.log(`  ${dt}  ${row.action.padEnd(20)}  ${row.user_email.padEnd(40)}  ip=${row.ip ?? '-'}`)
+  }
+}
+
 async function actionCompare() {
   const baseline = findLatestBaseline()
   if (!baseline) {
@@ -326,6 +350,9 @@ try {
       break
     case 'compare':
       await actionCompare()
+      break
+    case 'audit':
+      await actionAudit()
       break
   }
 } catch (err) {
