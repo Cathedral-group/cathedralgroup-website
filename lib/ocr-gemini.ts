@@ -7,9 +7,32 @@
  *
  * Patrón consistente con el workflow n8n general (mismos campos extraídos
  * que el clasificador v4).
+ *
+ * MIGRACIÓN SDK 16/05/2026 (ADR-0005):
+ * Sustituido `@google/generative-ai` (deprecated 30/11/2025, repo archivado
+ * 16/12/2025) por `@google/genai` v2.3.0 (sucesor oficial Google).
+ *
+ * Cambios clave del nuevo SDK respecto al legacy:
+ *   - Clase `GoogleGenAI` (no `GoogleGenerativeAI`)
+ *   - `httpOptions` se pasa al constructor del cliente (no por llamada)
+ *   - `httpOptions.headers` (NO `customHeaders`)
+ *   - `ai.models.generateContent({...})` en lugar de
+ *     `getGenerativeModel().generateContent([...])`
+ *   - `contents: [{ parts: [...] }]` estructurado (no array plano)
+ *   - `response.text` PROPERTY (no `response.text()` método)
+ *   - `config.thinkingConfig.thinkingBudget = 0` desactiva thinking tokens
+ *     (gemini-2.5-flash los genera por defecto, ~28 por call para OCR
+ *     Cathedral según observación empírica en gateway logs 16/05/2026).
+ *     thinkingBudget=0 ahorra ~10% coste output sin pérdida de precisión
+ *     para extracción estructurada.
+ *
+ * Doc:
+ *   - https://ai.google.dev/gemini-api/docs/libraries
+ *   - https://github.com/googleapis/js-genai
+ *   - https://ai.google.dev/gemini-api/docs/thinking
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 
 export interface ExtractedReceiptData {
   proveedor_nombre?: string | null
@@ -59,21 +82,22 @@ Reglas:
 - categoria_gasto: deduce del tipo de comercio (Leroy Merlin/ferretería/almacén → material; restaurante → otros (dieta); subcontratista con factura → subcontratas).
 - Devuelve SOLO el JSON, sin markdown ni texto adicional.`
 
-// Modelo actualizado 16/05/2026: `gemini-2.0-flash-exp` quedó deprecated
-// (HTTP 404 observado empíricamente en gateway logs). Reemplazado por
-// `gemini-2.5-flash` (GA mayo 2026 en Google AI Studio, verificado funcional
-// vía Cloudflare AI Gateway con status 200).
-// Fuente: https://ai.google.dev/gemini-api/docs/models
 const MODEL = 'gemini-2.5-flash'
 
 /**
- * Cloudflare AI Gateway opt-in.
- * Activar con USE_AI_GATEWAY=true + CF_AI_GATEWAY_BASE + CF_AI_GATEWAY_TOKEN.
- * Beneficios: caching (30d TTL, ~30% hit rate esperado en facturas reprocesadas),
- * observabilidad unificada en dashboard Cloudflare, rate-limit + retry semantics
- * centralizados. Reversible apuntando USE_AI_GATEWAY=false sin redeploy.
+ * Construye httpOptions para Cloudflare AI Gateway opt-in.
+ *
+ * Cuando USE_AI_GATEWAY=true + CF_AI_GATEWAY_BASE + CF_AI_GATEWAY_TOKEN están
+ * definidos, las llamadas pasan por el gateway (cache 30d + observability +
+ * rate-limit centralizado).
+ *
+ * Patron oficial Cloudflare AI Gateway + @google/genai:
+ *   https://developers.cloudflare.com/ai-gateway/usage/providers/google-ai-studio/
+ *
+ * KEY: la clave del header en `httpOptions.headers` es `headers` (no
+ * `customHeaders` como en SDK legacy).
  */
-function buildRequestOptions(): { baseUrl?: string; customHeaders?: Record<string, string> } {
+function buildHttpOptions(): Record<string, unknown> {
   const useGateway = process.env.USE_AI_GATEWAY === 'true'
   const gwBase = process.env.CF_AI_GATEWAY_BASE
   const gwToken = process.env.CF_AI_GATEWAY_TOKEN
@@ -82,7 +106,7 @@ function buildRequestOptions(): { baseUrl?: string; customHeaders?: Record<strin
 
   return {
     baseUrl: `${gwBase}/google-ai-studio`,
-    customHeaders: {
+    headers: {
       'cf-aig-authorization': `Bearer ${gwToken}`,
     },
   }
@@ -100,34 +124,43 @@ export async function extractReceiptData(
   if (!apiKey) return null
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey)
-    // NOTE 16/05/2026: SDK `@google/generative-ai` deprecated desde 30/11/2025,
-    // repo archivado 16/12/2025. NO soporta `thinkingConfig` en TypeScript types.
-    // Migración a SDK `@google/genai` (oficial successor) + `thinkingBudget: 0`
-    // + `responseSchema` Zod planificada en ADR-0005. Hasta entonces, Gemini
-    // 2.5 Flash funciona pero con thinking tokens activos (coste +10% output).
-    // Doc validator (sesión 16/05): https://ai.google.dev/gemini-api/docs/libraries
-    const model = genAI.getGenerativeModel(
-      {
-        model: MODEL,
-        systemInstruction: SYSTEM_PROMPT,
-      },
-      buildRequestOptions(),
-    )
+    // SDK v2 (@google/genai): cliente único, httpOptions a nivel constructor
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: buildHttpOptions(),
+    })
 
     const base64 = Buffer.from(imageBuffer).toString('base64')
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType,
-          data: base64,
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
+        {
+          parts: [
+            { inlineData: { mimeType, data: base64 } },
+            { text: 'Extrae los datos en JSON según el formato indicado.' },
+          ],
         },
+      ],
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        // Desactiva thinking tokens (gemini-2.5-flash los genera por defecto,
+        // ~28 por call observados empíricamente). Para OCR estructurado de
+        // facturas no necesitamos razonamiento profundo — solo extraer campos.
+        // Ahorro ~10% coste output sin pérdida de precisión.
+        // Doc: https://ai.google.dev/gemini-api/docs/thinking
+        thinkingConfig: { thinkingBudget: 0 },
       },
-      'Extrae los datos en JSON según el formato indicado.',
-    ])
+    })
 
-    const text = result.response.text().trim()
+    // SDK v2: response.text es PROPERTY (no método .text())
+    const text = (response.text ?? '').trim()
+    if (!text) {
+      return {
+        confidence: 0,
+        warnings: ['Gemini no devolvió texto'],
+      }
+    }
 
     // Limpiar markdown si Gemini lo añade pese al prompt
     const jsonText = text
