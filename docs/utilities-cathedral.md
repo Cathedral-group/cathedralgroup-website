@@ -258,6 +258,30 @@ vercel logs <deployment-url> 2>&1 | tail -50
 3. ✅ Cron Hetzner llamando `/api/health/utilities` HECHO 16/05 (`5 * * * *` + alerting `system_notifications`)
 4. ✅ GitHub Actions CI + branch protection HECHO 16/05 (`ci-utilities.yml` + status check required)
 
+## Backups pre-cutover
+
+Generar snapshot completo flags + metadata antes de operaciones masivas:
+
+```bash
+TOKEN=<CATHEDRAL_INTERNAL_TOKEN>
+mkdir -p backups
+curl -s -H "Authorization: Bearer $TOKEN" \
+  https://cathedralgroup-website.vercel.app/api/admin/feature-flag-snapshot \
+  | jq '.' > backups/flags-snapshot-$(date -u +%Y%m%d-%H%M%S).json
+```
+
+Restore desde snapshot:
+
+```bash
+cat backups/flags-snapshot-FECHA.json | \
+  jq '{updates: [.flags[] | {key, enabled, rollout_pct, description}]}' | \
+  curl -X POST -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" -d @- \
+    https://cathedralgroup-website.vercel.app/api/admin/feature-flag-batch
+```
+
+Carpeta `backups/` está en `.gitignore` (snapshots con state interna no committed).
+
 ## Rollback emergencia (curl)
 
 Bajar todos los flags a 0% en una sola call (útil incidente producción):
