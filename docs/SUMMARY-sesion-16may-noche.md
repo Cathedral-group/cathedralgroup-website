@@ -128,9 +128,23 @@ node scripts/cutover-step.mjs use_dedup_endpoint rollback
 ## Tests pasados al cerrar sesión
 
 - 8/8 rollout determinism (`test-feature-flags-rollout.mjs`)
-- 26/26 smoke integration (`smoke-test-utilities.mjs`)
-- 4/4 CI full check (`ci-full-check.mjs`)
+- 10/10 utility-client unit tests (`test-cathedral-utility-client.mjs`)
+- 28/28 smoke integration (`smoke-test-utilities.mjs`)
+- 5/5 CI full check (`ci-full-check.mjs`)
 - 0 critical diffs golden dataset baseline vs current
 - Build Next.js OK
 - TypeScript clean
 - 0 secrets detectados (gitleaks)
+
+**Total: 46 tests automatizados + 2 checks runtime.**
+
+## Hooks git instalados
+
+- `pre-commit` (existente): gitleaks scan staged secrets
+- `pre-push` (nuevo `bbc019d`): ci-full-check ligero si cambios api/ o lib/
+
+Bootstrap: `bash scripts/install-git-hooks.sh`
+
+## Final commit count
+
+**38 commits** sesión 16/05/2026 noche entre `2784367` (mañana) y `58ba9c6` (cierre noche).
