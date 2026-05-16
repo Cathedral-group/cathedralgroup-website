@@ -36,7 +36,7 @@ node --test scripts/test-*.mjs
 
 | Script | Tests | Auth | Para qué |
 |---|---|---|---|
-| `smoke-test-utilities.mjs` | 29 | Bearer CATHEDRAL_INTERNAL_TOKEN | Smoke 7 utility endpoints + health |
+| `smoke-test-utilities.mjs` | 33 | Bearer CATHEDRAL_INTERNAL_TOKEN | Smoke 8 utility endpoints + health (auth, happy, edge, regex) |
 
 ```bash
 CATHEDRAL_INTERNAL_TOKEN=... node scripts/smoke-test-utilities.mjs

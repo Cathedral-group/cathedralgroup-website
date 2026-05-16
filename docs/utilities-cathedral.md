@@ -11,6 +11,9 @@ Single source para los 5 utility endpoints internos Cathedral implementados sesi
 | `POST /api/fuzzy-ticket-invoice` | Fuzzy ticket → invoice/quote (NIF + importe ±0.5% + fecha ±20d) | v1 | `aa12caa` |
 | `POST /api/decide-table` | Decide tabla destino + corroboración proyecto (7 tablas) | v2 | `b56bf1a` |
 | `GET /api/feature-flag-check` | Consulta rollout flag para subject_id (cutover progresivo n8n) | v1 | `bf78800` |
+| `POST /api/admin/feature-flag-toggle` | Activar/cambiar 1 flag curl-friendly | v1 | `40ba09f` |
+| `GET /api/admin/feature-flag-list` | Listar todos los flags + estado | v1 | `19732d8` |
+| `POST /api/admin/feature-flag-batch` | Activar/desactivar múltiples flags atomic (cap 20) | v1 | `cbe0d14` |
 | `GET /api/health/utilities` | Health monitoring 4 utilities + flags status | v1 | `a1050c8` |
 
 ## Auth
@@ -250,7 +253,26 @@ vercel logs <deployment-url> 2>&1 | tail -50
 
 ## Próximos pasos pendientes
 
-1. Activar `portal_use_unified_ocr` rollout_pct=10 + David subir ticket prueba para verificar enrichment en `extracted_data`
-2. Cutover workflow general n8n (3 utilities secuencial — ADR-0008 plan 5 pasos)
-3. Cron Hetzner llamando `/api/health/utilities` cada hora con alerta banner admin si status != ok
-4. Vitest CI con golden dataset comparison automatizado (Tarea 7 plan original)
+1. ✅ Activar `portal_use_unified_ocr` rollout=10 HECHO 16/05 (validación end-to-end Rafael futuro)
+2. ❌ Cutover workflow general n8n (3 utilities secuencial — ADR-0008 plan 5 pasos) — David presente sesión dedicada
+3. ✅ Cron Hetzner llamando `/api/health/utilities` HECHO 16/05 (`5 * * * *` + alerting `system_notifications`)
+4. ✅ GitHub Actions CI + branch protection HECHO 16/05 (`ci-utilities.yml` + status check required)
+
+## Rollback emergencia (curl)
+
+Bajar todos los flags a 0% en una sola call (útil incidente producción):
+
+```bash
+TOKEN=<CATHEDRAL_INTERNAL_TOKEN>
+curl -X POST https://cathedralgroup-website.vercel.app/api/admin/feature-flag-batch \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"updates":[
+    {"key":"use_dedup_endpoint","enabled":false,"rollout_pct":0},
+    {"key":"use_fuzzy_supplier_endpoint","enabled":false,"rollout_pct":0},
+    {"key":"use_decide_table_endpoint","enabled":false,"rollout_pct":0},
+    {"key":"portal_use_unified_ocr","enabled":false,"rollout_pct":0}
+  ]}'
+```
+
+Tras rollback: workflow general n8n vuelve a Code legacy 100% inmediato (revalidateTag invalida cache 60s instantáneo).
