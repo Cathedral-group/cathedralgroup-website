@@ -61,6 +61,28 @@ Reglas:
 
 const MODEL = 'gemini-2.0-flash-exp'
 
+/**
+ * Cloudflare AI Gateway opt-in.
+ * Activar con USE_AI_GATEWAY=true + CF_AI_GATEWAY_BASE + CF_AI_GATEWAY_TOKEN.
+ * Beneficios: caching (30d TTL, ~30% hit rate esperado en facturas reprocesadas),
+ * observabilidad unificada en dashboard Cloudflare, rate-limit + retry semantics
+ * centralizados. Reversible apuntando USE_AI_GATEWAY=false sin redeploy.
+ */
+function buildRequestOptions(): { baseUrl?: string; customHeaders?: Record<string, string> } {
+  const useGateway = process.env.USE_AI_GATEWAY === 'true'
+  const gwBase = process.env.CF_AI_GATEWAY_BASE
+  const gwToken = process.env.CF_AI_GATEWAY_TOKEN
+
+  if (!useGateway || !gwBase || !gwToken) return {}
+
+  return {
+    baseUrl: `${gwBase}/google-ai-studio`,
+    customHeaders: {
+      'cf-aig-authorization': `Bearer ${gwToken}`,
+    },
+  }
+}
+
 export function isOcrAvailable(): boolean {
   return Boolean(process.env.GEMINI_API_KEY)
 }
@@ -74,10 +96,13 @@ export async function extractReceiptData(
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({
-      model: MODEL,
-      systemInstruction: SYSTEM_PROMPT,
-    })
+    const model = genAI.getGenerativeModel(
+      {
+        model: MODEL,
+        systemInstruction: SYSTEM_PROMPT,
+      },
+      buildRequestOptions(),
+    )
 
     const base64 = Buffer.from(imageBuffer).toString('base64')
 

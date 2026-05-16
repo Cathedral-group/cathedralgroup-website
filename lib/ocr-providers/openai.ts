@@ -11,7 +11,26 @@
 import type { ExtractedReceiptData } from '@/lib/ocr-gemini'
 
 const MODEL = 'gpt-4o-mini'
-const ENDPOINT = 'https://api.openai.com/v1/chat/completions'
+const ENDPOINT_DIRECT = 'https://api.openai.com/v1/chat/completions'
+
+/**
+ * Cloudflare AI Gateway opt-in.
+ * Cuando USE_AI_GATEWAY=true + CF_AI_GATEWAY_BASE + CF_AI_GATEWAY_TOKEN están definidos,
+ * las llamadas pasan por el gateway (cache 30d + observability + auth headers extra).
+ */
+function buildEndpoint(): { url: string; extraHeaders: Record<string, string> } {
+  const useGateway = process.env.USE_AI_GATEWAY === 'true'
+  const gwBase = process.env.CF_AI_GATEWAY_BASE
+  const gwToken = process.env.CF_AI_GATEWAY_TOKEN
+
+  if (useGateway && gwBase && gwToken) {
+    return {
+      url: `${gwBase}/openai/chat/completions`,
+      extraHeaders: { 'cf-aig-authorization': `Bearer ${gwToken}` },
+    }
+  }
+  return { url: ENDPOINT_DIRECT, extraHeaders: {} }
+}
 
 const SYSTEM_PROMPT = `Eres un experto en contabilidad y OCR de facturas españolas.
 Recibes una imagen de un ticket, albarán o factura y extraes los siguientes campos en JSON:
@@ -68,11 +87,13 @@ export async function extractWithOpenAi(
       max_tokens: 800,
     }
 
-    const res = await fetch(ENDPOINT, {
+    const { url, extraHeaders } = buildEndpoint()
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        ...extraHeaders,
       },
       body: JSON.stringify(body),
     })
