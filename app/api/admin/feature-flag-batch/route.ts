@@ -145,6 +145,25 @@ export async function POST(request: Request) {
   // Invalidate cache 1 sola vez tras todos updates
   revalidateTag(FLAG_CACHE_TAG)
 
+  // Audit log batch: 1 entry per flag (commit 20260516210000 CHECK extendido)
+  try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+    const auditRows = results
+      .filter((r) => r.ok)
+      .map((r) => ({
+        user_email: 'api:cathedral-internal-token',
+        action: 'flag_batch_api',
+        table_name: 'feature_flags',
+        record_id: r.key,
+        ip,
+      }))
+    if (auditRows.length > 0) {
+      await supabase.from('admin_audit_log').insert(auditRows)
+    }
+  } catch (err) {
+    console.warn('[flag-batch] audit log failed (non-blocking):', err)
+  }
+
   const succeeded = results.filter((r) => r.ok).length
   const failed = results.filter((r) => !r.ok).length
   console.log(

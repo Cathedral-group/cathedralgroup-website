@@ -147,6 +147,20 @@ export async function POST(request: Request) {
   // Invalidate cache `unstable_cache` 60s en lib/feature-flags.ts
   revalidateTag(FLAG_CACHE_TAG)
 
+  // Audit log persistente (CHECK constraint extendido commit 20260516210000)
+  try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+    await supabase.from('admin_audit_log').insert({
+      user_email: 'api:cathedral-internal-token',
+      action: 'flag_toggle_api',
+      table_name: 'feature_flags',
+      record_id: key,
+      ip,
+    })
+  } catch (err) {
+    console.warn('[flag-toggle] audit log failed (non-blocking):', err)
+  }
+
   const currentResult = {
     enabled: enabled !== undefined ? enabled : previous.enabled,
     rollout_pct: rollout_pct !== undefined ? rollout_pct : previous.rollout_pct,

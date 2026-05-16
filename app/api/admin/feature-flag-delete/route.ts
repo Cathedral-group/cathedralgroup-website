@@ -122,6 +122,20 @@ export async function POST(request: Request) {
 
   revalidateTag(FLAG_CACHE_TAG)
 
+  // Audit log delete (commit 20260516210000 CHECK extendido)
+  try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+    await supabase.from('admin_audit_log').insert({
+      user_email: 'api:cathedral-internal-token',
+      action: 'flag_delete_api',
+      table_name: 'feature_flags',
+      record_id: key,
+      ip,
+    })
+  } catch (err) {
+    console.warn('[flag-delete] audit log failed (non-blocking):', err)
+  }
+
   console.log(
     `[flag-delete] key=${key} deleted previous_enabled=${previous.enabled} pct=${previous.rollout_pct} was_active=${wasActive}`
   )
