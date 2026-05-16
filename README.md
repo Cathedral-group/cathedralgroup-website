@@ -30,6 +30,7 @@ Microservicio Cathedral para tareas comunes facturación. Auth Bearer `CATHEDRAL
 | `POST /api/admin/revalidate-flags-cache` | Force invalidate unstable_cache |
 | `GET /api/admin/audit-log-recent` | Inspect audit trail |
 | `GET /api/admin/flags-metrics` | Observability dashboard runtime stats |
+| `POST /api/admin/audit-log-cleanup` | Retention policy DELETE rows antiguos |
 | `GET /api/health/utilities` | Health check Supabase + flags |
 
 Reference completa: [docs/utilities-cathedral.md](docs/utilities-cathedral.md)

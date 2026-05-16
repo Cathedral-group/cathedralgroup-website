@@ -10,7 +10,7 @@ Sesión maratoniana ~17h. 67 commits desplegados Vercel + 4 SQL migrations Supab
 
 ### Added
 
-#### 14 utility endpoints internos (`/api/*`)
+#### 15 utility endpoints internos (`/api/*`)
 
 - `POST /api/dedup` v2 (3 tablas + OR lookup file_hash o email+filename)
 - `POST /api/fuzzy-supplier` v1 (pg_trgm RPC)
@@ -25,6 +25,7 @@ Sesión maratoniana ~17h. 67 commits desplegados Vercel + 4 SQL migrations Supab
 - `POST /api/admin/revalidate-flags-cache` v1 (force invalidate unstable_cache)
 - `GET /api/admin/audit-log-recent` v1 (inspect audit trail)
 - `GET /api/admin/flags-metrics` v1 (observability dashboard runtime)
+- `POST /api/admin/audit-log-cleanup` v1 (retention policy ADR-0011)
 - `GET /api/health/utilities` v1 (monitoring Supabase + flags)
 
 #### Sistema feature flags + UI admin
@@ -134,10 +135,10 @@ Sesión maratoniana ~17h. 67 commits desplegados Vercel + 4 SQL migrations Supab
 
 ### Tests cobertura
 
-- 14 rollout determinism (node:test offline) — incluye edge cases unicode + null bytes + pct extremes
+- 16 rollout determinism (node:test offline) — incluye chi-square NIST + edge cases unicode + null bytes + pct extremes + no-collision sanity
 - 22 unit offline (10 utility-client wrappers + 12 api-auth Bearer)
-- 47 smoke integration vs prod (incluye E2E audit log + 14 endpoints)
-- **83 tests automatizados** + 1 CI runner unificado 5 steps + 1 health check runtime + 1 golden dataset comparator manual
+- 50 smoke integration vs prod (incluye E2E audit log + 15 endpoints)
+- **88 tests automatizados** + 1 CI runner unificado 5 steps + 1 health check runtime + 1 golden dataset comparator manual
 
 ### Performance baseline (16/05 noche, N=20 warmed)
 
