@@ -424,6 +424,26 @@ await run('sin auth → 401', async () => {
   await expectStatus(res, 401)
 })
 
+// ─── /api/admin/flags-metrics ─────────────────────────────────────────────────
+console.log('\n[/api/admin/flags-metrics]')
+
+await run('GET metrics → flags + audit_24h stats', async () => {
+  const res = await fetch(`${BASE}/api/admin/flags-metrics`, { headers: authHeaders })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (typeof json.flags?.total !== 'number') throw new Error('flags.total not number')
+  if (typeof json.flags?.enabled !== 'number') throw new Error('flags.enabled not number')
+  if (!json.flags?.rollout_distribution) throw new Error('rollout_distribution missing')
+  if (typeof json.audit_24h?.total_events !== 'number') throw new Error('audit_24h.total_events not number')
+  if (typeof json.audit_24h?.by_action !== 'object') throw new Error('by_action not object')
+  if (!Array.isArray(json.audit_24h?.top_5_flags_modified)) throw new Error('top_5 not array')
+})
+
+await run('sin auth → 401', async () => {
+  const res = await fetch(`${BASE}/api/admin/flags-metrics`)
+  await expectStatus(res, 401)
+})
+
 // ─── /api/admin/revalidate-flags-cache ────────────────────────────────────────
 console.log('\n[/api/admin/revalidate-flags-cache]')
 
