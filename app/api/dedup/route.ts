@@ -1,52 +1,74 @@
 /**
  * POST /api/dedup
  *
- * Microutility endpoint: dedup SHA-256 lookup contra tablas Supabase.
+ * Microutility endpoint: dedup lookup contra tablas Supabase (v2).
  *
  * Llamado por:
- *   - workflow n8n general (HTTP Request node) sustituye Code node
- *     "Check Duplicado Supabase" — más rápido y reusable
- *   - Portal trabajador upload route (futuro, integración pendiente)
+ *   - workflow n8n general (HTTP Request node) — cutover Tarea 4 (ADR-0008)
+ *     Sustituye Code node "Check Duplicados Unificado" V8.
+ *   - Portal trabajador upload-receipt vía `callDedup()` helper.
  *
- * Body:
- *   { "file_hash": "<SHA-256 hex 64 chars>" }
+ * Body (OR lookup — file_hash O email_message_id+filename):
+ *   {
+ *     "file_hash"?: string,                  // SHA-256 hex 64 chars — preferido
+ *     "email_message_id"?: string,           // fallback si no hay file_hash
+ *     "filename"?: string,                   // requerido con email_message_id
+ *     "include_deleted"?: boolean            // default false (portal no quiere soft-deleted)
+ *   }
  *
  * Response 200:
  *   {
+ *     // Campos v1 (backward compat con consumers actuales):
  *     "is_duplicate": boolean,
  *     "existing_id": uuid | null,
- *     "table": "invoices" | "documents" | null,
+ *     "table": "invoices" | "quotes" | "documents" | null,
  *     "created_at": ISO8601 | null,
- *     "source": "cathedral-dedup-v1"
+ *     // Campos v2 (paridad funcional n8n legacy):
+ *     "duplicate_reason": string | null,     // formato: "<method> ya procesado en <table> (<number|id>)..."
+ *     "linked_doc_id": uuid | null,          // = existing_id (alias por compat n8n)
+ *     "was_deleted": boolean,                // true si match es soft-deleted (solo cuando include_deleted=true)
+ *     "dedup_method": "file_hash" | "email_message_id" | null,
+ *     "source": "cathedral-dedup-v2"
  *   }
  *
  * Auth: header `Authorization: Bearer ${CATHEDRAL_INTERNAL_TOKEN}`.
  * NO público. Llamado solo desde n8n + endpoints internos Cathedral.
  *
- * Scope (ADR-0008 futuro ampliará a worker_attachments cuando se añada
- * columna file_hash en esa tabla — hoy no existe en schema).
+ * Cambios v2 (16/05/2026 noche):
+ *   - 3 tablas (añadido `quotes`): invoices > quotes > documents prioridad
+ *   - OR lookup: file_hash prioridad, fallback email+filename
+ *   - `include_deleted` flag → n8n envía true (paridad legacy), portal omite (default false)
+ *   - Campos extra: duplicate_reason, linked_doc_id, was_deleted, dedup_method
+ *   - source bumpeado a v2 (v1 consumers reciben superconjunto, sin breaking change)
  *
- * Performance objetivo: <500ms p95 (2 queries Supabase paralelas con
- * index B-tree UNIQUE en ambas tablas: invoices_file_hash_key +
- * uniq_documents_file_hash).
+ * Tabla `documents` NO tiene columna `number` → SELECT condicional.
+ *
+ * Performance: ambos lookups (file_hash y email_message_id+filename) cubiertos por
+ * indexes B-tree existentes en las 3 tablas (verificado empíricamente 16/05).
  */
 
 import { createAdminSupabaseClient } from '@/lib/supabase-server'
 import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 
-const BodySchema = z.object({
-  file_hash: z
-    .string()
-    .regex(/^[a-f0-9]{64}$/, 'SHA-256 hex requerido (64 chars lowercase)'),
-})
+const BodySchema = z
+  .object({
+    file_hash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/, 'SHA-256 hex requerido (64 chars lowercase)')
+      .optional(),
+    email_message_id: z.string().max(200).optional(),
+    filename: z.string().max(500).optional(),
+    include_deleted: z.boolean().optional().default(false),
+  })
+  .refine(
+    (d) =>
+      Boolean(d.file_hash) || (Boolean(d.email_message_id) && Boolean(d.filename)),
+    { error: 'Requiere file_hash O (email_message_id + filename)' }
+  )
 
-/**
- * Comparación constant-time del Bearer token.
- * `.trim()` en ambos lados para tolerar whitespace trailing en env vars
- * (caso común en Vercel + .env).
- * `timingSafeEqual` lanza si las longitudes no coinciden — manejamos con try/catch.
- */
+type DedupBody = z.infer<typeof BodySchema>
+
 function checkAuth(request: Request): boolean {
   const authHeader = request.headers.get('Authorization') ?? ''
   const token = authHeader.replace(/^Bearer\s+/i, '').trim()
@@ -62,15 +84,74 @@ function checkAuth(request: Request): boolean {
   }
 }
 
+// Tablas en orden de prioridad para lookup (primer match gana).
+const DEDUP_TABLES = ['invoices', 'quotes', 'documents'] as const
+type DedupTable = (typeof DEDUP_TABLES)[number]
+
+interface MatchRow {
+  id: string
+  number: string | null
+  created_at: string
+  deleted_at: string | null
+}
+
+async function lookupInTable(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  table: DedupTable,
+  body: DedupBody
+): Promise<MatchRow | null> {
+  // `documents` no tiene columna `number` → SELECT condicional
+  const cols =
+    table === 'documents'
+      ? 'id, created_at, deleted_at'
+      : 'id, number, created_at, deleted_at'
+
+  let query = supabase.from(table).select(cols).limit(1)
+
+  if (body.file_hash) {
+    query = query.eq('file_hash', body.file_hash)
+  } else if (body.email_message_id && body.filename) {
+    query = query
+      .eq('email_message_id', body.email_message_id)
+      .eq('original_filename', body.filename)
+  } else {
+    return null
+  }
+
+  // Política deleted_at: solo filtra cuando include_deleted=false (default portal)
+  if (!body.include_deleted) {
+    query = query.is('deleted_at', null)
+  }
+
+  const { data, error } = await query.maybeSingle()
+  if (error) {
+    console.error(`[dedup v2] ${table} lookup error:`, error.message)
+    return null
+  }
+  if (!data) return null
+  // Supabase TS infiere ParserError con select string dinámico — cast via unknown.
+  // `documents` no tiene `number` → undefined → null en el row final.
+  const row = data as unknown as {
+    id: string
+    number?: string
+    created_at: string
+    deleted_at: string | null
+  }
+  return {
+    id: row.id,
+    number: row.number ?? null,
+    created_at: row.created_at,
+    deleted_at: row.deleted_at,
+  }
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now()
 
-  // 1. Auth
   if (!checkAuth(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // 2. Body parse
   let raw: unknown
   try {
     raw = await request.json()
@@ -89,75 +170,74 @@ export async function POST(request: Request) {
     )
   }
 
-  const { file_hash } = parsed.data
+  const body = parsed.data
+  const dedupMethod: 'file_hash' | 'email_message_id' = body.file_hash
+    ? 'file_hash'
+    : 'email_message_id'
 
-  // 3. Queries paralelas a 2 tablas con file_hash indexado.
-  //    `.maybeSingle()` devuelve `data: null` sin error cuando 0 rows (vs `.single()`
-  //    que devuelve PGRST116 error). Evita logs de error falso.
-  //    Ambas tablas: filtramos `deleted_at IS NULL` para no devolver soft-deleted.
   const supabase = createAdminSupabaseClient()
 
   try {
-    const [invoicesRes, documentsRes] = await Promise.all([
-      supabase
-        .from('invoices')
-        .select('id, created_at')
-        .eq('file_hash', file_hash)
-        .is('deleted_at', null)
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('documents')
-        .select('id, created_at')
-        .eq('file_hash', file_hash)
-        .is('deleted_at', null)
-        .limit(1)
-        .maybeSingle(),
-    ])
+    // 3 lookups paralelos. Resultado por tabla, primer match gana en prioridad
+    // invoices > quotes > documents.
+    const results = await Promise.all(
+      DEDUP_TABLES.map(async (table) => ({
+        table,
+        row: await lookupInTable(supabase, table, body),
+      }))
+    )
 
-    // Error real de Supabase (no 0-rows)
-    if (invoicesRes.error || documentsRes.error) {
-      console.error(
-        '[dedup] Supabase error invoices=%s documents=%s',
-        invoicesRes.error?.message ?? 'ok',
-        documentsRes.error?.message ?? 'ok'
+    // Prioridad lookup: invoices > quotes > documents
+    const matched = results.find((r) => r.row !== null)
+    const elapsedMs = Date.now() - startedAt
+
+    if (!matched) {
+      console.log(
+        `[dedup v2] method=${dedupMethod} match=none include_deleted=${body.include_deleted} t=${elapsedMs}ms`
       )
-      return Response.json(
-        { error: 'Upstream database error' },
-        { status: 503, headers: { 'Retry-After': '5' } }
-      )
+      return Response.json({
+        is_duplicate: false,
+        existing_id: null,
+        table: null,
+        created_at: null,
+        duplicate_reason: null,
+        linked_doc_id: null,
+        was_deleted: false,
+        dedup_method: dedupMethod,
+        source: 'cathedral-dedup-v2',
+      })
     }
 
-    // Prioridad lookup: invoices primero (procesamiento principal), después documents
-    const match = invoicesRes.data
-      ? {
-          table: 'invoices' as const,
-          id: invoicesRes.data.id as string,
-          created_at: invoicesRes.data.created_at as string,
-        }
-      : documentsRes.data
-        ? {
-            table: 'documents' as const,
-            id: documentsRes.data.id as string,
-            created_at: documentsRes.data.created_at as string,
-          }
-        : null
+    const { table, row } = matched
+    if (!row) {
+      // defensive — type narrowing
+      throw new Error('matched.row null — unexpected')
+    }
 
-    const elapsedMs = Date.now() - startedAt
+    const wasDeleted = Boolean(row.deleted_at)
+    const docLabel = row.number ?? row.id
+    const duplicateReason = wasDeleted
+      ? `${dedupMethod} ya procesado en ${table} (${docLabel}) — soft-deleted ${row.deleted_at}`
+      : `${dedupMethod} ya procesado en ${table} (${docLabel})`
+
     console.log(
-      `[dedup] hash=${file_hash.slice(0, 8)}… match=${match?.table ?? 'none'} t=${elapsedMs}ms`
+      `[dedup v2] method=${dedupMethod} match=${table} id=${row.id.slice(0, 8)} deleted=${wasDeleted} t=${elapsedMs}ms`
     )
 
     return Response.json({
-      is_duplicate: match !== null,
-      existing_id: match?.id ?? null,
-      table: match?.table ?? null,
-      created_at: match?.created_at ?? null,
-      source: 'cathedral-dedup-v1',
+      is_duplicate: true,
+      existing_id: row.id,
+      table,
+      created_at: row.created_at,
+      duplicate_reason: duplicateReason,
+      linked_doc_id: row.id,
+      was_deleted: wasDeleted,
+      dedup_method: dedupMethod,
+      source: 'cathedral-dedup-v2',
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error'
-    console.error('[dedup] Unexpected error:', message)
+    console.error('[dedup v2] Unexpected error:', message)
     return Response.json(
       { error: 'Upstream error', detail: message },
       { status: 503, headers: { 'Retry-After': '5' } }
@@ -168,4 +248,3 @@ export async function POST(request: Request) {
 // Endpoint solo POST. GET/etc devuelve 405 implícito.
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-// Endpoint <500ms p95 — sobra con default. No subir maxDuration innecesariamente.
