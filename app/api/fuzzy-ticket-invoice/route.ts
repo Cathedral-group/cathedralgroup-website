@@ -149,13 +149,28 @@ export async function POST(request: Request) {
       [key: string]: unknown
     }>
 
-    const candidates: CandidateRow[] = rows.map((r) => ({
-      id: r.id,
-      number: r.number,
-      issue_date: r.issue_date,
-      amount: typeof r[amountField] === 'number' ? (r[amountField] as number) : Number(r[amountField] ?? 0),
-      empresa: r.empresa,
-    }))
+    // Map a candidates con guard: si amount llega null/NaN (race condition
+    // schema, query devolvió row inesperada), skip + log en vez de devolver
+    // candidato con amount=0 silente (sería match falso ±0.5% de 0).
+    const candidates: CandidateRow[] = rows
+      .map((r): CandidateRow | null => {
+        const raw = r[amountField]
+        const amount = typeof raw === 'number' ? raw : Number(raw)
+        if (!Number.isFinite(amount) || amount <= 0) {
+          console.warn(
+            `[fuzzy-ticket-invoice] candidate ${r.id} skipped: ${amountField}=${JSON.stringify(raw)} invalid`
+          )
+          return null
+        }
+        return {
+          id: r.id,
+          number: r.number,
+          issue_date: r.issue_date,
+          amount,
+          empresa: r.empresa,
+        }
+      })
+      .filter((c): c is CandidateRow => c !== null)
 
     const elapsedMs = Date.now() - startedAt
     console.log(

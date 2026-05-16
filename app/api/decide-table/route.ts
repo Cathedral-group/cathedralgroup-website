@@ -277,11 +277,28 @@ export async function POST(request: Request) {
 
   // Fallback historial: si supplier_id null usar supplier_nif. ~50% facturas
   // producción tienen supplier_id=null (validator verified).
-  const supplierFilter = supplier_id
-    ? `supplier_id.eq.${supplier_id}`
-    : normalizedNif
-      ? `supplier_nif.eq.${supplier_nif}`
-      : null
+  // Usar `.eq()` directo (no `.or()` con string raw — PostgREST filter DSL es
+  // sensible a caracteres especiales en value; supplier_nif puede contener
+  // comas/paréntesis en payloads malformados → potencial injection).
+  const supplierHistoryQuery = (() => {
+    if (!supplier_id && !normalizedNif) return null
+    let q = supabase
+      .from('invoices')
+      .select('project_id')
+      .not('project_id', 'is', null)
+      .is('deleted_at', null)
+      .eq('company_id', company_id)
+      .limit(200)
+    if (supplier_id) {
+      q = q.eq('supplier_id', supplier_id)
+    } else if (supplier_nif) {
+      q = q.eq('supplier_nif', supplier_nif)
+    }
+    return q
+  })()
+
+  const supplierFilter: string | null =
+    supplier_id || normalizedNif ? 'has_filter' : null
 
   const [projectsByCodeRes, supplierHistoryRes] = await Promise.all([
     codesInText.length > 0
@@ -293,15 +310,8 @@ export async function POST(request: Request) {
           .eq('company_id', company_id)
       : Promise.resolve({ data: [] as Array<{ id: string; code: string; name: string }>, error: null }),
 
-    supplierFilter
-      ? supabase
-          .from('invoices')
-          .select('project_id')
-          .not('project_id', 'is', null)
-          .is('deleted_at', null)
-          .eq('company_id', company_id)
-          .or(supplierFilter)
-          .limit(200)
+    supplierHistoryQuery
+      ? supplierHistoryQuery
       : Promise.resolve({ data: [] as Array<{ project_id: string }>, error: null }),
   ])
 
