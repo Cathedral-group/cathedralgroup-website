@@ -156,6 +156,27 @@ await run('sin auth → 401', async () => {
   await expectStatus(res, 401)
 })
 
+await run('OR lookup email_message_id + filename existente → match', async () => {
+  // Sample golden dataset 16/05: email '19e2d767957666c9' + 'Factura 0057.pdf'
+  // existe en invoices table. Valida lookup v2 OR fallback path.
+  const res = await fetch(`${BASE}/api/dedup`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      email_message_id: '19e2d767957666c9',
+      filename: 'Factura 0057.pdf',
+    }),
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (json.dedup_method !== 'email_message_id') {
+    throw new Error(`expected dedup_method=email_message_id, got ${json.dedup_method}`)
+  }
+  if (json.source !== 'cathedral-dedup-v2') {
+    throw new Error(`expected source=v2, got ${json.source}`)
+  }
+})
+
 // ─── /api/fuzzy-supplier ──────────────────────────────────────────────────────
 console.log('\n[/api/fuzzy-supplier]')
 
