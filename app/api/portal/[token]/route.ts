@@ -23,7 +23,9 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
   //   rechazado o proyecto cancelado:    NOW() + 30 días
   //   proyecto finalizado:                end_date_real + 2 años (post-venta + garantías)
   // Si expiró, devolver 410 Gone para que el cliente sepa que el link existió pero ya no es válido.
-  if (quote.portal_token_expires_at && new Date(quote.portal_token_expires_at) < new Date()) {
+  // Audit 16/05/2026: usar `<=` no `<` para denegar exactamente al boundary
+  // (`<` daba 1 tick de gracia teórico aunque inocuo en práctica).
+  if (quote.portal_token_expires_at && new Date(quote.portal_token_expires_at) <= new Date()) {
     return NextResponse.json(
       {
         error: 'Este enlace ha expirado',

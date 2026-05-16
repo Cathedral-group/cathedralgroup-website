@@ -39,6 +39,11 @@ const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'ap
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_DOC_TYPES = ['ticket', 'albaran', 'factura', 'foto_obra', 'otro']
 
+// UUID v4 (canónico) — el RPC `validate_and_track_worker_token` recibe el token
+// como param y valida internamente. Aquí filtramos formato antes de gastar
+// llamada BD: cualquier string con caracteres fuera del set hex+dash es 401.
+const TOKEN_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function extFromMime(mime: string): string {
   switch (mime) {
     case 'image/jpeg':
@@ -61,7 +66,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
-  if (!token || token.length < 30) {
+  if (!token || !TOKEN_REGEX.test(token)) {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
   }
 

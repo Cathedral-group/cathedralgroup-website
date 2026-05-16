@@ -955,6 +955,28 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
     const body = await request.json()
     const supabase = createAdminSupabaseClient()
 
+    // F3 core: resolver empresa activa para IDOR check en bulk delete.
+    // Si el admin tiene multiple companies, activeCompanyId restringe scope.
+    // Sin esto, bulk papelera podría borrar rows soft-deleted de OTRA empresa
+    // (vulnerabilidad detectada audit 16/05/2026 noche).
+    let bulkActiveCompanyId: string | null = null
+    try {
+      bulkActiveCompanyId = resolveCompanyIdForRequest(user, request.headers)
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Forbidden company' },
+        { status: 403 },
+      )
+    }
+
+    // Cap defensivo: items array no puede exceder 1000 (DoS prevention).
+    if (Array.isArray(body.items) && body.items.length > 1000) {
+      return NextResponse.json(
+        { error: 'Demasiados elementos (máx 1000 por bulk delete)' },
+        { status: 413 },
+      )
+    }
+
     // Bulk delete: { items: [{id, table}] }
     if (Array.isArray(body.items)) {
       const grouped: Record<string, string[]> = {}
@@ -966,11 +988,16 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
       let totalDeleted = 0
       for (const [tbl, ids] of Object.entries(grouped)) {
         // Solo borrar permanentemente registros que YA estén en papelera
-        const { error, count } = await supabase
+        // + IDOR check empresa si tabla tiene company_id (F3 core)
+        let query = supabase
           .from(tbl)
           .delete({ count: 'exact' })
           .in('id', ids)
           .not('deleted_at', 'is', null)
+        if (bulkActiveCompanyId && tableHasCompanyId(tbl)) {
+          query = query.eq('company_id', bulkActiveCompanyId)
+        }
+        const { error, count } = await query
         if (error) {
           console.error(`[DELETE papelera bulk ${tbl}]`, error.message, error.details)
           return NextResponse.json({ error: 'Error al vaciar papelera' }, { status: 500 })
