@@ -60,8 +60,29 @@ const cleanIban = (iban: string): string =>
 
 /**
  * Construye XML Pain.001.001.03 SEPA-compliant.
+ *
+ * Pre-validación crítica (audit 16/05): verifica que sum(payments.amount) ===
+ * total_amount + count === payments.length. Si discrepan, banco rechaza el
+ * fichero SEPA silently (CtrlSum mismatch). Forzar throw aquí evita XML
+ * inválido upstream.
  */
 export function buildPain001Xml(input: Pain001Input): string {
+  // Validación CtrlSum: PRECISIÓN 2 decimales (céntimo) — tolerancia <0.01€
+  // para evitar drift floating-point sumando muchos pagos pequeños.
+  const sumPayments = input.payments.reduce((acc, p) => acc + p.amount, 0)
+  const sumRounded = Math.round(sumPayments * 100) / 100
+  const totalRounded = Math.round(input.total_amount * 100) / 100
+  if (Math.abs(sumRounded - totalRounded) > 0.01) {
+    throw new Error(
+      `SEPA pain.001 CtrlSum mismatch: total_amount=${totalRounded} pero sum(payments)=${sumRounded} (diff=${(sumRounded - totalRounded).toFixed(4)}€). El banco rechazará el fichero.`
+    )
+  }
+  if (input.count !== input.payments.length) {
+    throw new Error(
+      `SEPA pain.001 NbOfTxs mismatch: count=${input.count} pero payments.length=${input.payments.length}. El banco rechazará el fichero.`
+    )
+  }
+
   const currency = input.currency ?? 'EUR'
   const execDate = input.execution_date ?? (() => {
     const d = new Date()
