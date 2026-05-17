@@ -333,6 +333,135 @@ export async function POST(request: NextRequest) {
     })
   }
 
+  // ── TIER 0 PRE-LLM SHORT-CIRCUIT (FrugalGPT pattern, David sesión 18/05) ──
+  // Si literal code unique active + supplier history NOT contradice → auto_assign sin LLM
+  // Si address exact unique no coerced + supplier history NOT contradice → auto_assign sin LLM
+  // Ahorra ~$0.01 + 5-15s/call cuando señales determinísticas claras
+  // Worker portal source NUNCA short-circuit (siempre LLM + suggest)
+
+  const t0_isWorkerSource = (body.source || '').toLowerCase() === 'worker_portal'
+
+  if (!t0_isWorkerSource) {
+    const t0_allText = [
+      body.direccion_obra || '',
+      body.email_subject || '',
+      body.email_body_excerpt || '',
+      body.concept || '',
+      (body.extracted_text || '').slice(0, 4000),
+    ].join('\n')
+
+    const t0_projectCodeRegex = /\b[A-Z]{2,4}-\d{4}-\d{3}\b/g
+    const t0_shortCodeRegex = /\bCG-[A-Z0-9]{2,8}\b/g
+    const t0_codesFound = Array.from(new Set([
+      ...(t0_allText.match(t0_projectCodeRegex) || []),
+      ...(t0_allText.match(t0_shortCodeRegex) || []),
+    ]))
+    const t0_activeCodeSet = new Set([
+      ...activeProjects.map((p) => p.code),
+      ...(activeProjects.map((p) => p.codigo_corto).filter(Boolean) as string[]),
+    ])
+    const t0_codesActive = t0_codesFound.filter((c) => t0_activeCodeSet.has(c))
+
+    function supplierContradicts(targetProjectId: string): boolean {
+      if (supplierHistory.length === 0) return false
+      const top = [...supplierHistory].sort((a, b) => b.invoice_count - a.invoice_count)[0]
+      return top.project_id !== targetProjectId && top.invoice_count >= 5
+    }
+
+    // Gate 1: Literal code unique
+    if (t0_codesActive.length === 1) {
+      const code = t0_codesActive[0]
+      const project = activeProjects.find((p) => p.code === code || p.codigo_corto === code)
+      if (project && !supplierContradicts(project.id)) {
+        return NextResponse.json({
+          project_id: project.id,
+          project_code: project.code,
+          match_type: 'code_literal',
+          confidence: 0.99,
+          action: 'auto_assign',
+          reasoning: `Código literal "${code}" encontrado en texto. Único proyecto activo coincidente (${project.code}). Historial proveedor no contradice. LLM omitido (Tier 0).`,
+          alternatives: [{
+            project_id: project.id,
+            project_code: project.code,
+            confidence: 0.99,
+            reason: 'Literal code match unique active',
+          }],
+          _server_enforcement: {
+            defensive_gate_applied: false,
+            gate_met: 'literal_code',
+            downgrade_reason: null,
+            literal_codes_in_text: t0_codesFound,
+            literal_codes_active: t0_codesActive,
+            worker_source: false,
+            original_llm_action: null,
+          },
+          _meta: {
+            skipped_llm: true,
+            tier: 0,
+            gate_met: 'literal_code',
+            supplier_history_checked: true,
+            contradiction_detected: false,
+            candidates_considered: activeProjects.length,
+            supplier_history_rows: supplierHistory.length,
+          },
+        })
+      }
+    }
+
+    // Gate 2: Address parser unique exact, no coerced, single street
+    const t0_parsedAddrs = parseSpanishAddress(t0_allText)
+    const t0_distinctStreets = new Set(t0_parsedAddrs.map((p) => p.street))
+    if (t0_distinctStreets.size === 1 && t0_parsedAddrs.length >= 1) {
+      const t0_hints = t0_parsedAddrs
+        .map((p) => matchAddressToProject(p, activeProjects))
+        .filter((h): h is AddressMatchHint => h !== null)
+      const t0_uniqueExact = t0_hints.filter((h) => h.matched_project_id !== null && !h.coerced && h.candidates_count === 1)
+      if (t0_uniqueExact.length === 1) {
+        const hint = t0_uniqueExact[0]
+        const project = activeProjects.find((p) => p.id === hint.matched_project_id)
+        if (project && !supplierContradicts(project.id)) {
+          return NextResponse.json({
+            project_id: project.id,
+            project_code: project.code,
+            match_type: 'address_match',
+            confidence: 0.95,
+            action: 'auto_assign',
+            reasoning: `Dirección "${hint.street} ${hint.effective_num}" único match activo (${project.code}). Sin typo coercion. Historial proveedor no contradice. LLM omitido (Tier 0).`,
+            alternatives: [{
+              project_id: project.id,
+              project_code: project.code,
+              confidence: 0.95,
+              reason: 'Address exact unique active',
+            }],
+            _server_enforcement: {
+              defensive_gate_applied: false,
+              gate_met: 'address_match',
+              downgrade_reason: null,
+              literal_codes_in_text: t0_codesFound,
+              literal_codes_active: t0_codesActive,
+              address_hints: t0_hints,
+              parsed_addresses_count: t0_parsedAddrs.length,
+              distinct_streets_count: 1,
+              worker_source: false,
+              original_llm_action: null,
+            },
+            _meta: {
+              skipped_llm: true,
+              tier: 0,
+              gate_met: 'address_match',
+              supplier_history_checked: true,
+              contradiction_detected: false,
+              candidates_considered: activeProjects.length,
+              supplier_history_rows: supplierHistory.length,
+            },
+          })
+        }
+      }
+    }
+  }
+
+  // ── Fallthrough TIER 1+ LLM Sonnet 4.6 ──
+
   const projectsContext = activeProjects.map((p) => ({
     id: p.id,
     code: p.code,
