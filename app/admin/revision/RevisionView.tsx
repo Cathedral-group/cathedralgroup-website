@@ -431,22 +431,39 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
       alert('Solo se pueden reprocesar documentos con estado "error".')
       return
     }
-    if (!confirm(`¿Reprocesar este documento?\n\nSe eliminará el placeholder actual. El email original (${selected.email_account || 'desconocido'}) deberá reenviarse para que el workflow lo procese de nuevo.\n\nEsta acción no se puede deshacer.`)) return
+
+    const hasDriveFile = !!(selected as { drive_file_id?: string }).drive_file_id
+    const mode = hasDriveFile ? 'reprocess' : 'delete'
+    const confirmText = hasDriveFile
+      ? `¿Reprocesar esta factura in-place?\n\nEl sistema descargará el PDF de Drive, lo volverá a leer con IA (Gemini + GPT-4o + Mistral) y actualizará los datos extraídos. La factura NO se borra.\n\nDuración estimada: 30-60 segundos.`
+      : `¿Eliminar este placeholder?\n\nNo tiene archivo en Drive — el reprocesador no puede ejecutarse. Se borrará el registro y deberás reenviar el email original (${selected.email_account || 'desconocido'}) para que el workflow vuelva a procesarlo.\n\nEsta acción no se puede deshacer.`
+
+    if (!confirm(confirmText)) return
     setSaving(true)
     try {
       const res = await fetch('/api/invoices/reprocess', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selected.id }),
+        body: JSON.stringify({ id: selected.id, mode }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || `Error ${res.status}`)
       }
       const result = await res.json()
-      setItems(prev => prev.filter(i => i.id !== selected.id))
+      if (result.mode === 'reprocess') {
+        if (result.skipped) {
+          alert(`Reprocesador omitió la factura: ${result.reason || 'protegida'}`)
+        } else {
+          const conf = typeof result.new_confidence === 'number' ? `confianza ${(result.new_confidence * 100).toFixed(0)}%` : 'sin nueva confianza'
+          alert(`✓ Reprocesada in-place (intento ${result.reprocess_attempts || '?'}, ${conf}). Refrescando lista...`)
+          setItems(prev => prev.filter(i => i.id !== selected.id))
+        }
+      } else {
+        setItems(prev => prev.filter(i => i.id !== selected.id))
+        alert(result.message || '✓ Placeholder eliminado. Reenvía el email para reprocesar.')
+      }
       setSelected(null)
-      alert(result.message || '✓ Placeholder eliminado. Reenvía el email para reprocesar.')
     } catch (err) {
       alert('Error al reprocesar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     } finally {
@@ -1690,8 +1707,8 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 {selected?.review_status === 'error' && (
                   <button onClick={reprocessItem} disabled={saving}
                     className="w-full bg-blue-600 text-white py-2.5 rounded font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
-                    title="Eliminar este placeholder y reprocesar el documento desde el email original">
-                    {saving ? 'Procesando...' : '🔄 Reprocesar (eliminar y reintentar)'}
+                    title="Re-OCR in-place desde Drive (si hay archivo) o borrar+reenviar email">
+                    {saving ? 'Reprocesando…' : '🔄 Reprocesar'}
                   </button>
                 )}
                 <div className="flex gap-3">

@@ -638,24 +638,38 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
   const reprocessInvoice = async (inv: Invoice, e: React.MouseEvent) => {
     e.stopPropagation()
     if (!inv.id) return
-    if (!confirm(`¿Reprocesar este documento?\n\nSe eliminará la fila actual y se intentará procesar el email original (${inv.email_account || 'desconocido'}) de nuevo con el workflow.\n\nEsta acción no se puede deshacer.`)) return
+
+    const driveFileId = (inv as { drive_file_id?: string | null }).drive_file_id
+    const hasDriveFile = !!driveFileId
+    const mode = hasDriveFile ? 'reprocess' : 'delete'
+    const confirmText = hasDriveFile
+      ? `¿Reprocesar esta factura in-place?\n\nEl sistema descargará el PDF de Drive, lo volverá a leer con IA (Gemini + GPT-4o + Mistral) y actualizará los datos extraídos. La factura NO se borra.\n\nDuración estimada: 30-60 segundos.`
+      : `¿Eliminar este placeholder?\n\nNo tiene archivo en Drive — el reprocesador no puede ejecutarse. Se borrará el registro y deberás reenviar el email original (${inv.email_account || 'desconocido'}) para que el workflow vuelva a procesarlo.\n\nEsta acción no se puede deshacer.`
+
+    if (!confirm(confirmText)) return
     setReprocessingId(inv.id)
     try {
       const res = await fetch('/api/invoices/reprocess', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: inv.id }),
+        body: JSON.stringify({ id: inv.id, mode }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || `Error ${res.status}`)
       }
       const result = await res.json()
-      setData((prev) => prev.filter((r) => r.id !== inv.id))
-      const msg = result.workflow_triggered
-        ? `✓ Fila eliminada. El email volverá a procesarse automáticamente en el próximo poll de Gmail (5 min).`
-        : `✓ Fila eliminada. ${result.message || 'Reenvía el email manualmente para reintentar.'}`
-      alert(msg)
+      if (result.mode === 'reprocess') {
+        if (result.skipped) {
+          alert(`Reprocesador omitió la factura: ${result.reason || 'protegida'}`)
+        } else {
+          const conf = typeof result.new_confidence === 'number' ? `confianza ${(result.new_confidence * 100).toFixed(0)}%` : 'sin nueva confianza'
+          alert(`✓ Reprocesada in-place (intento ${result.reprocess_attempts || '?'}, ${conf}). Refresca la página para ver los datos actualizados.`)
+        }
+      } else {
+        setData((prev) => prev.filter((r) => r.id !== inv.id))
+        alert(`✓ Fila eliminada. ${result.message || 'Reenvía el email manualmente para reintentar.'}`)
+      }
     } catch (err) {
       console.error('reprocessInvoice:', err)
       alert('Error al reprocesar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
@@ -941,7 +955,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                             onClick={(e) => reprocessInvoice(inv, e)}
                             disabled={reprocessingId === inv.id}
                             className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-800 whitespace-nowrap disabled:opacity-50"
-                            title="Eliminar y volver a procesar este documento desde el email original"
+                            title="Re-OCR in-place desde Drive (si hay archivo) o borrar+reenviar email"
                           >
                             {reprocessingId === inv.id ? '...' : '↻ Reprocesar'}
                           </button>
