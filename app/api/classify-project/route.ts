@@ -53,9 +53,10 @@ interface ProjectRow {
   codigo_corto: string | null
   name: string
   address: string | null
-  client_name: string | null
-  division: string | null
+  type: string | null
   status: string | null
+  description: string | null
+  zona: string | null
 }
 
 interface SupplierHistoryRow {
@@ -130,7 +131,7 @@ async function fetchActiveProjects(companyId: string | null): Promise<ProjectRow
   const supabase = createAdminSupabaseClient()
   let query = supabase
     .from('projects')
-    .select('id, code, codigo_corto, name, address, client_name, division, status')
+    .select('id, code, codigo_corto, name, address, type, status, description, zona')
     .is('deleted_at', null)
     .neq('status', 'finalizado')
   if (companyId) query = query.eq('company_id', companyId)
@@ -223,9 +224,12 @@ export async function POST(request: NextRequest) {
     codigo_corto: p.codigo_corto,
     name: p.name,
     address: p.address,
-    client_name: p.client_name,
-    division: p.division,
+    type: p.type,
     status: p.status,
+    description: p.description,
+    zona: p.zona,
+    // División inferida del prefijo del code (OBR/FLP/CDU/PRO/OBN)
+    division: (p.code || '').split('-')[0] || null,
   }))
 
   const userMessage = JSON.stringify({
@@ -249,7 +253,7 @@ export async function POST(request: NextRequest) {
     response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } }],
       messages: [{ role: 'user', content: userMessage }],
       output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
     } as Anthropic.MessageCreateParamsNonStreaming)
