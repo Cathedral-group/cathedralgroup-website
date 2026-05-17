@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-05-17T22:59:31.900Z",
+  "updatedAt": "2026-05-17T23:06:42.027Z",
   "createdAt": "2026-05-17T19:49:35.683Z",
   "id": "eWjMM0eMN7Ua5g2E",
   "name": "Cathedral · Reprocesador (UPDATE in-place)",
@@ -57,7 +57,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
-        "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/invoices?id=eq.{{ $json.target_invoice_id }}&select=id,drive_file_id,drive_url,email_message_id,email_account,file_hash,concept,ai_data,ai_confidence,reprocess_attempts,manually_edited,review_status,original_filename",
+        "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/invoices?id=eq.{{ $json.target_invoice_id }}&select=id,doc_type,source,drive_file_id,drive_url,email_message_id,email_account,file_hash,concept,ai_data,ai_confidence,reprocess_attempts,manually_edited,review_status,original_filename",
         "authentication": "genericCredentialType",
         "sendHeaders": true,
         "headerParameters": {
@@ -526,7 +526,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ extracted_text: ($json.campos_finales && $json.campos_finales.texto_extraido) || $json.mistral_text_truncated || '', concept: ($json.campos_finales && $json.campos_finales.concept) || null, supplier_name: ($json.campos_finales && $json.campos_finales.supplier_name) || null, supplier_nif: ($json.campos_finales && $json.campos_finales.supplier_nif) || null, amount_total: ($json.campos_finales && $json.campos_finales.amount_total) || null, issue_date: ($json.campos_finales && $json.campos_finales.issue_date) || null, direccion_obra: ($json.campos_finales && $json.campos_finales.direccion_obra) || null, company_id: $('Normalize Invoice').first().json.company_id || null }) }}",
+        "jsonBody": "={{ JSON.stringify({ extracted_text: ($json.campos_finales && $json.campos_finales.texto_extraido) || $json.mistral_text_truncated || '', concept: ($json.campos_finales && $json.campos_finales.concept) || null, supplier_name: ($json.campos_finales && $json.campos_finales.supplier_name) || null, supplier_nif: ($json.campos_finales && $json.campos_finales.supplier_nif) || null, amount_total: ($json.campos_finales && $json.campos_finales.amount_total) || null, issue_date: ($json.campos_finales && $json.campos_finales.issue_date) || null, direccion_obra: ($json.campos_finales && $json.campos_finales.direccion_obra) || null, company_id: $('Normalize Invoice').first().json.company_id || null, doc_type: $('Normalize Invoice').first().json.doc_type || 'factura', ocr_confidence: $json.ai_confidence || $('Normalize Invoice').first().json.ai_confidence || null, source: $('Normalize Invoice').first().json.source || 'reprocesador', email_account: $('Normalize Invoice').first().json.email_account || null, email_message_id: $('Normalize Invoice').first().json.email_message_id || null }) }}",
         "options": {
           "timeout": 30000,
           "response": {
@@ -783,9 +783,9 @@
   "staticData": null,
   "meta": null,
   "pinData": null,
-  "versionId": "ed5536ab-a3fd-4a8b-8576-02f0d8764abc",
-  "activeVersionId": "ed5536ab-a3fd-4a8b-8576-02f0d8764abc",
-  "versionCounter": 48,
+  "versionId": "54469bb7-46aa-47a0-93a2-5368788d12d5",
+  "activeVersionId": "54469bb7-46aa-47a0-93a2-5368788d12d5",
+  "versionCounter": 51,
   "triggerCount": 1,
   "shared": [
     {
@@ -808,9 +808,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-05-17T22:59:31.904Z",
-    "createdAt": "2026-05-17T22:59:31.904Z",
-    "versionId": "ed5536ab-a3fd-4a8b-8576-02f0d8764abc",
+    "updatedAt": "2026-05-17T23:06:42.030Z",
+    "createdAt": "2026-05-17T23:06:42.030Z",
+    "versionId": "54469bb7-46aa-47a0-93a2-5368788d12d5",
     "workflowId": "eWjMM0eMN7Ua5g2E",
     "nodes": [
       {
@@ -863,7 +863,7 @@
         "alwaysOutputData": true,
         "parameters": {
           "method": "GET",
-          "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/invoices?id=eq.{{ $json.target_invoice_id }}&select=id,drive_file_id,drive_url,email_message_id,email_account,file_hash,concept,ai_data,ai_confidence,reprocess_attempts,manually_edited,review_status,original_filename",
+          "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/invoices?id=eq.{{ $json.target_invoice_id }}&select=id,doc_type,source,drive_file_id,drive_url,email_message_id,email_account,file_hash,concept,ai_data,ai_confidence,reprocess_attempts,manually_edited,review_status,original_filename",
           "authentication": "genericCredentialType",
           "sendHeaders": true,
           "headerParameters": {
@@ -1332,7 +1332,7 @@
           "genericAuthType": "httpHeaderAuth",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ extracted_text: ($json.campos_finales && $json.campos_finales.texto_extraido) || $json.mistral_text_truncated || '', concept: ($json.campos_finales && $json.campos_finales.concept) || null, supplier_name: ($json.campos_finales && $json.campos_finales.supplier_name) || null, supplier_nif: ($json.campos_finales && $json.campos_finales.supplier_nif) || null, amount_total: ($json.campos_finales && $json.campos_finales.amount_total) || null, issue_date: ($json.campos_finales && $json.campos_finales.issue_date) || null, direccion_obra: ($json.campos_finales && $json.campos_finales.direccion_obra) || null, company_id: $('Normalize Invoice').first().json.company_id || null }) }}",
+          "jsonBody": "={{ JSON.stringify({ extracted_text: ($json.campos_finales && $json.campos_finales.texto_extraido) || $json.mistral_text_truncated || '', concept: ($json.campos_finales && $json.campos_finales.concept) || null, supplier_name: ($json.campos_finales && $json.campos_finales.supplier_name) || null, supplier_nif: ($json.campos_finales && $json.campos_finales.supplier_nif) || null, amount_total: ($json.campos_finales && $json.campos_finales.amount_total) || null, issue_date: ($json.campos_finales && $json.campos_finales.issue_date) || null, direccion_obra: ($json.campos_finales && $json.campos_finales.direccion_obra) || null, company_id: $('Normalize Invoice').first().json.company_id || null, doc_type: $('Normalize Invoice').first().json.doc_type || 'factura', ocr_confidence: $json.ai_confidence || $('Normalize Invoice').first().json.ai_confidence || null, source: $('Normalize Invoice').first().json.source || 'reprocesador', email_account: $('Normalize Invoice').first().json.email_account || null, email_message_id: $('Normalize Invoice').first().json.email_message_id || null }) }}",
           "options": {
             "timeout": 30000,
             "response": {
@@ -1583,10 +1583,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-05-17T22:59:32.405Z",
-        "id": 1203,
+        "createdAt": "2026-05-17T23:06:42.574Z",
+        "id": 1205,
         "workflowId": "eWjMM0eMN7Ua5g2E",
-        "versionId": "ed5536ab-a3fd-4a8b-8576-02f0d8764abc",
+        "versionId": "54469bb7-46aa-47a0-93a2-5368788d12d5",
         "event": "activated",
         "userId": "5042c286-f041-41f7-9ed8-f6cc3c48265e"
       }
