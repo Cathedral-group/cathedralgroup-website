@@ -175,7 +175,7 @@ Contexto:
    - Múltiples señales débiles (no garantía)
 
 5. Edge cases conocidos Cathedral:
-   - Buenavista street tiene SOLO 24 + 38. Si texto dice "Buenavista 25/26/27" → suggest project 24 (typo). "Buenavista 36/37" → suggest 38. Otros números → needs_review.
+   - Regla universal número exacto: si address en factura menciona número que NO existe en activos Cathedral (incluso si calle sí existe) → needs_review. NO asumir typo ni coerce. Humano decide.
    - Workers (Rafael, Hipólito) pueden subir factura otra obra → sin código literal SIEMPRE suggest.
 
 6. NUNCA inventes project_id. Solo usa IDs del active_projects array.
@@ -233,11 +233,11 @@ function parseSpanishAddress(text: string): ParsedAddress[] {
   return results
 }
 
-// Cathedral Buenavista typo guard (hardcoded MVP — BD config table futuro)
-const BUENAVISTA_COERCE: Record<number, { coerceTo: number }> = {
-  25: { coerceTo: 24 }, 26: { coerceTo: 24 }, 27: { coerceTo: 24 },
-  36: { coerceTo: 38 }, 37: { coerceTo: 38 },
-}
+// Address typo coerce ELIMINADO (David sesión 18/05).
+// Regla universal: si número exacto NO existe en proyectos activos Cathedral → needs_review.
+// Sin guess hardcoded. Sin tabla BD config. Humano decide siempre que número no matches.
+// Razón: proveedor pone número distinto al inventario puede ser typo real, factura otra
+// obra (no Cathedral), o mistake — sistema NO debe asumir cuál.
 
 interface AddressMatchHint {
   matched_project_id: string | null
@@ -253,20 +253,11 @@ interface AddressMatchHint {
 
 function matchAddressToProject(parsed: ParsedAddress, activeProjects: ProjectRow[]): AddressMatchHint | null {
   if (!parsed.street || parsed.numType === 'range' || parsed.numType === 'multiple') return null
-  let effectiveNum = parsed.baseNum
-  let coerced = false
-  let coercedFrom: number | null = null
-  let coercedTo: number | null = null
-  if (parsed.street === 'buenavista' && BUENAVISTA_COERCE[parsed.baseNum]) {
-    coerced = true
-    coercedFrom = parsed.baseNum
-    coercedTo = BUENAVISTA_COERCE[parsed.baseNum].coerceTo
-    effectiveNum = coercedTo
-  }
+  // Sin coerce typo: número exacto debe match con proyecto activo. Si no → null (needs_review).
   const candidates = activeProjects.filter((p) => {
     if (!p.address) return false
     const projParsed = parseSpanishAddress(p.address)
-    return projParsed.some((pp) => pp.street === parsed.street && pp.baseNum === effectiveNum)
+    return projParsed.some((pp) => pp.street === parsed.street && pp.baseNum === parsed.baseNum)
   })
   if (candidates.length === 0) return null
   return {
@@ -274,10 +265,10 @@ function matchAddressToProject(parsed: ParsedAddress, activeProjects: ProjectRow
     matched_project_code: candidates.length === 1 ? candidates[0].code : null,
     street: parsed.street,
     raw_num: parsed.rawNum,
-    effective_num: effectiveNum,
-    coerced,
-    coerced_from: coercedFrom,
-    coerced_to: coercedTo,
+    effective_num: parsed.baseNum,
+    coerced: false,
+    coerced_from: null,
+    coerced_to: null,
     candidates_count: candidates.length,
   }
 }
