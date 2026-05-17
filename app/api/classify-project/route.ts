@@ -45,6 +45,12 @@ interface ClassifyBody {
   issue_date?: string | null
   direccion_obra?: string | null
   company_id?: string | null
+  // Nuevos campos sesión 18/05: David — buscar en TODOS textos (email + factura)
+  email_subject?: string | null
+  email_body_excerpt?: string | null
+  email_account?: string | null
+  drive_folder_path?: string | null
+  source?: string | null
 }
 
 interface ProjectRow {
@@ -137,6 +143,104 @@ Contexto:
 7. alternatives: lista hasta 3 candidates con razones (incluido el ganador). Si solo hay uno, alternatives=1 item.
 
 Output: JSON estricto schema. reasoning <300 caracteres explicación corta para audit log.`
+
+// ── Spanish address parser (validated doc-validator 18/05/2026) ──
+// MDN normalize('NFD') + Combining Diacriticals block U+0300-U+036F
+interface ParsedAddress {
+  street: string
+  rawNum: string
+  baseNum: number
+  numType: 'exact' | 'with_suffix' | 'range' | 'multiple' | 'unknown'
+  suggestOnly: boolean
+}
+
+const ADDR_RE = /(?:(?:C\.?\/|Calle|Cl\.?|Av\.?(?:da)?\.?|Avda\.?|P(?:aseo|so|º)\.?|Ctra\.?|Camino)\s+(?:de\s+(?:la\s+|los\s+|las\s+|el\s+)?)?)?([A-ZÀ-ÿa-z][A-ZÀ-ÿa-z\s\-']*?),?\s+n[oºª°]?\.?\s*(\d+(?:[-–]\d+)?(?:[a-zA-Z]{1,3})?)|(?:(?:C\.?\/|Calle|Cl\.?|Av\.?(?:da)?\.?|Avda\.?|P(?:aseo|so|º)\.?|Ctra\.?|Camino)\s+(?:de\s+(?:la\s+|los\s+|las\s+|el\s+)?)?)?([A-ZÀ-ÿa-z][A-ZÀ-ÿa-z\s\-']*?),?\s+(\d+(?:[-–]\d+)?(?:bis|ter|dup|[A-Za-z])?(?!\w))/gi
+
+function normalizeStreet(raw: string): string {
+  return raw
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/^(?:c\/|calle|cl\.?|av\.?(?:da)?\.?|avda\.?|p(?:aseo|so|º)\.?|ctra\.?|camino)\s+/i, '')
+    .replace(/^(?:de\s+(?:la|los|las|el)\s+|de\s+)/i, '')
+    .replace(/[,.\s]+$/, '')
+    .trim()
+}
+
+function parseSpanishAddress(text: string): ParsedAddress[] {
+  const results: ParsedAddress[] = []
+  if (!text) return results
+  const matches = [...text.matchAll(ADDR_RE)]
+  for (const m of matches) {
+    const rawStreet = (m[1] || m[3] || '').trim()
+    const rawNum = (m[2] || m[4] || '').trim()
+    if (!rawStreet || !rawNum) continue
+    const street = normalizeStreet(rawStreet)
+    if (!street || street.length < 3) continue
+    const rangeM = rawNum.match(/^(\d+)[-–](\d+)$/)
+    const suffixM = rawNum.match(/^(\d+)(bis|ter|dup|[a-zA-Z])$/i)
+    const exactM = rawNum.match(/^(\d+)$/)
+    let numType: ParsedAddress['numType'] = 'unknown'
+    let baseNum = 0
+    let suggestOnly = true
+    if (rangeM) { numType = 'range'; baseNum = +rangeM[1]; suggestOnly = true }
+    else if (suffixM) { numType = 'with_suffix'; baseNum = +suffixM[1]; suggestOnly = false }
+    else if (exactM) { numType = 'exact'; baseNum = +exactM[1]; suggestOnly = false }
+    results.push({ street, rawNum, baseNum, numType, suggestOnly })
+  }
+  const distinctStreets = new Set(results.map((r) => r.street))
+  if (distinctStreets.size > 1) results.forEach((r) => (r.suggestOnly = true))
+  return results
+}
+
+// Cathedral Buenavista typo guard (hardcoded MVP — BD config table futuro)
+const BUENAVISTA_COERCE: Record<number, { coerceTo: number }> = {
+  25: { coerceTo: 24 }, 26: { coerceTo: 24 }, 27: { coerceTo: 24 },
+  36: { coerceTo: 38 }, 37: { coerceTo: 38 },
+}
+
+interface AddressMatchHint {
+  matched_project_id: string | null
+  matched_project_code: string | null
+  street: string
+  raw_num: string
+  effective_num: number
+  coerced: boolean
+  coerced_from: number | null
+  coerced_to: number | null
+  candidates_count: number
+}
+
+function matchAddressToProject(parsed: ParsedAddress, activeProjects: ProjectRow[]): AddressMatchHint | null {
+  if (!parsed.street || parsed.numType === 'range' || parsed.numType === 'multiple') return null
+  let effectiveNum = parsed.baseNum
+  let coerced = false
+  let coercedFrom: number | null = null
+  let coercedTo: number | null = null
+  if (parsed.street === 'buenavista' && BUENAVISTA_COERCE[parsed.baseNum]) {
+    coerced = true
+    coercedFrom = parsed.baseNum
+    coercedTo = BUENAVISTA_COERCE[parsed.baseNum].coerceTo
+    effectiveNum = coercedTo
+  }
+  const candidates = activeProjects.filter((p) => {
+    if (!p.address) return false
+    const projParsed = parseSpanishAddress(p.address)
+    return projParsed.some((pp) => pp.street === parsed.street && pp.baseNum === effectiveNum)
+  })
+  if (candidates.length === 0) return null
+  return {
+    matched_project_id: candidates.length === 1 ? candidates[0].id : null,
+    matched_project_code: candidates.length === 1 ? candidates[0].code : null,
+    street: parsed.street,
+    raw_num: parsed.rawNum,
+    effective_num: effectiveNum,
+    coerced,
+    coerced_from: coercedFrom,
+    coerced_to: coercedTo,
+    candidates_count: candidates.length,
+  }
+}
 
 async function fetchActiveProjects(companyId: string | null): Promise<ProjectRow[]> {
   const supabase = createAdminSupabaseClient()
@@ -243,6 +347,20 @@ export async function POST(request: NextRequest) {
     division: (p.code || '').split('-')[0] || null,
   }))
 
+  // ── Multi-source text search (David 18/05): buscar address en TODAS zonas ──
+  const allTextSources = [
+    body.direccion_obra || '',
+    body.email_subject || '',
+    body.email_body_excerpt || '',
+    body.concept || '',
+    (body.extracted_text || '').slice(0, 4000),
+  ].join('\n')
+
+  const parsedAddresses = parseSpanishAddress(allTextSources)
+  const addressHints = parsedAddresses
+    .map((p) => matchAddressToProject(p, activeProjects))
+    .filter((h): h is AddressMatchHint => h !== null)
+
   const userMessage = JSON.stringify({
     document: {
       extracted_text: (body.extracted_text || '').slice(0, 4000),
@@ -252,7 +370,16 @@ export async function POST(request: NextRequest) {
       amount_total: body.amount_total,
       issue_date: body.issue_date,
       direccion_obra: body.direccion_obra,
+      // Email metadata (David 18/05: gremios incluyen referencia obra en subject/body)
+      email_subject: body.email_subject,
+      email_body_excerpt: (body.email_body_excerpt || '').slice(0, 500),
+      email_account: body.email_account,
+      drive_folder_path: body.drive_folder_path,
+      source: body.source,
     },
+    // Hints pre-parseados server-side (LLM tiene contexto rico para suggest)
+    address_match_hints: addressHints,
+    parsed_addresses_count: parsedAddresses.length,
     active_projects: projectsContext,
     supplier_project_history: supplierHistory,
   })
@@ -296,31 +423,65 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // ── DEFENSIVE GATE (Cathedral SUPREMA): auto_assign solo si código literal exact en texto ──
-  // David sesión 18/05: "lo que no podamos auto, lo procesamos nosotros".
-  // Aunque LLM devuelva auto_assign, server-side enforce: sin código literal exact → suggest.
+  // ── DEFENSIVE GATE (Cathedral SUPREMA + David 18/05 expand) ──
+  // auto_assign permitido SOLO si:
+  //   A) Código literal exact unique match con assigned (sin contradicciones)
+  //   B) OR Address hint exact unique match con assigned + parsed sin ambigüedad + NOT coerced
+  // Resto → forzar suggest (defensive bias).
+  // Worker source siempre forzar suggest mínimo (escenario foto cruzada trabajador).
+
   const projectCodeRegex = /\b[A-Z]{2,4}-\d{4}-\d{3}\b/g
   const shortCodeRegex = /\bCG-[A-Z0-9]{2,8}\b/g
-  const textForRegex = (body.extracted_text || '') + ' ' + (body.concept || '')
+  const allTextForRegex = allTextSources
   const literalCodesFound = [
-    ...(textForRegex.match(projectCodeRegex) || []),
-    ...(textForRegex.match(shortCodeRegex) || []),
+    ...(allTextForRegex.match(projectCodeRegex) || []),
+    ...(allTextForRegex.match(shortCodeRegex) || []),
   ]
   const activeCodeSet = new Set([
     ...activeProjects.map((p) => p.code),
-    ...activeProjects.map((p) => p.codigo_corto).filter(Boolean) as string[],
+    ...(activeProjects.map((p) => p.codigo_corto).filter(Boolean) as string[]),
   ])
   const matchedActiveCodes = literalCodesFound.filter((c) => activeCodeSet.has(c))
   const literalExactMatchUnique = matchedActiveCodes.length === 1
-  const literalMatchesAssigned = literalExactMatchUnique && (matchedActiveCodes[0] === parsed.project_code)
+  const literalMatchesAssigned = literalExactMatchUnique && matchedActiveCodes[0] === parsed.project_code
+
+  // Address gate: hint exact unique + NOT coerced + parsed sin distinct street ambiguity
+  const distinctParsedStreets = new Set(parsedAddresses.map((p) => p.street))
+  const uniqueAddressHints = addressHints.filter((h) => h.matched_project_id !== null && !h.coerced && h.candidates_count === 1)
+  const addressMatchesAssigned = uniqueAddressHints.length === 1
+    && distinctParsedStreets.size === 1
+    && uniqueAddressHints[0].matched_project_id === parsed.project_id
+
+  const isWorkerSource = (body.source || '').toLowerCase() === 'worker_portal'
 
   let serverEnforcedAction = parsed.action as string
   let serverDowngradedReason = ''
-  if (parsed.action === 'auto_assign' && !literalMatchesAssigned) {
-    serverEnforcedAction = 'suggest'
-    serverDowngradedReason = literalCodesFound.length === 0
-      ? 'no_literal_code_in_text'
-      : (matchedActiveCodes.length > 1 ? 'multiple_literal_codes_ambiguous' : 'literal_code_mismatch_with_assigned')
+  let gateMet: 'literal_code' | 'address_match' | null = null
+
+  if (parsed.action === 'auto_assign') {
+    if (isWorkerSource) {
+      serverEnforcedAction = 'suggest'
+      serverDowngradedReason = 'worker_portal_source_never_auto'
+    } else if (literalMatchesAssigned) {
+      gateMet = 'literal_code'
+    } else if (addressMatchesAssigned) {
+      gateMet = 'address_match'
+    } else {
+      serverEnforcedAction = 'suggest'
+      if (literalCodesFound.length === 0 && addressHints.length === 0) {
+        serverDowngradedReason = 'no_literal_code_no_address_match'
+      } else if (matchedActiveCodes.length > 1) {
+        serverDowngradedReason = 'multiple_literal_codes_ambiguous'
+      } else if (distinctParsedStreets.size > 1) {
+        serverDowngradedReason = 'multiple_distinct_streets_in_text'
+      } else if (addressHints.some((h) => h.coerced)) {
+        serverDowngradedReason = 'address_coerced_typo_guard'
+      } else if (addressHints.some((h) => h.candidates_count > 1)) {
+        serverDowngradedReason = 'address_multiple_candidates'
+      } else {
+        serverDowngradedReason = 'no_strong_signal_unique_match'
+      }
+    }
   }
 
   return NextResponse.json({
@@ -328,9 +489,14 @@ export async function POST(request: NextRequest) {
     action: serverEnforcedAction,
     _server_enforcement: {
       defensive_gate_applied: serverDowngradedReason !== '',
+      gate_met: gateMet,
       downgrade_reason: serverDowngradedReason || null,
       literal_codes_in_text: literalCodesFound,
       literal_codes_active: matchedActiveCodes,
+      address_hints: addressHints,
+      parsed_addresses_count: parsedAddresses.length,
+      distinct_streets_count: distinctParsedStreets.size,
+      worker_source: isWorkerSource,
       original_llm_action: parsed.action,
     },
     _meta: {
