@@ -4,6 +4,7 @@
       "VERCEL_FORCE_NO_BUILD_CACHE": "1"
     }
   },
+  "installCommand": "npm install --include=optional",
   "crons": [
     {
       "path": "/api/cron/workflow-healthcheck",
