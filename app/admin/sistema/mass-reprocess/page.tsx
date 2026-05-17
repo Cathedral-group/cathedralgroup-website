@@ -85,23 +85,23 @@ export default async function MassReprocessPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-stone-900">Mass Reprocess Dashboard</h1>
+        <h1 className="text-2xl font-semibold text-stone-900">Panel de reproceso masivo</h1>
         <p className="mt-1 text-sm text-stone-600">
-          Monitoreo runs masivos Gmail histórico + Drive retroactivo. Trigger workflows desde{' '}
+          Monitoreo de ejecuciones masivas Gmail histórico + Drive retroactivo. Lanza los flujos de trabajo desde{' '}
           <a
             href="https://n8n.cathedralgroup.es"
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 underline"
           >
-            n8n UI
+            n8n
           </a>
           .
         </p>
       </header>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-medium text-stone-800">Workflows disponibles</h2>
+        <h2 className="mb-3 text-lg font-medium text-stone-800">Flujos de trabajo disponibles</h2>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="rounded border border-stone-200 bg-white p-4">
             <h3 className="font-medium text-stone-900">Gmail Histórico</h3>
@@ -141,24 +141,24 @@ export default async function MassReprocessPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-medium text-stone-800">Runs recientes</h2>
+        <h2 className="mb-3 text-lg font-medium text-stone-800">Ejecuciones recientes</h2>
         {runsList.length === 0 ? (
-          <p className="text-sm text-stone-500">Sin runs todavía. Trigger un workflow para empezar.</p>
+          <p className="text-sm text-stone-500">Sin ejecuciones todavía. Lanza un flujo de trabajo para empezar.</p>
         ) : (
           <div className="overflow-x-auto rounded border border-stone-200">
             <table className="w-full text-sm">
               <thead className="bg-stone-50 text-left text-xs text-stone-600">
                 <tr>
-                  <th className="px-3 py-2">Run ID</th>
-                  <th className="px-3 py-2">Source</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Account/Folder</th>
+                  <th className="px-3 py-2">ID de ejecución</th>
+                  <th className="px-3 py-2">Origen</th>
+                  <th className="px-3 py-2">Estado</th>
+                  <th className="px-3 py-2">Cuenta/Carpeta</th>
                   <th className="px-3 py-2 text-right">Total</th>
                   <th className="px-3 py-2 text-right">OK</th>
-                  <th className="px-3 py-2 text-right">Fail</th>
-                  <th className="px-3 py-2 text-right">Skip</th>
-                  <th className="px-3 py-2">Started</th>
-                  <th className="px-3 py-2">Completed</th>
+                  <th className="px-3 py-2 text-right">Fallo</th>
+                  <th className="px-3 py-2 text-right">Omitidos</th>
+                  <th className="px-3 py-2">Inicio</th>
+                  <th className="px-3 py-2">Fin</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -210,9 +210,9 @@ export default async function MassReprocessPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-medium text-stone-800">Stats por cuenta Gmail</h2>
+        <h2 className="mb-3 text-lg font-medium text-stone-800">Estadísticas por cuenta Gmail</h2>
         {statsByAccount.size === 0 ? (
-          <p className="text-sm text-stone-500">Sin items procesados todavía.</p>
+          <p className="text-sm text-stone-500">Sin elementos procesados todavía.</p>
         ) : (
           <div className="overflow-x-auto rounded border border-stone-200">
             <table className="w-full text-sm">
@@ -220,8 +220,8 @@ export default async function MassReprocessPage() {
                 <tr>
                   <th className="px-3 py-2">Cuenta</th>
                   <th className="px-3 py-2 text-right">Procesados</th>
-                  <th className="px-3 py-2 text-right">Fallados</th>
-                  <th className="px-3 py-2 text-right">Skipped</th>
+                  <th className="px-3 py-2 text-right">Fallidos</th>
+                  <th className="px-3 py-2 text-right">Omitidos</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -243,7 +243,7 @@ export default async function MassReprocessPage() {
 
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-medium text-stone-800">
-          DLQ — últimos 20 fallos ({failuresList.length})
+          Cola de fallos (DLQ) — últimos 20 ({failuresList.length})
         </h2>
         {failuresList.length === 0 ? (
           <p className="text-sm text-stone-500">Sin fallos. ✓</p>
@@ -253,11 +253,11 @@ export default async function MassReprocessPage() {
               <thead className="bg-red-50 text-left text-xs text-red-700">
                 <tr>
                   <th className="px-3 py-2">Cuenta</th>
-                  <th className="px-3 py-2">Message ID</th>
-                  <th className="px-3 py-2">Filename</th>
+                  <th className="px-3 py-2">ID de mensaje</th>
+                  <th className="px-3 py-2">Nombre de archivo</th>
                   <th className="px-3 py-2 text-right">Intentos</th>
                   <th className="px-3 py-2">Error</th>
-                  <th className="px-3 py-2">Cuando</th>
+                  <th className="px-3 py-2">Cuándo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -282,16 +282,16 @@ export default async function MassReprocessPage() {
       </section>
 
       <footer className="mt-8 border-t border-stone-200 pt-4 text-xs text-stone-500">
-        Read-only dashboard. Triggers desde{' '}
+        Panel de solo lectura. Lanza ejecuciones desde{' '}
         <a
           href="https://n8n.cathedralgroup.es"
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 underline"
         >
-          n8n UI
+          n8n
         </a>
-        . Refresh manual (F5). Próxima iteración: auto-refresh + trigger desde aquí + Project Classifier integration.
+        . Refresco manual (F5). Próxima iteración: auto-refresco + lanzar desde aquí + integración Clasificador de Proyectos.
       </footer>
     </div>
   )
