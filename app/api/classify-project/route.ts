@@ -51,6 +51,46 @@ interface ClassifyBody {
   email_account?: string | null
   drive_folder_path?: string | null
   source?: string | null
+  // Always-manual gates inputs
+  doc_type?: string | null
+  ocr_confidence?: number | null
+}
+
+const HIGH_VALUE_AMOUNT_THRESHOLD = 3000 // EUR — David sesión 18/05
+const NON_FACTURA_DOC_TYPES = new Set(['rectificativa', 'abono', 'contrato', 'presupuesto', 'nota_simple', 'escritura'])
+const OCR_CONFIDENCE_MIN = 0.80
+const UNCERTAINTY_REGEX = /\b(no estoy seguro|no sé|comprob[ae]|verifica|duda|posiblemente|tal vez|quiz[áa]s|igual)\b/i
+
+type AlwaysManualResult =
+  | { forced: true; reason: string; details: Record<string, unknown> }
+  | { forced: false }
+
+function checkAlwaysManualGates(body: ClassifyBody): AlwaysManualResult {
+  // 1. Worker portal source
+  if ((body.source || '').toLowerCase() === 'worker_portal') {
+    return { forced: true, reason: 'worker_portal_source', details: { source: body.source } }
+  }
+  // 2. High-value amount (>€3000)
+  if (typeof body.amount_total === 'number' && body.amount_total > HIGH_VALUE_AMOUNT_THRESHOLD) {
+    return { forced: true, reason: 'high_value_amount', details: { amount_total: body.amount_total, threshold: HIGH_VALUE_AMOUNT_THRESHOLD } }
+  }
+  // 3. Document type non-factura standard
+  if (body.doc_type && NON_FACTURA_DOC_TYPES.has(body.doc_type.toLowerCase())) {
+    return { forced: true, reason: 'non_standard_doc_type', details: { doc_type: body.doc_type } }
+  }
+  // 4. OCR confidence baja
+  if (typeof body.ocr_confidence === 'number' && body.ocr_confidence < OCR_CONFIDENCE_MIN) {
+    return { forced: true, reason: 'ocr_confidence_low', details: { ocr_confidence: body.ocr_confidence, threshold: OCR_CONFIDENCE_MIN } }
+  }
+  // 5. Amount missing (no se puede pagar sin saber importe → human verifica)
+  if (body.amount_total === null || body.amount_total === undefined) {
+    return { forced: true, reason: 'amount_total_missing', details: {} }
+  }
+  // 6. Email body contiene marcadores incertidumbre
+  if (body.email_body_excerpt && UNCERTAINTY_REGEX.test(body.email_body_excerpt)) {
+    return { forced: true, reason: 'email_uncertainty_markers', details: { matched: body.email_body_excerpt.match(UNCERTAINTY_REGEX)?.[0] } }
+  }
+  return { forced: false }
 }
 
 interface ProjectRow {
@@ -333,13 +373,44 @@ export async function POST(request: NextRequest) {
     })
   }
 
+  // ── ALWAYS-MANUAL GATES (David SUPREMA sesión 18/05) ──
+  // Override TODO (Tier 0 + LLM). Si gate forzado → respuesta directa needs_review.
+  const alwaysManual = checkAlwaysManualGates(body)
+  if (alwaysManual.forced) {
+    return NextResponse.json({
+      project_id: null,
+      project_code: null,
+      match_type: 'no_match',
+      confidence: 0,
+      action: 'needs_review',
+      reasoning: `Always-manual gate forzado: ${alwaysManual.reason}. Sin clasificación automática — admin revisa manualmente.`,
+      alternatives: [],
+      _server_enforcement: {
+        defensive_gate_applied: true,
+        gate_met: null,
+        downgrade_reason: `always_manual_${alwaysManual.reason}`,
+        always_manual_details: alwaysManual.details,
+        worker_source: (body.source || '').toLowerCase() === 'worker_portal',
+        original_llm_action: null,
+      },
+      _meta: {
+        skipped_llm: true,
+        tier: -1,
+        gate_met: null,
+        always_manual_reason: alwaysManual.reason,
+        candidates_considered: activeProjects.length,
+        supplier_history_rows: supplierHistory.length,
+      },
+    })
+  }
+
   // ── TIER 0 PRE-LLM SHORT-CIRCUIT (FrugalGPT pattern, David sesión 18/05) ──
   // Si literal code unique active + supplier history NOT contradice → auto_assign sin LLM
   // Si address exact unique no coerced + supplier history NOT contradice → auto_assign sin LLM
   // Ahorra ~$0.01 + 5-15s/call cuando señales determinísticas claras
-  // Worker portal source NUNCA short-circuit (siempre LLM + suggest)
+  // Worker portal source ya filtrado arriba en always-manual.
 
-  const t0_isWorkerSource = (body.source || '').toLowerCase() === 'worker_portal'
+  const t0_isWorkerSource = false  // Always-manual ya excluye worker_portal
 
   if (!t0_isWorkerSource) {
     const t0_allText = [
