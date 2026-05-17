@@ -126,7 +126,7 @@ await run('file_hash inexistente → is_duplicate=false', async () => {
   await expectStatus(res, 200)
   const json = await res.json()
   if (json.is_duplicate !== false) throw new Error(`expected is_duplicate=false`)
-  if (json.source !== 'cathedral-dedup-v2') throw new Error(`expected source v2, got ${json.source}`)
+  if (json.source !== 'cathedral-dedup-v3') throw new Error(`expected source v3, got ${json.source}`)
 })
 
 await run('body vacio → 400', async () => {
@@ -172,8 +172,8 @@ await run('OR lookup email_message_id + filename existente → match', async () 
   if (json.dedup_method !== 'email_message_id') {
     throw new Error(`expected dedup_method=email_message_id, got ${json.dedup_method}`)
   }
-  if (json.source !== 'cathedral-dedup-v2') {
-    throw new Error(`expected source=v2, got ${json.source}`)
+  if (json.source !== 'cathedral-dedup-v3') {
+    throw new Error(`expected source=v3, got ${json.source}`)
   }
 })
 

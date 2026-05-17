@@ -101,7 +101,7 @@ test('callDedup builds POST con file_hash body + Bearer auth', async () => {
   globalThis.fetch = async (url, init) => {
     capturedRequest = { url, init }
     return new Response(
-      JSON.stringify({ is_duplicate: false, source: 'cathedral-dedup-v2' }),
+      JSON.stringify({ is_duplicate: false, source: 'cathedral-dedup-v3' }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
   }
@@ -127,7 +127,7 @@ test('callDedup builds POST con file_hash body + Bearer auth', async () => {
 
   const json = await res.json()
   assert.equal(json.is_duplicate, false)
-  assert.equal(json.source, 'cathedral-dedup-v2')
+  assert.equal(json.source, 'cathedral-dedup-v3')
 
   globalThis.fetch = origFetch
 })

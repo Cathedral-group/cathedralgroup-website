@@ -2,7 +2,7 @@
  * Cathedral Health Monitor Agent — HMAC-authenticated endpoint
  *
  * Invocado por cron Hetzner cada 15min (regla SUPREMA feedback_vercel_hobby_limits.md:
- * Vercel Hobby permite 1 cron/día — Cathedral usa cron Hetzner */15 vía curl HMAC).
+ * Vercel Hobby permite 1 cron/día — Cathedral usa cron Hetzner cada 15 min vía curl HMAC).
  *
  * Flujo:
  *   cron Hetzner -> health-monitor-cron.sh -> POST /api/agents/health-monitor
