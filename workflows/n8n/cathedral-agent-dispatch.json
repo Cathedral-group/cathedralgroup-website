@@ -109,6 +109,19 @@
       }
     },
     {
+      "id": "build-prompt",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        100
+      ],
+      "parameters": {
+        "jsCode": "const dispatch = $('Claim Dispatch Atomic').first().json || {};\nconst PROMPTS = {\n  health_monitor: 'Eres Cathedral Health Diagnose Agent. Recibir\u00e1s un incident detectado por monitoring pasivo Cathedral (disco, pdf2img, n8n exec errors, health endpoint). Devuelve SOLO JSON estricto: { \"diagnosis\": \"texto\", \"proposed_fix\": \"texto\", \"confidence\": 0.0-1.0, \"severity\": \"low|medium|critical\" }. NUNCA auto-aplica fix. David aprueba manual.',\n  bug_diagnose: 'Eres Cathedral Bug Diagnose Agent. Recibir\u00e1s un spike de errores n8n workflow (exceptions_log). Payload: total_1h, top_cluster (source+ai_guess+count), samples (5 raw excerpts recientes). Tu trabajo: (1) identificar patr\u00f3n causa-ra\u00edz concreto (workflow nodo, problema upstream); (2) proponer fix t\u00e9cnico espec\u00edfico NO gen\u00e9rico; (3) confidence honesto 0.9 solo patr\u00f3n clar\u00edsimo. Devuelve SOLO JSON estricto: { \"diagnosis\": \"texto\", \"proposed_fix\": \"texto\", \"confidence\": 0.0-1.0, \"severity\": \"low|medium|critical\", \"root_cause_category\": \"n8n_node_bug | upstream_service | data_pattern | infrastructure | unknown\" }. NUNCA auto-aplica.',\n  pre_deploy_validator: 'Eres Cathedral Pre-Deploy Validator Agent. Stub futuro S2.',\n  project_classifier: 'Eres Cathedral Project Classifier Agent. Stub futuro S3.',\n  director: 'Eres Cathedral Director Agent. Stub futuro Fase 3.',\n  slo_monitor: 'Eres Cathedral SLO Monitor Agent. Stub futuro.'\n};\nconst systemPrompt = PROMPTS[dispatch.agent_name];\nif (!systemPrompt) {\n  throw new Error(`Unknown agent_name: ${dispatch.agent_name}`);\n}\nreturn [{ json: { ...dispatch, system_prompt: systemPrompt } }];"
+      }
+    },
+    {
       "id": "anthropic-diagnose",
       "name": "Anthropic Haiku Diagnose",
       "type": "n8n-nodes-base.httpRequest",
@@ -136,7 +149,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1024, system: 'Eres Cathedral Health Diagnose Agent. Recibir\u00e1s un incident detectado por monitoring pasivo Cathedral. Devuelve SOLO JSON estricto con shape: { \"diagnosis\": \"texto\", \"proposed_fix\": \"texto\", \"confidence\": 0.5, \"severity\": \"low|medium|critical\" }. NUNCA auto-aplica fix. David aprueba manual desde banner admin.', messages: [{ role: 'user', content: 'Incident: agent=' + $('Claim Dispatch Atomic').first().json.agent_name + ' event=' + $('Claim Dispatch Atomic').first().json.event_type + ' severity=' + $('Claim Dispatch Atomic').first().json.severity + ' payload=' + JSON.stringify($('Claim Dispatch Atomic').first().json.trigger_payload || {}) }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1024, system: $('Build Prompt').first().json.system_prompt, messages: [{ role: 'user', content: 'Incident: agent=' + $('Build Prompt').first().json.agent_name + ' event=' + $('Build Prompt').first().json.event_type + ' severity=' + $('Build Prompt').first().json.severity + ' payload=' + JSON.stringify($('Build Prompt').first().json.trigger_payload || {}) }] }) }}",
         "options": {
           "timeout": 60000
         },
@@ -159,7 +172,7 @@
         220
       ],
       "parameters": {
-        "jsCode": "const resp = $input.first().json;\nlet text = resp.content?.[0]?.text || '{}';\n// Strip markdown json wrapper if present\ntext = text.replace(/^```(?:json)?\\s*/, '').replace(/```\\s*$/, '').trim();\nlet parsed = {};\ntry { parsed = JSON.parse(text); } catch (e) { parsed = { diagnosis: text.slice(0, 500), parse_failed: true }; }\nconst inputTokens = resp.usage?.input_tokens || 0;\nconst outputTokens = resp.usage?.output_tokens || 0;\nconst costUsd = (inputTokens / 1e6 * 1.0) + (outputTokens / 1e6 * 5.0);\nconst dispatch = $('Claim Dispatch Atomic').first().json || {};\nreturn [{\n  json: {\n    dispatch_id: dispatch.id,\n    agent_name: dispatch.agent_name,\n    diagnosis: (parsed.diagnosis || 'unknown').slice(0, 4000),\n    proposed_fix: parsed.proposed_fix ? String(parsed.proposed_fix).slice(0, 2000) : null,\n    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : null,\n    severity: parsed.severity || dispatch.severity,\n    tokens_used: inputTokens + outputTokens,\n    cost_usd: Math.round(costUsd * 100000) / 100000\n  }\n}];"
+        "jsCode": "const resp = $input.first().json;\nlet text = resp.content?.[0]?.text || '{}';\ntext = text.replace(/^```(?:json)?\\s*/, '').replace(/```\\s*$/, '').trim();\nlet parsed = {};\ntry { parsed = JSON.parse(text); } catch (e) { parsed = { diagnosis: text.slice(0, 500), parse_failed: true }; }\nconst inputTokens = resp.usage?.input_tokens || 0;\nconst outputTokens = resp.usage?.output_tokens || 0;\nconst costUsd = (inputTokens / 1e6 * 1.0) + (outputTokens / 1e6 * 5.0);\nconst dispatch = $('Claim Dispatch Atomic').first().json || {};\n// Extract extra fields beyond standard (diagnosis/proposed_fix/confidence/severity)\nconst STANDARD = new Set(['diagnosis','proposed_fix','confidence','severity']);\nconst extra = {};\nfor (const k of Object.keys(parsed)) {\n  if (!STANDARD.has(k)) extra[k] = parsed[k];\n}\nreturn [{\n  json: {\n    dispatch_id: dispatch.id,\n    agent_name: dispatch.agent_name,\n    diagnosis: (parsed.diagnosis || 'unknown').slice(0, 4000),\n    proposed_fix: parsed.proposed_fix ? String(parsed.proposed_fix).slice(0, 2000) : null,\n    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : null,\n    severity: parsed.severity || dispatch.severity,\n    tokens_used: inputTokens + outputTokens,\n    cost_usd: Math.round(costUsd * 100000) / 100000,\n    extra_context: extra\n  }\n}];"
       }
     },
     {
@@ -190,7 +203,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ dispatch_id: $json.dispatch_id, agent_name: $json.agent_name, trigger_source: 'event', trigger_context: {}, diagnosis: $json.diagnosis, proposed_fix: $json.proposed_fix, confidence: $json.confidence, tokens_used: $json.tokens_used, cost_usd: $json.cost_usd, model_version: 'claude-haiku-4-5', status: 'pending' }) }}",
+        "jsonBody": "={{ JSON.stringify({ dispatch_id: $json.dispatch_id, agent_name: $json.agent_name, trigger_source: 'event', trigger_context: $json.extra_context || {}, diagnosis: $json.diagnosis, proposed_fix: $json.proposed_fix, confidence: $json.confidence, tokens_used: $json.tokens_used, cost_usd: $json.cost_usd, model_version: 'claude-haiku-4-5', status: 'pending' }) }}",
         "options": {},
         "genericAuthType": "httpCustomAuth"
       },
@@ -313,7 +326,7 @@
       "main": [
         [
           {
-            "node": "Anthropic Haiku Diagnose",
+            "node": "Build Prompt",
             "type": "main",
             "index": 0
           }
@@ -370,6 +383,17 @@
           }
         ]
       ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Anthropic Haiku Diagnose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -377,6 +401,8 @@
     "saveExecutionProgress": true,
     "saveDataSuccessExecution": "all",
     "saveDataErrorExecution": "all",
-    "executionTimeout": 120
+    "executionTimeout": 120,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   }
 }
