@@ -28,19 +28,7 @@ const CSP_HEADER = [
 ].join('; ')
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['gray-matter', 'reading-time', '@anthropic-ai/claude-agent-sdk'],
-  outputFileTracingIncludes: {
-    '/api/agents/health-monitor': [
-      './node_modules/@anthropic-ai/claude-agent-sdk/**',
-      './node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/**',
-      './node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/**',
-      './node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/**',
-      './node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64/**',
-      './.claude/skills/**',
-      './.claude/agents/**',
-      './.claude/CLAUDE.md',
-    ],
-  },
+  serverExternalPackages: ['gray-matter', 'reading-time'],
   async headers() {
     return [
       {
