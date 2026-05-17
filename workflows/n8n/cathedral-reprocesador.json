@@ -6,7 +6,10 @@
       "name": "Webhook Reprocesador",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [240, 300],
+      "position": [
+        240,
+        300
+      ],
       "parameters": {
         "authentication": "headerAuth",
         "httpMethod": "POST",
@@ -28,7 +31,10 @@
       "name": "Validate Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 300],
+      "position": [
+        440,
+        300
+      ],
       "parameters": {
         "jsCode": "const body = $input.first().json.body || {};\nconst targetId = body.target_invoice_id;\nif (!targetId || typeof targetId !== 'string') throw new Error('Missing target_invoice_id');\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nif (!uuidRe.test(targetId)) throw new Error('Invalid target_invoice_id format (must be uuid)');\nreturn [{ json: { target_invoice_id: targetId, trigger_source: body.trigger_source || 'unknown' } }];"
       }
@@ -38,7 +44,10 @@
       "name": "GET Supabase Invoice",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [640, 300],
+      "position": [
+        640,
+        300
+      ],
       "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
@@ -47,7 +56,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Accept", "value": "application/json" }
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "options": {},
@@ -65,7 +77,10 @@
       "name": "Normalize Invoice",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [840, 300],
+      "position": [
+        840,
+        300
+      ],
       "parameters": {
         "jsCode": "const items = $input.all();\nconst target_invoice_id = $('Validate Payload').first().json.target_invoice_id;\nfunction skip(reason) { return [{ json: { found: false, target_invoice_id, drive_file_id: '', manually_edited: false, reprocess_attempts: 0, should_reprocess: false, skip_reason: reason } }]; }\nif (items.length === 0) return skip('no_supabase_items');\nconst raw = items[0].json;\nconst row = Array.isArray(raw) ? raw[0] : raw;\nif (!row || !row.id) return skip('row_not_found');\nconst driveOk = typeof row.drive_file_id === 'string' && row.drive_file_id.length > 0;\nconst notEdited = row.manually_edited !== true;\nconst attemptsOk = (row.reprocess_attempts || 0) < 3;\nconst notReviewed = !(row.review_status === 'revisado' || row.review_status === 'confirmado');\nconst should_reprocess = driveOk && notEdited && attemptsOk && notReviewed;\nlet reason = '';\nif (!driveOk) reason = 'no_drive_file_id';\nelse if (!notEdited) reason = 'manually_edited';\nelse if (!attemptsOk) reason = 'attempts_cap_reached';\nelse if (!notReviewed) reason = 'already_reviewed';\nreturn [{ json: { found: true, ...row, should_reprocess, skip_reason: reason || null } }];"
       }
@@ -75,16 +90,26 @@
       "name": "¿Row Existe + Reprocessable?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [1040, 300],
+      "position": [
+        1040,
+        300
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
               "id": "should-reprocess",
               "leftValue": "={{ $json.should_reprocess }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -96,7 +121,10 @@
       "name": "Google Drive Download",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [1040, 200],
+      "position": [
+        1040,
+        200
+      ],
       "parameters": {
         "resource": "file",
         "operation": "download",
@@ -121,43 +149,12 @@
       "name": "Preparar Input OCR Cascade",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1240, 200],
+      "position": [
+        1240,
+        200
+      ],
       "parameters": {
         "jsCode": "const invoice = $('Normalize Invoice').first().json;\nconst binary = $input.first().binary || {};\nconst dataBin = binary.data || {};\nconst fileName = invoice.original_filename || 'reprocess.pdf';\nconst ext = (fileName.split('.').pop() || 'pdf').toLowerCase();\nconst mime = dataBin.mimeType || (ext === 'pdf' ? 'application/pdf' : `image/${ext}`);\n\n// Leer buffer en contexto Reprocesador (mismo execution, NO cross-boundary).\n// Workaround bug n8n filesystem-v2 cross-execution binary (GH #12625, #15891).\n// Sub-workflow OCR Cascade lee item._attachment_b64 con fallback a getBinaryDataBuffer.\nlet _attachment_b64 = '';\ntry {\n  const buf = await this.helpers.getBinaryDataBuffer(0, 'data');\n  _attachment_b64 = buf.toString('base64');\n  console.log('[Reprocesador] buffer size:', buf.length, 'bytes; base64 length:', _attachment_b64.length);\n} catch (e) {\n  console.error('[Reprocesador] getBinaryDataBuffer fallido:', e.message);\n  throw new Error(`[Reprocesador] Drive Download produjo binary inaccesible para drive_file_id=${invoice.drive_file_id}: ${e.message}`);\n}\n\nreturn [{\n  json: {\n    supabase_id: invoice.id,\n    drive_file_id: invoice.drive_file_id,\n    email_message_id: invoice.email_message_id,\n    email_account: invoice.email_account,\n    fileName,\n    originalFileName: fileName,\n    fileExtension: ext,\n    fileHash: invoice.file_hash,\n    fileMime: mime,\n    fileSize: dataBin.fileSize || 0,\n    binaryPropertyName: 'data',\n    _attachment_mime: mime,\n    _attachment_b64,\n    _reprocess_mode: true,\n    _reprocess_attempts_prev: invoice.reprocess_attempts || 0\n  },\n  binary: { data: dataBin }\n}];"
-      }
-    },
-    {
-      "id": "call-ocr-webhook",
-      "name": "Call OCR Cascade Webhook",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [1440, 200],
-      "parameters": {
-        "method": "POST",
-        "url": "https://n8n.cathedralgroup.es/webhook/ocr-cascade-direct-a3f7b2e1-c8d9-4e5f-b1a2-7d6c8e9f0a1b",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ pdf_b64: $json._attachment_b64, fileName: $json.fileName, originalFileName: $json.originalFileName, fileExtension: $json.fileExtension, mimeType: $json.fileMime, fileHash: $json.fileHash, supabase_id: $json.supabase_id, drive_file_id: $json.drive_file_id, email_message_id: $json.email_message_id, email_account: $json.email_account }) }}",
-        "options": {
-          "timeout": 180000,
-          "response": {
-            "response": { "fullResponse": false }
-          }
-        }
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "xrnnrxUJLJVd6Lmb",
-          "name": "Cathedral Internal Token"
-        }
       }
     },
     {
@@ -165,7 +162,10 @@
       "name": "Build PATCH Body",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 200],
+      "position": [
+        1640,
+        200
+      ],
       "parameters": {
         "jsCode": "const ocr = $input.first().json;\nconst prev = $('Preparar Input OCR Cascade').first().json;\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (prev._reprocess_attempts_prev || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
       }
@@ -175,7 +175,10 @@
       "name": "PATCH Supabase Invoice",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [1840, 200],
+      "position": [
+        1840,
+        200
+      ],
       "parameters": {
         "method": "PATCH",
         "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/invoices?id=eq.{{ $json.target_invoice_id }}",
@@ -183,8 +186,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=representation" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "sendBody": true,
@@ -205,11 +214,16 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [2040, 200],
+      "position": [
+        2040,
+        200
+      ],
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: true, updated_id: $('Build PATCH Body').first().json.target_invoice_id, new_confidence: $('Build PATCH Body').first().json.new_confidence, reprocess_attempts: $('Build PATCH Body').first().json.patch_body.reprocess_attempts }) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       }
     },
     {
@@ -217,47 +231,589 @@
       "name": "Respond Skipped",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [1040, 400],
+      "position": [
+        1040,
+        400
+      ],
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ ok: true, skipped: true, reason: 'protected_or_no_drive_file_or_attempts_cap', target_invoice_id: $('Validate Payload').first().json.target_invoice_id }) }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       }
+    },
+    {
+      "id": "ocr-llamar-gpt4o",
+      "name": "Llamar Gemini Visión",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1524,
+        508
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://us-central1-aiplatform.googleapis.com/v1/projects/cathedral-ai/locations/us-central1/publishers/google/models/gemini-2.5-pro:generateContent",
+        "authentication": "predefinedCredentialType",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.gemini_body }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 120000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "nodeCredentialType": "googleOAuth2Api"
+      },
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "hqqrekQKylRr5xjs",
+          "name": "Vertex AI - cathedral-ai"
+        }
+      }
+    },
+    {
+      "id": "ocr-parsear-openai",
+      "name": "Parsear GPT-4o Visión",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// === Parsear respuesta GPT-4o Vision (V2 — sesión 9/05/2026 noche tarde) ===\n//\n// Cambios respecto a V1:\n// - Spread del `parsed` al item raíz (igual que hace Parsear Visión con Gemini),\n//   para que Elegir Mejor Resultado y Preparar Supabase encuentren los campos\n//   directamente en `item.X` cuando `usar_vision=false` (path GPT-4o ganador).\n// - resultado_filesapi enriquecido con TODOS los campos del parsed (no solo los 12 básicos)\n// - Cálculo de confianza por completitud (idéntico a Parsear Visión) si GPT no devuelve confianza\n// - Manejo de calidad_imagen y campos_dudosos para alimentar razones de revisión\n\nconst openaiResponse = $input.item.json;\n// V4 (16/05/2026): drop Parsear Visión try block — '.itemMatching' on a node\n// that hasn't executed triggers n8n proxy crash (ExpressionError name read-only),\n// JS catch leaks at runner level. Convertir a Visión is direct upstream → pairedItem\n// 1:1 → safe. Same pattern Parsear Visión uses successfully.\nlet originalItem;\ntry {\n  originalItem = $('Convertir a Visión').itemMatching($itemIndex).json;\n} catch (e) {\n  console.error('[Parsear GPT-4o V4] Convertir a Visión itemMatching failed:', e.message);\n  originalItem = $input.item.json || {};\n}\nconst { openai_body, ...originalRest } = originalItem;\n\nconst choices = openaiResponse.choices || [];\nconst rawContent = choices[0]?.message?.content || '{}';\n\nlet parsed = {};\ntry {\n  let cleaned = rawContent.trim();\n  if (cleaned.startsWith('```')) {\n    cleaned = cleaned.replace(/^```[a-z]*\\s*/i, '').replace(/\\s*```$/, '');\n  }\n  parsed = JSON.parse(cleaned);\n  if (Array.isArray(parsed)) {\n    if (parsed.length === 0) {\n      parsed = { confianza: 0.1, _parse_error: 'empty_array' };\n    } else if (parsed.length === 1) {\n      parsed = parsed[0];\n    } else {\n      // QW3 multi-doc: fan-out downstream\n      console.log('[Parsear GPT-4o] MULTI-DOC detected: ' + parsed.length + ' items');\n      parsed.__multi_doc = true;\n      parsed.__multi_doc_items = parsed.slice();\n    }\n  }\n} catch(e) {\n  console.error('[Parsear GPT-4o Visión] Error parsing OpenAI response:', e.message, rawContent.substring(0, 300));\n  parsed = { tipo: 'otro', direction: 'recibida', confianza: 0.1, razones: ['Error al parsear respuesta IA GPT-4o'], es_documento: true };\n}\n\nif (parsed.es_documento === false) {\n  console.log('[Parsear GPT-4o Visión] Saltando: GPT identificó adjunto como no-documento');\n  return [];\n}\n\nconst VALID_TIPOS = ['factura','proforma','rectificativa','abono','otro','presupuesto','albaran','certificado','contrato','nota_simple','escritura','licencia','informe','nomina','modelo_fiscal','seguro','ticket','justificante_pago'];\nconst tipo = VALID_TIPOS.includes((parsed.tipo||'').toLowerCase()) ? parsed.tipo.toLowerCase() : 'otro';\nconst direction = ['emitida','recibida'].includes((parsed.direction||'').toLowerCase()) ? parsed.direction.toLowerCase() : 'recibida';\n\n// Confianza GPT-4o: usar la que devuelve GPT, si no inferir por score (mismo patrón que Gemini)\nlet confianza_num;\nconst rawConf = parsed.confianza;\nif (typeof rawConf === 'number') {\n  confianza_num = Math.min(1, Math.max(0, rawConf));\n} else if (typeof rawConf === 'string') {\n  const m = { 'alta': 0.9, 'media': 0.65, 'baja': 0.3 };\n  confianza_num = m[rawConf.toLowerCase()] ?? (parseFloat(rawConf) || 0.3);\n} else {\n  // Inferir por completitud (idéntico patrón a Parsear Visión)\n  const hasEmpresa  = !!(parsed.empresa || parsed.supplier_name || parsed.proveedor);\n  const hasNif      = !!(parsed.nif_emisor || parsed.supplier_nif);\n  const hasNumero   = !!(parsed.numero_factura || parsed.numero || parsed.number);\n  const hasImporte  = !!(parsed.importe_total || parsed.amount_total);\n  const hasFecha    = !!(parsed.fecha || parsed.fecha_emision || parsed.issue_date);\n  const score = [hasEmpresa, hasNif, hasNumero, hasImporte, hasFecha].filter(Boolean).length;\n  confianza_num = score >= 5 ? 0.95 : score === 4 ? 0.85 : score === 3 ? 0.70 : score === 2 ? 0.50 : 0.20;\n}\n\nconst razones = Array.isArray(parsed.razones) ? parsed.razones.filter(r => typeof r === 'string') : [];\n\n// Calidad y campos dudosos (idéntico a Parsear Visión)\nconst calidad_imagen = ['alta','media','baja'].includes(parsed.calidad_imagen) ? parsed.calidad_imagen : null;\nconst tipo_doc_origen = ['pdf_digital','pdf_escaneado','foto','manuscrito','mixto'].includes(parsed.tipo_documento_origen) ? parsed.tipo_documento_origen : null;\nconst camposDudosos = Array.isArray(parsed.campos_dudosos) ? parsed.campos_dudosos.filter(c => typeof c === 'string') : [];\n\nconst confs = {\n  importe_total: typeof parsed.confianza_importe_total === 'number' ? parsed.confianza_importe_total : null,\n  fecha:         typeof parsed.confianza_fecha === 'number' ? parsed.confianza_fecha : null,\n  nif:           typeof parsed.confianza_nif === 'number' ? parsed.confianza_nif : null,\n  numero_factura: typeof parsed.confianza_numero_factura === 'number' ? parsed.confianza_numero_factura : null,\n};\n\nconst razonesCalidad = [];\nif (calidad_imagen === 'baja') {\n  razonesCalidad.push(`§CALIDAD_BAJA:Documento de baja calidad visual (origen: ${tipo_doc_origen || 'desconocido'}). Revisar números clave manualmente.`);\n}\nif (tipo_doc_origen === 'manuscrito') {\n  razonesCalidad.push(`§MANUSCRITO:Documento escrito a mano. Alto riesgo de error en dígitos. Verificar importes, fechas, NIF.`);\n}\nconst CONF_THRESHOLD = 0.75;\nfor (const [campo, conf] of Object.entries(confs)) {\n  if (conf !== null && conf < CONF_THRESHOLD) {\n    const valor = parsed[campo === 'nif' ? 'nif_emisor' : (campo === 'numero_factura' ? 'numero_factura' : (campo === 'importe_total' ? 'importe_total' : 'fecha'))];\n    razonesCalidad.push(`§CAMPO_DUDOSO:${campo}:${conf.toFixed(2)}:Valor extraído: ${valor || 'null'}`);\n  }\n}\n\nconst parseImporte = (v) => {\n  if (v === null || v === undefined || v === '') return null;\n  const n = parseFloat(String(v).replace(/[^0-9.,\\-]/g, '').replace(',', '.'));\n  return isNaN(n) ? null : n;\n};\n\n// PROJECT FIELDS — usar contexto del item original\nconst proyectos_list = originalRest.proyectos_activos || [];\nconst validCodes = new Set(proyectos_list.map(p => p.code));\nconst validateCode = (code) => {\n  if (!code || typeof code !== 'string') return null;\n  const trimmed = code.trim().toUpperCase();\n  if (validCodes.has(trimmed)) return trimmed;\n  for (const c of validCodes) { if (c.toUpperCase() === trimmed) return c; }\n  return null;\n};\n\nconst proyecto_code = validateCode(parsed.proyecto_code);\nconst proyecto_code_sugerido = validateCode(parsed.proyecto_code_sugerido);\nconst proyecto_confianza = typeof parsed.proyecto_confianza === 'number'\n  ? Math.min(1, Math.max(0, parsed.proyecto_confianza)) : 0;\nconst proyecto_razon = parsed.proyecto_razon || '';\n\n// resultado_filesapi RICO (incluye todos los campos del parsed, igual que resultado_vision)\nconst resultado_filesapi = {\n  ...parsed,\n  confianza_files: confianza_num,\n  tipo,\n  direction,\n  concept: parsed.concept || parsed.concepto || null,\n  numero: parsed.number || parsed.numero || parsed.numero_factura || null,\n  supplier_name: parsed.supplier_name || parsed.empresa || parsed.proveedor || null,\n  supplier_nif: parsed.supplier_nif || parsed.nif_emisor || null,\n  amount_base: parseImporte(parsed.amount_base ?? parsed.importe_base),\n  vat_pct: parsed.vat_pct ?? parsed.iva_porcentaje ?? null,\n  vat_amount: parseImporte(parsed.vat_amount ?? parsed.importe_iva ?? parsed.iva_importe),\n  amount_total: parseImporte(parsed.amount_total ?? parsed.importe_total),\n  issue_date: parsed.issue_date || parsed.fecha_emision || parsed.fecha || null,\n  due_date: parsed.due_date || parsed.fecha_vencimiento || null,\n};\n\n// === QW3 multi-doc fan-out ===\nif (parsed.__multi_doc) {\n  const items = parsed.__multi_doc_items;\n  return items.map((subParsed, subIdx) => ({\n    json: {\n      ...originalRest,\n      ...subParsed,\n      _multi_doc_index: subIdx,\n      _multi_doc_count: items.length,\n      confianza: typeof subParsed.confianza === 'number' ? subParsed.confianza : 0.6,\n      ai_confidence: typeof subParsed.confianza === 'number' ? subParsed.confianza : 0.6,\n      _fallback_provider: 'gpt-4o',\n      tipo: ['factura','proforma','rectificativa','abono','otro','presupuesto','albaran','certificado','contrato','ticket','justificante_pago'].includes((subParsed.tipo||'').toLowerCase()) ? subParsed.tipo.toLowerCase() : 'otro',\n      direction: ['emitida','recibida'].includes((subParsed.direction||'').toLowerCase()) ? subParsed.direction.toLowerCase() : 'recibida',\n      nif_emisor: subParsed.nif_emisor || subParsed.supplier_nif || null,\n      empresa: subParsed.empresa || subParsed.proveedor || subParsed.supplier_name || null,\n      numero_factura: subParsed.numero_factura || subParsed.numero || subParsed.number || '',\n      fecha_emision: subParsed.fecha || subParsed.fecha_emision || subParsed.issue_date || '',\n      importe_total: typeof subParsed.importe_total === 'number' ? subParsed.importe_total : parseFloat(String(subParsed.importe_total||0).replace(/[^0-9.,\\-]/g,'').replace(',','.')) || null,\n      es_documento: true,\n      proyectos_activos: originalRest.proyectos_activos || [],\n      clientes_activos: originalRest.clientes_activos || [],\n      quote_to_project: originalRest.quote_to_project || {},\n    },\n    binary: (function() {\n    try { return $('Parsear Visión').itemMatching($itemIndex).binary; }\n    catch (e) {\n      try { return $('Convertir a Visión').itemMatching($itemIndex).binary; }\n      catch (e2) { return $input.item.binary || {}; }\n    }\n  })(),\n    pairedItem: { item: $itemIndex }\n  }));\n}\n\nreturn {\n  json: {\n    // Spread original (proyectos_activos, clientes_activos, etc.)\n    ...originalRest,\n    // Spread del parsed RAW para que Elegir Mejor / Preparar Supabase encuentre los campos directos\n    ...parsed,\n    // Resultado estructurado para el path files_api\n    resultado_filesapi,\n    confianza_num_filesapi: confianza_num,\n    _fallback_provider: 'gpt-4o',\n    // Campos normalizados (igual que Parsear Visión)\n    tipo,\n    direction,\n    nif_emisor: parsed.nif_emisor || parsed.supplier_nif || null,\n    proveedor: parsed.empresa || parsed.proveedor || parsed.supplier_name || '',\n    empresa: parsed.empresa || parsed.proveedor || parsed.supplier_name || null,\n    numero_factura: parsed.numero_factura || parsed.numero || parsed.number || '',\n    fecha_emision: parsed.fecha || parsed.fecha_emision || parsed.issue_date || '',\n    fecha_vencimiento: parsed.fecha_vencimiento || parsed.due_date || '',\n    iva_porcentaje: parsed.iva_porcentaje != null ? parseFloat(parsed.iva_porcentaje) : (parsed.vat_pct != null ? parseFloat(parsed.vat_pct) : null),\n    importe_base: parseImporte(parsed.importe_base ?? parsed.amount_base),\n    importe_iva: parseImporte(parsed.iva_importe ?? parsed.importe_iva ?? parsed.vat_amount),\n    importe_total: parseImporte(parsed.importe_total ?? parsed.amount_total),\n    concepto: parsed.concepto || parsed.concept || '',\n    confianza: confianza_num,\n    razones,\n    ai_confidence: confianza_num,\n    es_documento: true,\n    proyecto_code,\n    proyecto_code_sugerido,\n    proyecto_confianza,\n    proyecto_razon,\n    iban_proveedor: parsed.iban_proveedor || null,\n    plazo_pago_dias: parsed.plazo_pago_dias != null ? parseInt(parsed.plazo_pago_dias) || null : null,\n    num_pedido: parsed.num_pedido || null,\n    retencion_porcentaje: parsed.retencion_porcentaje != null ? parseFloat(parsed.retencion_porcentaje) : null,\n    retencion_importe: parsed.retencion_importe != null ? parseFloat(parsed.retencion_importe) : null,\n    periodo_facturacion: parsed.periodo_facturacion || null,\n    moneda: parsed.moneda || 'EUR',\n    nif_receptor: parsed.nif_receptor || null,\n    nombre_receptor: parsed.nombre_receptor || null,\n    // V3 (sesión 9/05/2026 noche tarde): datos del cliente para tabla 'clients' (emitidas)\n    cliente_direccion: parsed.cliente_direccion || null,\n    cliente_ciudad: parsed.cliente_ciudad || null,\n    cliente_telefono: parsed.cliente_telefono || null,\n    cliente_email: parsed.cliente_email || null,\n    cliente_tipo: parsed.cliente_tipo || null,\n    direccion_emisor: parsed.direccion_emisor || null,\n    direccion_obra: parsed.direccion_obra || null,\n    forma_pago: parsed.forma_pago || null,\n    estado_pago: parsed.estado_pago || null,\n    es_rectificativa: parsed.es_rectificativa || false,\n    numero_factura_original: parsed.numero_factura_original || null,\n    categoria_gasto: parsed.categoria_gasto || null,\n    tipo_operacion_iva: parsed.tipo_operacion_iva || null,\n    lineas: Array.isArray(parsed.lineas) ? parsed.lineas : [],\n    inversion_sujeto_pasivo: parsed.inversion_sujeto_pasivo || false,\n    tipo_retencion: parsed.tipo_retencion || null,\n    detalles_iva: Array.isArray(parsed.detalles_iva) ? parsed.detalles_iva : null,\n    codigo_verificacion: parsed.codigo_verificacion || null,\n    num_albaran: parsed.num_albaran || null,\n    num_contrato: parsed.num_contrato || null,\n    validez_hasta: parsed.validez_hasta || null,\n    notas_documento: parsed.notas_documento || null,\n    idioma: parsed.idioma || 'es',\n    resumen_ia: parsed.resumen_ia || null,\n    // Calidad y campos dudosos\n    calidad_imagen,\n    tipo_documento_origen: tipo_doc_origen,\n    confianzas_campos: confs,\n    campos_dudosos_lista: camposDudosos,\n    _razones_calidad: razonesCalidad,\n    // Mantener contexto original\n    proyectos_activos: originalRest.proyectos_activos || [],\n    clientes_activos: originalRest.clientes_activos || [],\n    quote_to_project: originalRest.quote_to_project || {}\n  },\n  binary: (function() {\n    try { return $('Parsear Visión').itemMatching($itemIndex).binary; }\n    catch (e) {\n      try { return $('Convertir a Visión').itemMatching($itemIndex).binary; }\n      catch (e2) { return $input.item.binary || {}; }\n    }\n  })()\n};\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "id": "ocr-vision-converter-nod",
+      "name": "Convertir a Visión",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1084,
+        240
+      ],
+      "parameters": {
+        "jsCode": "\nconst cfg = $('Config').first().json;\n\nconst item = $input.item.json;\nconst ext = (item.fileExtension || '').toLowerCase();\nconst isImage = ['jpg','jpeg','png','gif','bmp','webp','tiff','heic'].includes(ext);\n// GPT-4o vision soporta nativo: png, jpeg, jpg, gif, webp. Resto necesita normalización.\nconst needsNormalize = ['heic','bmp','tiff'].includes(ext);\nconst binaryProp = item.binaryPropertyName || 'attachment_0';\nconst PROMPT = item.analysisPrompt || 'Analiza este documento fiscal y extrae información en JSON.';\n\nlet images_b64 = [];\nlet mimeForGpt = 'image/jpeg'; // por defecto\n\nif (isImage) {\n  const buffer = await this.helpers.getBinaryDataBuffer($itemIndex, binaryProp);\n  if (needsNormalize) {\n    // HEIC/BMP/TIFF → /normalize-image (PIL convierte a JPEG)\n    console.log('[Convertir Visión] Imagen', ext, '→ pdf2img /normalize-image');\n    let resp;\n    try {\n      resp = await this.helpers.httpRequest({\n        method: 'POST',\n        url: $('Config').first().json.PDF2IMG_URL + '/normalize-image',\n        headers: { 'Content-Type': 'application/json' },\n        body: { img_b64: buffer.toString('base64') },\n        json: true,\n        returnFullResponse: false,\n        timeout: 30000,\n      });\n    } catch (err) {\n      console.error('[Convertir Visión] normalize-image fetch error:', err.message);\n      return {\n        json: { ...item, vision_failed: true, vision_images: [], vision_error: 'normalize_failed: ' + err.message, _attachment_b64: buffer.toString('base64'), _attachment_mime: 'image/' + ext },\n        binary: $input.item.binary\n      };\n    }\n    if (resp && resp.error) {\n      console.error('[Convertir Visión] normalize-image returned error:', resp.error);\n      return {\n        json: { ...item, vision_failed: true, vision_images: [], vision_error: 'normalize: ' + resp.error, _attachment_b64: buffer.toString('base64'), _attachment_mime: 'image/' + ext },\n        binary: $input.item.binary\n      };\n    }\n    images_b64 = resp.image ? [resp.image] : [];\n    mimeForGpt = 'image/jpeg';\n  } else {\n    // PNG/JPEG/GIF/WEBP → directo (GPT-4o los acepta nativo)\n    images_b64 = [buffer.toString('base64')];\n    mimeForGpt = 'image/' + (ext === 'jpg' ? 'jpeg' : ext);\n  }\n} else {\n  // PDF → pdf2img /convert\n  const buffer = await this.helpers.getBinaryDataBuffer($itemIndex, binaryProp);\n  const pdfBase64 = buffer.toString('base64');\n  console.log('[Convertir Visión] PDF buffer:', buffer.length, 'fileName:', item.fileName);\n\n  let response, statusCode;\n  try {\n    const full = await this.helpers.httpRequest({\n      method: 'POST',\n      url: $('Config').first().json.PDF2IMG_URL + '/convert',\n      headers: { 'Content-Type': 'application/json' },\n      body: { pdf_b64: pdfBase64 },\n      json: true,\n      returnFullResponse: true,\n      timeout: 60000,\n    });\n    response = full.body;\n    statusCode = full.statusCode;\n  } catch (err) {\n    console.error('[Convertir Visión] httpRequest error:', err.message);\n    return {\n      json: { ...item, vision_failed: true, vision_images: [], vision_error: String(err.message), _attachment_b64: pdfBase64, _attachment_mime: 'application/pdf' },\n      binary: $input.item.binary\n    };\n  }\n\n  // Errores controlados de pdf2img (ej: PDF_ENCRYPTED) llegan con status 422\n  if (statusCode === 422 && response && response.controlled) {\n    console.error('[Convertir Visión] pdf2img controlled error:', response.error);\n    return {\n      json: { ...item, vision_failed: true, vision_images: [], vision_error: response.error, vision_error_controlled: true, _attachment_b64: pdfBase64, _attachment_mime: 'application/pdf' },\n      binary: $input.item.binary\n    };\n  }\n  if (response && response.error) {\n    console.error('[Convertir Visión] pdf2img error:', response.error);\n    return {\n      json: { ...item, vision_failed: true, vision_images: [], vision_error: response.error, _attachment_b64: pdfBase64, _attachment_mime: 'application/pdf' },\n      binary: $input.item.binary\n    };\n  }\n\n  images_b64 = (response && response.images) || [];\n  mimeForGpt = 'image/jpeg';\n  console.log('[Convertir Visión] OK:', images_b64.length, '/', response.pages, 'pages converted');\n}\n\n// === Etapa C: body Gemini 3.1 Pro (formato distinto a OpenAI) ===\nconst parts = [{ text: PROMPT }];\nfor (const b64 of images_b64) {\n  parts.push({\n    inline_data: { mime_type: mimeForGpt, data: b64 }\n  });\n}\n\nconst gemini_body_vision = {\n  contents: [{ role: 'user', parts }],\n  generationConfig: {\n    maxOutputTokens: 16000,\n    temperature: 0,\n    responseMimeType: 'application/json',\n    thinkingConfig: { thinkingBudget: 8000 }\n  }\n};\n\n// Embed file as base64 in JSON for downstream binary recovery (HTTP requests strip binary)\nconst fileBase64ForUpload = (await this.helpers.getBinaryDataBuffer($itemIndex, binaryProp)).toString('base64');\nconst fileMimeForUpload = isImage ? ('image/' + (ext === 'jpg' ? 'jpeg' : ext)) : 'application/pdf';\n\n\n// === Opción 3 (research-validated 15/05/2026): build openai_body at source ===\n// Pre-built en este punto evita cross-node refs downstream que disparan GH#24465.\nconst openai_imageParts = [];\nif (images_b64.length > 0) {\n  for (const b64 of images_b64) {\n    openai_imageParts.push({\n      type: 'image_url',\n      image_url: { url: 'data:image/jpeg;base64,' + b64, detail: 'high' }\n    });\n  }\n}\nconst openai_body_vision = {\n  model: cfg.GPT_4O_MODEL || 'gpt-4o',\n  max_tokens: 4096,\n  temperature: 0,\n  response_format: { type: 'json_object' },\n  messages: [{\n    role: 'user',\n    content: [\n      { type: 'text', text: PROMPT },\n      ...openai_imageParts\n    ]\n  }]\n};\n\nreturn {\n  json: {\n    ...item,\n    gemini_body: gemini_body_vision,\n    openai_body: openai_body_vision,\n    vision_failed: false,\n    vision_images: images_b64,\n    _attachment_b64: fileBase64ForUpload,\n    _attachment_mime: fileMimeForUpload\n  },\n  binary: $input.item.binary\n};\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "id": "ocr-parsear-vision-node",
+      "name": "Parsear Visión",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1304,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Fix C1 (sesión 9/05/2026): cleaned externo al try para evitar ReferenceError en catch\nlet cleaned = '';\n\n\n// Parsea la respuesta de GPT-4o visión.\n// Guarda resultado_vision en el item para comparar después con Files API si necesario.\n\nconst geminiResponse = $input.item.json;\nconst originalItem = $('Convertir a Visión').itemMatching($itemIndex).json;\n\n// Etapa C: formato response Gemini = candidates[0].content.parts[0].text\nconst candidates = geminiResponse.candidates || [];\nconst parts = candidates[0]?.content?.parts || [];\nconst rawContent = parts[0]?.text || '{}';\n\nlet parsed = {};\ntry {\n  let cleaned = rawContent.trim();\n  if (cleaned.startsWith('```')) {\n    cleaned = cleaned.replace(/^```[a-z]*\\s*/i, '').replace(/\\s*```$/, '');\n  }\n  parsed = JSON.parse(cleaned);\n  // === QW3 (15/05/2026 research-validated): Multi-doc fan-out ===\n  // Si Gemini devuelve array con >1 item → fan-out N output items.\n  // Si array con 1 item → tomar [0] como antes.\n  // Si 0 items → marcar como error.\n  if (Array.isArray(parsed)) {\n    if (parsed.length === 0) {\n      parsed = { confianza: 0.1, _parse_error: 'empty_array' };\n    } else if (parsed.length === 1) {\n      parsed = parsed[0];\n    } else {\n      // Multi-doc detected: marcar para fan-out downstream\n      console.log('[Parsear Visión] MULTI-DOC detected: ' + parsed.length + ' items');\n      parsed.__multi_doc = true;\n      parsed.__multi_doc_items = parsed.slice();  // copy array\n    }\n  }\n} catch(e) {\n  console.error('Error parseando respuesta visión:', e.message, 'rawLen:', cleaned.length);\n  // Intento de reparación: si la respuesta se truncó (sin } final), cerrar el JSON\n  // a la altura del último campo válido completo\n  try {\n    let repaired = cleaned;\n    // Buscar último '\"' antes de quedar abandonado, y cerrar arrays/objetos abiertos\n    const lastValidKey = repaired.lastIndexOf(',\\n');\n    if (lastValidKey > 100) {\n      repaired = repaired.substring(0, lastValidKey);\n      // Cerrar arrays abiertos contando brackets\n      const opens = (repaired.match(/\\[/g) || []).length - (repaired.match(/\\]/g) || []).length;\n      const objs = (repaired.match(/\\{/g) || []).length - (repaired.match(/\\}/g) || []).length;\n      for (let i = 0; i < opens; i++) repaired += ']';\n      for (let i = 0; i < objs; i++) repaired += '}';\n      parsed = JSON.parse(repaired);\n      console.log('[Parsear Visión] JSON truncado reparado OK');\n    } else {\n      parsed = { confianza: 0.1, _parse_error: 'truncated' };\n    }\n  } catch(e2) {\n    console.error('[Parsear Visión] No pude reparar JSON:', e2.message);\n    parsed = { confianza: 0.1, _parse_error: 'unrepairable' };\n  }\n}\n\n// Calcular conf_vision: usar el explícito si GPT lo dio, si no inferir por campos clave\nlet conf_vision;\n\n// CASO ESPECIAL: nóminas (lote o individual) y resúmenes contables — campos están en arrays anidados\nconst _isNominaLote = (parsed.tipo === 'nomina_lote' || parsed.tipo === 'nomina') && Array.isArray(parsed.nominas) && parsed.nominas.length > 0;\nconst _isResumenNominas = parsed.tipo === 'resumen_nominas' && parsed.resumen_nominas;\n\nif (_isNominaLote) {\n  // Promediar confianza por completitud de cada nómina del lote\n  const confs = parsed.nominas.map(nom => {\n    const has = (k1, k2) => !!(nom[k1] || (k2 && nom[k2]));\n    const score = [\n      has('empresa_nombre','empresa_cif'),\n      has('trabajador_nombre','trabajador_nif'),\n      has('total_devengado'),\n      has('liquido_a_percibir'),\n      has('periodo_desde','periodo_hasta'),\n    ].filter(Boolean).length;\n    return score >= 5 ? 0.95 : score === 4 ? 0.85 : score === 3 ? 0.70 : 0.50;\n  });\n  conf_vision = confs.reduce((s,c) => s+c, 0) / confs.length;\n  console.log(`[Parsear Visión] nomina_lote detectado: ${parsed.nominas.length} nominas, conf_vision=${conf_vision}`);\n} else if (_isResumenNominas) {\n  // Confianza alta si tiene los totales clave\n  const r = parsed.resumen_nominas;\n  const score = [r.empresa_cif, r.periodo_mes, r.periodo_anio, r.total_retribuciones, r.total_liquido].filter(Boolean).length;\n  conf_vision = score >= 4 ? 0.95 : 0.70;\n  console.log(`[Parsear Visión] resumen_nominas detectado, conf_vision=${conf_vision}`);\n} else if (typeof parsed.confidence === 'number') {\n  conf_vision = parsed.confidence;\n} else if (typeof parsed.confianza === 'number') {\n  conf_vision = parsed.confianza;\n} else {\n  // Inferir confianza por completitud de campos críticos extraídos\n  const hasEmpresa  = !!(parsed.empresa || parsed.supplier_name);\n  const hasNif      = !!(parsed.nif_emisor || parsed.supplier_nif);\n  const hasNumero   = !!(parsed.numero_factura || parsed.numero || parsed.number);\n  const hasImporte  = !!(parsed.importe_total || parsed.amount_total);\n  const hasFecha    = !!(parsed.fecha || parsed.fecha_emision || parsed.issue_date);\n  const score = [hasEmpresa, hasNif, hasNumero, hasImporte, hasFecha].filter(Boolean).length;\n  // 5/5 → 0.95 ; 4/5 → 0.85 ; 3/5 → 0.70 ; 2/5 → 0.50 ; <2 → 0.20\n  conf_vision = score >= 5 ? 0.95 : score === 4 ? 0.85 : score === 3 ? 0.70 : score === 2 ? 0.50 : 0.20;\n  console.log('[Parsear Visión] conf_vision inferido:', conf_vision, '(score', score, '/5)');\n}\n\n// ═══════════════�����════════════════════════════════════\n// EVALUACIÓN DE CALIDAD Y CONFIANZAS POR CAMPO (añadido 26/04/2026)\n// ════════════════════════════════════════════════════\nconst calidad_imagen = ['alta','media','baja'].includes(parsed.calidad_imagen) ? parsed.calidad_imagen : null;\nconst tipo_doc_origen = ['pdf_digital','pdf_escaneado','foto','manuscrito','mixto'].includes(parsed.tipo_documento_origen) ? parsed.tipo_documento_origen : null;\n\nconst confs = {\n  importe_total: typeof parsed.confianza_importe_total === 'number' ? parsed.confianza_importe_total : null,\n  fecha:         typeof parsed.confianza_fecha === 'number' ? parsed.confianza_fecha : null,\n  nif:           typeof parsed.confianza_nif === 'number' ? parsed.confianza_nif : null,\n  numero_factura: typeof parsed.confianza_numero_factura === 'number' ? parsed.confianza_numero_factura : null,\n};\n\nconst camposDudosos = Array.isArray(parsed.campos_dudosos) ? parsed.campos_dudosos.filter(c => typeof c === 'string') : [];\n\n// Construir razones específicas para insertar en ai_razones más tarde (en Preparar Supabase)\nconst razonesCalidad = [];\nif (calidad_imagen === 'baja') {\n  razonesCalidad.push(`§CALIDAD_BAJA:Documento de baja calidad visual (origen: ${tipo_doc_origen || 'desconocido'}). Revisar números clave manualmente.`);\n}\nif (tipo_doc_origen === 'manuscrito') {\n  razonesCalidad.push(`§MANUSCRITO:Documento escrito a mano. Alto riesgo de error en dígitos (3↔5↔8, 0↔6, 1↔7). Verificar importes, fechas, NIF.`);\n}\nif (tipo_doc_origen === 'mixto') {\n  razonesCalidad.push(`§MANUSCRITO:Documento parcialmente manuscrito. Verificar campos rellenados a mano.`);\n}\n// Confianzas individuales bajas para campos críticos\nconst CONF_THRESHOLD = 0.75;\nfor (const [campo, conf] of Object.entries(confs)) {\n  if (conf !== null && conf < CONF_THRESHOLD) {\n    const valor = parsed[campo === 'nif' ? 'nif_emisor' : (campo === 'numero_factura' ? 'numero_factura' : (campo === 'importe_total' ? 'importe_total' : 'fecha'))];\n    razonesCalidad.push(`§CAMPO_DUDOSO:${campo}:${conf.toFixed(2)}:Valor extraído: ${valor || 'null'}`);\n  }\n}\nfor (const c of camposDudosos) {\n  if (!razonesCalidad.some(r => r.includes(`§CAMPO_DUDOSO:${c}:`))) {\n    razonesCalidad.push(`§CAMPO_DUDOSO:${c}:?:Campo marcado como dudoso por GPT (sin valor confianza)`);\n  }\n}\n\n// Si calidad o algún campo crítico es bajo, ajustar conf_vision al peor (techo de confianza)\nlet conf_vision_adjusted = conf_vision;\nif (calidad_imagen === 'baja' || tipo_doc_origen === 'manuscrito') {\n  conf_vision_adjusted = Math.min(conf_vision_adjusted, 0.75);\n}\nconst minCampoConf = Math.min(...Object.values(confs).filter(v => v !== null), 1.0);\nif (minCampoConf < 0.7) {\n  conf_vision_adjusted = Math.min(conf_vision_adjusted, minCampoConf + 0.05);\n}\n\n// Normalizar campos (acepta ambos nombres del prompt)\nconst resultado_vision = {\n  ...parsed,\n  confianza_vision: conf_vision,\n  tipo: parsed.doc_type || parsed.tipo || 'otro',\n  direction: parsed.direction || 'recibida',\n  concept: parsed.concept || parsed.concepto || null,\n  numero: parsed.number || parsed.numero || null,\n  supplier_name: parsed.supplier_name || parsed.proveedor || null,\n  supplier_nif: parsed.supplier_nif || parsed.nif_emisor || null,\n  amount_base: parsed.amount_base || parsed.importe_base || null,\n  vat_pct: parsed.vat_pct || parsed.iva_porcentaje || null,\n  vat_amount: parsed.vat_amount || parsed.importe_iva || null,\n  amount_total: parsed.amount_total || parsed.importe_total || null,\n  issue_date: parsed.issue_date || parsed.fecha_emision || null,\n  due_date: parsed.due_date || parsed.fecha_vencimiento || null,\n  es_extranjera: parsed.es_extranjera || false,\n};\n\n// === PROJECT FIELDS from vision ===\nconst proyectos_list_v = originalItem.proyectos_activos || [];\nconst validCodesV = new Set(proyectos_list_v.map(p => p.code));\nconst validateCodeV = (code) => {\n  if (!code || typeof code !== 'string') return null;\n  const t = code.trim();\n  if (validCodesV.has(t)) return t;\n  for (const c of validCodesV) { if (c.toUpperCase() === t.toUpperCase()) return c; }\n  return null;\n};\nconst proyecto_code_vision = validateCodeV(parsed.proyecto_code);\nconst proyecto_code_sugerido_vision = validateCodeV(parsed.proyecto_code_sugerido);\nconst proyecto_confianza_vision = typeof parsed.proyecto_confianza === 'number'\n  ? Math.min(1, Math.max(0, parsed.proyecto_confianza)) : 0;\nconst proyecto_razon_vision = parsed.proyecto_razon || '';\n\n// === QW3: Multi-doc fan-out ===\nif (parsed.__multi_doc) {\n  const items = parsed.__multi_doc_items;\n  return items.map((subParsed, subIdx) => ({\n    json: {\n      ...originalItem,\n      ...subParsed,\n      _multi_doc_index: subIdx,\n      _multi_doc_count: items.length,\n      conf_vision: typeof subParsed.confianza === 'number' ? subParsed.confianza : 0.6,\n      conf_vision_raw: typeof subParsed.confianza === 'number' ? subParsed.confianza : 0.6,\n      vision_suficiente: (typeof subParsed.confianza === 'number' ? subParsed.confianza : 0.6) >= 0.80,\n      tipo: ['factura','proforma','rectificativa','abono','otro','presupuesto','albaran','certificado','contrato','ticket','justificante_pago'].includes((subParsed.tipo||'').toLowerCase()) ? subParsed.tipo.toLowerCase() : 'otro',\n      direction: ['emitida','recibida'].includes((subParsed.direction||'').toLowerCase()) ? subParsed.direction.toLowerCase() : 'recibida',\n      nif_emisor: subParsed.nif_emisor || subParsed.supplier_nif || null,\n      empresa: subParsed.empresa || subParsed.proveedor || subParsed.supplier_name || null,\n      numero_factura: subParsed.numero_factura || subParsed.numero || subParsed.number || '',\n      fecha_emision: subParsed.fecha || subParsed.fecha_emision || subParsed.issue_date || '',\n      importe_total: typeof subParsed.importe_total === 'number' ? subParsed.importe_total : parseFloat(String(subParsed.importe_total||0).replace(/[^0-9.,\\-]/g,'').replace(',','.')) || null,\n      es_documento: true,\n      proyectos_activos: originalItem.proyectos_activos || [],\n      clientes_activos: originalItem.clientes_activos || [],\n      quote_to_project: originalItem.quote_to_project || {},\n    },\n    binary: $('Convertir a Visión').itemMatching($itemIndex).binary,\n    pairedItem: { item: $itemIndex }\n  }));\n}\n\nreturn {\n  json: {\n    ...originalItem,\n    resultado_vision,\n    conf_vision: conf_vision_adjusted,\n    conf_vision_raw: conf_vision,\n    calidad_imagen,\n    tipo_documento_origen: tipo_doc_origen,\n    confianzas_campos: confs,\n    campos_dudosos_lista: camposDudosos,\n    _razones_calidad: razonesCalidad,\n    // Si conf >= 0.80, no necesita intento 2\n    vision_suficiente: conf_vision >= 0.80,\n    proyecto_code_vision: proyecto_code_vision,\n    proyecto_code_sugerido_vision: proyecto_code_sugerido_vision,\n    proyecto_confianza_vision: proyecto_confianza_vision,\n    proyecto_razon_vision: proyecto_razon_vision,\n    iban_proveedor: parsed.iban_proveedor || null,\n    plazo_pago_dias: parsed.plazo_pago_dias != null ? parseInt(parsed.plazo_pago_dias) || null : null,\n    num_pedido: parsed.num_pedido || null,\n    retencion_porcentaje: parsed.retencion_porcentaje != null ? parseFloat(parsed.retencion_porcentaje) : null,\n    retencion_importe: parsed.retencion_importe != null ? parseFloat(parsed.retencion_importe) : null,\n    periodo_facturacion: parsed.periodo_facturacion || null,\n    proyectos_activos: originalItem.proyectos_activos || [],\n    clientes_activos: originalItem.clientes_activos || [],\n    quote_to_project: originalItem.quote_to_project || {}\n  },\n  binary: $('Convertir a Visión').itemMatching($itemIndex).binary\n};\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "id": "ocr-vision-suficiente-no",
+      "name": "¿Visión Suficiente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1524,
+        240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "vision-conf-check",
+              "leftValue": "={{ $json.conf_vision }}",
+              "rightValue": 0.8,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "ocr-elegir-mejor-node",
+      "name": "Elegir Mejor Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        360
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\n\nconst conf_vision = item.conf_vision || 0;\nconst conf_files  = item.confianza_num_filesapi || item.confianza || 0;\n\nlet usar_vision;\nif (!item.resultado_filesapi && conf_files === 0) {\n  usar_vision = true;\n} else {\n  usar_vision = conf_vision >= conf_files;\n}\n\n// === Cascada multi-provider: marcar qué proveedor IA produjo el resultado ===\n// Esto se persiste en BD (columna ai_provider) para trazabilidad y análisis A/B.\nconst ai_provider = usar_vision ? 'gemini' : 'gpt-4o';\n\nlet campos_finales;\nif (usar_vision) {\n  const v = item.resultado_vision || {};\n  campos_finales = {\n    tipo:                    v.doc_type || v.tipo || 'otro',\n    direction:               v.direction || 'recibida',\n    numero_factura:          v.number || v.numero || v.numero_factura || null,\n    empresa:                 v.empresa || v.proveedor || null,\n    concepto:                v.concept || v.concepto || null,\n    importe_base:            v.amount_base || v.importe_base || null,\n    iva_porcentaje:          v.vat_pct ?? v.iva_porcentaje ?? null,\n    importe_iva:             v.vat_amount ?? v.importe_iva ?? null,\n    irpf_porcentaje:         v.irpf_rate || v.irpf_porcentaje || null,\n    importe_irpf:            v.irpf_amount || v.importe_irpf || null,\n    importe_total:           v.amount_total || v.importe_total || null,\n    fecha_emision:           v.issue_date || v.fecha || v.fecha_emision || null,\n    fecha_vencimiento:       v.due_date || v.fecha_vencimiento || null,\n    supplier_nif:            v.supplier_nif || v.nif_emisor || null,\n    forma_pago:              v.payment_method || v.forma_pago || null,\n    estado_pago:             v.payment_status || v.estado_pago || null,\n    es_rectificativa:        v.es_rectificativa || false,\n    numero_factura_original: v.original_invoice_number || v.numero_factura_original || null,\n    categoria_gasto:         v.expense_category || v.categoria_gasto || null,\n    direccion_obra:          v.work_address || v.direccion_obra || null,\n    tipo_operacion_iva:      v.vat_operation_type || v.tipo_operacion_iva || 'nacional',\n    lineas:                  Array.isArray(v.lineas) ? v.lineas : [],\n    moneda:                  v.moneda || 'EUR',\n    nif_receptor:            v.nif_receptor || null,\n    nombre_receptor:         v.nombre_receptor || null,\n    direccion_emisor:        v.direccion_emisor || null,\n    inversion_sujeto_pasivo: v.inversion_sujeto_pasivo || false,\n    tipo_retencion:          v.tipo_retencion || null,\n    detalles_iva:            Array.isArray(v.detalles_iva) ? v.detalles_iva : null,\n    codigo_verificacion:     v.codigo_verificacion || null,\n    num_albaran:             v.num_albaran || null,\n    num_contrato:            v.num_contrato || null,\n    validez_hasta:           v.validez_hasta || null,\n    notas_documento:         v.notas_documento || null,\n    idioma:                  v.idioma || 'es',\n    resumen_ia:              v.resumen_ia || null,\n    confianza:               conf_vision,\n    metodo_extraccion:       'vision',\n    proyecto_code:           item.proyecto_code_vision || null,\n    proyecto_code_sugerido:  item.proyecto_code_sugerido_vision || null,\n    proyecto_confianza:      item.proyecto_confianza_vision || 0,\n    proyecto_razon:          item.proyecto_razon_vision || '',\n  };\n} else {\n  campos_finales = {\n    tipo:                    item.tipo || 'otro',\n    direction:               item.direction || 'recibida',\n    numero_factura:          item.numero_factura || null,\n    empresa:                 item.empresa || item.proveedor || null,\n    concepto:                item.concepto || null,\n    importe_base:            item.importe_base || null,\n    iva_porcentaje:          item.iva_porcentaje ?? null,\n    importe_iva:             item.importe_iva ?? null,\n    irpf_porcentaje:         item.irpf_porcentaje || null,\n    importe_irpf:            item.importe_irpf || null,\n    importe_total:           item.importe_total || null,\n    fecha_emision:           item.fecha_emision || null,\n    fecha_vencimiento:       item.fecha_vencimiento || null,\n    supplier_nif:            item.nif_emisor || item.nif_proveedor || item.supplier_nif || null,\n    forma_pago:              item.forma_pago || null,\n    estado_pago:             item.estado_pago || null,\n    es_rectificativa:        item.es_rectificativa || false,\n    numero_factura_original: item.numero_factura_original || null,\n    categoria_gasto:         item.categoria_gasto || null,\n    direccion_obra:          item.direccion_obra || null,\n    tipo_operacion_iva:      item.tipo_operacion_iva || 'nacional',\n    lineas:                  Array.isArray(item.lineas) ? item.lineas : [],\n    moneda:                  item.moneda || 'EUR',\n    nif_receptor:            item.nif_receptor || null,\n    nombre_receptor:         item.nombre_receptor || null,\n    direccion_emisor:        item.direccion_emisor || null,\n    inversion_sujeto_pasivo: item.inversion_sujeto_pasivo || false,\n    tipo_retencion:          item.tipo_retencion || null,\n    detalles_iva:            Array.isArray(item.detalles_iva) ? item.detalles_iva : null,\n    codigo_verificacion:     item.codigo_verificacion || null,\n    num_albaran:             item.num_albaran || null,\n    num_contrato:            item.num_contrato || null,\n    validez_hasta:           item.validez_hasta || null,\n    notas_documento:         item.notas_documento || null,\n    idioma:                  item.idioma || 'es',\n    resumen_ia:              item.resumen_ia || null,\n    confianza:               conf_files,\n    metodo_extraccion:       'files_api',\n    proyecto_code:           item.proyecto_code || null,\n    proyecto_code_sugerido:  item.proyecto_code_sugerido || null,\n    proyecto_confianza:      item.proyecto_confianza || 0,\n    proyecto_razon:          item.proyecto_razon || '',\n  };\n}\n\nconsole.log(\n  'Elegir Mejor: usar_vision=' + usar_vision +\n  ' | conf_vision=' + (Number(conf_vision) || 0).toFixed(2) +\n  ' | conf_files=' + conf_files.toFixed(2) +\n  ' | metodo=' + campos_finales.metodo_extraccion +\n  ' | iva_op=' + campos_finales.tipo_operacion_iva +\n  ' | empresa=' + (campos_finales.empresa || 'null') +\n  ' | lineas=' + (campos_finales.lineas?.length || 0)\n);\n\nreturn {\n  json: { ...item, ...campos_finales, ai_provider, proyectos_activos: item.proyectos_activos || [], clientes_activos: item.clientes_activos || [], quote_to_project: item.quote_to_project || {} },\n  binary: $input.item.binary\n};\n\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "id": "ocr-llamar-gpt4o-2",
+      "name": "Llamar GPT-4o Visión",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1304,
+        508
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.openai_body }}",
+        "options": {
+          "response": {},
+          "timeout": 120000,
+          "retry": {
+            "maxTries": 3,
+            "waitBetweenTries": 5000
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "nodeCredentialType": "openAiApi"
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "bNPd9UDpILctuZql",
+          "name": "OpenAi account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ocr-d197a2a4-9300-432d-a",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        480
+      ],
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════\n// SISTEMA CONFIG — único punto de verdad del clasificador\n// Para añadir nuevo tipo de documento: solo modificar este nodo\n// Para añadir nueva carpeta Drive: solo modificar FOLDER_MAP\n// Para cambiar tabla Supabase: solo modificar FINANCIAL_TYPES\n// ═══════════════════════════════════════════════════════════════\n\n// PDF→imagen renderer (servicio Docker en host)\nconst PDF2IMG_URL = 'http://172.17.0.1:5001';\n\n// NIF Cathedral (receptor de las facturas) — para anti-falso-positivo en matching\nconst CATHEDRAL_NIF = 'B19761915';\n\n// Tipos financieros → tabla 'invoices'\n// Cualquier otro tipo → tabla 'documents'\nconst FINANCIAL_TYPES = [\n  'factura', 'proforma', 'rectificativa', 'abono',\n  'ticket', 'justificante_pago', 'presupuesto', 'albaran', 'certificado'\n];\n\n// Carpeta Drive destino por tipo de documento\n// '_default': fallback para tipos no reconocidos\nconst FOLDER_MAP = {\n  'factura':           { id: '1rwQ1wl_X9yqfmg4rGjVoXkkLEYgCnluF', name: 'Facturas_sin_clasificar' },\n  'rectificativa':     { id: '1rwQ1wl_X9yqfmg4rGjVoXkkLEYgCnluF', name: 'Facturas_sin_clasificar' },\n  'abono':             { id: '1rwQ1wl_X9yqfmg4rGjVoXkkLEYgCnluF', name: 'Facturas_sin_clasificar' },\n  'ticket':            { id: '1rwQ1wl_X9yqfmg4rGjVoXkkLEYgCnluF', name: 'Facturas_sin_clasificar' },\n  'justificante_pago': { id: '1rwQ1wl_X9yqfmg4rGjVoXkkLEYgCnluF', name: 'Facturas_sin_clasificar' },\n  'proforma':          { id: '1rg6sejuw-W-2U5yTxd4tU6nqg1-F7kL_',  name: 'Proformas' },\n  'albaran':           { id: '1_gF_lHrnFIXOuMlPu0onnDSum756nXjO',  name: 'Albaranes' },\n  'certificado':       { id: '1AI0xrxAQ6K2isLK98dnY_wmvveaeLkjy',  name: 'Certificados' },\n  'presupuesto':       { id: '1qmSxaGWEquh9ruoc8eMia2ASs4qFV6CK',  name: 'Presupuestos' },\n  'seguro':            { id: '1zmHQ0dFdjPq9MN4HdOqNp0ZhdxBYWhr9',  name: 'Seguros_PRL' },\n  'nomina':            { id: '113BL-yElcr7Icx67N3A0XWHzXsMQnfS7',  name: 'Laboral' },\n  'modelo_fiscal':     { id: '113BL-yElcr7Icx67N3A0XWHzXsMQnfS7',  name: 'Laboral' },\n  'contrato':          { id: '1vPhm1oEieGpCs4dXY2R_hn_X2Ud3pRjQ',  name: 'Contratos' },\n  'escritura':         { id: '1aypLeyI1FR9q6aRecj6DmMpOqprukjcg',  name: 'Escrituras' },\n  'licencia':          { id: '1FrAkXsAj6Zd9Q2jFb_OzB0hb7TpflTls',  name: 'Licencias' },\n  'nota_simple':       { id: '1RCUC-q7PRmfAfiPCPFS-R5YsIud2Eudj',  name: 'Legal' },\n  'informe':           { id: '1wSw90og01wwTiXmn5-X1Unefr0nbUD8M',  name: 'Documentos_varios' },\n  '_default':          { id: '1wSw90og01wwTiXmn5-X1Unefr0nbUD8M',  name: 'Documentos_varios' }\n};\n\n// Categoría semántica para tabla 'documents' (docs no financieros)\n// Usada en documents_payload.doc_category\nconst DOC_CATEGORY_MAP = {\n  'escritura':    'legal',\n  'nota_simple':  'legal',\n  'contrato':     'legal',\n  'licencia':     'legal',\n  'seguro':       'seguros',\n  'modelo_fiscal':'fiscal',\n  'informe':      'fiscal',\n  'nomina':       'laboral'\n  // Resto → 'corporativo' (fallback en Preparar Supabase)\n};\n\n// Supabase base URL — un solo cambio si se migra el proyecto\nconst SUPABASE_URL = 'https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1';\n\n// Supabase API key — ahora viene de credential 'Supabase Service Role - Cathedral' (httpCustomAuth)\n// El return mantiene SUPABASE_APIKEY como placeholder por compatibilidad con Code nodes que aún la lean.\nconst SUPABASE_APIKEY = '__USE_CREDENTIAL_INSTEAD__';\n\n// Umbrales de confianza — un solo cambio para afectar clasificador, Supabase y prompt\nconst PROJECT_LOYALTY_THRESHOLD  = 0.85; // >= auto-asignar proyecto_code\nconst LOW_CONFIDENCE_THRESHOLD   = 0.60; // <  marcar needs_review, no asignar proyecto\n\n// Pre-clasificador: umbral para descartar doc no-financiero\nconst PRE_CLASSIFY_THRESHOLD = 0.85;\n\n// Modelos OpenAI\nconst GPT_4O_MODEL   = 'gpt-4o';\nconst GPT_MINI_MODEL = 'gpt-4o-mini';\n\n// Patrones de spam/newsletters en remitente o asunto\nconst SPAM_PATTERNS = ['unsubscribe', 'newsletter', 'promotional'];\n\nreturn { json: { FINANCIAL_TYPES, CATHEDRAL_NIF,\n  PDF2IMG_URL,\n  FOLDER_MAP, DOC_CATEGORY_MAP, SUPABASE_URL, SUPABASE_APIKEY, PROJECT_LOYALTY_THRESHOLD, LOW_CONFIDENCE_THRESHOLD, PRE_CLASSIFY_THRESHOLD, GPT_4O_MODEL, GPT_MINI_MODEL, SPAM_PATTERNS } };\n"
+      }
+    },
+    {
+      "id": "ocr-ee1446c8-1bf9-4dc1-a",
+      "name": "Llamar Mistral OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1774,
+        428
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ ((mime, b64) => { const isImg = (mime || '').startsWith('image/'); const dataUri = 'data:' + (mime || 'application/pdf') + ';base64,' + (b64 || ''); return isImg ? { model: 'mistral-ocr-2512', document: { type: 'image_url', image_url: dataUri } } : { model: 'mistral-ocr-2512', document: { type: 'document_url', document_url: dataUri } }; })(($('Convertir a Visión').first().json._attachment_mime || $json._attachment_mime || 'application/pdf'), ($('Convertir a Visión').first().json._attachment_b64 || $json._attachment_b64 || '')) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 600000
+        },
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "FbCJ6iCcj5u4oNEN",
+          "name": "Mistral API - Cathedral OCR"
+        }
+      }
+    },
+    {
+      "id": "ocr-c50804ae-7f9e-47f2-9",
+      "name": "Reconciliar Gemini vs Mistral OCR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1994,
+        428
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Reconciliación textual Gemini vs Mistral OCR (sesión 28, plan ajustado)\n// Compara campos extraídos por Gemini contra el markdown de Mistral OCR usando\n// normalizadores por tipo (tolera variantes de formato).\n\nconst mistralResponse = $input.item.json;\nconst pages = mistralResponse?.pages || [];\nconst markdownTotal = pages.map(p => p.markdown || '').join('\\n').trim();\n\n// V3 14/05/2026: itemMatching (canonical, sigue pairedItem chain — docs.n8n.io itemMatching cookbook)\n// Resolver Entidad ID solo ejecuta en path no-skip. Si itemMatching falla, fallback a Cascada Supplier.\nlet gemini, geminiBinary;\ntry {\n  const r = $('Elegir Mejor Resultado').itemMatching($itemIndex);\n  gemini = r.json;\n  geminiBinary = r.binary;\n} catch (e1) {\n  try {\n    const c = $('Elegir Mejor Resultado').itemMatching($itemIndex);\n    gemini = c.json;\n    geminiBinary = c.binary;\n  } catch (e2) {\n    gemini = $input.item.json;\n    geminiBinary = $input.item.binary;\n  }\n}\n\nconst discrepancies = [];\n\n// === NORMALIZADORES ===\n\nfunction normalizeNIF(s) {\n  if (!s) return '';\n  return String(s).replace(/[\\s\\-\\.]/g, '').toUpperCase();\n}\n\nfunction normalizeAmount(s) {\n  // Detecta números en formato ES (1.234,56) o EN (1,234.56)\n  if (s == null || s === '') return null;\n  let str = String(s).replace(/[€$\\s]/g, '');\n  // Si hay tanto coma como punto, asumir formato ES (punto=miles, coma=decimal)\n  if (str.includes(',') && str.includes('.')) {\n    if (str.lastIndexOf(',') > str.lastIndexOf('.')) {\n      str = str.replace(/\\./g, '').replace(',', '.');\n    } else {\n      str = str.replace(/,/g, '');\n    }\n  } else if (str.includes(',')) {\n    str = str.replace(',', '.');\n  }\n  const n = parseFloat(str);\n  return isNaN(n) ? null : n;\n}\n\nfunction findAmountInMarkdown(markdown, target, tolerance) {\n  // Busca el target (número) en el markdown con tolerancia ±0.01\n  if (target == null) return true;\n  // Extraer todos los números del markdown\n  const matches = markdown.match(/[0-9]+(?:[.,][0-9]+)*(?:[.,][0-9]{1,2})?/g) || [];\n  for (const m of matches) {\n    const n = normalizeAmount(m);\n    if (n != null && Math.abs(n - target) < (tolerance || 0.02)) return true;\n  }\n  return false;\n}\n\nfunction normalizeDate(s) {\n  if (!s) return null;\n  const str = String(s).trim();\n  // ISO YYYY-MM-DD\n  let m = str.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (m) return `${m[1]}-${m[2]}-${m[3]}`;\n  // DD/MM/YYYY o DD-MM-YYYY\n  m = str.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{2,4})/);\n  if (m) {\n    const yr = m[3].length === 2 ? '20' + m[3] : m[3];\n    return `${yr}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;\n  }\n  return null;\n}\n\nfunction findDateInMarkdown(markdown, isoDate) {\n  if (!isoDate) return true;\n  const [y, mo, d] = isoDate.split('-');\n  // Buscar en variantes: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, DD/MM/YY, etc.\n  const variants = [\n    `${d}/${mo}/${y}`,\n    `${d}-${mo}-${y}`,\n    `${y}-${mo}-${d}`,\n    `${parseInt(d)}/${parseInt(mo)}/${y}`,\n    `${d}/${mo}/${y.slice(2)}`,\n    `${d}.${mo}.${y}`,\n  ];\n  return variants.some(v => markdown.includes(v));\n}\n\n// === VERIFICACIÓN ===\n\nif (!markdownTotal) {\n  discrepancies.push('§MISTRAL_OCR:Mistral no extrajo texto del documento (PDF corrupto o imagen ilegible)');\n} else {\n  // NIF emisor\n  const nif = normalizeNIF(gemini.nif_emisor || gemini.nif_proveedor || gemini.supplier_nif);\n  if (nif && nif.length >= 8) {\n    const markdownNorm = normalizeNIF(markdownTotal);\n    if (!markdownNorm.includes(nif)) {\n      discrepancies.push('§DISCREPANCIA_OCR:nif_emisor:' + nif + ' no aparece en markdown');\n    }\n  }\n\n  // CIF empresa (para nóminas)\n  const empresaCif = normalizeNIF(gemini.empresa_cif);\n  if (empresaCif && empresaCif.length >= 8) {\n    const markdownNorm = normalizeNIF(markdownTotal);\n    if (!markdownNorm.includes(empresaCif)) {\n      discrepancies.push('§DISCREPANCIA_OCR:empresa_cif:' + empresaCif + ' no aparece en markdown');\n    }\n  }\n\n  // Importe total con tolerancia ±0.02€\n  const total = normalizeAmount(gemini.importe_total ?? gemini.amount_total);\n  if (total != null) {\n    if (!findAmountInMarkdown(markdownTotal, total, 0.02)) {\n      discrepancies.push('§DISCREPANCIA_OCR:importe_total:' + total + ' no aparece en markdown');\n    }\n  }\n\n  // Fecha emisión normalizada\n  const fechaIso = normalizeDate(gemini.fecha_emision || gemini.issue_date);\n  if (fechaIso) {\n    if (!findDateInMarkdown(markdownTotal, fechaIso)) {\n      discrepancies.push('§DISCREPANCIA_OCR:fecha_emision:' + fechaIso + ' no aparece en markdown');\n    }\n  }\n\n  // Número factura (string match case insensitive, sin espacios)\n  const num = String(gemini.numero_factura || '').replace(/\\s/g, '');\n  if (num && num.length >= 3) {\n    const markdownNoSpace = markdownTotal.replace(/\\s/g, '').toLowerCase();\n    if (!markdownNoSpace.includes(num.toLowerCase())) {\n      discrepancies.push('§DISCREPANCIA_OCR:numero_factura:' + num + ' no aparece en markdown');\n    }\n  }\n}\n\nreturn {\n  json: {\n    ...gemini,\n    _mistral_discrepancies: discrepancies,\n    _mistral_markdown_chars: markdownTotal.length\n  },\n  binary: geminiBinary\n};\n\n"
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Construir AI Usage Records (sub-workflow version 18/05/2026) ===\n// Sub-workflow only. Recolecta tokens de Gemini + GPT-4o + Mistral (NO GPT-mini, ese vive en parent).\n// Output: item con campo `ai_usage_tokens` array para que Sub Output lo exponga al parent.\n// Parent hace Merge Tokens con tokens de GPT-mini propios.\n\nconst item = $input.item.json;\nconst records = [];\n\n// Helper Gemini\nconst extractGemini = () => {\n  try {\n    const r = $('Llamar Gemini Visión').itemMatching($itemIndex).json;\n    const um = r?.usageMetadata;\n    if (!um) return null;\n    return {\n      provider: 'gemini',\n      model: 'gemini-2.5-pro',\n      tokens_input: um.promptTokenCount || 0,\n      tokens_output: um.candidatesTokenCount || 0,\n      context: 'extraction',\n      status: 'success'\n    };\n  } catch (e) { return null; }\n};\n\n// Helper OpenAI (GPT-4o Visión)\nconst extractGpt4o = () => {\n  try {\n    const r = $('Llamar GPT-4o Visión').itemMatching($itemIndex).json;\n    const u = r?.usage;\n    if (!u) return null;\n    return {\n      provider: 'openai',\n      model: 'gpt-4o',\n      tokens_input: u.prompt_tokens || 0,\n      tokens_output: u.completion_tokens || 0,\n      context: 'extraction',\n      status: 'fallback'\n    };\n  } catch (e) { return null; }\n};\n\n// Helper Mistral OCR\nconst extractMistral = () => {\n  try {\n    const r = $('Llamar Mistral OCR').itemMatching($itemIndex).json;\n    const u = r?.usage_info || r?.usage;\n    if (!u) return null;\n    return {\n      provider: 'mistral-ocr',\n      model: 'mistral-ocr-latest',\n      tokens_input: u.prompt_tokens || u.pages_processed || 0,\n      tokens_output: u.completion_tokens || 0,\n      context: 'reconcile',\n      status: 'success'\n    };\n  } catch (e) { return null; }\n};\n\nconst g = extractGemini();\nif (g) records.push(g);\nconst gpt = extractGpt4o();\nif (gpt) records.push(gpt);\nconst m = extractMistral();\nif (m) records.push(m);\n\nreturn { json: { ...item, ai_usage_tokens: records } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "ocr-build-ai-usage-recor",
+      "name": "Construir AI Usage Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// V1 (15/05/2026): Smart Routing Step 1 — clasifica tipo archivo para optimal AI routing\n// Research-validated: file-type detection upfront avoids cascade waste (RouteLLM Berkeley)\n//\n// Heurística conservadora (single criterion screenshot detection):\n//   ext=png + filename SIN patrón foto (IMG_*) ni patrón Amovens-tipo (numeric long)\n//   → likely screenshot\n// Si dudoso → ruta default Gemini (cascada fallback GPT-4o protege)\n\nconst item = $input.item.json;\nconst fileName = (item.fileName || '').toLowerCase();\nconst ext = (item.fileExtension || '').toLowerCase();\n\n// PNG screenshots desktop/móvil\nconst isPng = ext === 'png';\nconst startsWithIMG = /^img[_-]?\\d/i.test(fileName);\nconst isNumericLong = /^\\d{8,}\\.(jpe?g|png|gif)$/i.test(fileName); // Amovens-tipo\nconst hasScreenshotKeyword = /screenshot|capture|captura|pantalla/i.test(fileName);\n\nlet archiveType = 'foto_pdf'; // default → Gemini\nlet isLikelyScreenshot = false;\n\nif (hasScreenshotKeyword) {\n  archiveType = 'screenshot';\n  isLikelyScreenshot = true;\n} else if (isPng && !startsWithIMG && !isNumericLong) {\n  archiveType = 'screenshot';\n  isLikelyScreenshot = true;\n}\n\nconsole.log('[Clasificar Tipo Archivo] fileName=' + fileName + ' ext=' + ext + ' → archive_type=' + archiveType);\n\nreturn {\n  json: { ...item, _archive_type: archiveType, _is_likely_screenshot: isLikelyScreenshot },\n  binary: $input.item.binary\n};"
+      },
+      "id": "ocr-classify-tipo-archiv",
+      "name": "Clasificar Tipo Archivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-screenshot-v3",
+              "leftValue": "={{ $json._archive_type }}",
+              "rightValue": "screenshot",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ocr-is-screenshot-1",
+      "name": "¿Es Screenshot?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2800,
+        1500
+      ]
     }
   ],
   "connections": {
     "Webhook Reprocesador": {
-      "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Validate Payload": {
-      "main": [[{ "node": "GET Supabase Invoice", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "GET Supabase Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "GET Supabase Invoice": {
-      "main": [[{ "node": "Normalize Invoice", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normalize Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Normalize Invoice": {
-      "main": [[{ "node": "¿Row Existe + Reprocessable?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "¿Row Existe + Reprocessable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "¿Row Existe + Reprocessable?": {
       "main": [
-        [{ "node": "Google Drive Download", "type": "main", "index": 0 }],
-        [{ "node": "Respond Skipped", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Google Drive Download",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Google Drive Download": {
-      "main": [[{ "node": "Preparar Input OCR Cascade", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Preparar Input OCR Cascade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Preparar Input OCR Cascade": {
-      "main": [[{ "node": "Call OCR Cascade Webhook", "type": "main", "index": 0 }]]
-    },
-    "Call OCR Cascade Webhook": {
-      "main": [[{ "node": "Build PATCH Body", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build PATCH Body": {
-      "main": [[{ "node": "PATCH Supabase Invoice", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "PATCH Supabase Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "PATCH Supabase Invoice": {
-      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Convertir a Visión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convertir a Visión": {
+      "main": [
+        [
+          {
+            "node": "Clasificar Tipo Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Visión": {
+      "main": [
+        [
+          {
+            "node": "¿Visión Suficiente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Visión Suficiente?": {
+      "main": [
+        [
+          {
+            "node": "Elegir Mejor Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Llamar GPT-4o Visión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar Gemini Visión": {
+      "main": [
+        [
+          {
+            "node": "Parsear Visión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar GPT-4o Visión": {
+      "main": [
+        [
+          {
+            "node": "Parsear GPT-4o Visión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear GPT-4o Visión": {
+      "main": [
+        [
+          {
+            "node": "Elegir Mejor Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar Mistral OCR": {
+      "main": [
+        [
+          {
+            "node": "Reconciliar Gemini vs Mistral OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir AI Usage Records": {
+      "main": [
+        [
+          {
+            "node": "Build PATCH Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar Tipo Archivo": {
+      "main": [
+        [
+          {
+            "node": "¿Es Screenshot?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Screenshot?": {
+      "main": [
+        [
+          {
+            "node": "Llamar GPT-4o Visión",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Llamar Gemini Visión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elegir Mejor Resultado": {
+      "main": [
+        [
+          {
+            "node": "Llamar Mistral OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconciliar Gemini vs Mistral OCR": {
+      "main": [
+        [
+          {
+            "node": "Construir AI Usage Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
