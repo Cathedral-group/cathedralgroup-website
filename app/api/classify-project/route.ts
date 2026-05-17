@@ -439,7 +439,7 @@ export async function POST(request: NextRequest) {
       return top.project_id !== targetProjectId && top.invoice_count >= 5
     }
 
-    // Gate 1: Literal code unique
+    // Gate 1: Literal code unique → SUGGEST (David sesión 18/05: NUNCA auto, plantilla copiada riesgo)
     if (t0_codesActive.length === 1) {
       const code = t0_codesActive[0]
       const project = activeProjects.find((p) => p.code === code || p.codigo_corto === code)
@@ -448,18 +448,18 @@ export async function POST(request: NextRequest) {
           project_id: project.id,
           project_code: project.code,
           match_type: 'code_literal',
-          confidence: 0.99,
-          action: 'auto_assign',
-          reasoning: `Código literal "${code}" encontrado en texto. Único proyecto activo coincidente (${project.code}). Historial proveedor no contradice. LLM omitido (Tier 0).`,
+          confidence: 0.85,
+          action: 'suggest',
+          reasoning: `SUGERENCIA: Código literal "${code}" encontrado en texto, único proyecto activo coincidente (${project.code}). Historial proveedor no contradice. ⚠️ NO auto-asignado por riesgo plantilla copiada (proveedor pudo reusar template factura vieja). Admin valida 1-click.`,
           alternatives: [{
             project_id: project.id,
             project_code: project.code,
-            confidence: 0.99,
-            reason: 'Literal code match unique active',
+            confidence: 0.85,
+            reason: 'Literal code match unique active (review template copy risk)',
           }],
           _server_enforcement: {
             defensive_gate_applied: false,
-            gate_met: 'literal_code',
+            gate_met: 'literal_code_suggest',
             downgrade_reason: null,
             literal_codes_in_text: t0_codesFound,
             literal_codes_active: t0_codesActive,
@@ -470,6 +470,8 @@ export async function POST(request: NextRequest) {
             skipped_llm: true,
             tier: 0,
             gate_met: 'literal_code',
+            never_auto_assign: true,
+            template_copy_risk_acknowledged: true,
             supplier_history_checked: true,
             contradiction_detected: false,
             candidates_considered: activeProjects.length,
@@ -495,18 +497,18 @@ export async function POST(request: NextRequest) {
             project_id: project.id,
             project_code: project.code,
             match_type: 'address_match',
-            confidence: 0.95,
-            action: 'auto_assign',
-            reasoning: `Dirección "${hint.street} ${hint.effective_num}" único match activo (${project.code}). Sin typo coercion. Historial proveedor no contradice. LLM omitido (Tier 0).`,
+            confidence: 0.80,
+            action: 'suggest',
+            reasoning: `SUGERENCIA: Dirección "${hint.street} ${hint.effective_num}" único match activo (${project.code}). Sin typo coercion. Historial proveedor no contradice. ⚠️ NO auto-asignado por riesgo plantilla copiada. Admin valida 1-click.`,
             alternatives: [{
               project_id: project.id,
               project_code: project.code,
-              confidence: 0.95,
-              reason: 'Address exact unique active',
+              confidence: 0.80,
+              reason: 'Address exact unique active (review template copy risk)',
             }],
             _server_enforcement: {
               defensive_gate_applied: false,
-              gate_met: 'address_match',
+              gate_met: 'address_match_suggest',
               downgrade_reason: null,
               literal_codes_in_text: t0_codesFound,
               literal_codes_active: t0_codesActive,
@@ -520,6 +522,8 @@ export async function POST(request: NextRequest) {
               skipped_llm: true,
               tier: 0,
               gate_met: 'address_match',
+              never_auto_assign: true,
+              template_copy_risk_acknowledged: true,
               supplier_history_checked: true,
               contradiction_detected: false,
               candidates_considered: activeProjects.length,
@@ -654,33 +658,37 @@ export async function POST(request: NextRequest) {
 
   const isWorkerSource = (body.source || '').toLowerCase() === 'worker_portal'
 
+  // David SUPREMA sesión 18/05: auto_assign efectivamente DESACTIVADO.
+  // Todas las clasificaciones (LLM + Tier 0) → suggest con project_id pre-rellenado.
+  // Admin valida 1-click siempre. Riesgo plantilla copiada / OCR errors / supplier
+  // multi-project nunca aceptado como auto sin revisión humana.
   let serverEnforcedAction = parsed.action as string
   let serverDowngradedReason = ''
   let gateMet: 'literal_code' | 'address_match' | null = null
 
   if (parsed.action === 'auto_assign') {
+    // Downgrade siempre a suggest, preservar project_id como sugerencia
+    serverEnforcedAction = 'suggest'
     if (isWorkerSource) {
-      serverEnforcedAction = 'suggest'
       serverDowngradedReason = 'worker_portal_source_never_auto'
     } else if (literalMatchesAssigned) {
       gateMet = 'literal_code'
+      serverDowngradedReason = 'never_auto_assign_template_copy_risk'
     } else if (addressMatchesAssigned) {
       gateMet = 'address_match'
+      serverDowngradedReason = 'never_auto_assign_template_copy_risk'
+    } else if (literalCodesFound.length === 0 && addressHints.length === 0) {
+      serverDowngradedReason = 'no_literal_code_no_address_match'
+    } else if (matchedActiveCodes.length > 1) {
+      serverDowngradedReason = 'multiple_literal_codes_ambiguous'
+    } else if (distinctParsedStreets.size > 1) {
+      serverDowngradedReason = 'multiple_distinct_streets_in_text'
+    } else if (addressHints.some((h) => h.coerced)) {
+      serverDowngradedReason = 'address_coerced_typo_guard'
+    } else if (addressHints.some((h) => h.candidates_count > 1)) {
+      serverDowngradedReason = 'address_multiple_candidates'
     } else {
-      serverEnforcedAction = 'suggest'
-      if (literalCodesFound.length === 0 && addressHints.length === 0) {
-        serverDowngradedReason = 'no_literal_code_no_address_match'
-      } else if (matchedActiveCodes.length > 1) {
-        serverDowngradedReason = 'multiple_literal_codes_ambiguous'
-      } else if (distinctParsedStreets.size > 1) {
-        serverDowngradedReason = 'multiple_distinct_streets_in_text'
-      } else if (addressHints.some((h) => h.coerced)) {
-        serverDowngradedReason = 'address_coerced_typo_guard'
-      } else if (addressHints.some((h) => h.candidates_count > 1)) {
-        serverDowngradedReason = 'address_multiple_candidates'
-      } else {
-        serverDowngradedReason = 'no_strong_signal_unique_match'
-      }
+      serverDowngradedReason = 'never_auto_assign_default_policy'
     }
   }
 

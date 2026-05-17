@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-05-17T22:00:49.077Z",
+  "updatedAt": "2026-05-17T22:59:31.900Z",
   "createdAt": "2026-05-17T19:49:35.683Z",
   "id": "eWjMM0eMN7Ua5g2E",
   "name": "Cathedral · Reprocesador (UPDATE in-place)",
@@ -132,7 +132,7 @@
         200
       ],
       "parameters": {
-        "jsCode": "const ocr = $input.first().json;\n// Reprocesador ya pasa por Normalize Invoice que tiene reprocess_attempts del row Supabase\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (invoice.reprocess_attempts || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\n\n// === Project Classifier Agent integration ===\nlet classifyData = null;\ntry {\n  classifyData = $('Classify Project').first().json;\n} catch (e) { classifyData = null; }\nconst classifyAction = classifyData && classifyData.action ? classifyData.action : null;\nif (classifyAction === 'auto_assign' && classifyData.project_id) {\n  patchBody.project_id = classifyData.project_id;\n  patchBody.proyecto_code = classifyData.project_code || null;\n  patchBody.proyecto_confianza = classifyData.confidence || null;\n} else if (classifyAction === 'suggest' && classifyData.project_code) {\n  patchBody.needs_review = true;\n  const sugg = `§PROYECTO_SUGERIDO:${classifyData.project_code}:${Math.round((classifyData.confidence || 0) * 100)}%:${(classifyData.reasoning || '').slice(0, 120)}`;\n  patchBody.ai_razones = [...(invoice.ai_razones || []), sugg];\n} else if (classifyAction === 'needs_review') {\n  patchBody.needs_review = true;\n}\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
+        "jsCode": "const ocr = $input.first().json;\n// Reprocesador ya pasa por Normalize Invoice que tiene reprocess_attempts del row Supabase\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (invoice.reprocess_attempts || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\n\n// === Project Classifier Agent integration ===\nlet classifyData = null;\ntry {\n  classifyData = $('Classify Project').first().json;\n} catch (e) { classifyData = null; }\nconst classifyAction = classifyData && classifyData.action ? classifyData.action : null;\n// David sesión 18/05: action='suggest' SI rellena project_id en BD (asignación tentativa)\n// + needs_review=true para que admin valide 1-click confirm o cambie.\n// action='auto_assign' efectivamente desactivado (Tier 0 ahora suggest, server gate downgrade siempre).\nif (classifyAction === 'auto_assign' && classifyData.project_id) {\n  // Caso raro post-refactor 18/05: si llega → confiable, asignar sin needs_review\n  patchBody.project_id = classifyData.project_id;\n  patchBody.proyecto_code = classifyData.project_code || null;\n  patchBody.proyecto_confianza = classifyData.confidence || null;\n} else if (classifyAction === 'suggest' && classifyData.project_id) {\n  // Filtro 2 sugerencia: asignación tentativa + flag revisar\n  patchBody.project_id = classifyData.project_id;\n  patchBody.proyecto_code = classifyData.project_code || null;\n  patchBody.proyecto_confianza = classifyData.confidence || null;\n  patchBody.needs_review = true;\n  const sugg = `§REVISAR_ASIGNACION:${classifyData.project_code}:${Math.round((classifyData.confidence || 0) * 100)}%:${(classifyData.reasoning || '').slice(0, 150)}`;\n  patchBody.ai_razones = [...(invoice.ai_razones || []), sugg];\n} else if (classifyAction === 'suggest') {\n  // Suggest sin project_id concreto (raro)\n  patchBody.needs_review = true;\n} else if (classifyAction === 'needs_review') {\n  patchBody.needs_review = true;\n}\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
       }
     },
     {
@@ -783,9 +783,9 @@
   "staticData": null,
   "meta": null,
   "pinData": null,
-  "versionId": "9e82870b-b781-483c-8183-833d7b403f84",
-  "activeVersionId": "9e82870b-b781-483c-8183-833d7b403f84",
-  "versionCounter": 45,
+  "versionId": "ed5536ab-a3fd-4a8b-8576-02f0d8764abc",
+  "activeVersionId": "ed5536ab-a3fd-4a8b-8576-02f0d8764abc",
+  "versionCounter": 48,
   "triggerCount": 1,
   "shared": [
     {
@@ -808,9 +808,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-05-17T22:00:49.078Z",
-    "createdAt": "2026-05-17T22:00:49.078Z",
-    "versionId": "9e82870b-b781-483c-8183-833d7b403f84",
+    "updatedAt": "2026-05-17T22:59:31.904Z",
+    "createdAt": "2026-05-17T22:59:31.904Z",
+    "versionId": "ed5536ab-a3fd-4a8b-8576-02f0d8764abc",
     "workflowId": "eWjMM0eMN7Ua5g2E",
     "nodes": [
       {
@@ -938,7 +938,7 @@
           200
         ],
         "parameters": {
-          "jsCode": "const ocr = $input.first().json;\n// Reprocesador ya pasa por Normalize Invoice que tiene reprocess_attempts del row Supabase\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (invoice.reprocess_attempts || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\n\n// === Project Classifier Agent integration ===\nlet classifyData = null;\ntry {\n  classifyData = $('Classify Project').first().json;\n} catch (e) { classifyData = null; }\nconst classifyAction = classifyData && classifyData.action ? classifyData.action : null;\nif (classifyAction === 'auto_assign' && classifyData.project_id) {\n  patchBody.project_id = classifyData.project_id;\n  patchBody.proyecto_code = classifyData.project_code || null;\n  patchBody.proyecto_confianza = classifyData.confidence || null;\n} else if (classifyAction === 'suggest' && classifyData.project_code) {\n  patchBody.needs_review = true;\n  const sugg = `§PROYECTO_SUGERIDO:${classifyData.project_code}:${Math.round((classifyData.confidence || 0) * 100)}%:${(classifyData.reasoning || '').slice(0, 120)}`;\n  patchBody.ai_razones = [...(invoice.ai_razones || []), sugg];\n} else if (classifyAction === 'needs_review') {\n  patchBody.needs_review = true;\n}\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
+          "jsCode": "const ocr = $input.first().json;\n// Reprocesador ya pasa por Normalize Invoice que tiene reprocess_attempts del row Supabase\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (invoice.reprocess_attempts || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\n\n// === Project Classifier Agent integration ===\nlet classifyData = null;\ntry {\n  classifyData = $('Classify Project').first().json;\n} catch (e) { classifyData = null; }\nconst classifyAction = classifyData && classifyData.action ? classifyData.action : null;\n// David sesión 18/05: action='suggest' SI rellena project_id en BD (asignación tentativa)\n// + needs_review=true para que admin valide 1-click confirm o cambie.\n// action='auto_assign' efectivamente desactivado (Tier 0 ahora suggest, server gate downgrade siempre).\nif (classifyAction === 'auto_assign' && classifyData.project_id) {\n  // Caso raro post-refactor 18/05: si llega → confiable, asignar sin needs_review\n  patchBody.project_id = classifyData.project_id;\n  patchBody.proyecto_code = classifyData.project_code || null;\n  patchBody.proyecto_confianza = classifyData.confidence || null;\n} else if (classifyAction === 'suggest' && classifyData.project_id) {\n  // Filtro 2 sugerencia: asignación tentativa + flag revisar\n  patchBody.project_id = classifyData.project_id;\n  patchBody.proyecto_code = classifyData.project_code || null;\n  patchBody.proyecto_confianza = classifyData.confidence || null;\n  patchBody.needs_review = true;\n  const sugg = `§REVISAR_ASIGNACION:${classifyData.project_code}:${Math.round((classifyData.confidence || 0) * 100)}%:${(classifyData.reasoning || '').slice(0, 150)}`;\n  patchBody.ai_razones = [...(invoice.ai_razones || []), sugg];\n} else if (classifyAction === 'suggest') {\n  // Suggest sin project_id concreto (raro)\n  patchBody.needs_review = true;\n} else if (classifyAction === 'needs_review') {\n  patchBody.needs_review = true;\n}\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
         }
       },
       {
@@ -1583,10 +1583,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-05-17T22:00:49.638Z",
-        "id": 1201,
+        "createdAt": "2026-05-17T22:59:32.405Z",
+        "id": 1203,
         "workflowId": "eWjMM0eMN7Ua5g2E",
-        "versionId": "9e82870b-b781-483c-8183-833d7b403f84",
+        "versionId": "ed5536ab-a3fd-4a8b-8576-02f0d8764abc",
         "event": "activated",
         "userId": "5042c286-f041-41f7-9ed8-f6cc3c48265e"
       }
