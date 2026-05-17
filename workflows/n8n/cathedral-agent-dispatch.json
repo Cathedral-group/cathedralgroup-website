@@ -1,0 +1,382 @@
+{
+  "name": "Cathedral-Agent-Dispatch (Op 2 event-driven)",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Dispatch",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cathedral-agent-dispatch-791d17ed-d20e-4be0-b532-f7caee3ba700",
+        "responseMode": "responseNode",
+        "options": {},
+        "onError": "continueRegularOutput"
+      },
+      "webhookId": "cathedral-agent-dispatch-webhook-001"
+    },
+    {
+      "id": "validate-payload",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nif (!body || !body.dispatch_id) {\n  throw new Error('Missing dispatch_id in webhook body');\n}\nreturn [{ json: { dispatch_id: body.dispatch_id } }];"
+      }
+    },
+    {
+      "id": "claim-dispatch",
+      "name": "Claim Dispatch Atomic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/agent_dispatch_queue?id=eq.{{ $json.dispatch_id }}&status=eq.pending",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"running\",\n  \"started_at\": \"{{ $now.toISO() }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        },
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "5xRFcnO4yGdhD4pN",
+          "name": "Supabase Service Role - Cathedral"
+        }
+      }
+    },
+    {
+      "id": "if-claimed",
+      "name": "Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        840,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "claim-check",
+              "leftValue": "={{ $json.id || 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "anthropic-diagnose",
+      "name": "Anthropic Haiku Diagnose",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1040,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1024, system: 'Eres Cathedral Health Diagnose Agent. Recibir\u00e1s un incident detectado por monitoring pasivo Cathedral. Devuelve SOLO JSON estricto con shape: { \"diagnosis\": \"texto\", \"proposed_fix\": \"texto\", \"confidence\": 0.5, \"severity\": \"low|medium|critical\" }. NUNCA auto-aplica fix. David aprueba manual desde banner admin.', messages: [{ role: 'user', content: 'Incident: agent=' + $('Claim Dispatch Atomic').first().json.agent_name + ' event=' + $('Claim Dispatch Atomic').first().json.event_type + ' severity=' + $('Claim Dispatch Atomic').first().json.severity + ' payload=' + JSON.stringify($('Claim Dispatch Atomic').first().json.trigger_payload || {}) }] }) }}",
+        "options": {
+          "timeout": 60000
+        },
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9mYndolLYuCwoH8E",
+          "name": "Anthropic API - Cathedral Agents"
+        }
+      }
+    },
+    {
+      "id": "parse-cost",
+      "name": "Parse + Cost",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        220
+      ],
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nlet text = resp.content?.[0]?.text || '{}';\n// Strip markdown json wrapper if present\ntext = text.replace(/^```(?:json)?\\s*/, '').replace(/```\\s*$/, '').trim();\nlet parsed = {};\ntry { parsed = JSON.parse(text); } catch (e) { parsed = { diagnosis: text.slice(0, 500), parse_failed: true }; }\nconst inputTokens = resp.usage?.input_tokens || 0;\nconst outputTokens = resp.usage?.output_tokens || 0;\nconst costUsd = (inputTokens / 1e6 * 1.0) + (outputTokens / 1e6 * 5.0);\nconst dispatch = $('Claim Dispatch Atomic').first().json || {};\nreturn [{\n  json: {\n    dispatch_id: dispatch.id,\n    agent_name: dispatch.agent_name,\n    diagnosis: (parsed.diagnosis || 'unknown').slice(0, 4000),\n    proposed_fix: parsed.proposed_fix ? String(parsed.proposed_fix).slice(0, 2000) : null,\n    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : null,\n    severity: parsed.severity || dispatch.severity,\n    tokens_used: inputTokens + outputTokens,\n    cost_usd: Math.round(costUsd * 100000) / 100000\n  }\n}];"
+      }
+    },
+    {
+      "id": "insert-diagnosis",
+      "name": "INSERT agent_diagnoses",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1440,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/agent_diagnoses",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ dispatch_id: $json.dispatch_id, agent_name: $json.agent_name, trigger_source: 'event', trigger_context: {}, diagnosis: $json.diagnosis, proposed_fix: $json.proposed_fix, confidence: $json.confidence, tokens_used: $json.tokens_used, cost_usd: $json.cost_usd, model_version: 'claude-haiku-4-5', status: 'pending' }) }}",
+        "options": {},
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "5xRFcnO4yGdhD4pN",
+          "name": "Supabase Service Role - Cathedral"
+        }
+      }
+    },
+    {
+      "id": "update-queue-done",
+      "name": "UPDATE queue done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1640,
+        220
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/agent_dispatch_queue?id=eq.{{ $('Parse + Cost').first().json.dispatch_id }}",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'done', completed_at: new Date().toISOString(), cost_usd: $('Parse + Cost').first().json.cost_usd, diagnosis: $('Parse + Cost').first().json.diagnosis, proposed_fix: $('Parse + Cost').first().json.proposed_fix }) }}",
+        "options": {},
+        "genericAuthType": "httpCustomAuth"
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "5xRFcnO4yGdhD4pN",
+          "name": "Supabase Service Role - Cathedral"
+        }
+      }
+    },
+    {
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1840,
+        220
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, dispatch_id: $('Parse + Cost').first().json.dispatch_id, diagnosis_inserted: true, cost_usd: $('Parse + Cost').first().json.cost_usd }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "respond-skipped",
+      "name": "Respond Skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1040,
+        400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, skipped: true, reason: 'already_processed_or_circuit_broken' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Dispatch": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Claim Dispatch Atomic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Dispatch Atomic": {
+      "main": [
+        [
+          {
+            "node": "Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Anthropic Haiku Diagnose",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Haiku Diagnose": {
+      "main": [
+        [
+          {
+            "node": "Parse + Cost",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + Cost": {
+      "main": [
+        [
+          {
+            "node": "INSERT agent_diagnoses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "INSERT agent_diagnoses": {
+      "main": [
+        [
+          {
+            "node": "UPDATE queue done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPDATE queue done": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "executionTimeout": 120
+  }
+}
