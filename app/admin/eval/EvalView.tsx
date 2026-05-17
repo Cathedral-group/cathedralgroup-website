@@ -235,7 +235,7 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
               <span className="font-semibold text-neutral-700">Forensic:</span> % con análisis anti-fraude completado (ver dashboard Forensic).
             </div>
             <div className="bg-neutral-50 rounded p-2">
-              <span className="font-semibold text-neutral-700">Confidence:</span> certeza media de la IA al extraer datos (0,93 = muy alta, 0,5 = baja).
+              <span className="font-semibold text-neutral-700">Confianza:</span> certeza media de la IA al extraer datos (0,93 = muy alta, 0,5 = baja).
             </div>
           </div>
         </div>
@@ -312,7 +312,7 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
                 </p>
               </div>
               <div>
-                <p className="text-[10px] uppercase text-neutral-400">Workflows activos</p>
+                <p className="text-[10px] uppercase text-neutral-400">Flujos activos</p>
                 <p className={`font-mono font-bold ${health.components.workflows.active < 6 ? 'text-amber-600' : 'text-green-600'}`}>
                   {health.components.workflows.active}/{health.components.workflows.total}
                 </p>
@@ -376,7 +376,7 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
                 color={(forensic.cobertura_pct ?? 0) < 50 ? 'text-red-600' : 'text-green-600'}
               />
               <KPI
-                label="Confidence avg"
+                label="Confianza media"
                 value={rev.confidence_avg != null ? rev.confidence_avg.toFixed(3) : '--'}
                 color={
                   (rev.confidence_avg ?? 0) >= 0.9
@@ -443,8 +443,8 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
                 </div>
                 <div className="mt-3 pt-3 border-t">
                   <p className="text-xs text-neutral-500">
-                    Confidence: avg <span className="font-mono">{rev.confidence_avg?.toFixed(3) ?? '--'}</span> · min{' '}
-                    <span className="font-mono">{rev.confidence_min?.toFixed(3) ?? '--'}</span> · max{' '}
+                    Confianza: media <span className="font-mono">{rev.confidence_avg?.toFixed(3) ?? '--'}</span> · mín{' '}
+                    <span className="font-mono">{rev.confidence_min?.toFixed(3) ?? '--'}</span> · máx{' '}
                     <span className="font-mono">{rev.confidence_max?.toFixed(3) ?? '--'}</span>
                   </p>
                 </div>
@@ -454,7 +454,7 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
             {/* Forensic + Providers */}
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div className="bg-white rounded-lg border border-neutral-200 p-4">
-                <h2 className="text-sm font-bold">Score Forensic</h2>
+                <h2 className="text-sm font-bold">Puntuación forense</h2>
                 <p className="text-[11px] text-neutral-400 mb-3 leading-snug">
                   Resultado del análisis anti-fraude por factura (0-100). Score &lt;50 = crítico, posible fraude.
                   50-79 = revisar. ≥80 = limpia.
@@ -483,9 +483,9 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
               <div className="bg-white rounded-lg border border-neutral-200 p-4">
                 <h2 className="text-sm font-bold">Distribución</h2>
                 <p className="text-[11px] text-neutral-400 mb-3 leading-snug">
-                  AI Provider = qué modelo procesó cada factura (Gemini, GPT-4o, Mistral). Doc Type = tipo de documento detectado.
+                  Proveedor IA = qué modelo procesó cada factura (Gemini, GPT-4o, Mistral). Tipo de documento = tipo detectado.
                 </p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">AI Provider</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Proveedor IA</p>
                 <div className="text-sm font-mono space-y-1 mb-3">
                   {Object.entries(current.providers ?? {}).map(([k, v]) => (
                     <div key={k} className="flex justify-between border-b py-0.5">
@@ -494,7 +494,7 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
                     </div>
                   ))}
                 </div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Doc type</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Tipo de documento</p>
                 <div className="text-sm font-mono space-y-1">
                   {Object.entries(current.doctypes ?? {})
                     .sort((a, b) => (b[1] as number) - (a[1] as number))
@@ -589,8 +589,8 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
                       <thead>
                         <tr className="text-neutral-500">
                           <th className="text-left py-1">Mes</th>
-                          <th className="text-left py-1">Provider</th>
-                          <th className="text-right py-1">Calls</th>
+                          <th className="text-left py-1">Proveedor</th>
+                          <th className="text-right py-1">Llamadas</th>
                           <th className="text-right py-1">Tokens</th>
                           <th className="text-right py-1">Coste €</th>
                         </tr>
@@ -646,9 +646,9 @@ export default function EvalView({ snapshot7, snapshot30, snapshot365, history }
                   <th className="text-left p-2">Fecha</th>
                   <th className="text-left p-2">Tipo</th>
                   <th className="text-right p-2">Total</th>
-                  <th className="text-right p-2">Needs Rev %</th>
-                  <th className="text-right p-2">Confidence</th>
-                  <th className="text-right p-2">Forensic %</th>
+                  <th className="text-right p-2">% Revisión</th>
+                  <th className="text-right p-2">Confianza</th>
+                  <th className="text-right p-2">% Forense</th>
                   <th className="text-left p-2">Notas</th>
                 </tr>
               </thead>

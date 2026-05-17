@@ -256,11 +256,11 @@ export default function SistemaView() {
       <section className="mb-8">
         <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-500 mb-4">🤖 Automatizaciones activas</h2>
         <div className="p-4 bg-white border border-neutral-200 rounded text-xs text-neutral-600 leading-relaxed">
-          <p className="mb-2"><strong>Workflow general (n8n)</strong>: cada 5 minutos consulta los 7 buzones de Gmail
+          <p className="mb-2"><strong>Flujo general (n8n)</strong>: cada 5 minutos consulta los 7 buzones de Gmail
           (d.vieco@, info@, administracion@, jm.lozano@, j.rivera@, cathedralhouseinvest@, cathedralhouseinvestment@).
           Cuando llega un email con adjunto, lo procesa con GPT-4o, lo sube a Drive y lo inserta en esta base de datos.</p>
-          <p className="mb-2"><strong>Healthcheck diario</strong>: a las 9:00 hora Madrid envía email a d.vieco@ con resumen del día anterior (procesadas, errores, importe total).</p>
-          <p className="mb-3"><strong>Watchdog</strong>: cada hora 8-22 (L-V Madrid) verifica que el workflow general procesó algo en las últimas 2h. Si no, envía alerta automática.</p>
+          <p className="mb-2"><strong>Comprobación de estado diaria</strong>: a las 9:00 hora Madrid envía email a d.vieco@ con resumen del día anterior (procesadas, errores, importe total).</p>
+          <p className="mb-3"><strong>Vigilante</strong>: cada hora 8-22 (L-V Madrid) verifica que el flujo general procesó algo en las últimas 2h. Si no, envía alerta automática.</p>
           <p className="text-neutral-500 italic">
             La salud arriba se infiere automáticamente de la actividad real registrada en Supabase. Si necesitas ver el detalle interno de los workflows (ejecuciones, errores específicos, configuración), accede directamente a&nbsp;
             <a href="https://n8n.cathedralgroup.es" target="_blank" rel="noreferrer" className="underline font-semibold text-primary">n8n.cathedralgroup.es</a>
@@ -314,7 +314,7 @@ function OperationsActions() {
           }
           if (action === 'forensic_rpcs_check') {
             const failed = json.result?.failed_count ?? 0
-            return failed > 0 ? `⚠️ ${failed} RPC(s) con error` : `OK · 7/7 RPCs healthy`
+            return failed > 0 ? `⚠️ ${failed} RPC(s) con error` : `OK · 7/7 RPCs correctos`
           }
           if (action === 'create_test_notification') {
             return `OK · notification creada (ver banner)`

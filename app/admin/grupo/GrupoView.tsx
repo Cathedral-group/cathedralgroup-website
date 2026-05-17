@@ -376,7 +376,7 @@ export default function GrupoView() {
 
               <div className="grid grid-cols-2 gap-4 mt-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Parent company</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Empresa matriz</label>
                   <select
                     value={createForm.parent_company_id}
                     onChange={(e) => setCreateForm({ ...createForm, parent_company_id: e.target.value })}
