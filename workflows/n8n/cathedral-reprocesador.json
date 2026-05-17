@@ -8,22 +8,29 @@
       "typeVersion": 2.1,
       "position": [240, 300],
       "parameters": {
+        "authentication": "headerAuth",
         "httpMethod": "POST",
         "path": "cathedral-reprocesador-9a7e2d4b-1f8c-4d3e-b0a9-c5f2e8d7b3a1",
         "responseMode": "responseNode",
         "options": {},
         "onError": "continueRegularOutput"
       },
-      "webhookId": "cathedral-reprocesador-webhook-001"
+      "webhookId": "cathedral-reprocesador-webhook-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xrnnrxUJLJVd6Lmb",
+          "name": "Cathedral Internal Token"
+        }
+      }
     },
     {
-      "id": "verify-hmac",
-      "name": "Verify HMAC + Validate",
+      "id": "validate-payload",
+      "name": "Validate Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [440, 300],
       "parameters": {
-        "jsCode": "const crypto = require('crypto');\nconst input = $input.first().json;\nconst headers = input.headers || {};\nconst body = input.body || {};\n\nconst secret = $env.CATHEDRAL_REPROCESADOR_HMAC_SECRET;\nif (!secret) throw new Error('CATHEDRAL_REPROCESADOR_HMAC_SECRET not configured in n8n env');\n\nconst sig = headers['x-hmac-signature'] || headers['X-Hmac-Signature'];\nif (!sig) throw new Error('Missing x-hmac-signature header');\n\nconst ts = headers['x-hmac-timestamp'] || headers['X-Hmac-Timestamp'];\nif (!ts) throw new Error('Missing x-hmac-timestamp header');\n\nconst tsNum = parseInt(ts, 10);\nconst nowSec = Math.floor(Date.now() / 1000);\nif (Math.abs(nowSec - tsNum) > 300) throw new Error('HMAC timestamp drift > 300s');\n\nconst payload = `${ts}.${JSON.stringify(body)}`;\nconst expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');\nconst expectedHeader = `sha256=${expected}`;\nif (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedHeader))) {\n  throw new Error('HMAC signature mismatch');\n}\n\nconst targetId = body.target_invoice_id;\nif (!targetId || typeof targetId !== 'string') throw new Error('Missing target_invoice_id');\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nif (!uuidRe.test(targetId)) throw new Error('Invalid target_invoice_id format (must be uuid)');\n\nreturn [{ json: { target_invoice_id: targetId, trigger_source: body.trigger_source || 'unknown' } }];"
+        "jsCode": "const body = $input.first().json.body || {};\nconst targetId = body.target_invoice_id;\nif (!targetId || typeof targetId !== 'string') throw new Error('Missing target_invoice_id');\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nif (!uuidRe.test(targetId)) throw new Error('Invalid target_invoice_id format (must be uuid)');\nreturn [{ json: { target_invoice_id: targetId, trigger_source: body.trigger_source || 'unknown' } }];"
       }
     },
     {
@@ -32,9 +39,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [640, 300],
+      "alwaysOutputData": true,
       "parameters": {
         "method": "GET",
-        "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/invoices?id=eq.{{ $json.target_invoice_id }}&select=id,drive_file_id,drive_url,email_message_id,email_account,file_hash,concept,ai_data,ai_confidence,reprocess_attempts,manually_edited,review_status,original_filename,filename",
+        "url": "=https://cpqsnajuypgjjapvbqsr.supabase.co/rest/v1/invoices?id=eq.{{ $json.target_invoice_id }}&select=id,drive_file_id,drive_url,email_message_id,email_account,file_hash,concept,ai_data,ai_confidence,reprocess_attempts,manually_edited,review_status,original_filename",
         "authentication": "genericCredentialType",
         "sendHeaders": true,
         "headerParameters": {
@@ -53,32 +61,30 @@
       }
     },
     {
+      "id": "normalize-invoice",
+      "name": "Normalize Invoice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [840, 300],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst target_invoice_id = $('Validate Payload').first().json.target_invoice_id;\nfunction skip(reason) { return [{ json: { found: false, target_invoice_id, drive_file_id: '', manually_edited: false, reprocess_attempts: 0, should_reprocess: false, skip_reason: reason } }]; }\nif (items.length === 0) return skip('no_supabase_items');\nconst raw = items[0].json;\nconst row = Array.isArray(raw) ? raw[0] : raw;\nif (!row || !row.id) return skip('row_not_found');\nconst driveOk = typeof row.drive_file_id === 'string' && row.drive_file_id.length > 0;\nconst notEdited = row.manually_edited !== true;\nconst attemptsOk = (row.reprocess_attempts || 0) < 3;\nconst notReviewed = !(row.review_status === 'revisado' || row.review_status === 'confirmado');\nconst should_reprocess = driveOk && notEdited && attemptsOk && notReviewed;\nlet reason = '';\nif (!driveOk) reason = 'no_drive_file_id';\nelse if (!notEdited) reason = 'manually_edited';\nelse if (!attemptsOk) reason = 'attempts_cap_reached';\nelse if (!notReviewed) reason = 'already_reviewed';\nreturn [{ json: { found: true, ...row, should_reprocess, skip_reason: reason || null } }];"
+      }
+    },
+    {
       "id": "check-row-exists",
       "name": "¿Row Existe + Reprocessable?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [840, 300],
+      "position": [1040, 300],
       "parameters": {
         "conditions": {
           "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
           "conditions": [
             {
-              "id": "has-drive-file",
-              "leftValue": "={{ $json.drive_file_id }}",
-              "rightValue": "",
-              "operator": { "type": "string", "operation": "notEmpty" }
-            },
-            {
-              "id": "not-manually-edited",
-              "leftValue": "={{ $json.manually_edited }}",
+              "id": "should-reprocess",
+              "leftValue": "={{ $json.should_reprocess }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "notEqual" }
-            },
-            {
-              "id": "attempts-below-cap",
-              "leftValue": "={{ ($json.reprocess_attempts || 0) }}",
-              "rightValue": 3,
-              "operator": { "type": "number", "operation": "lt" }
+              "operator": { "type": "boolean", "operation": "equals" }
             }
           ],
           "combinator": "and"
@@ -96,7 +102,7 @@
         "operation": "download",
         "fileId": {
           "__rl": true,
-          "value": "={{ $('GET Supabase Invoice').first().json[0].drive_file_id }}",
+          "value": "={{ $('Normalize Invoice').first().json.drive_file_id }}",
           "mode": "id"
         },
         "options": {
@@ -117,7 +123,7 @@
       "typeVersion": 2,
       "position": [1240, 200],
       "parameters": {
-        "jsCode": "const invoice = $('GET Supabase Invoice').first().json[0];\nconst binary = $input.first().binary || {};\nconst dataBin = binary.data || {};\nreturn [{\n  json: {\n    supabase_id: invoice.id,\n    drive_file_id: invoice.drive_file_id,\n    email_message_id: invoice.email_message_id,\n    email_account: invoice.email_account,\n    fileName: invoice.filename || invoice.original_filename || 'reprocess.pdf',\n    originalFileName: invoice.original_filename || invoice.filename || 'reprocess.pdf',\n    fileHash: invoice.file_hash,\n    fileMime: dataBin.mimeType || 'application/pdf',\n    fileSize: dataBin.fileSize || 0,\n    _attachment_mime: dataBin.mimeType || 'application/pdf',\n    _reprocess_mode: true,\n    _reprocess_attempts_prev: invoice.reprocess_attempts || 0\n  },\n  binary: { data: dataBin }\n}];"
+        "jsCode": "const invoice = $('Normalize Invoice').first().json;\nconst binary = $input.first().binary || {};\nconst dataBin = binary.data || {};\nconst fileName = invoice.original_filename || 'reprocess.pdf';\nconst ext = (fileName.split('.').pop() || 'pdf').toLowerCase();\nconst mime = dataBin.mimeType || (ext === 'pdf' ? 'application/pdf' : `image/${ext}`);\nreturn [{\n  json: {\n    supabase_id: invoice.id,\n    drive_file_id: invoice.drive_file_id,\n    email_message_id: invoice.email_message_id,\n    email_account: invoice.email_account,\n    fileName,\n    originalFileName: fileName,\n    fileExtension: ext,\n    fileHash: invoice.file_hash,\n    fileMime: mime,\n    fileSize: dataBin.fileSize || 0,\n    binaryPropertyName: 'data',\n    _attachment_mime: mime,\n    _reprocess_mode: true,\n    _reprocess_attempts_prev: invoice.reprocess_attempts || 0\n  },\n  binary: { data: dataBin }\n}];"
       }
     },
     {
@@ -146,7 +152,7 @@
       "typeVersion": 2,
       "position": [1640, 200],
       "parameters": {
-        "jsCode": "const ocr = $input.first().json;\nconst prev = $('Preparar Input OCR Cascade').first().json;\nconst invoice = $('GET Supabase Invoice').first().json[0];\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (prev._reprocess_attempts_prev || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
+        "jsCode": "const ocr = $input.first().json;\nconst prev = $('Preparar Input OCR Cascade').first().json;\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (prev._reprocess_attempts_prev || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
       }
     },
     {
@@ -199,19 +205,22 @@
       "position": [1040, 400],
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, skipped: true, reason: 'protected_or_no_drive_file_or_attempts_cap', target_invoice_id: $('Verify HMAC + Validate').first().json.target_invoice_id }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, skipped: true, reason: 'protected_or_no_drive_file_or_attempts_cap', target_invoice_id: $('Validate Payload').first().json.target_invoice_id }) }}",
         "options": { "responseCode": 200 }
       }
     }
   ],
   "connections": {
     "Webhook Reprocesador": {
-      "main": [[{ "node": "Verify HMAC + Validate", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]]
     },
-    "Verify HMAC + Validate": {
+    "Validate Payload": {
       "main": [[{ "node": "GET Supabase Invoice", "type": "main", "index": 0 }]]
     },
     "GET Supabase Invoice": {
+      "main": [[{ "node": "Normalize Invoice", "type": "main", "index": 0 }]]
+    },
+    "Normalize Invoice": {
       "main": [[{ "node": "¿Row Existe + Reprocessable?", "type": "main", "index": 0 }]]
     },
     "¿Row Existe + Reprocessable?": {
@@ -246,19 +255,15 @@
     "availableInMCP": false
   },
   "_deployment_notes": {
-    "secret_generation": "openssl rand -hex 32 → save as CATHEDRAL_REPROCESADOR_HMAC_SECRET",
-    "secret_locations": [
-      "n8n env var (Hetzner docker container)",
-      "Vercel env var (for /api/invoices/reprocess to sign requests)",
-      "Hetzner /opt/cathedral/scripts/.env-reprocesador (for cron bash script)"
-    ],
-    "drive_credential": "REPLACE PLACEHOLDER_DRIVE_CRED_ID with actual n8n credential id (Google Drive OAuth2 d.vieco)",
+    "auth": "Bearer CATHEDRAL_INTERNAL_TOKEN via Webhook node authentication=headerAuth + credential xrnnrxUJLJVd6Lmb (existing). NO HMAC porque n8n Community no soporta $vars y $env requiere container restart (validator-refuted 17/05/2026)",
+    "drive_credential": "Google Drive OAuth2 id=MjQgmeWeSIGSjhrJ name='Google Drive account' (reused from workflow general)",
+    "ocr_subworkflow": "MChKC2AfyqpNzCAY · Cathedral · OCR Cascade (sub) · Sub Output JSON-only (safe cross-workflow binary)",
     "deploy_steps": [
-      "1. POST /api/v1/workflows (or /rest/workflows via cookie session)",
-      "2. POST /activate with versionId (post-create draft→active publish per feedback_n8n_draft_active.md)",
-      "3. Smoke test: curl HMAC-signed POST with known target_invoice_id (confidence<0.5, has drive_file_id)",
-      "4. Verify PATCH applied + reprocess_attempts incremented",
-      "5. NEVER touch via PUT /api/v1/workflows (use /rest/ cookie session) per feedback_n8n_no_put_api.md"
+      "1. POST /api/v1/workflows (CREATE NEW workflow, safe per feedback_n8n_no_put_api.md)",
+      "2. Capture workflowId from response",
+      "3. POST /rest/workflows/{id}/activate with {versionId} via cookie session (per feedback_n8n_draft_active.md)",
+      "4. Smoke test: curl POST with Authorization Bearer <CATHEDRAL_INTERNAL_TOKEN> + body {target_invoice_id: <UUID>}",
+      "5. Verify PATCH applied + reprocess_attempts incremented + ai_confidence updated"
     ]
   }
 }
