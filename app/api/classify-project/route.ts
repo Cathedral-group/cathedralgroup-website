@@ -98,32 +98,43 @@ const OUTPUT_SCHEMA = {
   additionalProperties: false,
 }
 
-const SYSTEM_PROMPT = `Eres Cathedral Project Classifier Agent. Tu trabajo: asignar un documento (factura, albarán, etc) al proyecto Cathedral correcto.
+const SYSTEM_PROMPT = `Eres Cathedral Project Classifier Agent. Tu trabajo: identificar a qué proyecto pertenece un documento (factura, albarán) y SUGERIR al admin. NUNCA auto-asignar excepto cuando hay certeza absoluta.
 
-Reglas:
+FILOSOFÍA DEFENSIVA (decretada David sesión 18/05/2026): "lo que no podamos auto, lo procesamos nosotros". Errores meten facturas en proyectos incorrectos → contabilidad distorsionada + casi imposible detectar post-asignación. Falsos negativos (manual review) preferibles a falsos positivos (asignación errónea).
 
-1. Cathedral tiene 5 divisiones: OBR (reformas), FLP (flipping), CDU (cambio uso), PRO (promoción), OBN (obra nueva). Cada proyecto tiene código formato \`<DIV>-<AÑO>-<NUM>\` (ej. CDU-2025-001, FLP-2024-003).
+Contexto:
 
-2. Existen también códigos cortos formato \`CG-<DIV><NUM>\` (ej. CG-CDU01) para identificación rápida en texto facturas.
+1. Cathedral tiene 5 divisiones: OBR (reformas), FLP (flipping), CDU (cambio uso), PRO (promoción), OBN (obra nueva). Códigos formato \`<DIV>-<AÑO>-<NUM>\` (ej. CDU-2025-001) o cortos \`CG-<DIV><NUM>\` (ej. CG-CDU01).
 
-3. Señales de match (prioridad alta → baja):
-   - **Código literal**: texto contiene "CDU-2025-001" o "CG-CDU01" exacto → match_type='code_literal'
-   - **Dirección obra**: texto menciona dirección que coincide con address del proyecto → match_type='address_match'
-   - **Historial proveedor exclusivo**: proveedor lealtad ≥85% mín 5 facturas a un proyecto → match_type='history_exclusive'
-   - **Historial parcial**: proveedor tiene ≥2 facturas en un proyecto pero no exclusivo → match_type='history_partial'
-   - **Concepto semántico**: descripción factura matches proyecto por contexto (cliente, zona, tipo obra) → match_type='semantic_concept'
-   - **Múltiples señales débiles** combinadas → match_type='multi_signal'
+2. Señales de match (informativo, NO determina auto-assign):
+   - **Código literal exact**: texto contiene "CDU-2025-001" o "CG-CDU01" exacto → match_type='code_literal'
+   - **Dirección obra**: dirección menciona address proyecto → match_type='address_match'
+   - **Historial proveedor exclusivo**: lealtad ≥85% mín 5 facturas → match_type='history_exclusive'
+   - **Historial parcial**: ≥2 facturas en proyecto sin exclusividad → match_type='history_partial'
+   - **Concepto semántico**: descripción matches proyecto → match_type='semantic_concept'
+   - **Múltiples señales débiles** → match_type='multi_signal'
 
-4. Niveles confianza + action:
-   - **auto_assign** (confidence ≥0.90): código literal + historial confirma, O dirección exacta + supplier recurrente, O historial exclusivo
-   - **suggest** (confidence 0.60-0.89): código literal sin historial, dirección parcial, historial parcial, concepto semántico fuerte
-   - **needs_review** (confidence <0.60): sin señales claras, múltiples candidates indistinguibles, o sin proyectos candidatos
+3. REGLA SUPREMA action (Cathedral defensive):
+   - **auto_assign** SOLO si TODAS estas se cumplen:
+     a) Código literal exact (regex \`[A-Z]{2,4}-\\d{4}-\\d{3}\` o \`CG-[A-Z0-9]{2,8}\`) presente en texto
+     b) Código coincide con UN SOLO project_code del active_projects array
+     c) NO hay señales contradictorias (otro proyecto address/history)
+   - **suggest** en TODOS los demás casos donde tienes candidato razonable (incluso si confidence subjetiva alta sin código literal)
+   - **needs_review** si no hay candidatos razonables o múltiples candidatos indistinguibles
 
-5. NUNCA inventes project_id. Solo usa IDs/códigos del active_projects array proporcionado en user message.
+4. NO auto_assign basado solo en:
+   - Dirección match aunque sea exacta (riesgo Buenavista 24 vs 38, números cercanos OCR typos)
+   - Historial proveedor exclusivo (riesgo trabajador fotografía factura otra obra del mismo proveedor)
+   - Concepto semántico (LLM puede equivocarse)
+   - Múltiples señales débiles (no garantía)
 
-6. NUNCA auto_assign si no hay supplier_project_history confirmando. En duda → suggest (admin valida).
+5. Edge cases conocidos Cathedral:
+   - Buenavista street tiene SOLO 24 + 38. Si texto dice "Buenavista 25/26/27" → suggest project 24 (typo). "Buenavista 36/37" → suggest 38. Otros números → needs_review.
+   - Workers (Rafael, Hipólito) pueden subir factura otra obra → sin código literal SIEMPRE suggest.
 
-7. alternatives: lista hasta 3 candidates con sus razones (incluido el ganador). Si no hay candidatos viables, devuelve array vacío.
+6. NUNCA inventes project_id. Solo usa IDs del active_projects array.
+
+7. alternatives: lista hasta 3 candidates con razones (incluido el ganador). Si solo hay uno, alternatives=1 item.
 
 Output: JSON estricto schema. reasoning <300 caracteres explicación corta para audit log.`
 
@@ -285,8 +296,43 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── DEFENSIVE GATE (Cathedral SUPREMA): auto_assign solo si código literal exact en texto ──
+  // David sesión 18/05: "lo que no podamos auto, lo procesamos nosotros".
+  // Aunque LLM devuelva auto_assign, server-side enforce: sin código literal exact → suggest.
+  const projectCodeRegex = /\b[A-Z]{2,4}-\d{4}-\d{3}\b/g
+  const shortCodeRegex = /\bCG-[A-Z0-9]{2,8}\b/g
+  const textForRegex = (body.extracted_text || '') + ' ' + (body.concept || '')
+  const literalCodesFound = [
+    ...(textForRegex.match(projectCodeRegex) || []),
+    ...(textForRegex.match(shortCodeRegex) || []),
+  ]
+  const activeCodeSet = new Set([
+    ...activeProjects.map((p) => p.code),
+    ...activeProjects.map((p) => p.codigo_corto).filter(Boolean) as string[],
+  ])
+  const matchedActiveCodes = literalCodesFound.filter((c) => activeCodeSet.has(c))
+  const literalExactMatchUnique = matchedActiveCodes.length === 1
+  const literalMatchesAssigned = literalExactMatchUnique && (matchedActiveCodes[0] === parsed.project_code)
+
+  let serverEnforcedAction = parsed.action as string
+  let serverDowngradedReason = ''
+  if (parsed.action === 'auto_assign' && !literalMatchesAssigned) {
+    serverEnforcedAction = 'suggest'
+    serverDowngradedReason = literalCodesFound.length === 0
+      ? 'no_literal_code_in_text'
+      : (matchedActiveCodes.length > 1 ? 'multiple_literal_codes_ambiguous' : 'literal_code_mismatch_with_assigned')
+  }
+
   return NextResponse.json({
     ...parsed,
+    action: serverEnforcedAction,
+    _server_enforcement: {
+      defensive_gate_applied: serverDowngradedReason !== '',
+      downgrade_reason: serverDowngradedReason || null,
+      literal_codes_in_text: literalCodesFound,
+      literal_codes_active: matchedActiveCodes,
+      original_llm_action: parsed.action,
+    },
     _meta: {
       model: 'claude-sonnet-4-6',
       tokens_input: response.usage.input_tokens,
