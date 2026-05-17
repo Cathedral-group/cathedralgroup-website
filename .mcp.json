@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.claude.com/schemas/mcp.json",
+  "_comment": "Cathedral .mcp.json project-scope. Loaded by Claude Agent SDK cuando settingSources: ['project']. HTTP MCPs only para compatibilidad Vercel serverless runtime (stdio MCPs requieren child_process.spawn no soportado Vercel functions). Stdio MCPs reservados para ejecución local/Hetzner. Sesión 18/05/2026.",
+  "mcpServers": {
+    "supabase": {
+      "_comment": "Supabase MCP remoto HTTP/SSE. Auth Bearer service role key. read_only=false requerido para apply_migration (vs default true)",
+      "type": "http",
+      "url": "https://mcp.supabase.com/sse?project_ref=cpqsnajuypgjjapvbqsr&read_only=false",
+      "headers": {
+        "Authorization": "Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+      }
+    }
+  }
+}
