@@ -123,25 +123,40 @@
       "typeVersion": 2,
       "position": [1240, 200],
       "parameters": {
-        "jsCode": "const invoice = $('Normalize Invoice').first().json;\nconst binary = $input.first().binary || {};\nconst dataBin = binary.data || {};\nconst fileName = invoice.original_filename || 'reprocess.pdf';\nconst ext = (fileName.split('.').pop() || 'pdf').toLowerCase();\nconst mime = dataBin.mimeType || (ext === 'pdf' ? 'application/pdf' : `image/${ext}`);\nreturn [{\n  json: {\n    supabase_id: invoice.id,\n    drive_file_id: invoice.drive_file_id,\n    email_message_id: invoice.email_message_id,\n    email_account: invoice.email_account,\n    fileName,\n    originalFileName: fileName,\n    fileExtension: ext,\n    fileHash: invoice.file_hash,\n    fileMime: mime,\n    fileSize: dataBin.fileSize || 0,\n    binaryPropertyName: 'data',\n    _attachment_mime: mime,\n    _reprocess_mode: true,\n    _reprocess_attempts_prev: invoice.reprocess_attempts || 0\n  },\n  binary: { data: dataBin }\n}];"
+        "jsCode": "const invoice = $('Normalize Invoice').first().json;\nconst binary = $input.first().binary || {};\nconst dataBin = binary.data || {};\nconst fileName = invoice.original_filename || 'reprocess.pdf';\nconst ext = (fileName.split('.').pop() || 'pdf').toLowerCase();\nconst mime = dataBin.mimeType || (ext === 'pdf' ? 'application/pdf' : `image/${ext}`);\n\n// Leer buffer en contexto Reprocesador (mismo execution, NO cross-boundary).\n// Workaround bug n8n filesystem-v2 cross-execution binary (GH #12625, #15891).\n// Sub-workflow OCR Cascade lee item._attachment_b64 con fallback a getBinaryDataBuffer.\nlet _attachment_b64 = '';\ntry {\n  const buf = await this.helpers.getBinaryDataBuffer(0, 'data');\n  _attachment_b64 = buf.toString('base64');\n  console.log('[Reprocesador] buffer size:', buf.length, 'bytes; base64 length:', _attachment_b64.length);\n} catch (e) {\n  console.error('[Reprocesador] getBinaryDataBuffer fallido:', e.message);\n  throw new Error(`[Reprocesador] Drive Download produjo binary inaccesible para drive_file_id=${invoice.drive_file_id}: ${e.message}`);\n}\n\nreturn [{\n  json: {\n    supabase_id: invoice.id,\n    drive_file_id: invoice.drive_file_id,\n    email_message_id: invoice.email_message_id,\n    email_account: invoice.email_account,\n    fileName,\n    originalFileName: fileName,\n    fileExtension: ext,\n    fileHash: invoice.file_hash,\n    fileMime: mime,\n    fileSize: dataBin.fileSize || 0,\n    binaryPropertyName: 'data',\n    _attachment_mime: mime,\n    _attachment_b64,\n    _reprocess_mode: true,\n    _reprocess_attempts_prev: invoice.reprocess_attempts || 0\n  },\n  binary: { data: dataBin }\n}];"
       }
     },
     {
-      "id": "execute-ocr-cascade",
-      "name": "Execute OCR Cascade",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.3,
+      "id": "call-ocr-webhook",
+      "name": "Call OCR Cascade Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
       "position": [1440, 200],
       "parameters": {
-        "source": "database",
-        "workflowId": {
-          "__rl": true,
-          "value": "MChKC2AfyqpNzCAY",
-          "mode": "id"
+        "method": "POST",
+        "url": "https://n8n.cathedralgroup.es/webhook/ocr-cascade-direct-a3f7b2e1-c8d9-4e5f-b1a2-7d6c8e9f0a1b",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
         },
-        "mode": "each",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pdf_b64: $json._attachment_b64, fileName: $json.fileName, originalFileName: $json.originalFileName, fileExtension: $json.fileExtension, mimeType: $json.fileMime, fileHash: $json.fileHash, supabase_id: $json.supabase_id, drive_file_id: $json.drive_file_id, email_message_id: $json.email_message_id, email_account: $json.email_account }) }}",
         "options": {
-          "waitForSubWorkflow": true
+          "timeout": 180000,
+          "response": {
+            "response": { "fullResponse": false }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xrnnrxUJLJVd6Lmb",
+          "name": "Cathedral Internal Token"
         }
       }
     },
@@ -233,9 +248,9 @@
       "main": [[{ "node": "Preparar Input OCR Cascade", "type": "main", "index": 0 }]]
     },
     "Preparar Input OCR Cascade": {
-      "main": [[{ "node": "Execute OCR Cascade", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Call OCR Cascade Webhook", "type": "main", "index": 0 }]]
     },
-    "Execute OCR Cascade": {
+    "Call OCR Cascade Webhook": {
       "main": [[{ "node": "Build PATCH Body", "type": "main", "index": 0 }]]
     },
     "Build PATCH Body": {
