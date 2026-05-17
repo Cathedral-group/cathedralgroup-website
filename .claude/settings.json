@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.claude.com/schemas/claude-code-settings.json",
+  "_comment": "Cathedral Claude Code project settings. Hooks reglas SUPREMAS aplicadas a TODAS interactions Claude Code en este repo (dev local + agentes Vercel/Hetzner). Sesión 18/05/2026 S1.4.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/block-n8n-put.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
