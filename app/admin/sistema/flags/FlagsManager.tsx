@@ -142,12 +142,37 @@ export default function FlagsManager({ initialFlags }: { initialFlags: FeatureFl
       <div className="overflow-hidden rounded border border-stone-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-stone-50 text-left text-xs uppercase tracking-wide text-stone-500">
-            <tr>
-              <th className="px-3 py-2">Clave</th>
-              <th className="px-3 py-2">Activada</th>
-              <th className="px-3 py-2 w-48">% Despliegue</th>
-              <th className="px-3 py-2">Descripción</th>
-              <th className="px-3 py-2">Actualizado</th>
+            <tr className="align-bottom">
+              <th className="px-3 py-2">
+                Clave
+                <span className="mt-0.5 block text-[10px] font-normal normal-case text-stone-400">
+                  Identificador interno (snake_case)
+                </span>
+              </th>
+              <th className="px-3 py-2">
+                Activada
+                <span className="mt-0.5 block text-[10px] font-normal normal-case text-stone-400">
+                  Encendido global de la marca
+                </span>
+              </th>
+              <th className="px-3 py-2 w-48">
+                % Despliegue
+                <span className="mt-0.5 block text-[10px] font-normal normal-case text-stone-400">
+                  Porcentaje de usuarios que la reciben
+                </span>
+              </th>
+              <th className="px-3 py-2">
+                Descripción
+                <span className="mt-0.5 block text-[10px] font-normal normal-case text-stone-400">
+                  Para qué sirve esta marca
+                </span>
+              </th>
+              <th className="px-3 py-2">
+                Actualizado
+                <span className="mt-0.5 block text-[10px] font-normal normal-case text-stone-400">
+                  Última edición y autor
+                </span>
+              </th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
