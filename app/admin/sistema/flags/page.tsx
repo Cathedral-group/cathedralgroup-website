@@ -30,14 +30,14 @@ export default async function FeatureFlagsPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-stone-900">Feature flags</h1>
+        <h1 className="text-2xl font-semibold text-stone-900">Marcas de funcionalidad</h1>
         <p className="mt-1 text-sm text-stone-600">
-          Toggles runtime + rollout porcentual. Cache 60s — los cambios se aplican{' '}
+          Activación en tiempo de ejecución + despliegue porcentual. Caché 60 s — los cambios se aplican{' '}
           inmediatamente vía <code className="rounded bg-stone-100 px-1">revalidateTag</code>.
         </p>
         {error ? (
           <p className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            Error leyendo flags: {error.message}
+            Error leyendo marcas: {error.message}
           </p>
         ) : null}
       </header>

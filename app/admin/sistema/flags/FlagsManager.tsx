@@ -102,7 +102,7 @@ export default function FlagsManager({ initialFlags }: { initialFlags: FeatureFl
   }
 
   function handleDelete(key: string) {
-    if (!confirm(`¿Eliminar flag "${key}"? Esta acción es permanente.`)) return
+    if (!confirm(`¿Eliminar marca "${key}"? Esta acción es permanente.`)) return
     startTransition(async () => {
       const res = await deleteFlagAction({ key })
       if (!res.ok) {
@@ -125,7 +125,7 @@ export default function FlagsManager({ initialFlags }: { initialFlags: FeatureFl
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-stone-500">
-          {optimisticFlags.length} flag{optimisticFlags.length === 1 ? '' : 's'}{' '}
+          {optimisticFlags.length} marca{optimisticFlags.length === 1 ? '' : 's'}{' '}
           {pending ? '• guardando…' : ''}
         </p>
         <button
@@ -133,7 +133,7 @@ export default function FlagsManager({ initialFlags }: { initialFlags: FeatureFl
           onClick={() => setShowNewForm((v) => !v)}
           className="rounded border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
         >
-          {showNewForm ? 'Cancelar' : '+ Nuevo flag'}
+          {showNewForm ? 'Cancelar' : '+ Nueva marca'}
         </button>
       </div>
 
@@ -143,9 +143,9 @@ export default function FlagsManager({ initialFlags }: { initialFlags: FeatureFl
         <table className="w-full text-sm">
           <thead className="bg-stone-50 text-left text-xs uppercase tracking-wide text-stone-500">
             <tr>
-              <th className="px-3 py-2">Key</th>
-              <th className="px-3 py-2">Enabled</th>
-              <th className="px-3 py-2 w-48">Rollout %</th>
+              <th className="px-3 py-2">Clave</th>
+              <th className="px-3 py-2">Activada</th>
+              <th className="px-3 py-2 w-48">% Despliegue</th>
               <th className="px-3 py-2">Descripción</th>
               <th className="px-3 py-2">Actualizado</th>
               <th className="px-3 py-2"></th>
@@ -164,7 +164,7 @@ export default function FlagsManager({ initialFlags }: { initialFlags: FeatureFl
             {optimisticFlags.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-3 py-6 text-center text-stone-400">
-                  No hay flags. Crea uno con &quot;Nuevo flag&quot;.
+                  No hay marcas. Crea una con &quot;Nueva marca&quot;.
                 </td>
               </tr>
             ) : null}
@@ -202,7 +202,7 @@ function FlagRow({
             className="h-4 w-4 rounded border-stone-300"
           />
           <span className={flag.enabled ? 'text-emerald-700' : 'text-stone-500'}>
-            {flag.enabled ? 'on' : 'off'}
+            {flag.enabled ? 'activada' : 'desactivada'}
           </span>
         </label>
       </td>
@@ -288,7 +288,7 @@ function NewFlagForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-stone-600">
-            Key (snake_case, [a-z0-9_])
+            Clave (snake_case, [a-z0-9_])
           </span>
           <input
             type="text"
@@ -311,7 +311,7 @@ function NewFlagForm({
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block text-xs font-medium text-stone-600">Rollout %</span>
+          <span className="mb-1 block text-xs font-medium text-stone-600">% Despliegue</span>
           <input
             type="number"
             min={0}
@@ -347,7 +347,7 @@ function NewFlagForm({
           onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
           className="h-4 w-4 rounded border-stone-300"
         />
-        Enabled al crear
+        Activada al crear
       </label>
 
       <div className="flex justify-end">
@@ -356,7 +356,7 @@ function NewFlagForm({
           disabled={disabled || !keyValid}
           className="rounded bg-stone-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-stone-900 disabled:opacity-50"
         >
-          Crear flag
+          Crear marca
         </button>
       </div>
     </form>
