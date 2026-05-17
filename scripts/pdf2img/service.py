@@ -12,9 +12,10 @@ Sesión 9/05/2026 noche tarde — refactor calidad OCR:
 - Validado test 9/05 noche: GPT-4o no extraía importes de imágenes a 200 DPI / quality 75
 """
 from flask import Flask, request, jsonify
-import fitz, base64, traceback, sys, io
+import fitz, base64, traceback, sys, io, os, re, time, threading
 from PIL import Image
 import pillow_heif
+import requests as _requests
 pillow_heif.register_heif_opener()
 
 app = Flask(__name__)
@@ -235,6 +236,227 @@ def normalize_image():
         tb = traceback.format_exc()
         print(f'[normalize-image] ERROR: {e}\n{tb}', flush=True, file=sys.stderr)
         return jsonify({'error': str(e), 'traceback': tb}), 500
+
+
+@app.route('/probe-pdf', methods=['POST'])
+def probe_pdf():
+    """
+    Smart Routing Capa A — PDF text-layer probe.
+    Determina si PDF es born-digital (texto extraíble) vs scanned (solo imagenes).
+    
+    Body: {pdf_b64}
+    
+    Response:
+      {
+        classification: "born_digital" | "scanned" | "hybrid" | "unknown",
+        pages: int,
+        total_text_chars: int,
+        pages_with_text: int,
+        total_images: int,
+        avg_chars_per_page: float,
+        has_text_layer: bool,
+        has_facturae_embed: bool,
+        confidence: float (0-1)
+      }
+    
+    Industry heuristic (openpreservation.org + pdfplumber.com):
+      - text_chars > 50 per page avg AND pages_with_text >= total_pages * 0.7 → born_digital
+      - 0 text AND images >= pages → scanned
+      - else → hybrid (mixed text+scanned pages)
+    """
+    body = request.get_json(silent=True) or {}
+    pdf_b64 = body.get('pdf_b64', '')
+    if not pdf_b64:
+        return jsonify({'error': 'missing pdf_b64'}), 400
+    try:
+        raw = base64.b64decode(pdf_b64)
+        doc = fitz.open(stream=raw, filetype='pdf')
+        total_pages = len(doc)
+        
+        # Probe primeras 5 pages para velocidad (mass batch)
+        pages_to_probe = min(total_pages, 5)
+        total_text_chars = 0
+        pages_with_text = 0
+        total_images = 0
+        text_chars_per_page = []
+        
+        for i in range(pages_to_probe):
+            page = doc[i]
+            # PyMuPDF text extraction (text-layer detection)
+            text = page.get_text().strip()
+            chars = len(text)
+            text_chars_per_page.append(chars)
+            total_text_chars += chars
+            if chars > 50:  # threshold canónico
+                pages_with_text += 1
+            # Count images on page (scanned PDFs tienen 1 imagen full-page por page)
+            total_images += len(page.get_images())
+        
+        avg_chars = total_text_chars / pages_to_probe if pages_to_probe > 0 else 0
+        has_text_layer = total_text_chars > 50
+        
+        # Check Facturae embed via attachments (PyMuPDF embedded files)
+        has_facturae_embed = False
+        try:
+            for j in range(doc.embfile_count()):
+                info = doc.embfile_info(j)
+                filename = info.get('filename', '').lower()
+                if filename.endswith('.xml') or 'facturae' in filename:
+                    has_facturae_embed = True
+                    break
+        except Exception:
+            pass  # embfile_count puede no estar disponible en algunos PDFs
+        
+        doc.close()
+        
+        # Classification
+        if has_facturae_embed:
+            classification = 'pdf_facturae_embed'
+            confidence = 0.95
+        elif has_text_layer and pages_with_text >= pages_to_probe * 0.7:
+            classification = 'born_digital'
+            confidence = min(0.95, 0.6 + (avg_chars / 1000))
+        elif total_text_chars == 0 and total_images >= pages_to_probe:
+            classification = 'scanned'
+            confidence = 0.90
+        elif total_text_chars > 0 and total_text_chars < 50 * pages_to_probe:
+            classification = 'hybrid'
+            confidence = 0.70
+        else:
+            classification = 'unknown'
+            confidence = 0.30
+        
+        result = {
+            'classification': classification,
+            'pages': total_pages,
+            'pages_probed': pages_to_probe,
+            'total_text_chars': total_text_chars,
+            'pages_with_text': pages_with_text,
+            'total_images': total_images,
+            'avg_chars_per_page': round(avg_chars, 1),
+            'has_text_layer': has_text_layer,
+            'has_facturae_embed': has_facturae_embed,
+            'confidence': round(confidence, 2),
+            'text_chars_per_page': text_chars_per_page,
+        }
+        print(f'[probe-pdf] OK: {classification} pages={total_pages} text_chars={total_text_chars} images={total_images} conf={confidence}', flush=True)
+        return jsonify(result)
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f'[probe-pdf] ERROR: {e}\n{tb}', flush=True, file=sys.stderr)
+        return jsonify({'error': str(e), 'traceback': tb}), 500
+
+
+
+
+# ====== /fetch-and-convert — Drive download + PDF convert (bypass n8n binary handling) ======
+# Cathedral n8n 2.12.3 task runner sandbox cannot resolve filesystem-v2 binary descriptors.
+# This endpoint downloads Drive PDF server-side using stored OAuth refresh_token, converts to images,
+# returns base64 array in JSON. n8n never touches binary.
+
+_token_cache = {"access_token": None, "expires_at": 0}
+_token_lock = threading.Lock()
+
+def _get_drive_access_token():
+    """Refresh OAuth2 access token, cached 50 min. Source: developers.google.com/identity/protocols/oauth2/web-server"""
+    with _token_lock:
+        if time.time() < _token_cache["expires_at"]:
+            return _token_cache["access_token"]
+        client_id = os.environ["DRIVE_OAUTH_CLIENT_ID"]
+        client_secret = os.environ["DRIVE_OAUTH_CLIENT_SECRET"]
+        refresh_token = os.environ["DRIVE_OAUTH_REFRESH_TOKEN"]
+        r = _requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={"client_id": client_id, "client_secret": client_secret,
+                  "refresh_token": refresh_token, "grant_type": "refresh_token"},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            print(f"[fetch-and-convert] OAuth refresh failed: {r.status_code} {r.text[:200]}", file=sys.stderr, flush=True)
+            raise RuntimeError(f"OAuth refresh failed: {r.status_code}")
+        data = r.json()
+        _token_cache["access_token"] = data["access_token"]
+        _token_cache["expires_at"] = time.time() + data.get("expires_in", 3600) - 600
+        return _token_cache["access_token"]
+
+_DRIVE_FILE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
+_INTERNAL_TOKEN = os.environ.get("CATHEDRAL_INTERNAL_TOKEN", "")
+
+@app.route("/fetch-and-convert", methods=["POST"])
+def fetch_and_convert():
+    # 1. Auth Bearer (CATHEDRAL_INTERNAL_TOKEN)
+    if _INTERNAL_TOKEN:
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or auth[7:] != _INTERNAL_TOKEN:
+            return jsonify({"error": "Unauthorized"}), 401
+
+    body = request.get_json(silent=True) or {}
+    drive_file_id = body.get("drive_file_id", "")
+    max_pages = body.get("max_pages")
+
+    if not drive_file_id or not _DRIVE_FILE_ID_RE.match(drive_file_id):
+        return jsonify({"error": "Invalid or missing drive_file_id"}), 400
+
+    try:
+        access_token = _get_drive_access_token()
+    except (RuntimeError, KeyError) as e:
+        return jsonify({"error": "OAuth refresh failure", "detail": str(e)}), 502
+
+    drive_url = f"https://www.googleapis.com/drive/v3/files/{drive_file_id}?alt=media"
+    try:
+        dr = _requests.get(drive_url,
+                           headers={"Authorization": f"Bearer {access_token}"},
+                           timeout=60)
+    except _requests.Timeout:
+        return jsonify({"error": "Drive download timed out"}), 504
+
+    if dr.status_code == 404:
+        return jsonify({"error": "drive_file_id not found or not accessible"}), 404
+    if dr.status_code == 403:
+        return jsonify({"error": "Drive access denied - check OAuth scope"}), 403
+    if dr.status_code != 200:
+        print(f"[fetch-and-convert] Drive download failed: {dr.status_code} {dr.text[:200]}", file=sys.stderr, flush=True)
+        return jsonify({"error": "Drive download failed", "status": dr.status_code}), 502
+
+    content_type = dr.headers.get("Content-Type", "")
+    if "pdf" not in content_type.lower():
+        return jsonify({"error": "File is not a PDF", "content_type": content_type,
+                        "drive_file_id": drive_file_id}), 422
+
+    pdf_bytes = dr.content
+    file_name = None
+    cd = dr.headers.get("Content-Disposition", "")
+    if "filename=" in cd:
+        file_name = cd.split("filename=")[-1].strip().strip('"').strip("'")
+
+    print(f"[fetch-and-convert] Downloaded {len(pdf_bytes)} bytes for drive_file_id={drive_file_id[:20]} name={file_name}", flush=True)
+
+    try:
+        images, n_pages = _convert_pdf_bytes(pdf_bytes)
+    except ValueError as e:
+        return jsonify({"error": str(e), "controlled": True}), 422
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"[fetch-and-convert] PDF conversion error: {e}\n{tb}", file=sys.stderr, flush=True)
+        return jsonify({"error": "PDF conversion failed", "detail": str(e)}), 422
+
+    if max_pages and isinstance(max_pages, int) and max_pages > 0:
+        images = images[:max_pages]
+
+    # Include original PDF base64 for downstream nodes (e.g. Mistral OCR document mode)
+    pdf_b64 = base64.b64encode(pdf_bytes).decode()
+
+    return jsonify({
+        "images": images,
+        "pages": n_pages,
+        "pages_returned": len(images),
+        "drive_file_id": drive_file_id,
+        "file_name": file_name,
+        "pdf_b64": pdf_b64,
+        "mime": "application/pdf",
+    }), 200
+
+
 
 if __name__ == '__main__':
     app.run(host='172.17.0.1', port=5001, debug=False)
