@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-05-17T21:26:49.123Z",
+  "updatedAt": "2026-05-17T22:00:49.077Z",
   "createdAt": "2026-05-17T19:49:35.683Z",
   "id": "eWjMM0eMN7Ua5g2E",
   "name": "Cathedral · Reprocesador (UPDATE in-place)",
@@ -132,7 +132,7 @@
         200
       ],
       "parameters": {
-        "jsCode": "const ocr = $input.first().json;\n// Reprocesador ya pasa por Normalize Invoice que tiene reprocess_attempts del row Supabase\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (invoice.reprocess_attempts || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
+        "jsCode": "const ocr = $input.first().json;\n// Reprocesador ya pasa por Normalize Invoice que tiene reprocess_attempts del row Supabase\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (invoice.reprocess_attempts || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\n\n// === Project Classifier Agent integration ===\nlet classifyData = null;\ntry {\n  classifyData = $('Classify Project').first().json;\n} catch (e) { classifyData = null; }\nconst classifyAction = classifyData && classifyData.action ? classifyData.action : null;\nif (classifyAction === 'auto_assign' && classifyData.project_id) {\n  patchBody.project_id = classifyData.project_id;\n  patchBody.proyecto_code = classifyData.project_code || null;\n  patchBody.proyecto_confianza = classifyData.confidence || null;\n} else if (classifyAction === 'suggest' && classifyData.project_code) {\n  patchBody.needs_review = true;\n  const sugg = `§PROYECTO_SUGERIDO:${classifyData.project_code}:${Math.round((classifyData.confidence || 0) * 100)}%:${(classifyData.reasoning || '').slice(0, 120)}`;\n  patchBody.ai_razones = [...(invoice.ai_razones || []), sugg];\n} else if (classifyAction === 'needs_review') {\n  patchBody.needs_review = true;\n}\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
       }
     },
     {
@@ -509,6 +509,41 @@
         "mode": "runOnceForEachItem",
         "jsCode": "const fetchResp = $input.item.json;\nconst invoice = $('Normalize Invoice').first().json;\nconst images = fetchResp.images || [];\nif (images.length === 0) throw new Error('Fetch and Convert returned 0 images');\nconst mimeForGpt = 'image/jpeg';\nconst gemini_body = { contents: [{ parts: images.map(b64 => ({ inline_data: { mime_type: mimeForGpt, data: b64 } })) }] };\nconst openai_body = images.map(b64 => ({ type: 'image_url', image_url: { url: `data:${mimeForGpt};base64,${b64}` } }));\nreturn { json: {\n  ...invoice,\n  supabase_id: invoice.id,\n  fileName: invoice.original_filename || fetchResp.file_name || 'reprocess.pdf',\n  originalFileName: invoice.original_filename || fetchResp.file_name || 'reprocess.pdf',\n  fileExtension: 'pdf',\n  fileHash: invoice.file_hash,\n  fileMime: 'application/pdf',\n  binaryPropertyName: 'data',\n  vision_images: images,\n  mimeForGpt,\n  gemini_body,\n  openai_body,\n  _attachment_b64: fetchResp.pdf_b64,\n  _attachment_mime: fetchResp.mime || 'application/pdf',\n  _is_likely_screenshot: false,\n  _archive_type: 'document_pdf',\n  _reprocess_mode: true,\n  _reprocess_attempts_prev: invoice.reprocess_attempts || 0,\n  vision_failed: false\n} };"
       }
+    },
+    {
+      "id": "classify-project",
+      "name": "Classify Project",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2200,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cathedralgroup.es/api/classify-project",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ extracted_text: ($json.campos_finales && $json.campos_finales.texto_extraido) || $json.mistral_text_truncated || '', concept: ($json.campos_finales && $json.campos_finales.concept) || null, supplier_name: ($json.campos_finales && $json.campos_finales.supplier_name) || null, supplier_nif: ($json.campos_finales && $json.campos_finales.supplier_nif) || null, amount_total: ($json.campos_finales && $json.campos_finales.amount_total) || null, issue_date: ($json.campos_finales && $json.campos_finales.issue_date) || null, direccion_obra: ($json.campos_finales && $json.campos_finales.direccion_obra) || null, company_id: $('Normalize Invoice').first().json.company_id || null }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xrnnrxUJLJVd6Lmb",
+          "name": "Cathedral Internal Token"
+        }
+      }
     }
   ],
   "connections": {
@@ -673,7 +708,7 @@
       "main": [
         [
           {
-            "node": "Build PATCH Body",
+            "node": "Classify Project",
             "type": "main",
             "index": 0
           }
@@ -723,6 +758,17 @@
           }
         ]
       ]
+    },
+    "Classify Project": {
+      "main": [
+        [
+          {
+            "node": "Build PATCH Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -737,9 +783,9 @@
   "staticData": null,
   "meta": null,
   "pinData": null,
-  "versionId": "5b98f145-fa8d-4552-90de-5c51ca3ed9cd",
-  "activeVersionId": "5b98f145-fa8d-4552-90de-5c51ca3ed9cd",
-  "versionCounter": 42,
+  "versionId": "9e82870b-b781-483c-8183-833d7b403f84",
+  "activeVersionId": "9e82870b-b781-483c-8183-833d7b403f84",
+  "versionCounter": 45,
   "triggerCount": 1,
   "shared": [
     {
@@ -762,9 +808,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-05-17T21:26:49.124Z",
-    "createdAt": "2026-05-17T21:26:49.124Z",
-    "versionId": "5b98f145-fa8d-4552-90de-5c51ca3ed9cd",
+    "updatedAt": "2026-05-17T22:00:49.078Z",
+    "createdAt": "2026-05-17T22:00:49.078Z",
+    "versionId": "9e82870b-b781-483c-8183-833d7b403f84",
     "workflowId": "eWjMM0eMN7Ua5g2E",
     "nodes": [
       {
@@ -892,7 +938,7 @@
           200
         ],
         "parameters": {
-          "jsCode": "const ocr = $input.first().json;\n// Reprocesador ya pasa por Normalize Invoice que tiene reprocess_attempts del row Supabase\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (invoice.reprocess_attempts || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
+          "jsCode": "const ocr = $input.first().json;\n// Reprocesador ya pasa por Normalize Invoice que tiene reprocess_attempts del row Supabase\nconst invoice = $('Normalize Invoice').first().json;\n\nconst campos = ocr.campos_finales || {};\nconst newConfidence = ocr.ai_confidence;\nconst aiData = { ...campos, ai_provider: ocr.ai_provider, _mistral_discrepancies: ocr._mistral_discrepancies || [], _routing_hints: ocr._routing_hints || {} };\n\nconst patchBody = {\n  ai_data: aiData,\n  ai_confidence: newConfidence,\n  reprocess_attempts: (invoice.reprocess_attempts || 0) + 1,\n  last_reprocess_at: new Date().toISOString()\n};\n\nif (typeof campos.amount_total === 'number') patchBody.amount_total = campos.amount_total;\nif (typeof campos.amount_base === 'number') patchBody.amount_base = campos.amount_base;\nif (typeof campos.vat_amount === 'number') patchBody.vat_amount = campos.vat_amount;\nif (campos.supplier_nif) patchBody.supplier_nif = campos.supplier_nif;\nif (campos.supplier_name) patchBody.supplier_name = campos.supplier_name;\nif (campos.invoice_number) patchBody.invoice_number = campos.invoice_number;\nif (campos.issue_date) patchBody.issue_date = campos.issue_date;\nif (campos.due_date) patchBody.due_date = campos.due_date;\n\n\n// === Project Classifier Agent integration ===\nlet classifyData = null;\ntry {\n  classifyData = $('Classify Project').first().json;\n} catch (e) { classifyData = null; }\nconst classifyAction = classifyData && classifyData.action ? classifyData.action : null;\nif (classifyAction === 'auto_assign' && classifyData.project_id) {\n  patchBody.project_id = classifyData.project_id;\n  patchBody.proyecto_code = classifyData.project_code || null;\n  patchBody.proyecto_confianza = classifyData.confidence || null;\n} else if (classifyAction === 'suggest' && classifyData.project_code) {\n  patchBody.needs_review = true;\n  const sugg = `§PROYECTO_SUGERIDO:${classifyData.project_code}:${Math.round((classifyData.confidence || 0) * 100)}%:${(classifyData.reasoning || '').slice(0, 120)}`;\n  patchBody.ai_razones = [...(invoice.ai_razones || []), sugg];\n} else if (classifyAction === 'needs_review') {\n  patchBody.needs_review = true;\n}\n\nreturn [{ json: { target_invoice_id: invoice.id, patch_body: patchBody, new_confidence: newConfidence } }];"
         }
       },
       {
@@ -1269,6 +1315,41 @@
           "mode": "runOnceForEachItem",
           "jsCode": "const fetchResp = $input.item.json;\nconst invoice = $('Normalize Invoice').first().json;\nconst images = fetchResp.images || [];\nif (images.length === 0) throw new Error('Fetch and Convert returned 0 images');\nconst mimeForGpt = 'image/jpeg';\nconst gemini_body = { contents: [{ parts: images.map(b64 => ({ inline_data: { mime_type: mimeForGpt, data: b64 } })) }] };\nconst openai_body = images.map(b64 => ({ type: 'image_url', image_url: { url: `data:${mimeForGpt};base64,${b64}` } }));\nreturn { json: {\n  ...invoice,\n  supabase_id: invoice.id,\n  fileName: invoice.original_filename || fetchResp.file_name || 'reprocess.pdf',\n  originalFileName: invoice.original_filename || fetchResp.file_name || 'reprocess.pdf',\n  fileExtension: 'pdf',\n  fileHash: invoice.file_hash,\n  fileMime: 'application/pdf',\n  binaryPropertyName: 'data',\n  vision_images: images,\n  mimeForGpt,\n  gemini_body,\n  openai_body,\n  _attachment_b64: fetchResp.pdf_b64,\n  _attachment_mime: fetchResp.mime || 'application/pdf',\n  _is_likely_screenshot: false,\n  _archive_type: 'document_pdf',\n  _reprocess_mode: true,\n  _reprocess_attempts_prev: invoice.reprocess_attempts || 0,\n  vision_failed: false\n} };"
         }
+      },
+      {
+        "id": "classify-project",
+        "name": "Classify Project",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          2200,
+          700
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://cathedralgroup.es/api/classify-project",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ extracted_text: ($json.campos_finales && $json.campos_finales.texto_extraido) || $json.mistral_text_truncated || '', concept: ($json.campos_finales && $json.campos_finales.concept) || null, supplier_name: ($json.campos_finales && $json.campos_finales.supplier_name) || null, supplier_nif: ($json.campos_finales && $json.campos_finales.supplier_nif) || null, amount_total: ($json.campos_finales && $json.campos_finales.amount_total) || null, issue_date: ($json.campos_finales && $json.campos_finales.issue_date) || null, direccion_obra: ($json.campos_finales && $json.campos_finales.direccion_obra) || null, company_id: $('Normalize Invoice').first().json.company_id || null }) }}",
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "neverError": true,
+                "responseFormat": "json"
+              }
+            }
+          }
+        },
+        "continueOnFail": true,
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "xrnnrxUJLJVd6Lmb",
+            "name": "Cathedral Internal Token"
+          }
+        }
       }
     ],
     "connections": {
@@ -1433,7 +1514,7 @@
         "main": [
           [
             {
-              "node": "Build PATCH Body",
+              "node": "Classify Project",
               "type": "main",
               "index": 0
             }
@@ -1483,6 +1564,17 @@
             }
           ]
         ]
+      },
+      "Classify Project": {
+        "main": [
+          [
+            {
+              "node": "Build PATCH Body",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "David Vieco",
@@ -1491,10 +1583,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-05-17T21:26:49.684Z",
-        "id": 1199,
+        "createdAt": "2026-05-17T22:00:49.638Z",
+        "id": 1201,
         "workflowId": "eWjMM0eMN7Ua5g2E",
-        "versionId": "5b98f145-fa8d-4552-90de-5c51ca3ed9cd",
+        "versionId": "9e82870b-b781-483c-8183-833d7b403f84",
         "event": "activated",
         "userId": "5042c286-f041-41f7-9ed8-f6cc3c48265e"
       }
