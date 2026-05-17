@@ -968,7 +968,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 <th className="text-right p-3 font-medium text-neutral-600">Importe</th>
                 <th className="text-center p-3 font-medium text-neutral-600">IA</th>
                 <th className="text-center p-3 font-medium text-neutral-600">Modelo</th>
-                <th className="text-center p-3 font-medium text-neutral-600">Forensic</th>
+                <th className="text-center p-3 font-medium text-neutral-600">Forense</th>
                 <th className="text-center p-3 font-medium text-neutral-600">Estado</th>
                 <th className="text-left p-3 font-medium text-neutral-600">Motivo</th>
                 <th className="text-left p-3 font-medium text-neutral-600">Fecha</th>
@@ -1386,7 +1386,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 return (
                   <div className={`${colorBg} border rounded-lg p-3`}>
                     <div className="flex items-center justify-between mb-2">
-                      <p className={`text-[10px] font-bold uppercase tracking-widest ${colorText}`}>Score Forensic</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-widest ${colorText}`}>Puntuación forense</p>
                       <span className={`text-lg font-bold ${colorText}`}>🛡️ {score}/100</span>
                     </div>
                     {hasAny ? (

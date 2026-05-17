@@ -764,7 +764,7 @@ function MiniTable({ payrolls, verifications }: { payrolls: Payroll[]; verificat
           <th className="px-2 py-1 text-right">IRPF</th>
           <th className="px-2 py-1 text-right">Líquido</th>
           <th className="px-2 py-1 text-right">Coste empresa</th>
-          <th className="px-2 py-1 text-center" title="Verificación algorítmica">Verif</th>
+          <th className="px-2 py-1 text-center" title="Verificación algorítmica">Verif.</th>
           <th className="px-2 py-1">Pago</th>
           <th className="px-2 py-1"></th>
         </tr>

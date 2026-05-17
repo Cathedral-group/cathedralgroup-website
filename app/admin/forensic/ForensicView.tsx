@@ -180,7 +180,7 @@ export default function ForensicView({ rows: initialRows }: Props) {
     <div className="flex min-h-screen bg-neutral-50">
       {/* Sidebar drill-down */}
       <aside className="w-60 bg-white border-r border-neutral-200 p-4">
-        <h2 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-3">Forensic</h2>
+        <h2 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-3">Forense</h2>
         <nav className="space-y-1">
           {drillDownItems.map((item) => (
             <button
@@ -260,7 +260,7 @@ export default function ForensicView({ rows: initialRows }: Props) {
                   <th className="text-left p-3 font-medium text-neutral-600">Factura</th>
                   <th className="text-left p-3 font-medium text-neutral-600">Proveedor</th>
                   <th className="text-right p-3 font-medium text-neutral-600">Importe</th>
-                  <th className="text-center p-3 font-medium text-neutral-600">Score</th>
+                  <th className="text-center p-3 font-medium text-neutral-600">Puntuación</th>
                   <th className="text-center p-3 font-medium text-neutral-600">Alertas</th>
                   <th className="text-center p-3 font-medium text-neutral-600">Decisión</th>
                   <th className="text-left p-3 font-medium text-neutral-600">Fecha</th>

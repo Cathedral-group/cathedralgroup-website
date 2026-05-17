@@ -785,7 +785,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                 <th className={`hidden md:table-cell ${thCls('amount_base')}`} onClick={() => handleSort('amount_base')}>Base{sortIcon('amount_base')}</th>
                 <th className={`hidden md:table-cell ${thCls('vat_amount')}`} onClick={() => handleSort('vat_amount')}>IVA{sortIcon('vat_amount')}</th>
                 <th className={thCls('amount_total')} onClick={() => handleSort('amount_total')}>Total{sortIcon('amount_total')}</th>
-                <th className="px-2 py-4 text-[10px] font-bold uppercase tracking-wider text-neutral-400 text-center" title="Verificación algorítmica">Verif</th>
+                <th className="px-2 py-4 text-[10px] font-bold uppercase tracking-wider text-neutral-400 text-center" title="Verificación algorítmica">Verif.</th>
                 <th className={`hidden sm:table-cell ${thCls('issue_date')}`} onClick={() => handleSort('issue_date')}>Fecha{sortIcon('issue_date')}</th>
                 <th className={`hidden sm:table-cell ${thCls('due_date')}`} onClick={() => handleSort('due_date')} title="* = fecha estimada (issue_date + 21 días)">Vencimiento{sortIcon('due_date')} <span className="text-neutral-300 font-normal">ℹ</span></th>
                 <th className={thCls('payment_status')} onClick={() => handleSort('payment_status')}>Estado{sortIcon('payment_status')}</th>

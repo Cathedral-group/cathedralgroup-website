@@ -572,7 +572,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
               )}
               {selectedLead.lead_score != null && (
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Score</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Puntuación</p>
                   <p className="text-sm">{selectedLead.lead_score}/100</p>
                 </div>
               )}

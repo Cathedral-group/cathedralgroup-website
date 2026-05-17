@@ -369,7 +369,7 @@ export default async function AdminDashboard({
     <div>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-xl font-medium uppercase tracking-wide">Dashboard</h1>
+          <h1 className="text-xl font-medium uppercase tracking-wide">Panel</h1>
           <p className="text-xs text-neutral-400 uppercase tracking-widest mt-1">
             {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
