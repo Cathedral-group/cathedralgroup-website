@@ -13,7 +13,7 @@ type NavItem = {
   description?: string      // texto pequeño debajo del label para conceptos técnicos
   children?: NavItem[]      // sub-items para drill-down
   badge?: 'red' | 'amber' | 'blue'  // color del badge contador (si lo tiene)
-  badgeKey?: 'errors' | 'review' | 'orphans' | 'notif_critical' | 'notif_warning'
+  badgeKey?: 'errors' | 'review' | 'orphans' | 'notif_critical' | 'notif_warning' | 'agentes_diagnoses'
     | 'absences_pending' | 'tickets_pending' | 'expenses_pending' | 'partes_anomalia'
     | 'personal_total'    // qué counter mostrar
   countKey?: string         // si los hijos tienen contadores dinámicos, key para resolverlos
@@ -231,6 +231,11 @@ const NAV_SECTIONS: NavSection[] = [
         badge: 'red', badgeKey: 'notif_critical',
       },
       {
+        label: 'Agentes IA',     href: '/admin/agentes/diagnoses', icon: <IconSistema />,
+        description: 'Diagnósticos agentes IA Op 2 pendientes de revisión + aprobar/rechazar',
+        badge: 'amber', badgeKey: 'agentes_diagnoses',
+      },
+      {
         label: 'Sistema',        href: '/admin/sistema',       icon: <IconSistema />,
         description: 'Estado del workflow + acciones operativas (forzar healthcheck, limpiar, etc.)',
       },
@@ -260,6 +265,7 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const [ticketsPending, setTicketsPending] = useState<number | null>(null)
   const [expensesPending, setExpensesPending] = useState<number | null>(null)
   const [partesAnomalia, setPartesAnomalia] = useState<number | null>(null)
+  const [agentDiagnosesPending, setAgentDiagnosesPending] = useState<number | null>(null)
   // Drill-down: label del item padre cuyo árbol estamos mostrando.
   // Inicializado de forma síncrona desde pathname para que en el primer render
   // ya aparezca el drill correcto sin parpadeo.
@@ -372,6 +378,15 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       .then(({ count, error: err }) => {
         if (!err && count !== null) setExpensesPending(count)
       })
+    // Agentes IA: diagnósticos pendientes Op 2
+    supabase
+      .from('agent_diagnoses')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .eq('is_test', false)
+      .then(({ count, error: err }) => {
+        if (!err && count !== null) setAgentDiagnosesPending(count)
+      })
     // Partes con geofence anómalo en últimos 7 días
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
     supabase
@@ -462,6 +477,8 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       return { count: expensesPending, color: 'bg-blue-500' }
     if (badgeKey === 'partes_anomalia' && partesAnomalia !== null && partesAnomalia > 0)
       return { count: partesAnomalia, color: 'bg-amber-500' }
+    if (badgeKey === 'agentes_diagnoses' && agentDiagnosesPending !== null && agentDiagnosesPending > 0)
+      return { count: agentDiagnosesPending, color: 'bg-amber-500' }
     if (badgeKey === 'personal_total') {
       const total = (absencesPending ?? 0) + (ticketsPending ?? 0) + (expensesPending ?? 0) + (partesAnomalia ?? 0)
       if (total > 0) {
