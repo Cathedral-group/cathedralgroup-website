@@ -166,14 +166,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const messageTypes: string[] = [];
     for await (const message of agentQuery) {
       if (abortController.signal.aborted) break;
+      messageTypes.push((message as { type?: string }).type || 'unknown');
       if (message.type === 'result') {
         finalResult = message as SDKResultMessage;
       }
     }
+    if (!finalResult) {
+      errorMessage = `query iterated ${messageTypes.length} messages but no 'result' type. Types: ${messageTypes.slice(0, 10).join(',')}`;
+    }
   } catch (e) {
-    errorMessage = e instanceof Error ? e.message : String(e);
+    errorMessage = e instanceof Error ? (e.message + ' | stack: ' + (e.stack?.split('\n').slice(0, 5).join(' | ') || '')) : String(e);
     console.error('[health-monitor] agent query error:', errorMessage);
   } finally {
     clearTimeout(abortTimer);
