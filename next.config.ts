@@ -23,7 +23,8 @@ const CSP_HEADER = [
   // WebAssembly, NO `new Function()` JS. Sin esto, scanner crashea con "Refuse to validate
   // a string as JavaScript". DEUDA TÉCNICA: scopear CSP por route via middleware (solo
   // /admin/upload + /portal/trabajador/tickets) para que resto de la web mantenga CSP estricta.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://va.vercel-scripts.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://va.vercel-scripts.com https://www.googletagmanager.com",
+  "script-src-elem 'self' 'unsafe-inline' https://challenges.cloudflare.com https://va.vercel-scripts.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
