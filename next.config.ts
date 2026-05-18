@@ -27,7 +27,11 @@ const CSP_HEADER = [
   "script-src-elem 'self' 'unsafe-inline' https://challenges.cloudflare.com https://va.vercel-scripts.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
-  "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
+  // 'data:' añadido 18/05/2026: opencv.js carga su WASM (~8MB) desde data:URL
+  // inline (base64 AGFzbQ... magic number). Sin esto, scanner queda en "Cargando
+  // motor..." infinito porque WASM fetch bloqueado por CSP.
+  // 'blob:' añadido por si jscanify spawn Web Workers con blob URLs.
+  "connect-src 'self' data: blob: https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
   "frame-src 'self' https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
