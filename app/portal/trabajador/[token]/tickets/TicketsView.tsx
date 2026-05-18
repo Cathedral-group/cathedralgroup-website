@@ -3,17 +3,6 @@
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import imageCompression from 'browser-image-compression'
-import dynamic from 'next/dynamic'
-import type { CapturedPage } from '@/components/scanner/types'
-
-const DocumentScanner = dynamic(() => import('@/components/scanner/DocumentScanner'), {
-  ssr: false,
-  loading: () => (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black text-white">
-      <p className="text-sm">Cargando escáner...</p>
-    </div>
-  ),
-})
 
 interface Project {
   id: string
@@ -79,8 +68,6 @@ export default function TicketsView({
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [compressing, setCompressing] = useState(false)
-  const [showScanner, setShowScanner] = useState<boolean>(false)
-  const [scanProgress, setScanProgress] = useState<{ current: number; total: number; failed: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -202,71 +189,6 @@ export default function TicketsView({
     }
   }
 
-  async function uploadScannedPages(pages: CapturedPage[]) {
-    setShowScanner(false)
-    setError(null)
-    setSuccess(null)
-    setScanProgress({ current: 0, total: pages.length, failed: 0 })
-
-    const newAttachments: Attachment[] = []
-    let failed = 0
-
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i]
-      const filename = `escaneo_${new Date().toISOString().replace(/[:.]/g, '-')}_p${i + 1}.jpg`
-      const fileObj = new File([page.blob], filename, { type: 'image/jpeg' })
-      const fd = new FormData()
-      fd.append('file', fileObj)
-      fd.append('doc_type', docType)
-      if (projectId) fd.append('project_id', projectId)
-      const pageNote = pages.length > 1 ? `escaneo página ${i + 1}/${pages.length}` : 'escaneo cámara'
-      const noteFinal = notas.trim() ? `${notas.trim()} · ${pageNote}` : pageNote
-      fd.append('notas', noteFinal)
-
-      try {
-        const res = await fetch(`/api/portal/trabajador/${token}/upload-receipt`, {
-          method: 'POST',
-          body: fd,
-        })
-        const json = await res.json()
-        if (res.ok && json.attachment) {
-          newAttachments.push({
-            id: json.attachment.id,
-            storage_path: json.attachment.storage_path,
-            storage_bucket: 'worker-receipts',
-            mime_type: 'image/jpeg',
-            doc_type: json.attachment.doc_type,
-            status: json.attachment.status,
-            worker_notas: noteFinal,
-            created_at: json.attachment.created_at,
-            preview_url: json.preview_url,
-            project: projectId
-              ? (() => {
-                  const p = projects.find((x) => x.id === projectId)
-                  return p ? { code: p.code, name: p.name } : null
-                })()
-              : null,
-          })
-        } else {
-          failed++
-        }
-      } catch {
-        failed++
-      }
-      setScanProgress({ current: i + 1, total: pages.length, failed })
-    }
-
-    setAttachments((prev) => [...newAttachments.reverse(), ...prev])
-    pages.forEach((p) => URL.revokeObjectURL(p.previewUrl))
-    if (newAttachments.length > 0) {
-      setSuccess(`${newAttachments.length} ${newAttachments.length === 1 ? 'página subida' : 'páginas subidas'}${failed > 0 ? ` (${failed} fallos)` : ''}`)
-    } else {
-      setError(`No se subió ninguna página (${failed} fallos)`)
-    }
-    setNotas('')
-    setProjectId('')
-  }
-
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
       <div className="mb-4 flex items-center justify-between">
@@ -312,33 +234,6 @@ export default function TicketsView({
               ))}
             </div>
           </div>
-
-          {/* Escáner inteligente */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowScanner(true)}
-              className="w-full rounded-lg bg-emerald-600 px-4 py-3 text-base font-medium text-white hover:bg-emerald-700"
-            >
-              📷 Escanear con cámara
-            </button>
-            <p className="mt-1 text-center text-xs text-stone-500">
-              Detección automática de bordes + auto-disparo. Recomendado.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-stone-400">
-            <span className="flex-1 border-t border-stone-200" />
-            <span>o subir archivo</span>
-            <span className="flex-1 border-t border-stone-200" />
-          </div>
-
-          {scanProgress && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-              📤 Subiendo {scanProgress.current} / {scanProgress.total}
-              {scanProgress.failed > 0 && ` · ${scanProgress.failed} fallos`}
-            </div>
-          )}
 
           {/* Captura foto / archivo */}
           <div>
@@ -503,13 +398,6 @@ export default function TicketsView({
         )}
       </div>
 
-      {showScanner && (
-        <DocumentScanner
-          onComplete={uploadScannedPages}
-          onCancel={() => setShowScanner(false)}
-          maxPages={10}
-        />
-      )}
     </div>
   )
 }

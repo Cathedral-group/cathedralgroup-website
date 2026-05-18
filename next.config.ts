@@ -9,29 +9,20 @@ import type { NextConfig } from 'next'
 //   - Supabase (DB + Auth): cpqsnajuypgjjapvbqsr.supabase.co
 //   - Google Fonts: fonts.googleapis.com / fonts.gstatic.com
 //   - Vercel Insights/Analytics: vitals.vercel-insights.com / va.vercel-scripts.com
+//   - Google Tag Manager / GA4: www.googletagmanager.com
 //
 // Si añades nuevos servicios externos, actualiza la directiva relevante.
 const CSP_HEADER = [
   "default-src 'self'",
   "img-src 'self' data: blob: https://cpqsnajuypgjjapvbqsr.supabase.co",
   // 'unsafe-inline' es necesario por Next.js (hidrataciones inline). Sin nonces dinámicos.
-  // 'wasm-unsafe-eval' añadido 18/05/2026: requerido por opencv.js (escáner cámara
-  // /admin/upload + /portal/trabajador/tickets). Permite WebAssembly.compile/instantiate.
-  // 'unsafe-eval' RE-añadido 18/05/2026 (después de eliminarlo 8/05/2026): obligatorio
-  // por opencv.js Emscripten que usa `new Function()` internamente en craftInvokerFunction
-  // (Emscripten issue #18732 abierto sin fix, CVAT #3159). `wasm-unsafe-eval` SOLO cubre
-  // WebAssembly, NO `new Function()` JS. Sin esto, scanner crashea con "Refuse to validate
-  // a string as JavaScript". DEUDA TÉCNICA: scopear CSP por route via middleware (solo
-  // /admin/upload + /portal/trabajador/tickets) para que resto de la web mantenga CSP estricta.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://va.vercel-scripts.com https://www.googletagmanager.com",
+  // 'unsafe-eval' eliminado 8/05/2026 (re-eliminado 18/05/2026 tras pivotar A — quitando
+  // scanner opencv.js que lo requería). Next.js 15 no lo necesita en prod.
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://va.vercel-scripts.com https://www.googletagmanager.com",
   "script-src-elem 'self' 'unsafe-inline' https://challenges.cloudflare.com https://va.vercel-scripts.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
-  // 'data:' añadido 18/05/2026: opencv.js carga su WASM (~8MB) desde data:URL
-  // inline (base64 AGFzbQ... magic number). Sin esto, scanner queda en "Cargando
-  // motor..." infinito porque WASM fetch bloqueado por CSP.
-  // 'blob:' añadido por si jscanify spawn Web Workers con blob URLs.
-  "connect-src 'self' data: blob: https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
+  "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
   "frame-src 'self' https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -41,20 +32,6 @@ const CSP_HEADER = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['gray-matter', 'reading-time'],
-  webpack: (config, { isServer }) => {
-    // @techstark/opencv-js incluye fallback Node.js que webpack intenta resolver
-    // ('fs', 'path', 'crypto'). Solo se usa en cliente via dynamic import — stub
-    // estos módulos para que el bundle browser no falle.
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        crypto: false,
-      }
-    }
-    return config
-  },
   async headers() {
     return [
       {
