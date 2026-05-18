@@ -15,11 +15,15 @@ const CSP_HEADER = [
   "default-src 'self'",
   "img-src 'self' data: blob: https://cpqsnajuypgjjapvbqsr.supabase.co",
   // 'unsafe-inline' es necesario por Next.js (hidrataciones inline). Sin nonces dinámicos.
-  // 'unsafe-eval' eliminado 8/05/2026: Next.js 15 no lo requiere y es vector XSS puro.
   // 'wasm-unsafe-eval' añadido 18/05/2026: requerido por opencv.js (escáner cámara
-  // /admin/upload + /portal/trabajador/tickets). Solo permite WebAssembly.compile/
-  // instantiate — NO abre puerta a eval() general como 'unsafe-eval'.
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://va.vercel-scripts.com",
+  // /admin/upload + /portal/trabajador/tickets). Permite WebAssembly.compile/instantiate.
+  // 'unsafe-eval' RE-añadido 18/05/2026 (después de eliminarlo 8/05/2026): obligatorio
+  // por opencv.js Emscripten que usa `new Function()` internamente en craftInvokerFunction
+  // (Emscripten issue #18732 abierto sin fix, CVAT #3159). `wasm-unsafe-eval` SOLO cubre
+  // WebAssembly, NO `new Function()` JS. Sin esto, scanner crashea con "Refuse to validate
+  // a string as JavaScript". DEUDA TÉCNICA: scopear CSP por route via middleware (solo
+  // /admin/upload + /portal/trabajador/tickets) para que resto de la web mantenga CSP estricta.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://va.vercel-scripts.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
