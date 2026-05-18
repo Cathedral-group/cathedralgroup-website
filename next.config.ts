@@ -29,6 +29,20 @@ const CSP_HEADER = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['gray-matter', 'reading-time'],
+  webpack: (config, { isServer }) => {
+    // @techstark/opencv-js incluye fallback Node.js que webpack intenta resolver
+    // ('fs', 'path', 'crypto'). Solo se usa en cliente via dynamic import — stub
+    // estos módulos para que el bundle browser no falle.
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      }
+    }
+    return config
+  },
   async headers() {
     return [
       {
