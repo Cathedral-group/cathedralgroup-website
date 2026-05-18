@@ -16,7 +16,10 @@ const CSP_HEADER = [
   "img-src 'self' data: blob: https://cpqsnajuypgjjapvbqsr.supabase.co",
   // 'unsafe-inline' es necesario por Next.js (hidrataciones inline). Sin nonces dinámicos.
   // 'unsafe-eval' eliminado 8/05/2026: Next.js 15 no lo requiere y es vector XSS puro.
-  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://va.vercel-scripts.com",
+  // 'wasm-unsafe-eval' añadido 18/05/2026: requerido por opencv.js (escáner cámara
+  // /admin/upload + /portal/trabajador/tickets). Solo permite WebAssembly.compile/
+  // instantiate — NO abre puerta a eval() general como 'unsafe-eval'.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://va.vercel-scripts.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
