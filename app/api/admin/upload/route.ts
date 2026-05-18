@@ -28,7 +28,6 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { isAdminEmail } from '@/lib/auth-allowlist'
-import { extractReceiptDataCascade, isCascadeAvailable } from '@/lib/ocr'
 import { sha256Hex } from '@/lib/cathedral-utility-client'
 
 export const maxDuration = 60
@@ -176,35 +175,45 @@ export async function POST(request: NextRequest) {
     .from('admin-uploads')
     .createSignedUrl(storagePath, 3600)
 
-  // OCR cascade post-response si imagen
-  if (isCascadeAvailable() && file.type.startsWith('image/')) {
-    after(async () => {
-      try {
-        await supabase.from('admin_uploads').update({ status: 'processing' }).eq('id', id)
-        const extracted = await extractReceiptDataCascade(arrayBuffer, file.type)
-        if (!extracted) {
-          await supabase.from('admin_uploads').update({
-            status: 'error',
-            extracted_data: { error: 'cascade_returned_null' },
-          }).eq('id', id)
-          return
-        }
-        const { provider, fallbacks: _fb, ...payload } = extracted
-        await supabase.from('admin_uploads').update({
-          status: 'extracted',
-          extracted_data: payload,
-          extracted_at: new Date().toISOString(),
-          extraction_provider: provider,
-        }).eq('id', id)
-      } catch (err) {
-        console.error('[admin/upload] OCR cascade error:', err)
+  // Dispatch Workflow Definitivo via Op 2 queue (Plan C 18/05/2026)
+  // Endpoint = thin write only. Workflow procesa OCR + classify + Drive + INSERT invoices.
+  // BD trigger dispatch_agent_webhook detecta agent_name='workflow_invoice_ocr' → llama
+  // webhook /cathedral-reprocess con Bearer Vault secret. Workflow Adaptador Admin Upload
+  // descarga binary desde Supabase Storage signed URL → pipeline downstream.
+  after(async () => {
+    try {
+      const { error: dispatchErr } = await supabase.from('agent_dispatch_queue').insert({
+        agent_name: 'workflow_invoice_ocr',
+        event_type: 'admin_upload',
+        severity: 'low',
+        trigger_payload: {
+          message_id: `admin-${id}`,
+          gmail_account: 'admin_upload',
+          from_address: user.email,
+          subject: `[Admin Upload] ${docType} · ${(file as File).name || 'archivo'}`,
+          received_at: new Date().toISOString(),
+          body: notas || '',
+          filename: (file as File).name || `admin_${id}.${ext}`,
+          mime_type: file.type,
+          admin_upload_id: id,
+          storage_path: storagePath,
+        },
+        dedup_key: `admin-upload-${id}`,
+        status: 'pending',
+      })
+      if (dispatchErr) {
+        console.error('[admin/upload] dispatch INSERT failed:', dispatchErr)
         await supabase.from('admin_uploads').update({
           status: 'error',
-          extracted_data: { error: err instanceof Error ? err.message : 'unknown' },
+          extracted_data: { error: 'dispatch_failed', detail: dispatchErr.message },
         }).eq('id', id)
+      } else {
+        await supabase.from('admin_uploads').update({ status: 'processing' }).eq('id', id)
       }
-    })
-  }
+    } catch (err) {
+      console.error('[admin/upload] dispatch unexpected error:', err)
+    }
+  })
 
   return NextResponse.json({
     ok: true,

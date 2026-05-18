@@ -208,6 +208,40 @@ export async function POST(
     .from('worker-receipts')
     .createSignedUrl(storagePath, 3600)
 
+  // Dispatch Workflow Definitivo via Op 2 queue (Plan C 18/05/2026)
+  // Pipeline downstream: OCR cascade + classify project + dedup + Drive routing + INSERT invoices.
+  // OCR inline cascade MANTENIDO debajo para UX feedback inmediato worker (datos extraídos en UI).
+  // Doble OCR temporal asumible ($2.34/mes) — futuro: skip workflow OCR si admin_uploads.extracted_data ya populated.
+  after(async () => {
+    try {
+      const { error: dispatchErr } = await supabase.from('agent_dispatch_queue').insert({
+        agent_name: 'workflow_invoice_ocr',
+        event_type: 'worker_upload',
+        severity: 'low',
+        trigger_payload: {
+          message_id: `worker-${id}`,
+          gmail_account: 'worker_upload',
+          from_address: `worker:${employeeId}`,
+          subject: `[Worker Upload] ${docType} · ${employeeNombre} · ${(file as File).name || 'archivo'}`,
+          received_at: new Date().toISOString(),
+          body: notas || '',
+          filename: (file as File).name || `worker_${id}.${(file.type.split('/')[1] || 'jpg')}`,
+          mime_type: file.type,
+          admin_upload_id: id,
+          storage_path: storagePath,
+          storage_bucket: 'worker-receipts',
+        },
+        dedup_key: `worker-attachment-${id}`,
+        status: 'pending',
+      })
+      if (dispatchErr) {
+        console.error('[upload-receipt] dispatch INSERT failed:', dispatchErr)
+      }
+    } catch (err) {
+      console.error('[upload-receipt] dispatch unexpected error:', err)
+    }
+  })
+
   // OCR automático tras-response con CASCADA Gemini → OpenAI → Mistral.
   // Solo si imagen + al menos un provider configurado en env.
   //
