@@ -2,6 +2,17 @@
 
 import { useCallback, useRef, useState } from 'react'
 import imageCompression from 'browser-image-compression'
+import dynamic from 'next/dynamic'
+import type { CapturedPage } from '@/components/scanner/types'
+
+const DocumentScanner = dynamic(() => import('@/components/scanner/DocumentScanner'), {
+  ssr: false,
+  loading: () => (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black text-white">
+      <p className="text-sm">Cargando escáner...</p>
+    </div>
+  ),
+})
 
 interface Project {
   id: string
@@ -49,6 +60,9 @@ export default function UploadView({ projects }: Props) {
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<UploadResult | null>(null)
+  const [showScanner, setShowScanner] = useState<boolean>(false)
+  const [scanProgress, setScanProgress] = useState<{ current: number; total: number; failed: number } | null>(null)
+  const [scanResults, setScanResults] = useState<UploadResult[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const processFile = useCallback(async (f: File) => {
@@ -151,11 +165,64 @@ export default function UploadView({ projects }: Props) {
   function reset() {
     setSuccess(null)
     setError(null)
+    setScanResults([])
+    setScanProgress(null)
     setFile(null)
     setPreviewUrl(null)
     setNotas('')
     setProjectId('')
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function uploadScannedPages(pages: CapturedPage[]) {
+    setShowScanner(false)
+    setError(null)
+    setSuccess(null)
+    setScanResults([])
+    setScanProgress({ current: 0, total: pages.length, failed: 0 })
+
+    const results: UploadResult[] = []
+    let failed = 0
+
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i]
+      const filename = `escaneo_${new Date().toISOString().replace(/[:.]/g, '-')}_p${i + 1}.jpg`
+      const fileObj = new File([page.blob], filename, { type: 'image/jpeg' })
+      const fd = new FormData()
+      fd.append('file', fileObj)
+      fd.append('doc_type', docType)
+      if (projectId) fd.append('project_id', projectId)
+      const pageNote = pages.length > 1 ? `escaneo página ${i + 1}/${pages.length}` : 'escaneo cámara'
+      const noteFinal = notas.trim() ? `${notas.trim()} · ${pageNote}` : pageNote
+      fd.append('notas', noteFinal)
+
+      try {
+        const res = await fetch('/api/admin/upload', { method: 'POST', body: fd })
+        const json = await res.json()
+        if (res.ok) {
+          results.push({
+            id: json.id,
+            storage_path: json.storage_path,
+            signed_url: json.signed_url,
+            doc_type: json.doc_type,
+            status: json.status,
+          })
+        } else {
+          failed++
+          console.error('[scanner upload] error página', i + 1, json.error)
+        }
+      } catch (e) {
+        failed++
+        console.error('[scanner upload] excepción página', i + 1, e)
+      }
+      setScanProgress({ current: i + 1, total: pages.length, failed })
+    }
+
+    setScanResults(results)
+    pages.forEach((p) => URL.revokeObjectURL(p.previewUrl))
+    if (results.length === 0) {
+      setError(`No se subió ninguna página (${failed} fallos)`)
+    }
   }
 
   const lbl = 'text-[10px] font-bold uppercase tracking-widest text-neutral-400 block mb-2'
@@ -184,6 +251,27 @@ export default function UploadView({ projects }: Props) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Botón escáner inteligente */}
+        <div className="mb-3">
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            className="w-full rounded bg-emerald-600 px-4 py-3 text-sm font-bold uppercase tracking-widest text-white hover:bg-emerald-700"
+          >
+            📷 Escanear documento con cámara
+          </button>
+          <p className="mt-1 text-center text-xs text-neutral-500">
+            Detección automática de bordes + multi-página + auto-disparo. Requiere webcam o
+            cámara móvil.
+          </p>
+        </div>
+
+        <div className="my-3 flex items-center gap-3 text-xs text-neutral-400">
+          <span className="flex-1 border-t border-neutral-200" />
+          <span>o subir archivo</span>
+          <span className="flex-1 border-t border-neutral-200" />
         </div>
 
         {/* Captura / drag-drop */}
@@ -289,6 +377,34 @@ export default function UploadView({ projects }: Props) {
           </div>
         )}
 
+        {scanProgress && (
+          <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+            📤 Subiendo escaneo: {scanProgress.current} / {scanProgress.total}
+            {scanProgress.failed > 0 && ` · ${scanProgress.failed} fallos`}
+          </div>
+        )}
+
+        {scanResults.length > 0 && (
+          <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+            <p className="font-medium">
+              ✓ {scanResults.length} {scanResults.length === 1 ? 'página subida' : 'páginas subidas'}
+            </p>
+            <ul className="mt-2 space-y-1 text-xs">
+              {scanResults.map((r, i) => (
+                <li key={r.id}>
+                  Página {i + 1}: <code className="font-mono">{r.id.slice(0, 8)}</code>
+                  {' · '}
+                  {r.signed_url && (
+                    <a href={r.signed_url} target="_blank" rel="noopener" className="underline">
+                      ver
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <button
             type="button"
@@ -348,6 +464,14 @@ export default function UploadView({ projects }: Props) {
           </p>
         </div>
       </div>
+
+      {showScanner && (
+        <DocumentScanner
+          onComplete={uploadScannedPages}
+          onCancel={() => setShowScanner(false)}
+          maxPages={10}
+        />
+      )}
     </div>
   )
 }
