@@ -21,14 +21,6 @@ interface CameraControls extends CameraState {
   toggleTorch: () => Promise<void>
 }
 
-/**
- * Selecciona cámara trasera priorizando heurísticas robustas para iOS Safari.
- * iOS Safari WebKit bug #253186 hace que `facingMode: 'environment'` a veces
- * seleccione ultra-gran-angular. Estrategia:
- * 1. enumerateDevices() (requiere permiso previo)
- * 2. Buscar device cuya label contenga "back" / "rear" / "trasera" / "environment"
- * 3. Si solo 1 cámara, usarla. Si varias, última suele ser trasera en iOS
- */
 function pickRearCamera(devices: MediaDeviceInfo[]): string | null {
   if (devices.length === 0) return null
   if (devices.length === 1) return devices[0].deviceId
@@ -42,9 +34,24 @@ function pickRearCamera(devices: MediaDeviceInfo[]): string | null {
   return devices[devices.length - 1].deviceId
 }
 
-export function useCamera(autoStart: boolean = true): CameraControls {
+/**
+ * Camera hook robusto iOS Safari + Android Chrome + desktop.
+ *
+ * REGLAS CRÍTICAS aplicadas tras diagnóstico validador 18/05/2026:
+ *
+ * 1. NO doble getUserMedia. WebKit bug #179363: el segundo getUserMedia sobre
+ *    misma media pone track.muted=true read-only en primer stream → video negro
+ *    UI colgada. Si necesitamos cambiar de cámara tras enumerateDevices,
+ *    usamos applyConstraints sobre la track existente.
+ *
+ * 2. autoStart por defecto FALSE. iOS Safari requiere user-gesture directo en
+ *    el stack del click — setTimeout o useEffect rompe ese stack. El componente
+ *    consumer debe llamar start() desde el onClick del botón "Iniciar cámara".
+ */
+export function useCamera(autoStart: boolean = false): CameraControls {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const mountedRef = useRef<boolean>(true)
   const [state, setState] = useState<CameraState>({
     status: 'pending',
     error: null,
@@ -53,6 +60,10 @@ export function useCamera(autoStart: boolean = true): CameraControls {
     hasTorch: false,
     torchOn: false,
   })
+
+  const safeSetState = useCallback((updater: (s: CameraState) => CameraState) => {
+    if (mountedRef.current) setState(updater)
+  }, [])
 
   const stop = useCallback(() => {
     if (streamRef.current) {
@@ -66,7 +77,7 @@ export function useCamera(autoStart: boolean = true): CameraControls {
 
   const start = useCallback(async (deviceId?: string) => {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setState((s) => ({
+      safeSetState((s) => ({
         ...s,
         status: 'no_device',
         error: 'Tu navegador no soporta acceso a cámara',
@@ -74,31 +85,47 @@ export function useCamera(autoStart: boolean = true): CameraControls {
       return
     }
 
-    setState((s) => ({ ...s, status: 'requesting', error: null }))
+    safeSetState((s) => ({ ...s, status: 'requesting', error: null }))
 
     try {
-      // Primero pedimos permiso con constraint suave para que enumerateDevices devuelva labels
-      const initialConstraints: MediaStreamConstraints = deviceId
+      // ÚNICO getUserMedia. Si no se especifica deviceId, pedimos hint environment
+      // (Safari iOS lo soporta como hint, no como require — fallback frontal automático).
+      const constraints: MediaStreamConstraints = deviceId
         ? { video: { deviceId: { exact: deviceId } }, audio: false }
-        : { video: { facingMode: { ideal: 'environment' } }, audio: false }
+        : {
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+            audio: false,
+          }
 
-      let stream = await navigator.mediaDevices.getUserMedia(initialConstraints)
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
 
-      // Tras permiso, listar devices con labels
-      const allDevices = await navigator.mediaDevices.enumerateDevices()
-      const videoDevices = allDevices.filter((d) => d.kind === 'videoinput')
+      // Enumerate devices DESPUÉS del permiso (necesario para labels)
+      let videoDevices: MediaDeviceInfo[] = []
+      try {
+        const allDevices = await navigator.mediaDevices.enumerateDevices()
+        videoDevices = allDevices.filter((d) => d.kind === 'videoinput')
+      } catch {
+        // ignore
+      }
 
-      // Si no se forzó deviceId, intentar rear con heurística
+      // Si hay múltiples cámaras y la activa NO es la trasera por heurística label,
+      // applyConstraints en track existente (NO doble getUserMedia — WebKit bug #179363)
       if (!deviceId && videoDevices.length > 1) {
         const rearId = pickRearCamera(videoDevices)
         const currentTrack = stream.getVideoTracks()[0]
         const currentDeviceId = currentTrack?.getSettings().deviceId
-        if (rearId && rearId !== currentDeviceId) {
-          stream.getTracks().forEach((t) => t.stop())
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: rearId } },
-            audio: false,
-          })
+        if (rearId && rearId !== currentDeviceId && currentTrack) {
+          try {
+            await currentTrack.applyConstraints({
+              deviceId: { exact: rearId },
+            } as MediaTrackConstraints)
+          } catch {
+            // Si applyConstraints falla, seguimos con la cámara seleccionada por facingMode
+          }
         }
       }
 
@@ -107,6 +134,7 @@ export function useCamera(autoStart: boolean = true): CameraControls {
         videoRef.current.srcObject = stream
         videoRef.current.playsInline = true
         videoRef.current.muted = true
+        videoRef.current.autoplay = true
         await videoRef.current.play().catch(() => {})
       }
 
@@ -115,35 +143,47 @@ export function useCamera(autoStart: boolean = true): CameraControls {
       const caps: any = typeof track?.getCapabilities === 'function' ? track.getCapabilities() : {}
       const hasTorch = !!caps?.torch
 
-      setState({
+      safeSetState(() => ({
         status: 'granted',
         error: null,
         videoDevices,
         activeDeviceId: activeId,
         hasTorch,
         torchOn: false,
-      })
+      }))
     } catch (err: any) {
       const name = err?.name || 'Error'
       let status: PermissionStatus = 'error'
-      let msg = 'No se pudo acceder a la cámara'
+      let msg = err?.message || 'No se pudo acceder a la cámara'
       if (name === 'NotAllowedError' || name === 'SecurityError') {
         status = 'denied'
         msg = 'Permiso de cámara denegado. Cambia el ajuste en el navegador y vuelve a intentar.'
       } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
         status = 'no_device'
         msg = 'No se detecta ninguna cámara en este dispositivo.'
+      } else if (name === 'NotReadableError' || name === 'AbortError') {
+        msg = 'La cámara está siendo usada por otra app. Ciérrala y reintenta.'
       }
-      setState((s) => ({ ...s, status, error: msg }))
+      safeSetState((s) => ({ ...s, status, error: msg }))
     }
-  }, [])
+  }, [safeSetState])
 
   const switchCamera = useCallback(
     async (deviceId: string) => {
+      const track = streamRef.current?.getVideoTracks()[0]
+      if (track) {
+        try {
+          await track.applyConstraints({ deviceId: { exact: deviceId } } as MediaTrackConstraints)
+          safeSetState((s) => ({ ...s, activeDeviceId: deviceId }))
+          return
+        } catch {
+          // Fallback: stop + start fresh
+        }
+      }
       stop()
       await start(deviceId)
     },
-    [start, stop],
+    [start, stop, safeSetState],
   )
 
   const toggleTorch = useCallback(async () => {
@@ -152,17 +192,19 @@ export function useCamera(autoStart: boolean = true): CameraControls {
     try {
       const next = !state.torchOn
       await track.applyConstraints({ advanced: [{ torch: next } as any] })
-      setState((s) => ({ ...s, torchOn: next }))
+      safeSetState((s) => ({ ...s, torchOn: next }))
     } catch {
       // iOS Safari no soporta torch — silenciar
     }
-  }, [state.torchOn])
+  }, [state.torchOn, safeSetState])
 
   useEffect(() => {
+    mountedRef.current = true
     if (autoStart) {
       void start()
     }
     return () => {
+      mountedRef.current = false
       stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

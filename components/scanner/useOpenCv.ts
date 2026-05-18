@@ -13,26 +13,66 @@ let cachedCv: any | null = null
 let cachedScanner: any | null = null
 let inflight: Promise<{ cv: any; scanner: any }> | null = null
 
+/**
+ * Carga opencv.js + jscanify defensivamente.
+ *
+ * BUG @techstark/opencv-js #47: `onRuntimeInitialized` puede ser read-only en
+ * algunas versiones — asignación silenciosa falla y Promise queda colgada
+ * indefinidamente (síntoma "todo bloqueado" producción).
+ *
+ * Solución: detectar runtime ready vía polling de `cv.Mat`, con timeout 30s
+ * para fallar rápido si el WASM nunca carga.
+ */
 async function loadOpenCvAndScanner(): Promise<{ cv: any; scanner: any }> {
   if (cachedCv && cachedScanner) return { cv: cachedCv, scanner: cachedScanner }
   if (inflight) return inflight
 
   inflight = (async () => {
     const cvModule: any = (await import('@techstark/opencv-js')).default
+
     let cv: any
     if (cvModule instanceof Promise) {
       cv = await cvModule
-    } else if (cvModule.onRuntimeInitialized !== undefined) {
-      await new Promise<void>((resolve) => {
-        if (typeof cvModule.Mat === 'function') {
-          resolve()
-        } else {
-          cvModule.onRuntimeInitialized = () => resolve()
-        }
-      })
-      cv = cvModule
     } else {
-      cv = cvModule
+      // Esperar runtime con timeout 30s. Usa polling defensivo en vez de
+      // depender solo de onRuntimeInitialized (read-only en v4.12 issue #47).
+      cv = await new Promise<any>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          clearInterval(pollId)
+          reject(new Error('Timeout cargando opencv.js (30s)'))
+        }, 30_000)
+
+        // Si ya está inicializado, resolver inmediatamente
+        if (typeof cvModule.Mat === 'function') {
+          clearTimeout(timeout)
+          resolve(cvModule)
+          return
+        }
+
+        // Intentar asignar onRuntimeInitialized — falla silenciosa si read-only
+        try {
+          const prev = cvModule.onRuntimeInitialized
+          cvModule.onRuntimeInitialized = () => {
+            if (typeof prev === 'function') {
+              try { prev() } catch {}
+            }
+            clearTimeout(timeout)
+            clearInterval(pollId)
+            resolve(cvModule)
+          }
+        } catch {
+          // read-only — confiamos solo en polling
+        }
+
+        // Polling defensivo cada 100ms (cubre el caso read-only y race conditions)
+        const pollId: ReturnType<typeof setInterval> = setInterval(() => {
+          if (typeof cvModule.Mat === 'function') {
+            clearInterval(pollId)
+            clearTimeout(timeout)
+            resolve(cvModule)
+          }
+        }, 100)
+      })
     }
 
     // jscanify lee `cv` desde window — UMD module
@@ -49,6 +89,11 @@ async function loadOpenCvAndScanner(): Promise<{ cv: any; scanner: any }> {
     cachedScanner = scanner
     return { cv, scanner }
   })()
+
+  // Si carga falla, limpiar inflight para permitir retry
+  inflight.catch(() => {
+    inflight = null
+  })
 
   return inflight
 }

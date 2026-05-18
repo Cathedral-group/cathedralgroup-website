@@ -72,7 +72,8 @@ export default function DocumentScanner({
   outputLongEdge = 1600,
   outputQuality = 0.85,
 }: DocumentScannerProps) {
-  const camera = useCamera(true)
+  // autoStart=false — start() debe llamarse desde click directo del usuario (iOS gesture)
+  const camera = useCamera(false)
   const { cv, scanner, loading: cvLoading, error: cvError } = useOpenCv()
 
   const inputCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -82,11 +83,16 @@ export default function DocumentScanner({
   const cornerHistoryRef = useRef<CornerHistoryEntry[]>([])
   const lastAutoCaptureRef = useRef<number>(0)
   const captureInFlightRef = useRef<boolean>(false)
+  // Refs para evitar restart del rAF effect cada render
+  const captureNowRef = useRef<((corners?: PaperCorners) => Promise<void>) | null>(null)
+  const autoCaptureRef = useRef<boolean>(true)
+  const lastHintRef = useRef<string>('Apunta a un documento')
 
   const [pages, setPages] = useState<CapturedPage[]>([])
   const [autoCapture, setAutoCapture] = useState<boolean>(true)
   const [statusHint, setStatusHint] = useState<string>('Apunta a un documento')
   const [completing, setCompleting] = useState<boolean>(false)
+  const [cameraStarted, setCameraStarted] = useState<boolean>(false)
 
   const ready = camera.status === 'granted' && !!cv && !!scanner
 
@@ -186,6 +192,15 @@ export default function DocumentScanner({
     }
   }, [pages, onComplete])
 
+  // Sincronizar refs cada render (sin causar re-run del effect rAF)
+  useEffect(() => {
+    captureNowRef.current = captureNow
+  }, [captureNow])
+
+  useEffect(() => {
+    autoCaptureRef.current = autoCapture
+  }, [autoCapture])
+
   // Loop de detección rAF
   useEffect(() => {
     if (!ready) return
@@ -216,11 +231,14 @@ export default function DocumentScanner({
       // Copiar video a canvas input 640×480
       inputCtx.drawImage(video, 0, 0, INPUT_WIDTH, INPUT_HEIGHT)
 
-      // Detectar contorno + esquinas
+      // Detectar contorno + esquinas. CRÍTICO: img.delete() + contour.delete()
+      // SIEMPRE en finally — sin esto opencv.js leak ~60s → OOM iOS (issue #23216).
       let corners: PaperCorners | null = null
+      let img: any = null
+      let contour: any = null
       try {
-        const img = cv.imread(input)
-        const contour = scanner.findPaperContour(img)
+        img = cv.imread(input)
+        contour = scanner.findPaperContour(img)
         if (contour) {
           const pts = scanner.getCornerPoints(contour, img)
           if (
@@ -232,13 +250,18 @@ export default function DocumentScanner({
             corners = pts
           }
         }
-        img.delete()
       } catch (e) {
         // Silenciar — frame puede no detectar
+      } finally {
+        try { if (contour && typeof contour.delete === 'function') contour.delete() } catch {}
+        try { if (img && typeof img.delete === 'function') img.delete() } catch {}
       }
 
       // Limpiar overlay
       overlayCtx.clearRect(0, 0, overlay.width, overlay.height)
+
+      // Hint a aplicar (batch — solo se hace setState al final si cambia)
+      let nextHint: string | null = null
 
       if (corners) {
         const scaleX = overlay.width / INPUT_WIDTH
@@ -258,40 +281,53 @@ export default function DocumentScanner({
         const now = Date.now()
         const history = cornerHistoryRef.current
         history.push({ corners, ts: now })
-        // Limpiar entries viejos
+        // Limpiar entries viejos (slice O(n) una vez, NO shift O(n²) por frame)
         const cutoff = now - 1500
-        while (history.length > 0 && history[0].ts < cutoff) history.shift()
+        if (history.length > 0 && history[0].ts < cutoff) {
+          let firstValid = 0
+          while (firstValid < history.length && history[firstValid].ts < cutoff) firstValid++
+          cornerHistoryRef.current = history.slice(firstValid)
+        }
+        const liveHistory = cornerHistoryRef.current
 
+        const currentAutoCapture = autoCaptureRef.current
         if (
-          autoCapture &&
-          history.length >= STABILITY_FRAMES &&
+          currentAutoCapture &&
+          liveHistory.length >= STABILITY_FRAMES &&
           now - lastAutoCaptureRef.current > AUTO_CAPTURE_COOLDOWN_MS
         ) {
-          const ref = history[history.length - STABILITY_FRAMES].corners
+          const ref = liveHistory[liveHistory.length - STABILITY_FRAMES].corners
           let stable = true
-          for (let i = history.length - STABILITY_FRAMES; i < history.length; i++) {
-            if (maxCornerDelta(history[i].corners, ref) > STABILITY_THRESHOLD_PX) {
+          for (let i = liveHistory.length - STABILITY_FRAMES; i < liveHistory.length; i++) {
+            if (maxCornerDelta(liveHistory[i].corners, ref) > STABILITY_THRESHOLD_PX) {
               stable = false
               break
             }
           }
           if (stable) {
-            const elapsed = now - history[history.length - STABILITY_FRAMES].ts
+            const elapsed = now - liveHistory[liveHistory.length - STABILITY_FRAMES].ts
             if (elapsed >= autoCaptureDelayMs) {
-              setStatusHint('✨ Estable — capturando...')
-              void captureNow(corners)
+              nextHint = '✨ Estable — capturando...'
+              const fn = captureNowRef.current
+              if (fn) void fn(corners)
             } else {
-              setStatusHint('Mantén estable...')
+              nextHint = 'Mantén estable...'
             }
           } else {
-            setStatusHint('Documento detectado — alinea')
+            nextHint = 'Documento detectado — alinea'
           }
-        } else if (!autoCapture) {
-          setStatusHint('Pulsa el botón para capturar')
+        } else if (!currentAutoCapture) {
+          nextHint = 'Pulsa el botón para capturar'
         }
       } else {
         cornerHistoryRef.current = []
-        setStatusHint('Buscando documento...')
+        nextHint = 'Buscando documento...'
+      }
+
+      // Solo setState si el hint cambió (anti-thrash main thread iOS)
+      if (nextHint && nextHint !== lastHintRef.current) {
+        lastHintRef.current = nextHint
+        setStatusHint(nextHint)
       }
 
       rafIdRef.current = requestAnimationFrame(tick)
@@ -302,7 +338,11 @@ export default function DocumentScanner({
       if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = null
     }
-  }, [ready, cv, scanner, autoCapture, autoCaptureDelayMs, captureNow, camera.videoRef])
+    // CRÍTICO: captureNow + autoCapture FUERA de deps — usamos refs.
+    // Si están en deps, cada captura recrea callback → effect re-run →
+    // cancela y reinicia rAF loop → video iOS inconsistente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, cv, scanner, autoCaptureDelayMs, camera.videoRef])
 
   // Cleanup blobs on unmount
   useEffect(() => {
@@ -397,16 +437,48 @@ export default function DocumentScanner({
         {/* Canvas input invisible para procesado */}
         <canvas ref={inputCanvasRef} className="hidden" />
 
-        {(camera.status === 'pending' || camera.status === 'requesting' || cvLoading) && (
+        {/* Estado pending — usuario debe pulsar para iniciar (iOS user-gesture) */}
+        {camera.status === 'pending' && !cameraStarted && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 px-6 text-white">
+            <div className="text-5xl">📷</div>
+            <h2 className="mt-4 text-lg font-medium">Listo para escanear</h2>
+            <p className="mt-2 max-w-xs text-center text-sm text-stone-300">
+              Pulsa el botón para activar la cámara. Tu navegador pedirá permiso.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setCameraStarted(true)
+                void camera.start()
+              }}
+              disabled={cvLoading}
+              className="mt-6 rounded bg-emerald-600 px-8 py-4 text-base font-bold uppercase tracking-widest text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {cvLoading ? 'Cargando motor...' : 'Activar cámara'}
+            </button>
+            {cvLoading && (
+              <p className="mt-3 text-xs text-stone-400">
+                Descargando motor de escaneo (~8 MB, una sola vez)
+              </p>
+            )}
+          </div>
+        )}
+
+        {(camera.status === 'requesting' || (cameraStarted && cvLoading)) && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white">
             <div className="text-2xl">📷</div>
             <p className="mt-3 text-sm">
               {camera.status === 'requesting'
                 ? 'Esperando permiso de cámara...'
-                : cvLoading
-                  ? 'Cargando motor de escaneo (~8 MB)...'
-                  : 'Iniciando...'}
+                : 'Cargando motor de escaneo (~8 MB)...'}
             </p>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="mt-6 rounded border border-white/30 px-4 py-2 text-xs hover:bg-white/10"
+            >
+              Cancelar
+            </button>
           </div>
         )}
 
