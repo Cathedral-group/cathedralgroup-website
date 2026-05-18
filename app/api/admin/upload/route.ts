@@ -1,0 +1,217 @@
+/**
+ * POST /api/admin/upload
+ *
+ * Los socios admin suben facturas/docs desde el panel admin con cámara móvil
+ * o drag-drop. Diseñado MVP simple sin scanner avanzado (Fase 2 jscanify futuro).
+ *
+ * Body: multipart/form-data
+ *   - file: imagen JPEG/PNG/WebP/HEIC/PDF, max 10MB
+ *   - doc_type: factura | ticket | albaran | presupuesto | proforma | contrato |
+ *               escritura | nota_simple | licencia | seguro | certificado |
+ *               informe | modelo_fiscal | otro
+ *   - project_id?: UUID opcional (asociar a proyecto)
+ *   - notas?: string corto
+ *
+ * Flujo:
+ *   1. Auth admin AAL2
+ *   2. Validar file size + mime
+ *   3. SHA-256 hash client-side cross check
+ *   4. Upload Supabase Storage bucket admin-uploads
+ *   5. INSERT admin_uploads status='uploaded'
+ *   6. OCR cascade post-response (Gemini + GPT-4o + Mistral) si imagen
+ *   7. Devuelve { id, storage_path, signed_url }
+ *
+ * Próxima integración: tras workflow Definitivo updates → POST webhook con
+ * payload compatible para pasar por mismo pipeline (clasificación + Drive routing).
+ */
+
+import { NextRequest, NextResponse, after } from 'next/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
+import { isAdminEmail } from '@/lib/auth-allowlist'
+import { extractReceiptDataCascade, isCascadeAvailable } from '@/lib/ocr'
+import { sha256Hex } from '@/lib/cathedral-utility-client'
+
+export const maxDuration = 60
+
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']
+const MAX_BYTES = 10 * 1024 * 1024
+const ALLOWED_DOC_TYPES = [
+  'factura', 'ticket', 'albaran', 'presupuesto', 'proforma',
+  'contrato', 'escritura', 'nota_simple', 'licencia', 'seguro',
+  'certificado', 'informe', 'modelo_fiscal', 'otro',
+]
+
+function extFromMime(mime: string): string {
+  switch (mime) {
+    case 'image/jpeg': return 'jpg'
+    case 'image/png': return 'png'
+    case 'image/webp': return 'webp'
+    case 'image/heic':
+    case 'image/heif': return 'heic'
+    case 'application/pdf': return 'pdf'
+    default: return 'bin'
+  }
+}
+
+async function authCheck() {
+  const authClient = await createServerSupabaseClient()
+  const { data, error } = await authClient.auth.getUser()
+  if (error || !data?.user?.email) return null
+  if (!isAdminEmail(data.user.email)) return null
+  const { data: aal, error: aalError } = await authClient.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aalError || !aal || aal.currentLevel !== 'aal2') return null
+  return data.user
+}
+
+export async function POST(request: NextRequest) {
+  const user = await authCheck()
+  if (!user || !user.email) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  const supabase = createAdminSupabaseClient()
+
+  let formData: FormData
+  try {
+    formData = await request.formData()
+  } catch {
+    return NextResponse.json({ error: 'Formulario inválido' }, { status: 400 })
+  }
+
+  const file = formData.get('file') as File | null
+  if (!file || typeof (file as File).size !== 'number') {
+    return NextResponse.json({ error: 'Archivo "file" requerido' }, { status: 400 })
+  }
+  if (file.size === 0) {
+    return NextResponse.json({ error: 'Archivo vacío' }, { status: 400 })
+  }
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: 'Archivo demasiado grande (máx 10 MB)' }, { status: 413 })
+  }
+  if (!ALLOWED_MIME.includes(file.type)) {
+    return NextResponse.json({ error: `Tipo de archivo no permitido (${file.type})` }, { status: 415 })
+  }
+
+  const docType = (formData.get('doc_type') as string) || 'factura'
+  if (!ALLOWED_DOC_TYPES.includes(docType)) {
+    return NextResponse.json({ error: 'doc_type inválido' }, { status: 400 })
+  }
+
+  const projectIdRaw = formData.get('project_id') as string | null
+  const projectId = projectIdRaw && projectIdRaw.trim() !== '' ? projectIdRaw : null
+
+  // Active company del usuario (multi-empresa pattern Cathedral)
+  const { data: activeCompany } = await supabase
+    .from('company_members')
+    .select('company_id')
+    .eq('user_email', user.email)
+    .is('removed_at', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single()
+  const companyId = activeCompany?.company_id || '00000000-0000-0000-0000-cca7ed1a1000'
+
+  if (projectId) {
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (!proj) {
+      return NextResponse.json({ error: 'Proyecto no válido' }, { status: 400 })
+    }
+  }
+
+  const notas = ((formData.get('notas') as string) || '').trim() || null
+
+  // Path: {company_id}/admin/{user_email_safe}/{yyyy-mm}/{uuid}.{ext}
+  const yearMonth = new Date().toISOString().slice(0, 7)
+  const id = crypto.randomUUID()
+  const ext = extFromMime(file.type)
+  const userSafe = user.email.replace(/[^a-z0-9]/gi, '_')
+  const storagePath = `${companyId}/admin/${userSafe}/${yearMonth}/${id}.${ext}`
+
+  const arrayBuffer = await file.arrayBuffer()
+  const [{ error: uploadError }, fileHash] = await Promise.all([
+    supabase.storage.from('admin-uploads').upload(storagePath, arrayBuffer, {
+      contentType: file.type,
+      cacheControl: '3600',
+      upsert: false,
+    }),
+    sha256Hex(arrayBuffer),
+  ])
+
+  if (uploadError) {
+    return NextResponse.json({ error: `Error al subir: ${uploadError.message}` }, { status: 500 })
+  }
+
+  const { data: attachment, error: insertError } = await supabase
+    .from('admin_uploads')
+    .insert({
+      id,
+      company_id: companyId,
+      uploaded_by_email: user.email,
+      project_id: projectId,
+      storage_bucket: 'admin-uploads',
+      storage_path: storagePath,
+      mime_type: file.type,
+      size_bytes: file.size,
+      file_hash: fileHash,
+      original_filename: (file as File).name || null,
+      doc_type: docType,
+      notas,
+      status: 'uploaded',
+    })
+    .select('id, storage_path, doc_type, status, created_at')
+    .single()
+
+  if (insertError) {
+    await supabase.storage.from('admin-uploads').remove([storagePath])
+    return NextResponse.json({ error: insertError.message }, { status: 500 })
+  }
+
+  const { data: signed } = await supabase.storage
+    .from('admin-uploads')
+    .createSignedUrl(storagePath, 3600)
+
+  // OCR cascade post-response si imagen
+  if (isCascadeAvailable() && file.type.startsWith('image/')) {
+    after(async () => {
+      try {
+        await supabase.from('admin_uploads').update({ status: 'processing' }).eq('id', id)
+        const extracted = await extractReceiptDataCascade(arrayBuffer, file.type)
+        if (!extracted) {
+          await supabase.from('admin_uploads').update({
+            status: 'error',
+            extracted_data: { error: 'cascade_returned_null' },
+          }).eq('id', id)
+          return
+        }
+        const { provider, fallbacks: _fb, ...payload } = extracted
+        await supabase.from('admin_uploads').update({
+          status: 'extracted',
+          extracted_data: payload,
+          extracted_at: new Date().toISOString(),
+          extraction_provider: provider,
+        }).eq('id', id)
+      } catch (err) {
+        console.error('[admin/upload] OCR cascade error:', err)
+        await supabase.from('admin_uploads').update({
+          status: 'error',
+          extracted_data: { error: err instanceof Error ? err.message : 'unknown' },
+        }).eq('id', id)
+      }
+    })
+  }
+
+  return NextResponse.json({
+    ok: true,
+    id: attachment?.id,
+    storage_path: attachment?.storage_path,
+    signed_url: signed?.signedUrl || null,
+    doc_type: attachment?.doc_type,
+    status: attachment?.status,
+  })
+}
