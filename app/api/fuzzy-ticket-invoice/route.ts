@@ -39,7 +39,9 @@ import { checkCathedralInternalAuth } from '@/lib/api-auth'
 import { z } from 'zod'
 
 const BodySchema = z.object({
-  supplier_nif: z.string().min(8).max(20),
+  // supplier_nif opcional — workflow llama con null cuando OCR no extrajo NIF.
+  // Si missing/short → early return candidates=[] (graceful, no error).
+  supplier_nif: z.string().max(20).nullable().optional(),
   amount: z.number().positive(),
   issue_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha YYYY-MM-DD requerida'),
   number: z.string().max(100).optional(),
@@ -82,6 +84,16 @@ export async function POST(request: Request) {
   }
 
   const { supplier_nif, amount, issue_date, number, target_table } = parsed.data
+
+  // Graceful early return si supplier_nif missing/short — workflow no debe romper si OCR no extrajo NIF.
+  // Devuelve candidates=[] para que Normalize Fuzzy → Legacy Shape preserve OCR data upstream.
+  if (!supplier_nif || supplier_nif.length < 8) {
+    return Response.json({
+      candidates: [],
+      query_params: { min_amt: amount, max_amt: amount, start_date: issue_date, end_date: issue_date },
+      skipped: 'no_supplier_nif',
+    })
+  }
 
   // Tolerancia ±0.5% importe. `Math.round(x*100)/100` evita drift IEEE 754
   // (a diferencia de `.toFixed(2)` que devuelve string + casos edge).
