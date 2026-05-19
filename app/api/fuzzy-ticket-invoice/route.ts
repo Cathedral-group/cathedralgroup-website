@@ -39,12 +39,12 @@ import { checkCathedralInternalAuth } from '@/lib/api-auth'
 import { z } from 'zod'
 
 const BodySchema = z.object({
-  // supplier_nif opcional — workflow llama con null cuando OCR no extrajo NIF.
-  // Si missing/short → early return candidates=[] (graceful, no error).
+  // Workflow llama con datos OCR que pueden ser null/0 si extracción falló.
+  // Endpoint debe ser permissive + early return candidates=[] si datos insuficientes.
   supplier_nif: z.string().max(20).nullable().optional(),
-  amount: z.number().positive(),
-  issue_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha YYYY-MM-DD requerida'),
-  number: z.string().max(100).optional(),
+  amount: z.number().nonnegative().nullable().optional(),
+  issue_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha YYYY-MM-DD requerida').nullable().optional(),
+  number: z.string().max(100).nullable().optional(),
   target_table: z.enum(['invoices', 'quotes']).default('invoices'),
 })
 
@@ -85,13 +85,24 @@ export async function POST(request: Request) {
 
   const { supplier_nif, amount, issue_date, number, target_table } = parsed.data
 
-  // Graceful early return si supplier_nif missing/short — workflow no debe romper si OCR no extrajo NIF.
+  // Graceful early return si datos OCR insuficientes — workflow no debe romper si extracción falló.
   // Devuelve candidates=[] para que Normalize Fuzzy → Legacy Shape preserve OCR data upstream.
   if (!supplier_nif || supplier_nif.length < 8) {
     return Response.json({
       candidates: [],
-      query_params: { min_amt: amount, max_amt: amount, start_date: issue_date, end_date: issue_date },
       skipped: 'no_supplier_nif',
+    })
+  }
+  if (!amount || amount <= 0) {
+    return Response.json({
+      candidates: [],
+      skipped: 'no_amount',
+    })
+  }
+  if (!issue_date) {
+    return Response.json({
+      candidates: [],
+      skipped: 'no_issue_date',
     })
   }
 
