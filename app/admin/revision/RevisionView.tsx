@@ -7,12 +7,18 @@ interface AiData {
   supplier_name?: string
   supplier_nif?: string
   supplier_address?: string
+  empresa?: string                 // alias prompt universal
+  nif_emisor?: string              // alias prompt universal
+  direccion_emisor?: string        // alias prompt universal
+  numero_factura?: string          // alias prompt universal
   amount_base?: number
   vat_pct?: number
   vat_amount?: number
   amount_total?: number
   irpf_rate?: number
+  irpf_porcentaje?: number         // alias prompt universal
   irpf_amount?: number
+  importe_irpf?: number            // alias prompt universal
   payment_status?: string
   payment_method?: string
   iban_proveedor?: string
@@ -31,9 +37,12 @@ interface AiData {
   notas_documento?: string
   resumen_ia?: string
   issue_date?: string
+  fecha_emision?: string           // alias prompt universal
   due_date?: string
+  fecha_vencimiento?: string       // alias prompt universal
   number?: string
   concept?: string
+  concepto?: string                // alias prompt universal
   lineas?: Array<{ descripcion?: string; cantidad?: number; precio_unitario?: number; importe?: number; total?: number; iva_pct?: number }>
   error?: string
   [key: string]: unknown
@@ -71,6 +80,12 @@ interface ReviewItem {
   proyecto_confianza: number | null
   categoria_gasto: string | null
   periodo_facturacion: string | null
+  // Campos opcionales BD (algunos pueden no estar materializados — fallback ai_data)
+  retencion_porcentaje?: number | null
+  retencion_importe?: number | null
+  num_pedido?: string | null
+  plazo_pago_dias?: number | null
+  direccion_obra?: string | null
   es_gasto_general: boolean
   es_rectificativa: boolean
   es_documento_propio: boolean
@@ -219,7 +234,7 @@ function isInvalidDate(v: unknown): boolean {
 
 function AiField({ label, value, raw, span2 = false, type = 'text' }: {
   label: string
-  value: string
+  value: string | number | null | undefined
   raw?: unknown
   span2?: boolean
   type?: 'num' | 'date' | 'text'
@@ -1456,10 +1471,10 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 <div className="mb-3 pb-3 border-b border-neutral-200">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Emisor / Proveedor</p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <AiField label="Nombre" value={ai?.supplier_name || '--'} span2 />
-                    <AiField label="NIF" value={selected.supplier_nif || '--'} raw={ai?.supplier_nif ?? null} />
-                    <AiField label="Número doc." value={selected.number || '--'} />
-                    {ai?.supplier_address && <AiField label="Dirección fiscal" value={ai.supplier_address} span2 />}
+                    <AiField label="Nombre" value={selected.empresa || ai?.supplier_name || ai?.empresa || '--'} raw={ai?.supplier_name ?? ai?.empresa ?? null} span2 />
+                    <AiField label="NIF" value={selected.supplier_nif || ai?.supplier_nif || ai?.nif_emisor || '--'} raw={ai?.supplier_nif ?? ai?.nif_emisor ?? null} />
+                    <AiField label="Número doc." value={selected.number || ai?.numero_factura || ai?.number || '--'} raw={ai?.numero_factura ?? null} />
+                    {(ai?.supplier_address || ai?.direccion_emisor) && <AiField label="Dirección fiscal" value={ai?.supplier_address || ai?.direccion_emisor} span2 />}
                   </div>
                 </div>
 
@@ -1471,16 +1486,16 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                     <AiField label="% IVA" value={(selected.vat_pct ?? ai?.vat_pct) != null ? `${selected.vat_pct ?? ai?.vat_pct}%` : '--'} raw={ai?.vat_pct ?? null} type="num" />
                     <AiField label="IVA (€)" value={formatEur(selected.vat_amount)} raw={ai?.vat_amount ?? null} type="num" />
                     <AiField label="Total" value={formatEur(selected.amount_total)} raw={ai?.amount_total ?? null} type="num" />
-                    {(selected.irpf_rate != null || ai?.irpf_rate != null) && (
+                    {(selected.irpf_rate != null || ai?.irpf_rate != null || ai?.irpf_porcentaje != null) && (
                       <>
-                        <AiField label="% IRPF" value={ai?.irpf_rate != null ? `${ai.irpf_rate}%` : '--'} raw={ai?.irpf_rate ?? null} type="num" />
-                        <AiField label="IRPF (€)" value={formatEur(selected.irpf_amount ?? ai?.irpf_amount ?? null)} raw={ai?.irpf_amount ?? null} type="num" />
+                        <AiField label="% IRPF" value={(selected.irpf_rate ?? ai?.irpf_rate ?? ai?.irpf_porcentaje) != null ? `${selected.irpf_rate ?? ai?.irpf_rate ?? ai?.irpf_porcentaje}%` : '--'} raw={ai?.irpf_rate ?? ai?.irpf_porcentaje ?? null} type="num" />
+                        <AiField label="IRPF (€)" value={formatEur(selected.irpf_amount ?? ai?.irpf_amount ?? ai?.importe_irpf ?? null)} raw={ai?.irpf_amount ?? ai?.importe_irpf ?? null} type="num" />
                       </>
                     )}
-                    {ai?.retencion_porcentaje != null && (
+                    {(selected.retencion_porcentaje != null || ai?.retencion_porcentaje != null) && (
                       <>
-                        <AiField label="% Retención" value={`${ai.retencion_porcentaje}%`} />
-                        <AiField label="Retención (€)" value={formatEur(ai.retencion_importe ?? null)} />
+                        <AiField label="% Retención" value={`${selected.retencion_porcentaje ?? ai?.retencion_porcentaje}%`} raw={ai?.retencion_porcentaje ?? null} type="num" />
+                        <AiField label="Retención (€)" value={formatEur(selected.retencion_importe ?? ai?.retencion_importe ?? null)} raw={ai?.retencion_importe ?? null} type="num" />
                       </>
                     )}
                     {ai?.inversion_sujeto_pasivo && (
@@ -1499,10 +1514,10 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                     <AiField label="Vencimiento" value={formatDate(selected.due_date)} raw={ai?.due_date ?? null} type="date" />
                     <AiField label="Estado pago" value={selected.payment_status || ai?.payment_status || '--'} />
                     <AiField label="Forma pago" value={selected.payment_method || ai?.payment_method || '--'} />
-                    {ai?.iban_proveedor && <AiField label="IBAN" value={ai.iban_proveedor} span2 />}
-                    {ai?.plazo_pago_dias != null && <AiField label="Plazo pago" value={`${ai.plazo_pago_dias} días`} />}
-                    {ai?.num_pedido && <AiField label="Nº pedido" value={ai.num_pedido} />}
-                    {ai?.periodo_facturacion && <AiField label="Período" value={ai.periodo_facturacion} span2 />}
+                    {(selected.iban_proveedor || ai?.iban_proveedor) && <AiField label="IBAN" value={selected.iban_proveedor || ai?.iban_proveedor} span2 />}
+                    {(selected.plazo_pago_dias != null || ai?.plazo_pago_dias != null) && <AiField label="Plazo pago" value={`${selected.plazo_pago_dias ?? ai?.plazo_pago_dias} días`} />}
+                    {(selected.num_pedido || ai?.num_pedido) && <AiField label="Nº pedido" value={selected.num_pedido || ai?.num_pedido} />}
+                    {(selected.periodo_facturacion || ai?.periodo_facturacion) && <AiField label="Período" value={selected.periodo_facturacion || ai?.periodo_facturacion} span2 />}
                   </div>
                 </div>
 
@@ -1510,9 +1525,9 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 <div className="mb-3 pb-3 border-b border-neutral-200">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Clasificación</p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <AiField label="Concepto" value={selected.concept || '--'} span2 />
-                    {ai?.direccion_obra && <AiField label="Dirección obra" value={ai.direccion_obra} span2 />}
-                    {ai?.categoria_gasto && <AiField label="Categoría" value={ai.categoria_gasto} />}
+                    <AiField label="Concepto" value={selected.concept || ai?.concepto || ai?.concept || '--'} raw={ai?.concepto ?? null} span2 />
+                    {(selected.direccion_obra || ai?.direccion_obra) && <AiField label="Dirección obra" value={selected.direccion_obra || ai?.direccion_obra} span2 />}
+                    {(selected.categoria_gasto || ai?.categoria_gasto) && <AiField label="Categoría" value={selected.categoria_gasto || ai?.categoria_gasto} />}
                     {selected.proyecto_code && <AiField label="Proyecto" value={selected.proyecto_code} />}
                   </div>
 
