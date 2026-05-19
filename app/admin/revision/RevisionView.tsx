@@ -1467,8 +1467,8 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 <div className="mb-3 pb-3 border-b border-neutral-200">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Importes</p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <AiField label="Base imponible" value={formatEur(ai?.amount_base ?? null)} raw={ai?.amount_base ?? null} type="num" />
-                    <AiField label="% IVA" value={ai?.vat_pct != null ? `${ai.vat_pct}%` : '--'} raw={ai?.vat_pct ?? null} type="num" />
+                    <AiField label="Base imponible" value={formatEur(selected.amount_base ?? ai?.amount_base ?? null)} raw={ai?.amount_base ?? null} type="num" />
+                    <AiField label="% IVA" value={(selected.vat_pct ?? ai?.vat_pct) != null ? `${selected.vat_pct ?? ai?.vat_pct}%` : '--'} raw={ai?.vat_pct ?? null} type="num" />
                     <AiField label="IVA (€)" value={formatEur(selected.vat_amount)} raw={ai?.vat_amount ?? null} type="num" />
                     <AiField label="Total" value={formatEur(selected.amount_total)} raw={ai?.amount_total ?? null} type="num" />
                     {(selected.irpf_rate != null || ai?.irpf_rate != null) && (
