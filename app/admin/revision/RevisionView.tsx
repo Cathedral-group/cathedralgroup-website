@@ -79,6 +79,7 @@ interface ReviewItem {
   proyecto_code: string | null
   proyecto_confianza: number | null
   categoria_gasto: string | null
+  cost_scope: string | null
   periodo_facturacion: string | null
   // Campos opcionales BD (algunos pueden no estar materializados — fallback ai_data)
   retencion_porcentaje?: number | null
@@ -198,6 +199,16 @@ const CATEGORIAS_GASTO: { value: string; label: string }[] = [
   { value: 'gestoria_asesoria', label: 'Gestoría / Asesoría' },
   { value: 'comisiones_intermediacion', label: 'Comisiones / Intermediación' },
   { value: 'otros', label: 'Otros' },
+]
+
+// Sincronizado con CHECK constraint invoices.cost_scope (4 valores). Ámbito imputación
+// ortogonal a categoría: determina si el gasto entra en margen obra (directo/indirecto)
+// o solo en cuenta resultados global (general/periodo fiscal).
+const COST_SCOPES: { value: string; label: string; help: string }[] = [
+  { value: 'proyecto_directo', label: 'Proyecto · directo', help: 'Material, mano de obra, subcontrata específica de esta obra' },
+  { value: 'proyecto_indirecto', label: 'Proyecto · indirecto', help: 'Compartido entre varias obras (almacén, encargado, grúa)' },
+  { value: 'gasto_general', label: 'Gasto general empresa', help: 'Oficina, gestoría, seguros corporativos, gerencia' },
+  { value: 'periodo_fiscal', label: 'Período fiscal', help: 'Modelo 303/111/347, multas, intereses bancarios' },
 ]
 
 function formatEur(val: number | null | undefined): string {
@@ -434,6 +445,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
       project_id: item.project_id ?? null,
       proyecto_code: item.proyecto_code,
       categoria_gasto: item.categoria_gasto,
+      cost_scope: item.cost_scope,
       concept: item.concept,
       es_gasto_general: item.es_gasto_general,
       es_rectificativa: item.es_rectificativa,
@@ -1658,7 +1670,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-neutral-500 mb-1">Categoría gasto</label>
+                    <label className="block text-xs text-neutral-500 mb-1">Categoría gasto <span className="text-neutral-400">· qué es</span></label>
                     <select value={editForm.categoria_gasto || ''} onChange={e => setEditForm(p => ({ ...p, categoria_gasto: e.target.value || null }))}
                       className="w-full border rounded px-3 py-2 text-sm">
                       <option value="">Sin categoría</option>
@@ -1676,6 +1688,37 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                       <option value="parcial">Parcial</option>
                       <option value="cancelada">Cancelada</option>
                     </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-2">Ámbito imputación <span className="text-neutral-400">· para qué es</span></label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {COST_SCOPES.map(s => {
+                      const checked = editForm.cost_scope === s.value
+                      return (
+                        <label
+                          key={s.value}
+                          className={`flex items-start gap-2 p-2 border rounded text-xs cursor-pointer transition ${
+                            checked ? 'border-[#5A5550] bg-[#F5F1EC]' : 'border-neutral-200 hover:border-neutral-300'
+                          }`}
+                          title={s.help}
+                        >
+                          <input
+                            type="radio"
+                            name="cost_scope"
+                            value={s.value}
+                            checked={checked}
+                            onChange={() => setEditForm(p => ({ ...p, cost_scope: s.value }))}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <div className="font-medium text-neutral-700">{s.label}</div>
+                            <div className="text-[10px] text-neutral-500 leading-tight mt-0.5">{s.help}</div>
+                          </div>
+                        </label>
+                      )
+                    })}
                   </div>
                 </div>
 

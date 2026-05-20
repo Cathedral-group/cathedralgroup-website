@@ -301,6 +301,26 @@ SECCIÓN 16 — CLASIFICACIÓN INTERNA CATHEDRAL
   publicidad_marketing, vehiculos, viajes_dietas, material_oficina, informatica_software,
   formacion, bancarios, tributos_tasas, reparaciones_mantenimiento, limpieza,
   comunidad_vecinos, notaria_registro, otros).
+  → Describe QUÉ se compra (naturaleza del gasto).
+- cost_scope: enum cerrado (proyecto_directo, proyecto_indirecto, gasto_general,
+  periodo_fiscal). ORTOGONAL a categoria_gasto.
+  → Describe A QUIÉN se imputa (ámbito):
+     · proyecto_directo: imputable inequívoco a obra concreta (material obra X,
+       mano de obra subcontrata obra X, alquiler grúa para obra X).
+       REQUIERE proyecto_code o proyecto_code_sugerido con confianza ≥0.8.
+     · proyecto_indirecto: compartido entre varias obras (almacén central,
+       supervisor multi-obra, herramienta compartida). REQUIERE proyecto si
+       hay reparto explícito; sino → proyecto_indirecto SIN project.
+     · gasto_general: estructural empresa (alquiler oficina Cathedral central,
+       gestoría, seguro RC corporativo, gerencia, publicidad corporativa,
+       suministros oficina). NO va a proyecto.
+     · periodo_fiscal: obligación fiscal empresa (modelos 303/111/347/349,
+       multas AEAT, intereses bancarios, comisiones bancarias estructurales,
+       sanciones administrativas). NO va a proyecto.
+  → Heurística rápida: si reconoces literal proyecto en concepto/descripción →
+    proyecto_directo. Si proveedor es gestoría/asesoría/banco/AEAT → gasto_general
+    o periodo_fiscal según corresponda. Si dudas → gasto_general (más seguro
+    que asignar proyecto incorrecto).
 - proyecto_code: código exacto si literal en doc.
 - proyecto_code_sugerido: inferencia por contexto.
 - proyecto_confianza, proyecto_razon.
