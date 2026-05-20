@@ -1,0 +1,70 @@
+import type { TypedDocsConfig } from '../TypedDocsConfig'
+
+const TIPOS = [
+  { value: 'tasacion_eco_805', label: 'Tasación ECO/805' },
+  { value: 'tasacion_iva', label: 'Tasación IVA' },
+  { value: 'valoracion_libre', label: 'Valoración libre' },
+  { value: 'pericial_judicial', label: 'Pericial judicial' },
+  { value: 'pericial_seguro', label: 'Pericial seguro' },
+  { value: 'due_diligence', label: 'Due diligence' },
+  { value: 'informe_tecnico', label: 'Informe técnico' },
+  { value: 'informe_arquitectonico', label: 'Informe arquitectónico' },
+  { value: 'informe_estructural', label: 'Informe estructural' },
+  { value: 'informe_patologias', label: 'Informe patologías' },
+  { value: 'informe_inversion', label: 'Informe inversión' },
+  { value: 'otro', label: 'Otro' },
+]
+
+const METODOS = [
+  { value: 'comparacion', label: 'Comparación' },
+  { value: 'coste', label: 'Coste' },
+  { value: 'renta', label: 'Renta' },
+  { value: 'residual', label: 'Residual' },
+]
+
+export const INFORMES_CONFIG: TypedDocsConfig = {
+  table: 'informes',
+  title: 'Informes',
+  subtitle: 'Tasaciones (ECO/805, IVA), valoraciones libres, periciales judiciales, due diligence, informes técnicos.',
+  icon: '📊',
+  newLabel: 'Informe',
+  columns: [
+    { key: 'tipo_informe', label: 'Tipo', type: 'select', options: TIPOS, required: true },
+    { key: 'numero_informe', label: 'Nº informe', type: 'text' },
+    { key: 'emisor', label: 'Emisor', type: 'text', placeholder: 'Ej: Tinsa, Tecnitasa, Perito X' },
+    { key: 'emisor_nif', label: 'NIF emisor', type: 'text', hideInList: true },
+    { key: 'tecnico_nombre', label: 'Técnico', type: 'text', hideInList: true },
+    { key: 'tecnico_colegiado', label: 'Colegiado nº', type: 'text', hideInList: true },
+    { key: 'fecha_emision', label: 'Emisión', type: 'date' },
+    { key: 'fecha_visita', label: 'Visita', type: 'date', hideInList: true },
+    { key: 'fecha_vigencia', label: 'Vigencia', type: 'date', hint: 'ECO/805 → 6 meses' },
+    { key: 'metodo_valoracion', label: 'Método', type: 'select', options: METODOS, hideInList: true },
+    { key: 'valor_mercado', label: 'Valor mercado', type: 'numeric' },
+    { key: 'valor_hipotecario', label: 'Valor hipotecario', type: 'numeric', hideInList: true },
+    { key: 'valor_construccion', label: 'Valor construcción', type: 'numeric', hideInList: true },
+    { key: 'valor_suelo', label: 'Valor suelo', type: 'numeric', hideInList: true },
+    { key: 'valor_reposicion', label: 'Valor reposición', type: 'numeric', hideInList: true },
+    { key: 'honorarios', label: 'Honorarios', type: 'numeric' },
+    { key: 'iva_pct', label: 'IVA %', type: 'numeric', hideInList: true },
+    { key: 'total_informe', label: 'Total informe', type: 'numeric', hideInList: true },
+    { key: 'conclusiones', label: 'Conclusiones', type: 'textarea', hideInList: true },
+    { key: 'property_id', label: 'Inmueble (ID)', type: 'text', hideInList: true },
+    { key: 'project_id', label: 'Proyecto (ID)', type: 'text', hideInList: true },
+    { key: 'party_solicitante_id', label: 'Solicitante (ID)', type: 'text', hideInList: true },
+  ],
+  filters: [
+    { key: 'tipo_informe', label: 'Tipo', type: 'select', options: TIPOS },
+    { key: 'emisor', label: 'Emisor', type: 'text' },
+    { key: 'fecha_emision', label: 'Fecha emisión', type: 'date_range' },
+    { key: 'fecha_vigencia', label: 'Vigencia', type: 'date_range' },
+    { key: 'metodo_valoracion', label: 'Método', type: 'select', options: METODOS },
+  ],
+  defaultSort: { column: 'fecha_emision', order: 'desc' },
+  kpis: [
+    { label: 'Total informes', compute: 'count' },
+    { label: 'Tasaciones ECO/805', compute: 'count_filter', filter: { key: 'tipo_informe', value: 'tasacion_eco_805' } },
+    { label: 'Valor mercado acumulado', compute: 'sum', field: 'valor_mercado', isMoney: true },
+    { label: 'Honorarios acumulados', compute: 'sum', field: 'honorarios', isMoney: true },
+  ],
+  emptyMessage: 'Sin informes.',
+}

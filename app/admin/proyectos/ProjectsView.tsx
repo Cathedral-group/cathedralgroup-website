@@ -6,6 +6,7 @@ import ProgressBar from '@/components/admin/ProgressBar'
 import LinkedSelect from '@/components/admin/LinkedSelect'
 import PlanificacionTab from './PlanificacionTab'
 import ProjectDocumentsTab from './ProjectDocumentsTab'
+import ProjectMarginTab from './ProjectMarginTab'
 
 /* ───────── Types ───────── */
 
@@ -1442,6 +1443,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                     { key: 'ubicacion', label: 'Ubicación' },
                     { key: 'fases', label: 'Planificación' },
                     { key: 'facturas', label: 'Facturas' },
+                    { key: 'margen', label: 'Margen' },
                     { key: 'documentos', label: docCountForTab > 0 ? `Documentos · ${docCountForTab}` : 'Documentos' },
                   ]}
                   activeTab={activeTab}
@@ -1832,6 +1834,11 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                     + Nueva factura
                   </a>
                 </div>
+              )}
+
+              {/* ─── Tab: Margen ─── */}
+              {activeTab === 'margen' && (
+                <ProjectMarginTab projectId={selected.id} projectCode={selected.code} />
               )}
 
               {/* ─── Tab: Documentos ─── */}

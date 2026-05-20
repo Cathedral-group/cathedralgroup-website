@@ -1,0 +1,58 @@
+import type { TypedDocsConfig } from '../TypedDocsConfig'
+
+const ESTADOS = [
+  { value: 'pendiente_aprobar', label: 'Pendiente aprobar' },
+  { value: 'aprobada', label: 'Aprobada' },
+  { value: 'facturada', label: 'Facturada' },
+  { value: 'pagada', label: 'Pagada' },
+  { value: 'rechazada', label: 'Rechazada' },
+]
+
+export const CERTIFICACIONES_OBRA_CONFIG: TypedDocsConfig = {
+  table: 'certificaciones_obra',
+  title: 'Certificaciones de obra',
+  subtitle: 'Certificaciones mensuales de obra: importes a origen, retención LOE 5%, % ejecución acumulado.',
+  icon: '🏗️',
+  newLabel: 'Certificación',
+  columns: [
+    { key: 'numero_certificacion', label: 'Nº cert.', type: 'text' },
+    { key: 'fecha_certificacion', label: 'Fecha', type: 'date', required: true },
+    { key: 'periodo_desde', label: 'Periodo desde', type: 'date', hideInList: true },
+    { key: 'periodo_hasta', label: 'Periodo hasta', type: 'date', hideInList: true },
+    { key: 'project_id', label: 'Proyecto (ID)', type: 'text', hint: 'UUID de projects' },
+    { key: 'contrato_id', label: 'Contrato (ID)', type: 'text', hideInList: true },
+    { key: 'importe_origen', label: 'Origen', type: 'numeric' },
+    { key: 'importe_anterior', label: 'Anterior', type: 'numeric', hideInList: true },
+    { key: 'importe_actual', label: 'Actual (período)', type: 'numeric' },
+    { key: 'base_imponible', label: 'Base imponible', type: 'numeric', hideInList: true },
+    { key: 'iva_pct', label: 'IVA %', type: 'numeric', hideInList: true },
+    { key: 'iva_importe', label: 'IVA importe', type: 'numeric', hideInList: true },
+    { key: 'retencion_pct', label: 'Retención %', type: 'numeric', hint: '5% LOE típico' },
+    { key: 'retencion_importe', label: 'Retención período', type: 'numeric', hideInList: true },
+    { key: 'retencion_acumulada', label: 'Retención acum.', type: 'numeric' },
+    { key: 'retencion_liberada', label: 'Retención liberada', type: 'numeric', hideInList: true },
+    { key: 'fecha_liberacion_retencion', label: 'Fecha liberación retención', type: 'date', hideInList: true },
+    { key: 'total_a_pagar', label: 'Total a pagar', type: 'numeric' },
+    { key: 'pct_ejecucion', label: '% ejecución', type: 'numeric' },
+    { key: 'estado', label: 'Estado', type: 'badge', options: ESTADOS, required: true },
+    { key: 'party_contratista_id', label: 'Contratista (ID)', type: 'text', hideInList: true },
+    { key: 'party_promotor_id', label: 'Promotor (ID)', type: 'text', hideInList: true },
+    { key: 'director_obra', label: 'Director obra', type: 'text', hideInList: true },
+    { key: 'director_ejecucion', label: 'Director ejecución', type: 'text', hideInList: true },
+    { key: 'invoice_id', label: 'Factura (ID)', type: 'text', hideInList: true },
+  ],
+  filters: [
+    { key: 'estado', label: 'Estado', type: 'select', options: ESTADOS },
+    { key: 'fecha_certificacion', label: 'Fecha certificación', type: 'date_range' },
+    { key: 'project_id', label: 'Proyecto', type: 'text' },
+    { key: 'importe_actual', label: 'Importe período (€)', type: 'numeric_range' },
+  ],
+  defaultSort: { column: 'fecha_certificacion', order: 'desc' },
+  kpis: [
+    { label: 'Total certificaciones', compute: 'count' },
+    { label: 'Pendientes aprobar', compute: 'count_filter', filter: { key: 'estado', value: 'pendiente_aprobar' }, accent: 'amber' },
+    { label: 'Importe acumulado (origen)', compute: 'sum', field: 'importe_origen', isMoney: true },
+    { label: 'Retención acumulada', compute: 'sum', field: 'retencion_acumulada', isMoney: true, accent: 'amber' },
+  ],
+  emptyMessage: 'Sin certificaciones de obra.',
+}

@@ -29,6 +29,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import type { DocumentsHubInitialData } from './page'
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -305,15 +306,19 @@ function filtersToApi(f: Filters, cursor: string | null): string {
   }
   if (docTypesEffective.length) p.set('doc_type', docTypesEffective.join(','))
 
-  if (f.projectId) p.set('project_id', f.projectId)
-  // esGastoGeneral: no hay parámetro server-side aún. Se gestiona client-side filtrando rows.
-  // El endpoint registry-list permitiría añadirlo trivialmente como `project_id=null`.
+  if (f.projectId) {
+    p.set('project_id', f.projectId)
+  } else if (f.esGastoGeneral) {
+    // Server-side filter: project_id IS NULL (paginación exacta)
+    p.set('project_filter', 'without')
+  }
   if (f.propertyId) p.set('property_id', f.propertyId)
   if (f.reviewStatuses.length) p.set('review_status', f.reviewStatuses.join(','))
   if (f.fechaDesde) p.set('from', f.fechaDesde)
   if (f.fechaHasta) p.set('to', f.fechaHasta)
   if (f.importeMin != null) p.set('min_amount', String(f.importeMin))
   if (f.importeMax != null) p.set('max_amount', String(f.importeMax))
+  if (f.vencimientoDias) p.set('vencimiento_dias', String(f.vencimientoDias))
   if (f.q) p.set('search', f.q)
   if (f.contraparte && !f.q) p.set('search', f.contraparte)
   if (f.mostrarBorrados) p.set('include_deleted', 'true')
@@ -360,6 +365,9 @@ export default function DocumentsHubView({
   const [searchInput, setSearchInput] = useState(filters.q)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  /* Virtualization: ref al contenedor scroll de la tabla */
+  const tableScrollRef = useRef<HTMLDivElement | null>(null)
+
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     searchDebounceRef.current = setTimeout(() => {
@@ -400,11 +408,9 @@ export default function DocumentsHubView({
         const json = await res.json()
         const data: DocumentRow[] = json.data ?? []
         if (!cancelled) {
-          // Filtro client-side: esGastoGeneral (project_id IS NULL)
-          const finalRows = filters.esGastoGeneral
-            ? data.filter((r) => r.project_id === null)
-            : data
-          setRows(finalRows)
+          // Filtros project_filter=without y vencimiento_dias se aplican server-side
+          // → paginación exacta (no se filtran rows post-fetch).
+          setRows(data)
           setNextCursor(json.next_cursor ?? null)
           setHasMore(!!json.next_cursor)
           setFilteredTotal(typeof json.total_count === 'number' ? json.total_count : null)
@@ -431,10 +437,7 @@ export default function DocumentsHubView({
       if (res.ok) {
         const json = await res.json()
         const data: DocumentRow[] = json.data ?? []
-        const finalRows = filters.esGastoGeneral
-          ? data.filter((r) => r.project_id === null)
-          : data
-        setRows((prev) => [...prev, ...finalRows])
+        setRows((prev) => [...prev, ...data])
         setNextCursor(json.next_cursor ?? null)
         setHasMore(!!json.next_cursor)
       }
@@ -984,121 +987,22 @@ export default function DocumentsHubView({
             </p>
           )}
 
-          {/* Tabla densa */}
-          <div className="bg-white border border-neutral-100 overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-neutral-100">
-                  <th className="px-3 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={toggleSelectAll}
-                      className="accent-primary"
-                    />
-                  </th>
-                  <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Tipo</th>
-                  <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Contraparte</th>
-                  <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Fecha</th>
-                  <th className="text-right px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Importe</th>
-                  <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Proyecto</th>
-                  <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Estado</th>
-                  <th className="px-3 py-3 w-12"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-50">
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-neutral-400">
-                      Sin documentos que coincidan con los filtros
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((r) => {
-                    const k = rowKey(r)
-                    const isSelected = selectedIds.has(k)
-                    const isActive = activeDocKey === k
-                    const projectCode = r.project_id ? (projectCodeById.get(r.project_id) ?? null) : null
-                    return (
-                      <tr
-                        key={k}
-                        onClick={() => setActiveDocKey(k)}
-                        className={`cursor-pointer transition-colors ${
-                          isActive ? 'bg-neutral-50' : isSelected ? 'bg-blue-50/40' : 'hover:bg-neutral-50'
-                        }`}
-                      >
-                        <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelected(k)}
-                            className="accent-primary"
-                          />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <DocTypeBadge docType={r.doc_type} />
-                          {r.original_filename && (
-                            <p className="text-[10px] text-neutral-400 mt-0.5 truncate max-w-[200px]" title={r.original_filename}>
-                              {r.original_filename}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm">
-                          <p className="truncate max-w-[220px]" title={r.contraparte_principal ?? ''}>
-                            {r.contraparte_principal || <span className="text-neutral-300">—</span>}
-                          </p>
-                          {r.contraparte_nif && (
-                            <p className="text-[10px] text-neutral-400 font-mono">{r.contraparte_nif}</p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-neutral-600 whitespace-nowrap">
-                          {formatDate(r.fecha_relevante)}
-                        </td>
-                        <td className="px-3 py-2.5 text-sm text-neutral-700 text-right tabular-nums whitespace-nowrap">
-                          {formatEur(r.importe_principal)}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <ProjectBadge code={projectCode} />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <ReviewBadge status={r.review_status} />
-                          {r.ai_confidence != null && (
-                            <p className="text-[10px] text-neutral-400 mt-0.5">conf {Math.round(r.ai_confidence * 100)}%</p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                          {r.drive_url && (
-                            <a
-                              href={r.drive_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[12px] text-neutral-400 hover:text-neutral-700"
-                              title="Ver en Drive"
-                            >
-                              ↗
-                            </a>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-
-            {/* Cargar más */}
-            {hasMore && (
-              <div className="px-4 py-3 border-t border-neutral-100 text-center">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-neutral-50 text-neutral-600 hover:bg-neutral-100 disabled:opacity-50"
-                >
-                  {loadingMore ? 'Cargando...' : `Cargar más (${rows.length})`}
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Tabla densa (virtualizada cuando rows > 100) */}
+          <DocumentsTable
+            rows={rows}
+            selectedIds={selectedIds}
+            allVisibleSelected={allVisibleSelected}
+            activeDocKey={activeDocKey}
+            projectCodeById={projectCodeById}
+            tableScrollRef={tableScrollRef}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            rowKey={rowKey}
+            toggleSelected={toggleSelected}
+            toggleSelectAll={toggleSelectAll}
+            setActiveDocKey={setActiveDocKey}
+            handleLoadMore={handleLoadMore}
+          />
         </section>
       </div>
 
@@ -1150,6 +1054,345 @@ export default function DocumentsHubView({
           editRoute={sourceTableRoute(activeDoc)}
           onChanged={() => setFilters((f) => ({ ...f }))}
         />
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * TABLA con virtualización (@tanstack/react-virtual)
+ *
+ * Estrategia:
+ *  - rows ≤ 100  → render normal con <table>/<tbody> (no overhead virtualizer,
+ *    mejor accesibilidad para search-in-page Cmd+F).
+ *  - rows > 100  → virtualización: contenedor scroll con altura total =
+ *    rows * ROW_HEIGHT, solo render virtualItems visibles vía absolute-position.
+ *    Usa grid divs en lugar de <table> para compatibilidad con position absolute.
+ *
+ * estimateSize=48 ≈ alto fila (py-2.5 + contenido 2 líneas).
+ * overscan=8 mantiene smoothness al scrollear rápido.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+const VIRTUALIZE_THRESHOLD = 100
+const ROW_HEIGHT_PX = 48
+const COL_TEMPLATE = '40px 180px minmax(200px, 1fr) 110px 120px 100px 130px 50px'
+
+interface DocumentsTableProps {
+  rows: DocumentRow[]
+  selectedIds: Set<string>
+  allVisibleSelected: boolean
+  activeDocKey: string | null
+  projectCodeById: Map<string, string>
+  tableScrollRef: React.RefObject<HTMLDivElement | null>
+  hasMore: boolean
+  loadingMore: boolean
+  rowKey: (r: DocumentRow) => string
+  toggleSelected: (k: string) => void
+  toggleSelectAll: () => void
+  setActiveDocKey: (k: string | null) => void
+  handleLoadMore: () => void
+}
+
+function DocumentsTable({
+  rows,
+  selectedIds,
+  allVisibleSelected,
+  activeDocKey,
+  projectCodeById,
+  tableScrollRef,
+  hasMore,
+  loadingMore,
+  rowKey,
+  toggleSelected,
+  toggleSelectAll,
+  setActiveDocKey,
+  handleLoadMore,
+}: DocumentsTableProps) {
+  const shouldVirtualize = rows.length > VIRTUALIZE_THRESHOLD
+
+  // Hook SIEMPRE invocado (preserva orden hooks); solo consumido si shouldVirtualize.
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => ROW_HEIGHT_PX,
+    overscan: 8,
+  })
+
+  // ─── Empty state ────────────────────────────────────────────────────────
+  if (rows.length === 0) {
+    return (
+      <div className="bg-white border border-neutral-100 overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-neutral-100">
+              <th className="px-3 py-3 w-10">
+                <input type="checkbox" checked={false} disabled className="accent-primary opacity-30" />
+              </th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Tipo</th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Contraparte</th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Fecha</th>
+              <th className="text-right px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Importe</th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Proyecto</th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Estado</th>
+              <th className="px-3 py-3 w-12"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colSpan={8} className="px-6 py-12 text-center text-sm text-neutral-400">
+                Sin documentos que coincidan con los filtros
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  // ─── Modo no virtualizado: <table>/<tbody> idéntico al original ──────────
+  if (!shouldVirtualize) {
+    return (
+      <div className="bg-white border border-neutral-100 overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-neutral-100">
+              <th className="px-3 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAll}
+                  className="accent-primary"
+                />
+              </th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Tipo</th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Contraparte</th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Fecha</th>
+              <th className="text-right px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Importe</th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Proyecto</th>
+              <th className="text-left px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Estado</th>
+              <th className="px-3 py-3 w-12"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-50">
+            {rows.map((r) => {
+              const k = rowKey(r)
+              const isSelected = selectedIds.has(k)
+              const isActive = activeDocKey === k
+              const projectCode = r.project_id ? (projectCodeById.get(r.project_id) ?? null) : null
+              return (
+                <tr
+                  key={k}
+                  onClick={() => setActiveDocKey(k)}
+                  className={`cursor-pointer transition-colors ${
+                    isActive ? 'bg-neutral-50' : isSelected ? 'bg-blue-50/40' : 'hover:bg-neutral-50'
+                  }`}
+                >
+                  <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelected(k)}
+                      className="accent-primary"
+                    />
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <DocTypeBadge docType={r.doc_type} />
+                    {r.original_filename && (
+                      <p className="text-[10px] text-neutral-400 mt-0.5 truncate max-w-[200px]" title={r.original_filename}>
+                        {r.original_filename}
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-sm">
+                    <p className="truncate max-w-[220px]" title={r.contraparte_principal ?? ''}>
+                      {r.contraparte_principal || <span className="text-neutral-300">—</span>}
+                    </p>
+                    {r.contraparte_nif && (
+                      <p className="text-[10px] text-neutral-400 font-mono">{r.contraparte_nif}</p>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-sm text-neutral-600 whitespace-nowrap">
+                    {formatDate(r.fecha_relevante)}
+                  </td>
+                  <td className="px-3 py-2.5 text-sm text-neutral-700 text-right tabular-nums whitespace-nowrap">
+                    {formatEur(r.importe_principal)}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <ProjectBadge code={projectCode} />
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <ReviewBadge status={r.review_status} />
+                    {r.ai_confidence != null && (
+                      <p className="text-[10px] text-neutral-400 mt-0.5">conf {Math.round(r.ai_confidence * 100)}%</p>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                    {r.drive_url && (
+                      <a
+                        href={r.drive_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[12px] text-neutral-400 hover:text-neutral-700"
+                        title="Ver en Drive"
+                      >
+                        ↗
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        {hasMore && (
+          <div className="px-4 py-3 border-t border-neutral-100 text-center">
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-neutral-50 text-neutral-600 hover:bg-neutral-100 disabled:opacity-50"
+            >
+              {loadingMore ? 'Cargando...' : `Cargar más (${rows.length})`}
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ─── Modo virtualizado: header grid + body absoluto ──────────────────────
+  const virtualItems = virtualizer.getVirtualItems()
+  const totalSize = virtualizer.getTotalSize()
+
+  return (
+    <div className="bg-white border border-neutral-100">
+      {/* Header (grid, replica anchos del body) */}
+      <div
+        className="border-b border-neutral-100 grid items-center bg-white"
+        style={{ gridTemplateColumns: COL_TEMPLATE }}
+      >
+        <div className="px-3 py-3 flex items-center justify-center">
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            onChange={toggleSelectAll}
+            className="accent-primary"
+          />
+        </div>
+        <div className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-400">Tipo</div>
+        <div className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-400">Contraparte</div>
+        <div className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-400">Fecha</div>
+        <div className="px-3 py-3 text-right text-[10px] font-bold uppercase tracking-widest text-neutral-400">Importe</div>
+        <div className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-400">Proyecto</div>
+        <div className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-400">Estado</div>
+        <div className="px-3 py-3"></div>
+      </div>
+
+      {/* Scroll container (parent virtualizer) */}
+      <div
+        ref={tableScrollRef}
+        className="overflow-y-auto overflow-x-hidden"
+        style={{ maxHeight: 'calc(100vh - 360px)', minHeight: '400px' }}
+        role="rowgroup"
+      >
+        <div style={{ height: `${totalSize}px`, width: '100%', position: 'relative' }}>
+          {virtualItems.map((vi) => {
+            const r = rows[vi.index]
+            if (!r) return null
+            const k = rowKey(r)
+            const isSelected = selectedIds.has(k)
+            const isActive = activeDocKey === k
+            const projectCode = r.project_id ? (projectCodeById.get(r.project_id) ?? null) : null
+            return (
+              <div
+                key={k}
+                data-index={vi.index}
+                onClick={() => setActiveDocKey(k)}
+                className={`cursor-pointer transition-colors border-b border-neutral-50 ${
+                  isActive ? 'bg-neutral-50' : isSelected ? 'bg-blue-50/40' : 'bg-white hover:bg-neutral-50'
+                }`}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: `${ROW_HEIGHT_PX}px`,
+                  transform: `translateY(${vi.start}px)`,
+                  display: 'grid',
+                  gridTemplateColumns: COL_TEMPLATE,
+                  alignItems: 'center',
+                }}
+              >
+                <div
+                  className="px-3 py-2.5 flex items-center justify-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelected(k)}
+                    className="accent-primary"
+                  />
+                </div>
+                <div className="px-3 py-2.5 overflow-hidden">
+                  <DocTypeBadge docType={r.doc_type} />
+                  {r.original_filename && (
+                    <p className="text-[10px] text-neutral-400 mt-0.5 truncate" title={r.original_filename}>
+                      {r.original_filename}
+                    </p>
+                  )}
+                </div>
+                <div className="px-3 py-2.5 text-sm overflow-hidden">
+                  <p className="truncate" title={r.contraparte_principal ?? ''}>
+                    {r.contraparte_principal || <span className="text-neutral-300">—</span>}
+                  </p>
+                  {r.contraparte_nif && (
+                    <p className="text-[10px] text-neutral-400 font-mono truncate">{r.contraparte_nif}</p>
+                  )}
+                </div>
+                <div className="px-3 py-2.5 text-sm text-neutral-600 whitespace-nowrap">
+                  {formatDate(r.fecha_relevante)}
+                </div>
+                <div className="px-3 py-2.5 text-sm text-neutral-700 text-right tabular-nums whitespace-nowrap">
+                  {formatEur(r.importe_principal)}
+                </div>
+                <div className="px-3 py-2.5">
+                  <ProjectBadge code={projectCode} />
+                </div>
+                <div className="px-3 py-2.5">
+                  <ReviewBadge status={r.review_status} />
+                  {r.ai_confidence != null && (
+                    <p className="text-[10px] text-neutral-400 mt-0.5">conf {Math.round(r.ai_confidence * 100)}%</p>
+                  )}
+                </div>
+                <div className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                  {r.drive_url && (
+                    <a
+                      href={r.drive_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[12px] text-neutral-400 hover:text-neutral-700"
+                      title="Ver en Drive"
+                    >
+                      ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {hasMore && (
+        <div className="px-4 py-3 border-t border-neutral-100 text-center">
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-neutral-50 text-neutral-600 hover:bg-neutral-100 disabled:opacity-50"
+          >
+            {loadingMore ? 'Cargando...' : `Cargar más (${rows.length})`}
+          </button>
+        </div>
       )}
     </div>
   )

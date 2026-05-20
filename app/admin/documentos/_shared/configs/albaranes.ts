@@ -1,0 +1,41 @@
+import type { TypedDocsConfig } from '../TypedDocsConfig'
+
+export const ALBARANES_CONFIG: TypedDocsConfig = {
+  table: 'albaranes',
+  title: 'Albaranes',
+  subtitle: 'Albaranes de proveedores (materiales, sin IVA). Conciliación con facturas.',
+  icon: '📦',
+  newLabel: 'Albarán',
+  columns: [
+    { key: 'numero_albaran', label: 'Nº albarán', type: 'text', required: true },
+    { key: 'fecha_albaran', label: 'Fecha albarán', type: 'date', required: true },
+    { key: 'fecha_entrega', label: 'Fecha entrega', type: 'date', hideInList: true },
+    { key: 'proveedor_nombre', label: 'Proveedor', type: 'text' },
+    { key: 'proveedor_nif', label: 'NIF proveedor', type: 'text', hideInList: true },
+    { key: 'cliente_nombre', label: 'Cliente (interno)', type: 'text', hideInList: true },
+    { key: 'cliente_nif', label: 'NIF cliente', type: 'text', hideInList: true },
+    { key: 'direccion_entrega', label: 'Dirección entrega', type: 'textarea', hideInList: true },
+    { key: 'subtotal_sin_iva', label: 'Subtotal s/IVA', type: 'numeric' },
+    { key: 'num_lineas', label: 'Líneas', type: 'numeric' },
+    { key: 'facturado', label: 'Facturado', type: 'boolean' },
+    { key: 'fecha_facturacion', label: 'Fecha facturación', type: 'date', hideInList: true },
+    { key: 'invoice_id', label: 'Factura (ID)', type: 'text', hideInList: true },
+    { key: 'project_id', label: 'Proyecto (ID)', type: 'text', hideInList: true },
+    { key: 'property_id', label: 'Inmueble (ID)', type: 'text', hideInList: true },
+    { key: 'observaciones', label: 'Observaciones', type: 'textarea', hideInList: true },
+  ],
+  filters: [
+    { key: 'facturado', label: 'Facturado', type: 'boolean' },
+    { key: 'fecha_albaran', label: 'Fecha albarán', type: 'date_range' },
+    { key: 'proveedor_nombre', label: 'Proveedor', type: 'text' },
+    { key: 'subtotal_sin_iva', label: 'Subtotal (€)', type: 'numeric_range' },
+  ],
+  defaultSort: { column: 'fecha_albaran', order: 'desc' },
+  kpis: [
+    { label: 'Total albaranes', compute: 'count' },
+    { label: 'Pendientes facturar', compute: 'count_filter', filter: { key: 'facturado', value: false }, accent: 'amber' },
+    { label: 'Facturados', compute: 'count_filter', filter: { key: 'facturado', value: true }, accent: 'green' },
+    { label: 'Importe s/IVA acumulado', compute: 'sum', field: 'subtotal_sin_iva', isMoney: true },
+  ],
+  emptyMessage: 'Sin albaranes.',
+}

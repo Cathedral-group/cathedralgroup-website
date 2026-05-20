@@ -12,11 +12,14 @@ import { resolveCompanyIdForRequest } from '@/lib/company-context'
  *   - doc_type=factura|nomina|contrato|escritura|...|otro    (csv permitido: factura,ticket)
  *   - project_id=<uuid>
  *   - property_id=<uuid>
+ *   - project_filter=with|without   (project_id IS NOT NULL | IS NULL — overridable por project_id)
+ *   - property_filter=with|without  (property_id IS NOT NULL | IS NULL)
  *   - review_status=pending|approved|...                     (csv permitido)
  *   - from=YYYY-MM-DD              (fecha_relevante >=)
  *   - to=YYYY-MM-DD                (fecha_relevante <=)
  *   - min_amount=<number>          (importe_principal >=)
  *   - max_amount=<number>          (importe_principal <=)
+ *   - vencimiento_dias=30|60|90    (fecha_vencimiento entre hoy y hoy+N)
  *   - search=<texto>               (busca en contraparte_principal, contraparte_nif, original_filename)
  *   - include_deleted=true|false   (default false)
  *   - cursor=<created_at_iso>|<uuid>   pagination cursor
@@ -144,11 +147,22 @@ export async function GET(req: NextRequest) {
   const docTypes = parseCsvParam(sp.get('doc_type'))
   const projectId = sp.get('project_id')
   const propertyId = sp.get('property_id')
+  const projectFilterRaw = sp.get('project_filter')
+  const projectFilter: 'with' | 'without' | null =
+    projectFilterRaw === 'with' || projectFilterRaw === 'without' ? projectFilterRaw : null
+  const propertyFilterRaw = sp.get('property_filter')
+  const propertyFilter: 'with' | 'without' | null =
+    propertyFilterRaw === 'with' || propertyFilterRaw === 'without' ? propertyFilterRaw : null
   const reviewStatuses = parseCsvParam(sp.get('review_status'))
   const from = sp.get('from')
   const to = sp.get('to')
   const minAmount = parseNum(sp.get('min_amount'))
   const maxAmount = parseNum(sp.get('max_amount'))
+  const vencimientoDiasRaw = parseNum(sp.get('vencimiento_dias'))
+  const vencimientoDias =
+    vencimientoDiasRaw != null && vencimientoDiasRaw > 0 && vencimientoDiasRaw <= 3650
+      ? Math.floor(vencimientoDiasRaw)
+      : null
   const search = sp.get('search')?.trim() || null
   const includeDeleted = sp.get('include_deleted') === 'true'
   const cursor = sp.get('cursor')
@@ -176,13 +190,33 @@ export async function GET(req: NextRequest) {
     q = q.eq('company_id', companyId)
     if (!includeDeleted) q = q.is('deleted_at', null)
     if (docTypes && docTypes.length > 0) q = q.in('doc_type', docTypes)
-    if (projectId) q = q.eq('project_id', projectId)
-    if (propertyId) q = q.eq('property_id', propertyId)
+    if (projectId) {
+      q = q.eq('project_id', projectId)
+    } else if (projectFilter === 'with') {
+      q = q.not('project_id', 'is', null)
+    } else if (projectFilter === 'without') {
+      q = q.is('project_id', null)
+    }
+    if (propertyId) {
+      q = q.eq('property_id', propertyId)
+    } else if (propertyFilter === 'with') {
+      q = q.not('property_id', 'is', null)
+    } else if (propertyFilter === 'without') {
+      q = q.is('property_id', null)
+    }
     if (reviewStatuses && reviewStatuses.length > 0) q = q.in('review_status', reviewStatuses)
     if (from) q = q.gte('fecha_relevante', from)
     if (to) q = q.lte('fecha_relevante', to)
     if (minAmount != null) q = q.gte('importe_principal', minAmount)
     if (maxAmount != null) q = q.lte('importe_principal', maxAmount)
+    if (vencimientoDias != null) {
+      const today = new Date()
+      const todayIso = today.toISOString().slice(0, 10)
+      const limitDate = new Date()
+      limitDate.setDate(limitDate.getDate() + vencimientoDias)
+      const limitIso = limitDate.toISOString().slice(0, 10)
+      q = q.gte('fecha_vencimiento', todayIso).lte('fecha_vencimiento', limitIso)
+    }
     if (search) {
       // Escape % y , para PostgREST .or() — comas son separador y % es wildcard
       const safe = search.replace(/[%,()]/g, ' ').trim()
