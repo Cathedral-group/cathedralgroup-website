@@ -5,6 +5,7 @@ import TabPanel from '@/components/admin/TabPanel'
 import ProgressBar from '@/components/admin/ProgressBar'
 import LinkedSelect from '@/components/admin/LinkedSelect'
 import PlanificacionTab from './PlanificacionTab'
+import ProjectDocumentsTab from './ProjectDocumentsTab'
 
 /* ───────── Types ───────── */
 
@@ -1428,17 +1429,24 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
             </div>
 
             {/* Tabs */}
-            <TabPanel
-              tabs={[
-                { key: 'general', label: 'General' },
-                { key: 'ubicacion', label: 'Ubicación' },
-                { key: 'fases', label: 'Planificación' },
-                { key: 'facturas', label: 'Facturas' },
-                { key: 'documentos', label: 'Documentos' },
-              ]}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            >
+            {(() => {
+              // Contador del tab "Documentos · N".
+              // Las facturas (`initialInvoices`) ya vienen cargadas en props (las usa el tab Facturas) — sirven como
+              // estimación inmediata mientras `<ProjectDocumentsTab>` resuelve su fetch completo
+              // (que añade quotes + documents + escrituras del inmueble).
+              const docCountForTab = initialInvoices.filter((inv) => inv.project_id === selected.id).length
+              return (
+                <TabPanel
+                  tabs={[
+                    { key: 'general', label: 'General' },
+                    { key: 'ubicacion', label: 'Ubicación' },
+                    { key: 'fases', label: 'Planificación' },
+                    { key: 'facturas', label: 'Facturas' },
+                    { key: 'documentos', label: docCountForTab > 0 ? `Documentos · ${docCountForTab}` : 'Documentos' },
+                  ]}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                >
               {/* ─── Tab: General ─── */}
               {activeTab === 'general' && (
                 <div className="space-y-4">
@@ -1829,22 +1837,27 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               {/* ─── Tab: Documentos ─── */}
               {activeTab === 'documentos' && (
                 <div className="space-y-4">
-                  {selected.drive_folder_url ? (
+                  {selected.drive_folder_url && (
                     <a
                       href={selected.drive_folder_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 bg-primary text-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/90"
                     >
-                      Abrir en Google Drive
+                      Abrir en Google Drive ↗
                     </a>
-                  ) : (
-                    <p className="text-sm text-neutral-400">No hay carpeta de Drive vinculada</p>
                   )}
-                  <p className="text-sm text-neutral-400 py-4">Gestion de documentos proximamente</p>
+                  <ProjectDocumentsTab
+                    projectId={selected.id}
+                    projectCode={selected.code}
+                    propertyId={(selected as { property_id?: string | null }).property_id ?? null}
+                    preloadedInvoiceCount={docCountForTab}
+                  />
                 </div>
               )}
             </TabPanel>
+              )
+            })()}
 
             {/* Save / Delete — always visible regardless of active tab */}
             <div className="flex gap-3 pt-4 mt-4 border-t border-neutral-100">
