@@ -220,13 +220,46 @@ await run('NIF + importe + fecha → 200 + candidates array', async () => {
   if (typeof json.query_params?.min_amt !== 'number') throw new Error('query_params.min_amt')
 })
 
-await run('amount=0 → 400', async () => {
+await run('amount=0 → 200 con skipped:"no_amount" (graceful, post commit 19/05)', async () => {
   const res = await fetch(`${BASE}/api/fuzzy-ticket-invoice`, {
     method: 'POST',
     headers: authHeaders,
     body: JSON.stringify({ supplier_nif: 'B12345678', amount: 0, issue_date: '2026-01-01' }),
   })
-  await expectStatus(res, 400)
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (json.skipped !== 'no_amount') {
+    throw new Error(`expected skipped:"no_amount", got ${JSON.stringify(json)}`)
+  }
+  if (!Array.isArray(json.candidates) || json.candidates.length !== 0) {
+    throw new Error(`expected candidates:[], got ${JSON.stringify(json.candidates)}`)
+  }
+})
+
+await run('supplier_nif corto → 200 con skipped:"no_supplier_nif"', async () => {
+  const res = await fetch(`${BASE}/api/fuzzy-ticket-invoice`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ supplier_nif: 'B', amount: 100, issue_date: '2026-01-01' }),
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (json.skipped !== 'no_supplier_nif') {
+    throw new Error(`expected skipped:"no_supplier_nif", got ${JSON.stringify(json)}`)
+  }
+})
+
+await run('sin issue_date → 200 con skipped:"no_issue_date"', async () => {
+  const res = await fetch(`${BASE}/api/fuzzy-ticket-invoice`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ supplier_nif: 'B12345678', amount: 100 }),
+  })
+  await expectStatus(res, 200)
+  const json = await res.json()
+  if (json.skipped !== 'no_issue_date') {
+    throw new Error(`expected skipped:"no_issue_date", got ${JSON.stringify(json)}`)
+  }
 })
 
 await run('fecha mal formada → 400', async () => {

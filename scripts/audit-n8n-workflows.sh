@@ -119,7 +119,10 @@ done
 # Criterio de match:
 #   - Nombre workflow contiene healthcheck|monitor|alert|watchdog (caso-insensitive)
 #   - O nombre nodo contiene insert|update|delete|patch (caso-insensitive)
-#   - Excluir nodos defensivos por nombre (placeholder|log|registrar|limpiar|marcar)
+#   - Excluir nodos defensivos por nombre:
+#     - placeholder|log|registrar|limpiar|marcar — defensivos clásicos
+#     - mark|dispatch — bookkeeping queue (Op 2 agentes IA, sesión 17-19/05)
+#     - state|drive url — actualizaciones cosméticas idempotentes
 for f in "$WORK_DIR"/*.json; do
   [ "$(basename "$f")" = "list.json" ] || [ "$(basename "$f")" = "hits.jsonl" ] || \
   jq -c --arg wf_id "$(basename "$f" .json)" '
@@ -134,7 +137,7 @@ for f in "$WORK_DIR"/*.json; do
       (
         ($node_name | test("(insert|update|delete|patch)"; "i"))
         and
-        ($node_name | test("(placeholder|log|registrar|limpiar|marcar)"; "i") | not)
+        ($node_name | test("(placeholder|log|registrar|limpiar|marcar|mark|dispatch|state|drive url)"; "i") | not)
       )
     ) |
     {
