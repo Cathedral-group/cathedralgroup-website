@@ -190,6 +190,12 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Documentos',
     items: [
+      {
+        label: '📂 Todos (hub global)',
+        href: '/admin/documentos',
+        icon: <IconCorporativo />,
+        description: 'Vista cross-doc-type con filtros (facturas + contratos + escrituras + seguros + nóminas + modelos fiscales + etc)',
+      },
       { label: 'Escrituras',     href: '/admin/documentos/escrituras',  icon: <IconEscrituras /> },
       { label: 'Contratos',      href: '/admin/documentos/contratos',   icon: <IconContratos /> },
       { label: 'Licencias',      href: '/admin/documentos/licencias',   icon: <IconLicencias /> },
