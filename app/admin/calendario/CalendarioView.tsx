@@ -233,9 +233,9 @@ export default function CalendarioView({
       )}
 
       {vista === 'semana' && (() => {
-        // Feedback David sesión 21/05 noche: vista semana muestra semana arriba
-        // + mes completo debajo. Backend carga rango mes completo (lunes-domingo
-        // extendido). Filtra días a semana actual para ViewSemana.
+        // Feedback David sesión 21/05 noche: vista semana muestra 3 secciones
+        // apiladas: Día (refFecha) arriba + Semana + Mes completo debajo.
+        // Backend carga rango mes completo (lunes-domingo extendido).
         const refDate = new Date(refFecha + 'T00:00:00')
         const dRef = refDate.getDay()
         const offsetMon = dRef === 0 ? -6 : 1 - dRef
@@ -249,15 +249,32 @@ export default function CalendarioView({
         }
         return (
           <>
-            <ViewSemana
-              days={weekDays}
-              employees={employees}
-              matrix={employeeDayMatrix}
-              eventsByDay={eventsByDay}
-              today={todayStr}
-              onClickDay={(d) => setDrawerDay(d)}
-            />
-            {/* Mes completo debajo de semana */}
+            {/* Día (refFecha) arriba */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
+                Día · {fmtDateLong(refFecha)}
+              </p>
+              <ViewDia
+                day={refFecha}
+                events={eventsByDay[refFecha] ?? []}
+                employees={employees}
+              />
+            </div>
+            {/* Semana */}
+            <div className="mt-8">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
+                Semana
+              </p>
+              <ViewSemana
+                days={weekDays}
+                employees={employees}
+                matrix={employeeDayMatrix}
+                eventsByDay={eventsByDay}
+                today={todayStr}
+                onClickDay={(d) => setDrawerDay(d)}
+              />
+            </div>
+            {/* Mes completo */}
             <div className="mt-8">
               <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
                 Mes completo
