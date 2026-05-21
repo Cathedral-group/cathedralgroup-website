@@ -810,11 +810,8 @@ function ViewMes({
           }
           const flim = fiscalByLimit[d] ?? []
           const fini = fiscalByStart[d] ?? []
-          // Proyectos únicos del día (dirección, no código)
-          const projectsToday = new Set<string>()
-          for (const e of dayEvents) {
-            if (e.project_id) projectsToday.add(projLabel(e.project_id, e.project_code))
-          }
+          // Una línea por asignación trabajador+obra (no agrupar por obra)
+          const asignacionesDia = dayEvents.filter((e) => e.event_type === 'assignment')
           // Prioridad fondo: fiscal límite > fiscal inicio > festivo > socio > hoy
           const cellBg = isOtherMonth
             ? 'bg-stone-50/30 text-stone-300'
@@ -851,11 +848,13 @@ function ViewMes({
                   🟡 {f.modelo} {f.periodo}
                 </div>
               ))}
-              {projectsToday.size > 0 && (
-                <div className="mt-0.5 text-[10px] text-stone-600 truncate" title={Array.from(projectsToday).join(', ')}>
-                  👷 {Array.from(projectsToday).slice(0, 2).join(', ')}
-                  {projectsToday.size > 2 && ` +${projectsToday.size - 2}`}
+              {asignacionesDia.slice(0, 3).map((e, i) => (
+                <div key={`a-${i}`} className="mt-0.5 text-[10px] text-emerald-800 truncate" title={`${e.employee_nombre ?? ''} · ${projLabel(e.project_id, e.project_code)}`}>
+                  👷 {e.employee_nombre ?? '—'} · {projLabel(e.project_id, e.project_code)}
                 </div>
+              ))}
+              {asignacionesDia.length > 3 && (
+                <div className="text-[10px] text-stone-400">+{asignacionesDia.length - 3} más</div>
               )}
               {byType.absence > 0 && (
                 <div className="mt-0.5 text-[10px] text-amber-700">🏖️ {byType.absence}</div>
