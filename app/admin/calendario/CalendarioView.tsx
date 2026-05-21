@@ -174,32 +174,9 @@ export default function CalendarioView({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Selector vista */}
-          <div className="inline-flex rounded border border-stone-300 overflow-hidden">
-            {(['dia', 'semana', 'mes'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => goTo(refFecha, v)}
-                className={`px-3 py-1.5 text-xs uppercase tracking-widest ${
-                  vista === v ? 'bg-stone-900 text-white' : 'bg-white text-stone-700 hover:bg-stone-50'
-                }`}
-              >
-                {v === 'dia' ? 'Día' : v === 'semana' ? 'Semana' : 'Mes'}
-              </button>
-            ))}
-          </div>
-
-          {/* Navegación */}
-          <div className="inline-flex rounded border border-stone-300 overflow-hidden">
-            <button onClick={() => nav(-1)} className="px-2 py-1.5 text-sm hover:bg-stone-50">‹</button>
-            <button
-              onClick={() => goTo(toLocalISODate(new Date()))}
-              className="px-3 py-1.5 text-xs uppercase tracking-widest hover:bg-stone-50"
-            >
-              Hoy
-            </button>
-            <button onClick={() => nav(1)} className="px-2 py-1.5 text-sm hover:bg-stone-50">›</button>
-          </div>
+          {/* Selector vista + Hoy quitados (feedback David sesión 22/05): vista
+              semana ya muestra Día + Semana + Mes + Año apilados verticalmente.
+              Flechas navegación movidas a headers de cada sección. */}
 
           {/* Gantt multi-proyecto */}
           <Link
@@ -256,13 +233,43 @@ export default function CalendarioView({
           d.setDate(weekStart.getDate() + i)
           weekDays.push(toLocalISODate(d))
         }
+        // Navegación delta por sección (feedback David sesión 22/05)
+        const shiftDay = (delta: number) => {
+          const r = new Date(refFecha + 'T00:00:00')
+          r.setDate(r.getDate() + delta)
+          goTo(toLocalISODate(r), 'semana')
+        }
+        const shiftWeek = (delta: number) => {
+          const r = new Date(refFecha + 'T00:00:00')
+          r.setDate(r.getDate() + 7 * delta)
+          goTo(toLocalISODate(r), 'semana')
+        }
+        const shiftMonth = (delta: number) => {
+          const r = new Date(refFecha + 'T00:00:00')
+          r.setMonth(r.getMonth() + delta)
+          goTo(toLocalISODate(r), 'semana')
+        }
+        const shiftYear = (delta: number) => {
+          const r = new Date(refFecha + 'T00:00:00')
+          r.setFullYear(r.getFullYear() + delta)
+          goTo(toLocalISODate(r), 'semana')
+        }
+        const navArrows = (onPrev: () => void, onNext: () => void) => (
+          <div className="inline-flex rounded border border-stone-300 overflow-hidden ml-2">
+            <button onClick={onPrev} className="px-2 py-0.5 text-xs hover:bg-stone-50">‹</button>
+            <button onClick={onNext} className="px-2 py-0.5 text-xs hover:bg-stone-50">›</button>
+          </div>
+        )
         return (
           <>
             {/* Día (refFecha) arriba */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
-                Día · {fmtDateLong(refFecha)}
-              </p>
+              <div className="flex items-center mb-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                  Día · {fmtDateLong(refFecha)}
+                </p>
+                {navArrows(() => shiftDay(-1), () => shiftDay(1))}
+              </div>
               <ViewDia
                 day={refFecha}
                 events={eventsByDay[refFecha] ?? []}
@@ -271,9 +278,10 @@ export default function CalendarioView({
             </div>
             {/* Semana */}
             <div className="mt-8">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
-                Semana
-              </p>
+              <div className="flex items-center mb-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Semana</p>
+                {navArrows(() => shiftWeek(-1), () => shiftWeek(1))}
+              </div>
               <ViewSemana
                 days={weekDays}
                 employees={employees}
@@ -285,9 +293,10 @@ export default function CalendarioView({
             </div>
             {/* Mes completo */}
             <div className="mt-8">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
-                Mes completo
-              </p>
+              <div className="flex items-center mb-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Mes completo</p>
+                {navArrows(() => shiftMonth(-1), () => shiftMonth(1))}
+              </div>
               <ViewMes
                 days={days}
                 eventsByDay={eventsByDay}
@@ -298,9 +307,10 @@ export default function CalendarioView({
             </div>
             {/* Año completo (12 mini-meses navegación) */}
             <div className="mt-8">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
-                Año completo
-              </p>
+              <div className="flex items-center mb-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Año completo</p>
+                {navArrows(() => shiftYear(-1), () => shiftYear(1))}
+              </div>
               <ViewAno
                 refFecha={refFecha}
                 today={todayStr}
