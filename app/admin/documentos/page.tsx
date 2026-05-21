@@ -21,7 +21,15 @@ export const dynamic = 'force-dynamic'
  *   4. El cliente DocumentsHubView pide siguientes páginas vía
  *      /api/documentos/registry-list (cursor pagination)
  */
-export default async function DocumentosPage() {
+export default async function DocumentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  // Sesión 21/05 fix Bug 1: aceptar query param `tipo` para filtrar SSR
+  // (sidebar nuevo envía `?tipo=factura` para drill-down por doc_type)
+  const params = await searchParams
+  const tipoFilter = typeof params.tipo === 'string' ? params.tipo : null
   // ─── Auth check (sesión + allow-list + AAL2) ─────────────────────────────
   const authClient = await createServerSupabaseClient()
   const { data: userData, error: userErr } = await authClient.auth.getUser()
@@ -68,15 +76,21 @@ export default async function DocumentosPage() {
       .select('review_status', { count: 'exact', head: false })
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null),
-    // Primera página: 50 rows ordenados por fecha_relevante desc
-    supabase
-      .from('documents_registry')
-      .select('*')
-      .eq('company_id', activeCompanyId)
-      .is('deleted_at', null)
-      .order('fecha_relevante', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .limit(PAGE_SIZE),
+    // Primera página: 50 rows ordenados por fecha_relevante desc.
+    // Si query param ?tipo=X presente, filtra a ese doc_type SSR (evita flash de
+    // lista completa antes de que client-side aplique filtro).
+    (() => {
+      let q = supabase
+        .from('documents_registry')
+        .select('*')
+        .eq('company_id', activeCompanyId)
+        .is('deleted_at', null)
+      if (tipoFilter) q = q.eq('doc_type', tipoFilter)
+      return q
+        .order('fecha_relevante', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE)
+    })(),
     // Total count global (sin filtros)
     supabase
       .from('documents_registry')

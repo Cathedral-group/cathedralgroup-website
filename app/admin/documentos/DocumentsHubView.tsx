@@ -254,10 +254,16 @@ function KpiCard({ label, value, hint, accent }: { label: string; value: string;
  * ───────────────────────────────────────────────────────────────────────────── */
 
 function filtersFromUrl(params: URLSearchParams): Filters {
+  // Sesión 21/05 fix Bug 1: aceptar tanto `tipo` (singular del sidebar nuevo)
+  // como `types` (plural, formato CSV de filtros internos del hub).
+  const tipoSingular = params.get('tipo')
+  const docTypesFromUrl = tipoSingular
+    ? [tipoSingular]
+    : (params.get('types')?.split(',').filter(Boolean) ?? [])
   return {
     ...DEFAULT_FILTERS,
     q: params.get('q') ?? '',
-    docTypes: params.get('types')?.split(',').filter(Boolean) ?? [],
+    docTypes: docTypesFromUrl,
     projectId: params.get('project') || null,
     esGastoGeneral: params.get('general') === '1',
     propertyId: params.get('property') || null,

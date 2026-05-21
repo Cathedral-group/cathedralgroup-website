@@ -258,10 +258,10 @@ function buildDocumentosSection(
       })
     }
   } else {
-    // Fallback minimal mientras registry carga
+    // Fallback minimal consistente con flow nuevo (hub global con ?tipo=)
     children.push(
-      { label: 'Facturas', href: '/admin/facturas' },
-      { label: 'Presupuestos', href: '/admin/presupuestos' },
+      { label: 'Facturas', href: '/admin/documentos?tipo=factura' },
+      { label: 'Presupuestos', href: '/admin/documentos?tipo=presupuesto' },
       { label: 'Contratos', href: '/admin/documentos?tipo=contrato' },
       { label: 'Escrituras', href: '/admin/documentos?tipo=escritura' },
     )
@@ -362,7 +362,8 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       if (foundDrillItem) break
     }
     setDrillInto(foundDrillItem)
-  }, [pathname])
+    // NAV_SECTIONS en deps: recalcular cuando registry carga y la estructura cambia.
+  }, [pathname, NAV_SECTIONS])
 
   useEffect(() => {
     const supabase = createClient()
@@ -513,7 +514,7 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
       }
     }
     return null
-  }, [drillInto])
+  }, [drillInto, NAV_SECTIONS])
 
   // Helpers contadores
   const getBadge = (badgeKey?: string): { count: number; color: string } | null => {
