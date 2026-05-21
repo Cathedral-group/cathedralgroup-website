@@ -132,12 +132,15 @@ export default function CuadranteView({
     return m
   }, [assignments])
 
-  // Capacity por trabajador (horas semana)
+  // Capacity por trabajador (DÍAS asignados, NO horas).
+  // Horas reales las apuntan los trabajadores cuando fichan en su portal.
+  // Cathedral jornada estándar convenio Madrid 2026: ~8h/día efectivas L-V.
+  // Semana laboral = 5 días = 40h (sin contar extras).
   const capacityByEmp = useMemo(() => {
-    const m: Record<string, number> = {}
+    const m: Record<string, Set<string>> = {}
     for (const a of assignments) {
-      const h = (a.horas_ordinarias || 0) + (a.horas_extra || 0)
-      m[a.employee_id] = (m[a.employee_id] || 0) + (h || 8) // default 8h si null
+      if (!m[a.employee_id]) m[a.employee_id] = new Set()
+      m[a.employee_id].add(a.fecha)
     }
     return m
   }, [assignments])
@@ -342,17 +345,21 @@ export default function CuadranteView({
             </thead>
             <tbody>
               {employees.map((emp) => {
-                const cap = capacityByEmp[emp.id] || 0
-                const capColor = cap === 0 ? 'bg-stone-100' : cap <= 40 ? 'bg-emerald-200' : cap <= 50 ? 'bg-amber-200' : 'bg-red-200'
+                const diasAsignados = capacityByEmp[emp.id]?.size || 0
+                // Verde 0-5 días (semana normal), amber 6 días, rojo 7 días
+                const capColor = diasAsignados === 0 ? 'bg-stone-100'
+                  : diasAsignados <= 5 ? 'bg-emerald-200'
+                  : diasAsignados === 6 ? 'bg-amber-200'
+                  : 'bg-red-200'
                 return (
                   <tr key={emp.id}>
                     <td className="px-3 py-2 align-top border-b border-r border-stone-100 sticky left-0 bg-white z-10">
                       <div className="text-sm font-medium text-stone-800 truncate">{emp.nombre}</div>
                       <div className="mt-1 flex items-center gap-1">
                         <div className="w-full h-1.5 bg-stone-100 rounded overflow-hidden">
-                          <div className={`h-full ${capColor}`} style={{ width: `${Math.min(100, (cap / 40) * 100)}%` }} />
+                          <div className={`h-full ${capColor}`} style={{ width: `${Math.min(100, (diasAsignados / 5) * 100)}%` }} />
                         </div>
-                        <span className="text-[9px] font-mono text-stone-400">{cap}h</span>
+                        <span className="text-[9px] font-mono text-stone-400">{diasAsignados}/5d</span>
                       </div>
                     </td>
                     {weekDays.map((d) => {
