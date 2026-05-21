@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import ActiveCompanyBadge from './ActiveCompanyBadge'
@@ -133,10 +134,8 @@ const NAV_SECTIONS_STATIC: NavSection[] = [
         label: 'Calendario',     href: '/admin/calendario',    icon: <IconDashboard />,
         description: 'Qué pasa cada día: asignaciones, ausencias, festivos, tareas, fichajes',
       },
-      {
-        label: 'Grupo',          href: '/admin/grupo',         icon: <IconCorporativo />,
-        description: 'Empresas del grupo (multi-SL) y sociedades hermanas',
-      },
+      // "Grupo" eliminado: duplicaba ActiveCompanyBadge footer (feedback David
+      // sesión 21/05 noche). Ruta /admin/grupo sigue accesible vía URL directa.
     ],
   },
   {
@@ -595,12 +594,12 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           md:translate-x-0`}
       >
-        {/* Header */}
+        {/* Header — clickable Link → dashboard (feedback David sesión 21/05 noche) */}
         <div className="px-5 py-5 border-b border-neutral-100 flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Cathedral Group</p>
-            <p className="text-sm font-semibold mt-0.5 text-neutral-800">Panel Admin</p>
-          </div>
+          <Link href="/admin" className="group">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 group-hover:text-neutral-600 transition-colors">Cathedral Group</p>
+            <p className="text-sm font-semibold mt-0.5 text-neutral-800 group-hover:text-primary transition-colors">Panel Admin</p>
+          </Link>
           <button
             onClick={onToggle}
             className="md:hidden p-1 rounded hover:bg-neutral-100 text-neutral-400 hover:text-neutral-800 transition-colors"

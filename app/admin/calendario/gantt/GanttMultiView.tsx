@@ -69,7 +69,10 @@ function monthsBetween(desde: string, hasta: string): { year: number; month: num
 export default function GanttMultiView({ desde, hasta, projects, assignments }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [showLoad, setShowLoad] = useState(true)
+  // showLoad fijado false por feedback David sesión 21/05 noche: "horas
+  // completas no quiero que aparezca en el Gantt". Si futuro vuelve a
+  // interesar, restaurar useState(true) y el botón toggle.
+  const showLoad = false
 
   const months = useMemo(() => monthsBetween(desde, hasta), [desde, hasta])
   const totalDays = useMemo(() => {
@@ -178,14 +181,7 @@ export default function GanttMultiView({ desde, hasta, projects, assignments }: 
             <button onClick={() => shiftPeriod(-1)} className="px-2 py-1.5 hover:bg-stone-50">‹</button>
             <button onClick={() => shiftPeriod(1)} className="px-2 py-1.5 hover:bg-stone-50">›</button>
           </div>
-          <button
-            onClick={() => setShowLoad((v) => !v)}
-            className={`text-[10px] uppercase tracking-widest px-2.5 py-1 rounded border ${
-              showLoad ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-400 border-stone-300'
-            }`}
-          >
-            👷 Carga personal
-          </button>
+          {/* Botón "👷 Carga personal" eliminado por feedback David sesión 21/05 noche */}
         </div>
       </div>
 

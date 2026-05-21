@@ -47,11 +47,16 @@ export default async function CalendarioPage({
   if (vista === 'dia') {
     desde = new Date(ref); hasta = new Date(ref)
   } else if (vista === 'semana') {
-    // Lunes a domingo
-    const d = ref.getDay()
-    const offset = d === 0 ? -6 : 1 - d
-    desde = new Date(ref); desde.setDate(ref.getDate() + offset)
-    hasta = new Date(desde); hasta.setDate(desde.getDate() + 6)
+    // Feedback David sesión 21/05 noche: vista semana carga rango MES completo
+    // para renderizar mini-calendario mensual debajo de la semana.
+    desde = new Date(ref.getFullYear(), ref.getMonth(), 1)
+    hasta = new Date(ref.getFullYear(), ref.getMonth() + 1, 0)
+    const dStart = desde.getDay()
+    const offsetStart = dStart === 0 ? -6 : 1 - dStart
+    desde.setDate(desde.getDate() + offsetStart)
+    const dEnd = hasta.getDay()
+    const offsetEnd = dEnd === 0 ? 0 : 7 - dEnd
+    hasta.setDate(hasta.getDate() + offsetEnd)
   } else {
     // mes
     desde = new Date(ref.getFullYear(), ref.getMonth(), 1)

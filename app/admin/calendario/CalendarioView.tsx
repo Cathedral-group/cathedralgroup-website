@@ -232,16 +232,47 @@ export default function CalendarioView({
         />
       )}
 
-      {vista === 'semana' && (
-        <ViewSemana
-          days={days}
-          employees={employees}
-          matrix={employeeDayMatrix}
-          eventsByDay={eventsByDay}
-          today={todayStr}
-          onClickDay={(d) => setDrawerDay(d)}
-        />
-      )}
+      {vista === 'semana' && (() => {
+        // Feedback David sesión 21/05 noche: vista semana muestra semana arriba
+        // + mes completo debajo. Backend carga rango mes completo (lunes-domingo
+        // extendido). Filtra días a semana actual para ViewSemana.
+        const refDate = new Date(refFecha + 'T00:00:00')
+        const dRef = refDate.getDay()
+        const offsetMon = dRef === 0 ? -6 : 1 - dRef
+        const weekStart = new Date(refDate)
+        weekStart.setDate(refDate.getDate() + offsetMon)
+        const weekDays: string[] = []
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(weekStart)
+          d.setDate(weekStart.getDate() + i)
+          weekDays.push(d.toISOString().slice(0, 10))
+        }
+        return (
+          <>
+            <ViewSemana
+              days={weekDays}
+              employees={employees}
+              matrix={employeeDayMatrix}
+              eventsByDay={eventsByDay}
+              today={todayStr}
+              onClickDay={(d) => setDrawerDay(d)}
+            />
+            {/* Mes completo debajo de semana */}
+            <div className="mt-8">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
+                Mes completo
+              </p>
+              <ViewMes
+                days={days}
+                eventsByDay={eventsByDay}
+                refFecha={refFecha}
+                today={todayStr}
+                onClickDay={(d) => setDrawerDay(d)}
+              />
+            </div>
+          </>
+        )
+      })()}
 
       {vista === 'mes' && (
         <ViewMes
