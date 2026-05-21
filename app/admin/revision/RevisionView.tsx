@@ -289,20 +289,21 @@ function DocumentPreview({ drive_url, filename }: { drive_url: string | null | u
       </div>
     )
   }
-  const previewUrl = drive_url.replace(/\/view(\?.*)?$/, '/preview')
+  // Iframe Drive bloqueado por navegadores (cookies third-party). Botón abre nueva pestaña.
   return (
-    <div className="space-y-2">
-      <iframe
-        src={previewUrl}
-        className="w-full h-[400px] md:h-[600px] border border-neutral-200 rounded bg-neutral-50"
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-        title={filename || 'Preview documento'}
-      />
-      <a href={drive_url} target="_blank" rel="noopener noreferrer"
-         className="block text-xs text-blue-600 hover:underline text-right">
-        Abrir en Drive (nueva pestaña) ↗
-      </a>
-    </div>
+    <a
+      href={drive_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center justify-center gap-2 w-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 hover:text-blue-900 rounded-lg p-4 transition"
+    >
+      <span className="text-2xl">📄</span>
+      <div className="text-left">
+        <div className="text-sm font-medium">Ver PDF en Google Drive</div>
+        <div className="text-[10px] text-blue-500 break-all">{filename || drive_url}</div>
+      </div>
+      <span className="ml-auto text-blue-400">↗</span>
+    </a>
   )
 }
 
