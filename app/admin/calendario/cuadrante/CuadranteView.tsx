@@ -379,11 +379,11 @@ export default function CuadranteView({
                   const isToday = d === today
                   return (
                     <th key={d} className={`px-1 py-2 text-center text-[10px] uppercase tracking-widest border-b border-stone-200 ${
-                      isToday ? 'bg-emerald-50 text-emerald-900' : hol ? 'bg-red-50 text-red-700' : 'bg-stone-50 text-stone-600'
+                      isToday ? 'bg-emerald-50 text-emerald-900' : hol ? 'bg-stone-200 text-stone-700' : 'bg-stone-50 text-stone-600'
                     }`}>
                       <div>{DAY_NAMES[i]}</div>
                       <div className="font-mono">{fmtDayShort(d)}</div>
-                      {hol && <div className="text-[9px] mt-0.5 truncate" title={hol.nombre}>🇪🇸 {hol.nombre}</div>}
+                      {hol && <div className="text-[9px] mt-0.5 truncate" title={hol.nombre}>Festivo {hol.nombre}</div>}
                     </th>
                   )
                 })}

@@ -58,6 +58,16 @@ interface CuadranteAbsence {
   status: string
 }
 
+interface FiscalEntry {
+  modelo: string
+  ejercicio: number
+  periodo: string
+  fecha_inicio_plazo: string
+  fecha_limite: string
+  nombre: string
+  descripcion: string | null
+}
+
 interface Props {
   vista: 'dia' | 'semana' | 'mes'
   desde: string
@@ -71,6 +81,7 @@ interface Props {
   cuadranteHolidays?: CuadranteHoliday[]
   cuadranteAbsences?: CuadranteAbsence[]
   yearHolidays?: string[]
+  fiscalEntries?: FiscalEntry[]
 }
 
 const EVENT_ICONS: Record<CalendarEvent['event_type'], string> = {
@@ -124,7 +135,7 @@ const DAY_NAMES = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
 export default function CalendarioView({
   vista, desde, hasta, refFecha, events, employees, projects,
   cuadranteWeekDays, cuadranteAssignments, cuadranteHolidays, cuadranteAbsences,
-  yearHolidays = [],
+  yearHolidays = [], fiscalEntries = [],
 }: Props) {
   void projects // pueden usarse para filtros futuros
   const router = useRouter()
@@ -141,6 +152,19 @@ export default function CalendarioView({
 
   const days = useMemo(() => daysBetween(desde, hasta), [desde, hasta])
   const todayStr = toLocalISODate(new Date())
+
+  // Fiscal obligations indexadas por fecha. Una entry puede aparecer en su
+  // fecha_inicio_plazo (amarillo) Y en fecha_limite (rojo).
+  const fiscalByStart = useMemo(() => {
+    const m: Record<string, FiscalEntry[]> = {}
+    for (const f of fiscalEntries) (m[f.fecha_inicio_plazo] ??= []).push(f)
+    return m
+  }, [fiscalEntries])
+  const fiscalByLimit = useMemo(() => {
+    const m: Record<string, FiscalEntry[]> = {}
+    for (const f of fiscalEntries) (m[f.fecha_limite] ??= []).push(f)
+    return m
+  }, [fiscalEntries])
 
   // Agrupar eventos por día
   const eventsByDay = useMemo(() => {
@@ -243,6 +267,8 @@ export default function CalendarioView({
           day={refFecha}
           events={eventsByDay[refFecha] ?? []}
           employees={employees}
+          fiscalStart={fiscalByStart[refFecha] ?? []}
+          fiscalLimit={fiscalByLimit[refFecha] ?? []}
         />
       )}
 
@@ -306,6 +332,8 @@ export default function CalendarioView({
                 day={refFecha}
                 events={eventsByDay[refFecha] ?? []}
                 employees={employees}
+                fiscalStart={fiscalByStart[refFecha] ?? []}
+                fiscalLimit={fiscalByLimit[refFecha] ?? []}
               />
             </div>
             {/* Semana */}
@@ -324,6 +352,8 @@ export default function CalendarioView({
                 today={todayStr}
                 onClickDay={(d) => setDrawerDay(d)}
                 projects={projects}
+                fiscalByStart={fiscalByStart}
+                fiscalByLimit={fiscalByLimit}
               />
             </div>
             {/* Mes completo */}
@@ -340,6 +370,8 @@ export default function CalendarioView({
                 refFecha={refFecha}
                 today={todayStr}
                 onClickDay={(d) => setDrawerDay(d)}
+                fiscalByStart={fiscalByStart}
+                fiscalByLimit={fiscalByLimit}
               />
             </div>
             {/* Año completo (12 mini-meses navegación) */}
@@ -355,6 +387,8 @@ export default function CalendarioView({
                 today={todayStr}
                 onClickDay={(d) => goTo(d, 'semana')}
                 yearHolidays={yearHolidays}
+                fiscalByStart={fiscalByStart}
+                fiscalByLimit={fiscalByLimit}
               />
             </div>
           </>
@@ -368,6 +402,8 @@ export default function CalendarioView({
           refFecha={refFecha}
           today={todayStr}
           onClickDay={(d) => setDrawerDay(d)}
+          fiscalByStart={fiscalByStart}
+          fiscalByLimit={fiscalByLimit}
         />
       )}
 
@@ -387,7 +423,15 @@ export default function CalendarioView({
 
 /* ───────── Vista Día ───────── */
 
-function ViewDia({ day, events, employees }: { day: string; events: CalendarEvent[]; employees: Employee[] }) {
+function ViewDia({
+  day, events, employees, fiscalStart = [], fiscalLimit = [],
+}: {
+  day: string
+  events: CalendarEvent[]
+  employees: Employee[]
+  fiscalStart?: FiscalEntry[]
+  fiscalLimit?: FiscalEntry[]
+}) {
   void employees
   const grouped = useMemo(() => {
     const m: Record<string, CalendarEvent[]> = {}
@@ -398,7 +442,9 @@ function ViewDia({ day, events, employees }: { day: string; events: CalendarEven
     return m
   }, [events])
 
-  if (events.length === 0) {
+  const hasContent = events.length > 0 || fiscalStart.length > 0 || fiscalLimit.length > 0
+
+  if (!hasContent) {
     return (
       <div className="rounded-lg border border-stone-200 bg-white p-8 text-center text-sm text-stone-500">
         Nada planificado para el {fmtDateLong(day)}
@@ -408,6 +454,38 @@ function ViewDia({ day, events, employees }: { day: string; events: CalendarEven
 
   return (
     <div className="space-y-4">
+      {/* Fiscal: fecha límite (rojo) */}
+      {fiscalLimit.length > 0 && (
+        <div className="rounded-lg border border-red-300 bg-red-50">
+          <div className="px-4 py-2 border-b border-red-200 bg-red-100/60 text-red-900 font-medium text-sm">
+            🛑 Fecha LÍMITE presentación AEAT
+          </div>
+          <ul className="divide-y divide-red-200">
+            {fiscalLimit.map((f) => (
+              <li key={`${f.modelo}-${f.ejercicio}-${f.periodo}`} className="px-4 py-2 text-sm text-red-900">
+                <div className="font-medium">{f.nombre}</div>
+                {f.descripcion && <div className="text-xs text-red-800/80 mt-0.5">{f.descripcion}</div>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {/* Fiscal: inicio plazo (amarillo) */}
+      {fiscalStart.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50">
+          <div className="px-4 py-2 border-b border-amber-200 bg-amber-100/60 text-amber-900 font-medium text-sm">
+            🟡 Inicio plazo presentación AEAT
+          </div>
+          <ul className="divide-y divide-amber-200">
+            {fiscalStart.map((f) => (
+              <li key={`${f.modelo}-${f.ejercicio}-${f.periodo}-s`} className="px-4 py-2 text-sm text-amber-900">
+                <div className="font-medium">{f.nombre}</div>
+                {f.descripcion && <div className="text-xs text-amber-800/80 mt-0.5">{f.descripcion}</div>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {Object.entries(grouped).map(([projId, evs]) => {
         const proj = evs.find((e) => e.project_id)
         const label = proj
@@ -432,6 +510,7 @@ function ViewDia({ day, events, employees }: { day: string; events: CalendarEven
 
 function ViewSemana({
   days, employees, matrix, eventsByDay, today, onClickDay, projects,
+  fiscalByStart = {}, fiscalByLimit = {},
 }: {
   days: string[]
   employees: Employee[]
@@ -440,7 +519,10 @@ function ViewSemana({
   today: string
   onClickDay: (d: string) => void
   projects: Project[]
+  fiscalByStart?: Record<string, FiscalEntry[]>
+  fiscalByLimit?: Record<string, FiscalEntry[]>
 }) {
+  void projects
   return (
     <div className="rounded-lg border border-stone-200 bg-white overflow-x-auto">
       <table className="w-full text-sm border-collapse">
@@ -453,13 +535,23 @@ function ViewSemana({
               const isToday = d === today
               const dow = new Date(d + 'T00:00:00').getDay()
               const dayName = DAY_NAMES[dow === 0 ? 6 : dow - 1]
+              const hasHoliday = (eventsByDay[d] ?? []).some((e) => e.event_type === 'holiday')
+              const fiscalLim = (fiscalByLimit[d]?.length ?? 0) > 0
+              const fiscalIni = (fiscalByStart[d]?.length ?? 0) > 0
+              const bg = fiscalLim
+                ? 'bg-red-100 text-red-900'
+                : fiscalIni
+                ? 'bg-amber-100 text-amber-900'
+                : isToday
+                ? 'bg-emerald-50 text-emerald-900'
+                : hasHoliday
+                ? 'bg-stone-200 text-stone-700'
+                : 'bg-stone-50 text-stone-600'
               return (
                 <th
                   key={d}
                   onClick={() => onClickDay(d)}
-                  className={`px-2 py-2 text-center text-[10px] uppercase tracking-widest border-b border-stone-200 cursor-pointer hover:bg-stone-100 ${
-                    isToday ? 'bg-emerald-50 text-emerald-900' : 'bg-stone-50 text-stone-600'
-                  }`}
+                  className={`px-2 py-2 text-center text-[10px] uppercase tracking-widest border-b border-stone-200 cursor-pointer hover:bg-stone-100 ${bg}`}
                 >
                   <div>{dayName}</div>
                   <div className="font-mono">{fmtDateShort(d)}</div>
@@ -467,10 +559,10 @@ function ViewSemana({
               )
             })}
           </tr>
-          {/* Fila resumen del día (festivos, tareas sin asignar, etc.) */}
+          {/* Fila resumen del día (festivos, tareas, fiscal). */}
           <tr>
             <th className="px-3 py-1.5 text-left text-[10px] text-stone-400 bg-stone-50/50 border-b border-stone-100">
-              Día (festivos, tareas)
+              Día (festivos, fiscal, tareas)
             </th>
             {days.map((d) => {
               const todayEvents = eventsByDay[d] ?? []
@@ -478,14 +570,28 @@ function ViewSemana({
               const unassignedTasks = todayEvents.filter(
                 (e) => e.event_type === 'task' && !e.employee_id,
               )
+              const flim = fiscalByLimit[d] ?? []
+              const fini = fiscalByStart[d] ?? []
               return (
                 <td
                   key={d}
                   onClick={() => onClickDay(d)}
-                  className="px-2 py-1.5 text-center text-[10px] cursor-pointer hover:bg-stone-50 border-b border-stone-100 align-top"
+                  className={`px-2 py-1.5 text-center text-[10px] cursor-pointer hover:opacity-80 border-b border-stone-100 align-top ${
+                    flim.length > 0 ? 'bg-red-100' : fini.length > 0 ? 'bg-amber-100' : holidays.length > 0 ? 'bg-stone-200' : ''
+                  }`}
                 >
                   {holidays.map((h, i) => (
-                    <div key={i} className="text-red-700">🇪🇸 {String(h.payload?.nombre ?? '')}</div>
+                    <div key={i} className="text-stone-700">Festivo {String(h.payload?.nombre ?? '')}</div>
+                  ))}
+                  {flim.map((f) => (
+                    <div key={`l-${f.modelo}-${f.periodo}`} className="text-red-800 font-semibold" title={f.descripcion ?? ''}>
+                      🛑 {f.modelo} {f.periodo}
+                    </div>
+                  ))}
+                  {fini.map((f) => (
+                    <div key={`s-${f.modelo}-${f.periodo}`} className="text-amber-900" title={f.descripcion ?? ''}>
+                      🟡 {f.modelo} {f.periodo}
+                    </div>
                   ))}
                   {unassignedTasks.length > 0 && (
                     <div className="text-stone-500">📋 {unassignedTasks.length} sin asignar</div>
@@ -565,12 +671,15 @@ function CellContent({ events }: { events: CalendarEvent[] }) {
 
 function ViewMes({
   days, eventsByDay, refFecha, today, onClickDay,
+  fiscalByStart = {}, fiscalByLimit = {},
 }: {
   days: string[]
   eventsByDay: Record<string, CalendarEvent[]>
   refFecha: string
   today: string
   onClickDay: (d: string) => void
+  fiscalByStart?: Record<string, FiscalEntry[]>
+  fiscalByLimit?: Record<string, FiscalEntry[]>
 }) {
   const refMonth = new Date(refFecha + 'T00:00:00').getMonth()
 
@@ -593,25 +702,47 @@ function ViewMes({
             task: dayEvents.filter((e) => e.event_type === 'task').length,
             holiday: dayEvents.filter((e) => e.event_type === 'holiday').length,
           }
+          const flim = fiscalByLimit[d] ?? []
+          const fini = fiscalByStart[d] ?? []
           // Proyectos únicos del día
           const projectsToday = new Set<string>()
           for (const e of dayEvents) {
             if (e.project_code) projectsToday.add(e.project_code)
           }
+          // Prioridad fondo: fiscal límite > fiscal inicio > festivo > hoy > otro mes
+          const cellBg = isOtherMonth
+            ? 'bg-stone-50/30 text-stone-300'
+            : flim.length > 0
+            ? 'bg-red-100'
+            : fini.length > 0
+            ? 'bg-amber-100'
+            : byType.holiday > 0
+            ? 'bg-stone-200'
+            : isToday
+            ? 'bg-emerald-50'
+            : ''
           return (
             <div
               key={d}
               onClick={() => onClickDay(d)}
-              className={`min-h-[90px] px-2 py-1.5 border-b border-r border-stone-100 cursor-pointer hover:bg-stone-50 ${
-                isOtherMonth ? 'bg-stone-50/30 text-stone-300' : ''
-              } ${isToday ? 'bg-emerald-50' : ''}`}
+              className={`min-h-[90px] px-2 py-1.5 border-b border-r border-stone-100 cursor-pointer hover:opacity-90 ${cellBg}`}
             >
               <div className={`text-xs font-mono ${isToday ? 'text-emerald-900 font-bold' : ''}`}>
                 {date.getDate()}
               </div>
               {byType.holiday > 0 && (
-                <div className="mt-0.5 text-[10px] text-red-700 truncate">🇪🇸 Festivo</div>
+                <div className="mt-0.5 text-[10px] text-stone-700 truncate">Festivo</div>
               )}
+              {flim.map((f) => (
+                <div key={`l-${f.modelo}-${f.periodo}`} className="mt-0.5 text-[10px] text-red-800 font-semibold truncate" title={f.descripcion ?? ''}>
+                  🛑 {f.modelo} {f.periodo}
+                </div>
+              ))}
+              {fini.map((f) => (
+                <div key={`s-${f.modelo}-${f.periodo}`} className="mt-0.5 text-[10px] text-amber-900 truncate" title={f.descripcion ?? ''}>
+                  🟡 {f.modelo} {f.periodo}
+                </div>
+              ))}
               {projectsToday.size > 0 && (
                 <div className="mt-0.5 text-[10px] text-stone-600 truncate" title={Array.from(projectsToday).join(', ')}>
                   👷 {Array.from(projectsToday).slice(0, 2).join(', ')}
@@ -641,11 +772,14 @@ function ViewMes({
 
 function ViewAno({
   refFecha, today, onClickDay, yearHolidays,
+  fiscalByStart = {}, fiscalByLimit = {},
 }: {
   refFecha: string
   today: string
   onClickDay: (d: string) => void
   yearHolidays: string[]
+  fiscalByStart?: Record<string, FiscalEntry[]>
+  fiscalByLimit?: Record<string, FiscalEntry[]>
 }) {
   const holidaySet = useMemo(() => new Set(yearHolidays), [yearHolidays])
   const refDate = new Date(refFecha + 'T00:00:00')
@@ -715,17 +849,24 @@ function ViewAno({
               {monthDays.map((day, i) => {
                 const isToday = day.d === today
                 const isHoliday = holidaySet.has(day.d) && !day.otherMonth
+                const fLim = !day.otherMonth && (fiscalByLimit[day.d]?.length ?? 0) > 0
+                const fIni = !day.otherMonth && (fiscalByStart[day.d]?.length ?? 0) > 0
+                const tooltip = day.d
+                  + (isHoliday ? ' · Festivo' : '')
+                  + (fLim ? ` · LÍMITE: ${(fiscalByLimit[day.d] ?? []).map((f) => `${f.modelo} ${f.periodo}`).join(', ')}` : '')
+                  + (fIni ? ` · Inicio plazo: ${(fiscalByStart[day.d] ?? []).map((f) => `${f.modelo} ${f.periodo}`).join(', ')}` : '')
+                const cls = day.otherMonth ? 'text-stone-300'
+                  : fLim ? 'bg-red-100 text-red-900 font-semibold'
+                  : fIni ? 'bg-amber-100 text-amber-900 font-semibold'
+                  : isToday ? 'bg-emerald-200 text-emerald-900 font-bold'
+                  : isHoliday ? 'bg-stone-200 text-stone-700 font-semibold'
+                  : 'text-stone-700'
                 return (
                   <button
                     key={i}
                     onClick={() => onClickDay(day.d)}
-                    className={`px-1 py-0.5 text-center font-mono transition-colors hover:bg-emerald-100 ${
-                      day.otherMonth ? 'text-stone-300' :
-                      isToday ? 'bg-emerald-200 text-emerald-900 font-bold' :
-                      isHoliday ? 'bg-red-50 text-red-700 font-semibold' :
-                      'text-stone-700'
-                    }`}
-                    title={day.d + (isHoliday ? ' · Festivo' : '')}
+                    className={`px-1 py-0.5 text-center font-mono transition-colors hover:bg-emerald-100 ${cls}`}
+                    title={tooltip}
                   >
                     {new Date(day.d + 'T00:00:00').getDate()}
                   </button>

@@ -102,7 +102,11 @@ export default async function CalendarioPage({
     weekDaysArr.push(toLocalISODate(d))
   }
 
-  const [eventsRes, employeesRes, projectsRes, assignmentsRes, holidaysRes, absencesRes, yearHolidaysRes] = await Promise.all([
+  // Rango año completo para fiscalEntries (ViewAno los muestra todos)
+  const yearStartIso = `${ref.getFullYear()}-01-01`
+  const yearEndIso = `${ref.getFullYear() + 1}-12-31`
+
+  const [eventsRes, employeesRes, projectsRes, assignmentsRes, holidaysRes, absencesRes, yearHolidaysRes, fiscalEntriesRes] = await Promise.all([
     supabase
       .from('calendar_events')
       .select('*')
@@ -143,13 +147,21 @@ export default async function CalendarioPage({
       .in('status', ['approved', 'pending'])
       .lte('fecha_inicio', weekEndIso)
       .gte('fecha_fin', weekStartIso),
-    // ViewAno: festivos año entero para marcar TODOS los días rojos
+    // ViewAno: festivos año entero
     supabase
       .from('holidays')
       .select('fecha')
       .eq('company_id', activeCompanyId)
       .gte('fecha', `${ref.getFullYear()}-01-01`)
       .lte('fecha', `${ref.getFullYear()}-12-31`),
+    // Obligaciones fiscales AEAT (fecha_inicio_plazo amarillo, fecha_limite rojo)
+    supabase
+      .from('fiscal_calendar_entries')
+      .select('modelo, ejercicio, periodo, fecha_inicio_plazo, fecha_limite, nombre, descripcion')
+      .eq('company_id', activeCompanyId)
+      .gte('fecha_inicio_plazo', yearStartIso)
+      .lte('fecha_limite', yearEndIso)
+      .order('fecha_limite'),
   ])
 
   const todayStr = toLocalISODate(new Date())
@@ -174,6 +186,15 @@ export default async function CalendarioPage({
       cuadranteHolidays={(holidaysRes.data ?? []) as Array<{ fecha: string; nombre: string; ambito: string }>}
       cuadranteAbsences={(absencesRes.data ?? []) as Array<{ employee_id: string; tipo: string; fecha_inicio: string; fecha_fin: string; status: string }>}
       yearHolidays={(yearHolidaysRes.data ?? []).map((h) => h.fecha as string)}
+      fiscalEntries={(fiscalEntriesRes.data ?? []) as Array<{
+        modelo: string
+        ejercicio: number
+        periodo: string
+        fecha_inicio_plazo: string
+        fecha_limite: string
+        nombre: string
+        descripcion: string | null
+      }>}
     />
   )
 }
