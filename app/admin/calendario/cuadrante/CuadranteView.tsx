@@ -346,20 +346,20 @@ export default function CuadranteView({
         </div>
       )}
 
-      <div className="grid grid-cols-[1fr,420px] gap-4">
+      <div className="grid grid-cols-[1fr,300px] gap-3">
         {/* GRID PRINCIPAL */}
-        <div className="bg-white border border-stone-200 rounded overflow-x-auto">
+        <div className="bg-white border border-stone-200 rounded">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                <th className="px-3 py-2 text-left text-[10px] uppercase tracking-widest text-stone-500 bg-stone-50 border-b border-r border-stone-200 sticky left-0 z-10 min-w-[180px]">
+                <th className="px-2 py-2 text-left text-[10px] uppercase tracking-widest text-stone-500 bg-stone-50 border-b border-r border-stone-200 w-[140px]">
                   Trabajador
                 </th>
                 {weekDays.map((d, i) => {
                   const hol = holidayByDate[d]
                   const isToday = d === today
                   return (
-                    <th key={d} className={`px-2 py-2 text-center text-[10px] uppercase tracking-widest border-b border-stone-200 min-w-[110px] ${
+                    <th key={d} className={`px-1 py-2 text-center text-[10px] uppercase tracking-widest border-b border-stone-200 ${
                       isToday ? 'bg-emerald-50 text-emerald-900' : hol ? 'bg-red-50 text-red-700' : 'bg-stone-50 text-stone-600'
                     }`}>
                       <div>{DAY_NAMES[i]}</div>
@@ -426,12 +426,12 @@ export default function CuadranteView({
           <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">
             Proyectos · arrastra a celdas
           </p>
-          <ul className="grid grid-cols-3 gap-1.5">
+          <ul className="grid grid-cols-2 gap-1.5">
             {projects.map((p) => (
               <DraggableProject key={p.id} project={p} />
             ))}
             {projects.length === 0 && (
-              <li className="col-span-3 text-xs text-stone-400 italic">Sin proyectos activos</li>
+              <li className="col-span-2 text-xs text-stone-400 italic">Sin proyectos activos</li>
             )}
           </ul>
 
@@ -507,7 +507,7 @@ function DroppableCell({
   return (
     <td
       ref={ref}
-      className={`align-top border-b border-r border-stone-100 p-1 min-w-[110px] h-[64px] ${
+      className={`align-top border-b border-r border-stone-100 p-1 h-[64px] ${
         blocked ? 'bg-stone-50 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,#e7e5e4_4px,#e7e5e4_5px)]' : ''
       } ${isOver ? 'bg-emerald-50 ring-2 ring-emerald-400 ring-inset' : ''}`}
       title={blocked ? blockReason || '' : ''}
