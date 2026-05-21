@@ -965,7 +965,7 @@ function ViewAno({
                         {flags.reunion && <span className="w-1 h-1 rounded-full bg-violet-600" />}
                         {flags.task && <span className="w-1 h-1 rounded-full bg-blue-500" />}
                         {flags.assignment && <span className="w-1 h-1 rounded-full bg-emerald-600" />}
-                        {flags.absence && <span className="w-1 h-1 rounded-full bg-amber-500" />}
+                        {flags.absence && <span className="w-1 h-1 rounded-full bg-pink-500" />}
                       </span>
                     )}
                   </button>
