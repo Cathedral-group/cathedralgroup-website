@@ -521,14 +521,15 @@ function AssignmentChip({
   }, [assignment.id, assignment.employee_id, assignment.fecha, assignment.project_id])
 
   const color = projectColor(assignment.project_id)
-  const label = project?.code ?? '—'
+  const label = project?.address || project?.name || project?.code || '—'
+  const tooltip = `${project?.code ?? ''} · ${project?.name ?? ''}`.trim()
 
   return (
     <div
       ref={ref}
-      className={`${color} border rounded px-1.5 py-0.5 flex items-center gap-1 cursor-grab text-[10px] font-mono ${dragging ? 'opacity-40' : ''}`}
+      className={`${color} border rounded px-1.5 py-1 flex items-center gap-1 cursor-grab text-[11px] ${dragging ? 'opacity-40' : ''}`}
     >
-      <span className="flex-1 truncate" title={project?.name ?? ''}>{label}</span>
+      <span className="flex-1 truncate font-medium" title={tooltip}>{label}</span>
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(assignment.id) }}
         className="text-base font-bold leading-none opacity-60 hover:opacity-100 hover:text-red-700 px-1.5 -mr-1"
