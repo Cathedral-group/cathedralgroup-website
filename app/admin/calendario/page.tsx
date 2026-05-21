@@ -102,7 +102,7 @@ export default async function CalendarioPage({
     weekDaysArr.push(toLocalISODate(d))
   }
 
-  const [eventsRes, employeesRes, projectsRes, assignmentsRes, holidaysRes, absencesRes] = await Promise.all([
+  const [eventsRes, employeesRes, projectsRes, assignmentsRes, holidaysRes, absencesRes, yearHolidaysRes] = await Promise.all([
     supabase
       .from('calendar_events')
       .select('*')
@@ -143,6 +143,13 @@ export default async function CalendarioPage({
       .in('status', ['approved', 'pending'])
       .lte('fecha_inicio', weekEndIso)
       .gte('fecha_fin', weekStartIso),
+    // ViewAno: festivos año entero para marcar TODOS los días rojos
+    supabase
+      .from('holidays')
+      .select('fecha')
+      .eq('company_id', activeCompanyId)
+      .gte('fecha', `${ref.getFullYear()}-01-01`)
+      .lte('fecha', `${ref.getFullYear()}-12-31`),
   ])
 
   const todayStr = toLocalISODate(new Date())
@@ -166,6 +173,7 @@ export default async function CalendarioPage({
       cuadranteAssignments={(assignmentsRes.data ?? []) as Array<{ id: string; employee_id: string; fecha: string; project_id: string | null; horas_ordinarias: number | null; horas_extra: number | null }>}
       cuadranteHolidays={(holidaysRes.data ?? []) as Array<{ fecha: string; nombre: string; ambito: string }>}
       cuadranteAbsences={(absencesRes.data ?? []) as Array<{ employee_id: string; tipo: string; fecha_inicio: string; fecha_fin: string; status: string }>}
+      yearHolidays={(yearHolidaysRes.data ?? []).map((h) => h.fecha as string)}
     />
   )
 }

@@ -70,6 +70,7 @@ interface Props {
   cuadranteAssignments?: CuadranteAssignment[]
   cuadranteHolidays?: CuadranteHoliday[]
   cuadranteAbsences?: CuadranteAbsence[]
+  yearHolidays?: string[]
 }
 
 const EVENT_ICONS: Record<CalendarEvent['event_type'], string> = {
@@ -123,6 +124,7 @@ const DAY_NAMES = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
 export default function CalendarioView({
   vista, desde, hasta, refFecha, events, employees, projects,
   cuadranteWeekDays, cuadranteAssignments, cuadranteHolidays, cuadranteAbsences,
+  yearHolidays = [],
 }: Props) {
   void projects // pueden usarse para filtros futuros
   const router = useRouter()
@@ -321,6 +323,7 @@ export default function CalendarioView({
                 eventsByDay={eventsByDay}
                 today={todayStr}
                 onClickDay={(d) => setDrawerDay(d)}
+                projects={projects}
               />
             </div>
             {/* Mes completo */}
@@ -351,6 +354,7 @@ export default function CalendarioView({
                 refFecha={refFecha}
                 today={todayStr}
                 onClickDay={(d) => goTo(d, 'semana')}
+                yearHolidays={yearHolidays}
               />
             </div>
           </>
@@ -427,7 +431,7 @@ function ViewDia({ day, events, employees }: { day: string; events: CalendarEven
 /* ───────── Vista Semana ───────── */
 
 function ViewSemana({
-  days, employees, matrix, eventsByDay, today, onClickDay,
+  days, employees, matrix, eventsByDay, today, onClickDay, projects,
 }: {
   days: string[]
   employees: Employee[]
@@ -435,6 +439,7 @@ function ViewSemana({
   eventsByDay: Record<string, CalendarEvent[]>
   today: string
   onClickDay: (d: string) => void
+  projects: Project[]
 }) {
   return (
     <div className="rounded-lg border border-stone-200 bg-white overflow-x-auto">
@@ -635,12 +640,14 @@ function ViewMes({
    conserva sus eventos por dots/highlight. */
 
 function ViewAno({
-  refFecha, today, onClickDay,
+  refFecha, today, onClickDay, yearHolidays,
 }: {
   refFecha: string
   today: string
   onClickDay: (d: string) => void
+  yearHolidays: string[]
 }) {
+  const holidaySet = useMemo(() => new Set(yearHolidays), [yearHolidays])
   const refDate = new Date(refFecha + 'T00:00:00')
   const year = refDate.getFullYear()
   const refMonth = refDate.getMonth()
@@ -707,14 +714,18 @@ function ViewAno({
               ))}
               {monthDays.map((day, i) => {
                 const isToday = day.d === today
+                const isHoliday = holidaySet.has(day.d) && !day.otherMonth
                 return (
                   <button
                     key={i}
                     onClick={() => onClickDay(day.d)}
                     className={`px-1 py-0.5 text-center font-mono transition-colors hover:bg-emerald-100 ${
-                      day.otherMonth ? 'text-stone-300' : 'text-stone-700'
-                    } ${isToday ? 'bg-emerald-200 text-emerald-900 font-bold' : ''}`}
-                    title={day.d}
+                      day.otherMonth ? 'text-stone-300' :
+                      isToday ? 'bg-emerald-200 text-emerald-900 font-bold' :
+                      isHoliday ? 'bg-red-50 text-red-700 font-semibold' :
+                      'text-stone-700'
+                    }`}
+                    title={day.d + (isHoliday ? ' · Festivo' : '')}
                   >
                     {new Date(day.d + 'T00:00:00').getDate()}
                   </button>
