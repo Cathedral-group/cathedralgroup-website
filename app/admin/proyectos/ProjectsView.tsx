@@ -245,6 +245,43 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   const [newForm, setNewForm] = useState({ code: '', name: '', type: '', status: 'presupuesto', client_id: '' })
   const [savingNew, setSavingNew] = useState(false)
 
+  // Lista local de clientes (la prop `clients` es server-loaded; aquí la
+  // gestionamos en estado para poder añadir uno nuevo inline sin recargar).
+  const [clientsList, setClientsList] = useState(clients)
+  const [showNewClient, setShowNewClient] = useState(false)
+  const [newClient, setNewClient] = useState({ name: '', nif_cif: '', email: '', phone: '' })
+  const [savingClient, setSavingClient] = useState(false)
+  const [clientError, setClientError] = useState<string | null>(null)
+
+  async function createClient() {
+    const name = newClient.name.trim()
+    if (!name) { setClientError('El nombre es obligatorio'); return }
+    setSavingClient(true); setClientError(null)
+    try {
+      const res = await fetch('/api/db/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          nif_cif: newClient.nif_cif.trim() || null,
+          email: newClient.email.trim() || null,
+          phone: newClient.phone.trim() || null,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setClientError(json.error || 'No se pudo crear el cliente'); setSavingClient(false); return }
+      const created = (json.data ?? json) as { id: string; name: string }
+      setClientsList((prev) => [...prev, { id: created.id, name: created.name }].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewForm((f) => ({ ...f, client_id: created.id }))
+      setNewClient({ name: '', nif_cif: '', email: '', phone: '' })
+      setShowNewClient(false)
+    } catch {
+      setClientError('Error de red al crear el cliente')
+    } finally {
+      setSavingClient(false)
+    }
+  }
+
   // Ubicación en form Nuevo (opcional)
   const [newLoc, setNewLoc] = useState({ lat: '', lng: '', radio_m: 300, direccion: '' })
   const [newLocSearch, setNewLocSearch] = useState('')
@@ -967,10 +1004,44 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
             </div>
             <div>
               <label className={labelCls}>Cliente</label>
-              <select value={newForm.client_id} onChange={e => setNewForm({...newForm, client_id: e.target.value})} className={inputCls}>
-                <option value="">Sin cliente</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select value={newForm.client_id} onChange={e => setNewForm({...newForm, client_id: e.target.value})} className={inputCls}>
+                  <option value="">Sin cliente</option>
+                  {clientsList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => { setShowNewClient(v => !v); setClientError(null) }}
+                  className="flex-none px-3 py-2 text-xs rounded border border-neutral-300 hover:bg-neutral-50 whitespace-nowrap"
+                >
+                  {showNewClient ? 'Cancelar' : '+ Nuevo'}
+                </button>
+              </div>
+              {showNewClient && (
+                <div className="mt-2 p-3 rounded border border-neutral-200 bg-neutral-50 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Nuevo cliente</p>
+                  <input
+                    value={newClient.name}
+                    onChange={e => setNewClient({ ...newClient, name: e.target.value })}
+                    placeholder="Nombre / Razón social *"
+                    className={inputCls}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input value={newClient.nif_cif} onChange={e => setNewClient({ ...newClient, nif_cif: e.target.value })} placeholder="NIF / CIF" className={inputCls} />
+                    <input value={newClient.email} onChange={e => setNewClient({ ...newClient, email: e.target.value })} placeholder="Email" className={inputCls} />
+                    <input value={newClient.phone} onChange={e => setNewClient({ ...newClient, phone: e.target.value })} placeholder="Teléfono" className={inputCls} />
+                  </div>
+                  {clientError && <p className="text-xs text-red-600">{clientError}</p>}
+                  <button
+                    type="button"
+                    onClick={createClient}
+                    disabled={savingClient || !newClient.name.trim()}
+                    className="w-full px-3 py-1.5 text-sm rounded bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-50"
+                  >
+                    {savingClient ? 'Creando…' : 'Crear y seleccionar'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
