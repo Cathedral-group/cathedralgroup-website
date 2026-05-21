@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
           hora_fin: normHora(t.hora_fin),
           tipo: 'interna_socio',
           created_by_email: user.email,
-          created_source: 'admin_calendario',
+          created_source: 'admin',
         })
         .select('id')
         .single()
