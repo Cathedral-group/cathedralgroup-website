@@ -1111,7 +1111,7 @@ function DrawerDay({
                       </select>
                       <select value={r.project_id} onChange={(e) => setAsigRows((p) => p.map((x, i) => i === idx ? { ...x, project_id: e.target.value } : x))} className="col-span-5 text-xs border border-stone-300 rounded px-1 py-1">
                         <option value="">— Proyecto —</option>
-                        {projects.map((pj) => <option key={pj.id} value={pj.id}>{pj.code}</option>)}
+                        {projects.map((pj) => <option key={pj.id} value={pj.id}>{pj.address || pj.name || pj.code}</option>)}
                       </select>
                       <button onClick={() => setAsigRows((p) => p.filter((_, i) => i !== idx))} className="col-span-2 text-xs text-red-500 hover:text-red-700">×</button>
                     </div>
@@ -1175,7 +1175,7 @@ function DrawerDay({
                         <div className="grid grid-cols-2 gap-1">
                           <select value={r.project_id} onChange={(e) => upd({ project_id: e.target.value })} className="text-xs border border-stone-300 rounded px-1 py-1">
                             <option value="">— Sin proyecto —</option>
-                            {projects.map((pj) => <option key={pj.id} value={pj.id}>{pj.code}</option>)}
+                            {projects.map((pj) => <option key={pj.id} value={pj.id}>{pj.address || pj.name || pj.code}</option>)}
                           </select>
                           <select value={r.prioridad} onChange={(e) => upd({ prioridad: e.target.value })} className="text-xs border border-stone-300 rounded px-1 py-1">
                             <option value="baja">Baja</option>
