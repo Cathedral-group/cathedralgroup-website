@@ -184,6 +184,24 @@ export default async function CalendarioPage({
   const socios = ((sociosData ?? []) as Array<{ user_id: string; email: string; role: string }>)
     .map((s) => ({ user_id: s.user_id, email: s.email, nombre: socioLabel(s.email) }))
 
+  // Resumen del año entero para la vista Año: qué días tienen actividad y de
+  // qué tipo (asignación, tarea, reunión, ausencia, tarea socio). Ligero:
+  // solo fecha + event_type + tipo/subtipo del payload.
+  const { data: yearEventsData } = await supabase
+    .from('calendar_events')
+    .select('fecha, event_type, payload')
+    .eq('company_id', activeCompanyId)
+    .gte('fecha', `${ref.getFullYear()}-01-01`)
+    .lte('fecha', `${ref.getFullYear()}-12-31`)
+    .limit(8000)
+  const yearEvents = ((yearEventsData ?? []) as Array<{ fecha: string; event_type: string; payload: Record<string, unknown> | null }>)
+    .map((e) => ({
+      fecha: e.fecha,
+      event_type: e.event_type,
+      tipo: (e.payload?.tipo as string | undefined) ?? null,
+      subtipo: (e.payload?.subtipo as string | undefined) ?? null,
+    }))
+
   return (
     <CalendarioView
       vista={vista}
@@ -202,6 +220,7 @@ export default async function CalendarioPage({
       cuadranteHolidays={(holidaysRes.data ?? []) as Array<{ fecha: string; nombre: string; ambito: string }>}
       cuadranteAbsences={(absencesRes.data ?? []) as Array<{ employee_id: string; tipo: string; fecha_inicio: string; fecha_fin: string; status: string }>}
       yearHolidays={(yearHolidaysRes.data ?? []).map((h) => h.fecha as string)}
+      yearEvents={yearEvents}
       fiscalEntries={(fiscalEntriesRes.data ?? []) as Array<{
         modelo: string
         ejercicio: number

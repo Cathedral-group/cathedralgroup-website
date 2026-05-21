@@ -39,6 +39,13 @@ interface Socio {
   nombre: string
 }
 
+interface YearEvent {
+  fecha: string
+  event_type: string
+  tipo: string | null
+  subtipo: string | null
+}
+
 interface Project {
   id: string
   code: string
@@ -88,6 +95,7 @@ interface Props {
   cuadranteHolidays?: CuadranteHoliday[]
   cuadranteAbsences?: CuadranteAbsence[]
   yearHolidays?: string[]
+  yearEvents?: YearEvent[]
   fiscalEntries?: FiscalEntry[]
 }
 
@@ -142,7 +150,7 @@ const DAY_NAMES = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
 export default function CalendarioView({
   vista, desde, hasta, refFecha, events, employees, socios = [], projects,
   cuadranteWeekDays, cuadranteAssignments, cuadranteHolidays, cuadranteAbsences,
-  yearHolidays = [], fiscalEntries = [],
+  yearHolidays = [], yearEvents = [], fiscalEntries = [],
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -184,6 +192,22 @@ export default function CalendarioView({
     for (const f of fiscalEntries) (m[f.fecha_limite] ??= []).push(f)
     return m
   }, [fiscalEntries])
+
+  // Resumen año: fecha → flags de actividad (para marcar la vista Año entera).
+  const yearFlagsByDay = useMemo(() => {
+    const m: Record<string, { assignment: boolean; task: boolean; reunion: boolean; socio: boolean; absence: boolean }> = {}
+    for (const e of yearEvents) {
+      const f = (m[e.fecha] ??= { assignment: false, task: false, reunion: false, socio: false, absence: false })
+      if (e.event_type === 'assignment') f.assignment = true
+      else if (e.event_type === 'absence') f.absence = true
+      else if (e.event_type === 'task') {
+        if (e.tipo === 'interna_socio') f.socio = true
+        else if (e.subtipo === 'reunion') f.reunion = true
+        else f.task = true
+      }
+    }
+    return m
+  }, [yearEvents])
 
   // Agrupar eventos por día
   const eventsByDay = useMemo(() => {
@@ -408,6 +432,7 @@ export default function CalendarioView({
                 today={todayStr}
                 onClickDay={(d) => goTo(d, 'semana')}
                 yearHolidays={yearHolidays}
+                yearFlagsByDay={yearFlagsByDay}
                 fiscalByStart={fiscalByStart}
                 fiscalByLimit={fiscalByLimit}
               />
@@ -824,13 +849,14 @@ function ViewMes({
    conserva sus eventos por dots/highlight. */
 
 function ViewAno({
-  refFecha, today, onClickDay, yearHolidays,
+  refFecha, today, onClickDay, yearHolidays, yearFlagsByDay = {},
   fiscalByStart = {}, fiscalByLimit = {},
 }: {
   refFecha: string
   today: string
   onClickDay: (d: string) => void
   yearHolidays: string[]
+  yearFlagsByDay?: Record<string, { assignment: boolean; task: boolean; reunion: boolean; socio: boolean; absence: boolean }>
   fiscalByStart?: Record<string, FiscalEntry[]>
   fiscalByLimit?: Record<string, FiscalEntry[]>
 }) {
@@ -900,28 +926,48 @@ function ViewAno({
                 </div>
               ))}
               {monthDays.map((day, i) => {
+                // Días de meses vecinos: celda vacía (no número gris). Así todos
+                // los números visibles son negros y del mes correcto.
+                if (day.otherMonth) {
+                  return <div key={i} className="px-1 py-0.5" />
+                }
                 const isToday = day.d === today
-                const isHoliday = holidaySet.has(day.d) && !day.otherMonth
-                const fLim = !day.otherMonth && (fiscalByLimit[day.d]?.length ?? 0) > 0
-                const fIni = !day.otherMonth && (fiscalByStart[day.d]?.length ?? 0) > 0
+                const isHoliday = holidaySet.has(day.d)
+                const fLim = (fiscalByLimit[day.d]?.length ?? 0) > 0
+                const fIni = (fiscalByStart[day.d]?.length ?? 0) > 0
+                const flags = yearFlagsByDay[day.d]
                 const tooltip = day.d
                   + (isHoliday ? ' · Festivo' : '')
                   + (fLim ? ` · LÍMITE: ${(fiscalByLimit[day.d] ?? []).map((f) => `${f.modelo} ${f.periodo}`).join(', ')}` : '')
                   + (fIni ? ` · Inicio plazo: ${(fiscalByStart[day.d] ?? []).map((f) => `${f.modelo} ${f.periodo}`).join(', ')}` : '')
-                const cls = day.otherMonth ? 'text-stone-300'
-                  : fLim ? 'bg-red-100 text-red-900 font-semibold'
+                  + (flags?.socio ? ' · Tarea socios' : '')
+                  + (flags?.reunion ? ' · Reunión' : '')
+                  + (flags?.task ? ' · Tarea' : '')
+                  + (flags?.assignment ? ' · Asignación' : '')
+                  + (flags?.absence ? ' · Ausencia' : '')
+                // Prioridad fondo: fiscal límite > inicio > festivo > socio > hoy
+                const cls = fLim ? 'bg-red-100 text-red-900 font-semibold'
                   : fIni ? 'bg-amber-100 text-amber-900 font-semibold'
-                  : isToday ? 'bg-emerald-200 text-emerald-900 font-bold'
                   : isHoliday ? 'bg-stone-200 text-stone-700 font-semibold'
+                  : flags?.socio ? 'bg-violet-100 text-violet-900 font-semibold'
+                  : isToday ? 'bg-emerald-200 text-emerald-900 font-bold'
                   : 'text-stone-700'
                 return (
                   <button
                     key={i}
                     onClick={() => onClickDay(day.d)}
-                    className={`px-1 py-0.5 text-center font-mono transition-colors hover:bg-emerald-100 ${cls}`}
+                    className={`relative px-1 py-0.5 text-center font-mono transition-colors hover:bg-emerald-100 ${cls}`}
                     title={tooltip}
                   >
                     {new Date(day.d + 'T00:00:00').getDate()}
+                    {flags && (flags.assignment || flags.task || flags.reunion || flags.absence) && (
+                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 flex gap-0.5">
+                        {flags.reunion && <span className="w-1 h-1 rounded-full bg-violet-600" />}
+                        {flags.task && <span className="w-1 h-1 rounded-full bg-blue-500" />}
+                        {flags.assignment && <span className="w-1 h-1 rounded-full bg-emerald-600" />}
+                        {flags.absence && <span className="w-1 h-1 rounded-full bg-amber-500" />}
+                      </span>
+                    )}
                   </button>
                 )
               })}
