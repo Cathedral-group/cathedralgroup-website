@@ -32,7 +32,9 @@ function buildEndpoint(): { url: string; extraHeaders: Record<string, string> } 
   return { url: ENDPOINT_DIRECT, extraHeaders: {} }
 }
 
-const SYSTEM_PROMPT = `Eres un experto en contabilidad y OCR de facturas españolas.
+// Fallback hardcoded. Operación normal: prompt viene desde registry SSOT
+// (tabla prompt_templates code='vision_ocr') vía overridePrompt argumento.
+const SYSTEM_PROMPT_FALLBACK = `Eres un experto en contabilidad y OCR de facturas españolas.
 Recibes una imagen de un ticket, albarán o factura y extraes los siguientes campos en JSON:
 
 {
@@ -59,6 +61,7 @@ export function isMistralAvailable(): boolean {
 export async function extractWithMistral(
   imageBuffer: ArrayBuffer,
   mimeType: string,
+  overridePrompt?: string,
 ): Promise<ExtractedReceiptData | null> {
   const apiKey = process.env.MISTRAL_API_KEY
   if (!apiKey) return null
@@ -67,10 +70,11 @@ export async function extractWithMistral(
     const base64 = Buffer.from(imageBuffer).toString('base64')
     const dataUrl = `data:${mimeType};base64,${base64}`
 
+    const systemPrompt = overridePrompt || SYSTEM_PROMPT_FALLBACK
     const body = {
       model: MODEL,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         {
           role: 'user',
           content: [

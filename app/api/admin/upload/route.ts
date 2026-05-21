@@ -34,10 +34,17 @@ export const maxDuration = 60
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']
 const MAX_BYTES = 10 * 1024 * 1024
-const ALLOWED_DOC_TYPES = [
-  'factura', 'ticket', 'albaran', 'presupuesto', 'proforma',
-  'contrato', 'escritura', 'nota_simple', 'licencia', 'seguro',
-  'certificado', 'informe', 'modelo_fiscal', 'otro',
+
+/**
+ * ALLOWED_DOC_TYPES ahora se valida contra el SSOT registry en BD.
+ * Fallback minimal por si BD inaccesible (cold start, outage Supabase).
+ * Mantener sincronizado con seed migration 20260521180000.
+ */
+const FALLBACK_DOC_TYPES = [
+  'factura', 'ticket', 'rectificativa', 'proforma', 'albaran',
+  'presupuesto', 'contrato', 'escritura', 'nota_simple', 'licencia',
+  'seguro', 'certificado', 'certificacion', 'informe', 'modelo_fiscal',
+  'nomina', 'justificante_pago', 'otro', 'no_legible',
 ]
 
 function extFromMime(mime: string): string {
@@ -92,8 +99,21 @@ export async function POST(request: NextRequest) {
   }
 
   const docType = (formData.get('doc_type') as string) || 'factura'
-  if (!ALLOWED_DOC_TYPES.includes(docType)) {
-    return NextResponse.json({ error: 'doc_type inválido' }, { status: 400 })
+  // Validar contra SSOT registry. Fallback a lista hardcoded si BD inaccesible.
+  let allowedDocTypes: string[] = FALLBACK_DOC_TYPES
+  try {
+    const { data: registryRows } = await supabase
+      .from('doc_types_registry')
+      .select('code')
+      .eq('enabled', true)
+    if (registryRows && registryRows.length > 0) {
+      allowedDocTypes = registryRows.map((r: { code: string }) => r.code)
+    }
+  } catch {
+    // continuar con FALLBACK_DOC_TYPES
+  }
+  if (!allowedDocTypes.includes(docType)) {
+    return NextResponse.json({ error: `doc_type inválido (${docType})` }, { status: 400 })
   }
 
   const projectIdRaw = formData.get('project_id') as string | null

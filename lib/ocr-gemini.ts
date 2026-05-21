@@ -58,7 +58,9 @@ export interface ExtractedReceiptData {
   raw_model_response?: string
 }
 
-const SYSTEM_PROMPT = `Eres un experto en contabilidad y OCR de facturas españolas.
+// Fallback hardcoded. Operación normal: prompt viene desde registry SSOT
+// (tabla prompt_templates code='vision_ocr') vía overridePrompt argumento.
+const SYSTEM_PROMPT_FALLBACK = `Eres un experto en contabilidad y OCR de facturas españolas.
 Recibes una imagen de un ticket, albarán o factura. Extrae los siguientes campos en JSON:
 
 {
@@ -119,6 +121,7 @@ export function isOcrAvailable(): boolean {
 export async function extractReceiptData(
   imageBuffer: ArrayBuffer,
   mimeType: string,
+  overridePrompt?: string,
 ): Promise<ExtractedReceiptData | null> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return null
@@ -131,6 +134,7 @@ export async function extractReceiptData(
     })
 
     const base64 = Buffer.from(imageBuffer).toString('base64')
+    const systemPrompt = overridePrompt || SYSTEM_PROMPT_FALLBACK
 
     const response = await ai.models.generateContent({
       model: MODEL,
@@ -143,7 +147,7 @@ export async function extractReceiptData(
         },
       ],
       config: {
-        systemInstruction: SYSTEM_PROMPT,
+        systemInstruction: systemPrompt,
         // Desactiva thinking tokens (gemini-2.5-flash los genera por defecto,
         // ~28 por call observados empíricamente). Para OCR estructurado de
         // facturas no necesitamos razonamiento profundo — solo extraer campos.

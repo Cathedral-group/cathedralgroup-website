@@ -1472,26 +1472,26 @@ function DocumentDrawer({
             <Field label="File hash" value={doc.file_hash ? doc.file_hash.slice(0, 12) + '…' : '—'} mono />
           </div>
 
-          {/* PDF embed (iframe drive_url) */}
+          {/* Documento original — botón nueva pestaña (iframe Drive bloqueado por
+              cookies third-party Chrome/Safari; mismo patrón fix b3320c1 RevisionView) */}
           {doc.drive_url ? (
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">Documento original</p>
-              <iframe
-                src={doc.drive_url}
-                title="Documento original"
-                className="w-full h-[60vh] border border-neutral-100 bg-neutral-50"
-              />
               <a
                 href={doc.drive_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block mt-2 text-xs text-primary hover:underline"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm rounded hover:bg-primary/90 transition"
               >
-                Abrir en Drive ↗
+                📄 Ver PDF en Google Drive
+                <span className="text-xs">↗</span>
               </a>
+              <p className="text-[10px] text-neutral-400 mt-2">Se abre en nueva pestaña (cookies third-party de Drive bloquean iframe).</p>
             </div>
           ) : (
-            <p className="text-xs text-neutral-400 italic">Sin documento original adjunto</p>
+            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs text-amber-700">⚠ Pendiente subida a Drive — el documento está en Supabase Storage pero aún no se ha replicado a Drive.</p>
+            </div>
           )}
 
           {/* Audit log (stub) */}

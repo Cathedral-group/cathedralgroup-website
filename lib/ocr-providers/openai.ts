@@ -32,7 +32,16 @@ function buildEndpoint(): { url: string; extraHeaders: Record<string, string> } 
   return { url: ENDPOINT_DIRECT, extraHeaders: {} }
 }
 
-const SYSTEM_PROMPT = `Eres un experto en contabilidad y OCR de facturas españolas.
+/**
+ * SYSTEM_PROMPT fallback hardcoded para casos donde el registry SSOT no está
+ * accesible (cold start, BD down). En operación normal el prompt viene del
+ * registry tabla `prompt_templates` code='vision_ocr' renderizado con
+ * lib/registry.renderPrompt().
+ *
+ * Sustitución dinámica: extractWithOpenAi acepta `overridePrompt` opcional;
+ * callers (route handlers) leen prompt desde registry y lo pasan aquí.
+ */
+const SYSTEM_PROMPT_FALLBACK = `Eres un experto en contabilidad y OCR de facturas españolas.
 Recibes una imagen de un ticket, albarán o factura y extraes los siguientes campos en JSON:
 
 {
@@ -63,6 +72,7 @@ export function isOpenAiAvailable(): boolean {
 export async function extractWithOpenAi(
   imageBuffer: ArrayBuffer,
   mimeType: string,
+  overridePrompt?: string,
 ): Promise<ExtractedReceiptData | null> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return null
@@ -71,10 +81,11 @@ export async function extractWithOpenAi(
     const base64 = Buffer.from(imageBuffer).toString('base64')
     const dataUrl = `data:${mimeType};base64,${base64}`
 
+    const systemPrompt = overridePrompt || SYSTEM_PROMPT_FALLBACK
     const body = {
       model: MODEL,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         {
           role: 'user',
           content: [

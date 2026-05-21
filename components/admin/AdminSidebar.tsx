@@ -268,6 +268,10 @@ const NAV_SECTIONS: NavSection[] = [
       {
         label: 'Sistema',        href: '/admin/sistema',       icon: <IconSistema />,
         description: 'Estado del workflow + acciones operativas (forzar healthcheck, limpiar, etc.)',
+        children: [
+          { label: 'Estado workflow',     href: '/admin/sistema' },
+          { label: 'Registry (SSOT)',     href: '/admin/sistema/registry' },
+        ],
       },
       { label: 'Archivo',        href: '/admin/archivo',       icon: <IconArchivo /> },
       { label: 'Papelera',       href: '/admin/papelera',      icon: <IconPapelera /> },
