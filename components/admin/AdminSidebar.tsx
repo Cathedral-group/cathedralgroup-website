@@ -133,6 +133,11 @@ const NAV_SECTIONS_STATIC: NavSection[] = [
       {
         label: 'Calendario',     href: '/admin/calendario',    icon: <IconDashboard />,
         description: 'Día, semana, mes, año + cuadrante asignaciones + Gantt',
+        children: [
+          { label: 'Vista calendario',        href: '/admin/calendario' },
+          { label: '📊 Cuadrante semanal',    href: '/admin/calendario/cuadrante' },
+          { label: '📊 Gantt multi-proyecto', href: '/admin/calendario/gantt' },
+        ],
       },
       // "Grupo" eliminado: duplicaba ActiveCompanyBadge footer (feedback David
       // sesión 21/05 noche). Ruta /admin/grupo sigue accesible vía URL directa.

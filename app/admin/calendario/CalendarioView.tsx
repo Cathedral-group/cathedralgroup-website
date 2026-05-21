@@ -286,24 +286,10 @@ export default function CalendarioView({
         )
         return (
           <>
-            {/* Cuadrante semanal embed ARRIBA del todo (feedback David sesión 22/05 noche) */}
-            {cuadranteWeekDays && cuadranteAssignments && cuadranteHolidays && cuadranteAbsences && (
-              <div className="mb-8">
-                <CuadranteView
-                  refFecha={refFecha}
-                  weekDays={cuadranteWeekDays}
-                  employees={employees.map((e) => ({ id: e.id, nombre: e.nombre ?? '—' }))}
-                  projects={projects.map((p) => ({
-                    id: p.id, code: p.code, name: p.name, status: p.status,
-                    address: p.address ?? null,
-                  }))}
-                  assignments={cuadranteAssignments}
-                  holidays={cuadranteHolidays}
-                  absences={cuadranteAbsences}
-                  today={todayStr}
-                />
-              </div>
-            )}
+            {/* Cuadrante NO embebido — vive en /admin/calendario/cuadrante
+                como página separada (sidebar drill-down). Calendario general
+                muestra trabajadores + admin propio (reuniones, compras, tareas).
+                Decisión David sesión 22/05 noche tras reflexión. */}
             {/* Día (refFecha) arriba */}
             <div>
               <div className="flex items-center mb-2">
