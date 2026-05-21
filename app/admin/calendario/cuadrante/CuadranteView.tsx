@@ -319,7 +319,7 @@ export default function CuadranteView({
         </div>
       )}
 
-      <div className="grid grid-cols-[1fr,260px] gap-4">
+      <div className="grid grid-cols-[1fr,420px] gap-4">
         {/* GRID PRINCIPAL */}
         <div className="bg-white border border-stone-200 rounded overflow-x-auto">
           <table className="w-full border-collapse text-sm">
@@ -399,12 +399,12 @@ export default function CuadranteView({
           <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-2">
             Proyectos · arrastra a celdas
           </p>
-          <ul className="space-y-1.5">
+          <ul className="grid grid-cols-3 gap-1.5">
             {projects.map((p) => (
               <DraggableProject key={p.id} project={p} />
             ))}
             {projects.length === 0 && (
-              <li className="text-xs text-stone-400 italic">Sin proyectos activos</li>
+              <li className="col-span-3 text-xs text-stone-400 italic">Sin proyectos activos</li>
             )}
           </ul>
 
