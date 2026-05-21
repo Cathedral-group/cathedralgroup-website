@@ -176,6 +176,10 @@ export default function CalendarioView({
     task: true,
   })
   const [drawerDay, setDrawerDay] = useState<string | null>(null)
+  // Día y Semana colapsados por defecto (feedback David: uso el calendario
+  // como visión general; mes/año abiertos, día/semana plegados).
+  const [openDia, setOpenDia] = useState(false)
+  const [openSemana, setOpenSemana] = useState(false)
 
   const days = useMemo(() => daysBetween(desde, hasta), [desde, hasta])
   const todayStr = toLocalISODate(new Date())
@@ -375,42 +379,62 @@ export default function CalendarioView({
                 como página separada (sidebar drill-down). Calendario general
                 muestra trabajadores + admin propio (reuniones, compras, tareas).
                 Decisión David sesión 22/05 noche tras reflexión. */}
-            {/* Día (refFecha) arriba */}
+            {/* Día (refFecha) arriba — colapsable */}
             <div>
               <div className="flex items-center mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                <button
+                  onClick={() => setOpenDia((v) => !v)}
+                  className="mr-1 text-stone-400 hover:text-stone-700 text-xs w-4"
+                  title={openDia ? 'Plegar' : 'Desplegar'}
+                >{openDia ? '▾' : '▸'}</button>
+                <button
+                  onClick={() => setOpenDia((v) => !v)}
+                  className="text-[10px] font-bold uppercase tracking-widest text-stone-400 hover:text-stone-700"
+                >
                   Día · {fmtDateLong(refFecha)}
-                </p>
-                {navArrows(() => shiftDay(-1), () => shiftDay(1))}
+                </button>
+                {openDia && navArrows(() => shiftDay(-1), () => shiftDay(1))}
               </div>
-              <ViewDia
-                day={refFecha}
-                events={eventsByDay[refFecha] ?? []}
-                employees={employees}
-                fiscalStart={fiscalByStart[refFecha] ?? []}
-                fiscalLimit={fiscalByLimit[refFecha] ?? []}
-              />
+              {openDia && (
+                <ViewDia
+                  day={refFecha}
+                  events={eventsByDay[refFecha] ?? []}
+                  employees={employees}
+                  fiscalStart={fiscalByStart[refFecha] ?? []}
+                  fiscalLimit={fiscalByLimit[refFecha] ?? []}
+                />
+              )}
             </div>
-            {/* Semana */}
+            {/* Semana — colapsable */}
             <div className="mt-8">
               <div className="flex items-center mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                <button
+                  onClick={() => setOpenSemana((v) => !v)}
+                  className="mr-1 text-stone-400 hover:text-stone-700 text-xs w-4"
+                  title={openSemana ? 'Plegar' : 'Desplegar'}
+                >{openSemana ? '▾' : '▸'}</button>
+                <button
+                  onClick={() => setOpenSemana((v) => !v)}
+                  className="text-[10px] font-bold uppercase tracking-widest text-stone-400 hover:text-stone-700"
+                >
                   Semana · {fmtDateShort(weekDays[0])} → {fmtDateShort(weekDays[6])}
-                </p>
-                {navArrows(() => shiftWeek(-1), () => shiftWeek(1))}
+                </button>
+                {openSemana && navArrows(() => shiftWeek(-1), () => shiftWeek(1))}
               </div>
-              <ViewSemana
-                days={weekDays}
-                employees={employees}
-                matrix={employeeDayMatrix}
-                eventsByDay={eventsByDay}
-                today={todayStr}
-                onClickDay={(d) => setDrawerDay(d)}
-                projects={projects}
-                projLabel={projLabel}
-                fiscalByStart={fiscalByStart}
-                fiscalByLimit={fiscalByLimit}
-              />
+              {openSemana && (
+                <ViewSemana
+                  days={weekDays}
+                  employees={employees}
+                  matrix={employeeDayMatrix}
+                  eventsByDay={eventsByDay}
+                  today={todayStr}
+                  onClickDay={(d) => setDrawerDay(d)}
+                  projects={projects}
+                  projLabel={projLabel}
+                  fiscalByStart={fiscalByStart}
+                  fiscalByLimit={fiscalByLimit}
+                />
+              )}
             </div>
             {/* Mes completo */}
             <div className="mt-8">
