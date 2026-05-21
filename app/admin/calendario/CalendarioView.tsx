@@ -596,12 +596,13 @@ function ViewSemana({
               )
               const flim = fiscalByLimit[d] ?? []
               const fini = fiscalByStart[d] ?? []
+              const socioTasks = todayEvents.filter((e) => e.event_type === 'task' && String(e.payload?.tipo ?? '') === 'interna_socio')
               return (
                 <td
                   key={d}
                   onClick={() => onClickDay(d)}
                   className={`px-2 py-1.5 text-center text-[10px] cursor-pointer hover:opacity-80 border-b border-stone-100 align-top ${
-                    flim.length > 0 ? 'bg-red-100' : fini.length > 0 ? 'bg-amber-100' : holidays.length > 0 ? 'bg-stone-200' : ''
+                    flim.length > 0 ? 'bg-red-100' : fini.length > 0 ? 'bg-amber-100' : holidays.length > 0 ? 'bg-stone-200' : socioTasks.length > 0 ? 'bg-violet-100' : ''
                   }`}
                 >
                   {holidays.map((h, i) => (
@@ -753,7 +754,7 @@ function ViewMes({
           for (const e of dayEvents) {
             if (e.project_id) projectsToday.add(projLabel(e.project_id, e.project_code))
           }
-          // Prioridad fondo: fiscal límite > fiscal inicio > festivo > hoy > otro mes
+          // Prioridad fondo: fiscal límite > fiscal inicio > festivo > socio > hoy
           const cellBg = isOtherMonth
             ? 'bg-stone-50/30 text-stone-300'
             : flim.length > 0
@@ -762,6 +763,8 @@ function ViewMes({
             ? 'bg-amber-100'
             : byType.holiday > 0
             ? 'bg-stone-200'
+            : byType.socio > 0
+            ? 'bg-violet-100'
             : isToday
             ? 'bg-emerald-50'
             : ''
