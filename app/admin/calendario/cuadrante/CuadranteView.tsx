@@ -261,9 +261,9 @@ export default function CuadranteView({
   }
 
   async function deleteAssignment(id: string) {
-    if (!confirm('¿Borrar asignación?')) return
+    // Sin confirm() — feedback David sesión 22/05: borrado directo cuadrante.
+    setAssignments((prev) => prev.filter((a) => a.id !== id))
     try {
-      setAssignments((prev) => prev.filter((a) => a.id !== id))
       const res = await fetch(`/api/admin/calendario/assignment/${id}`, { method: 'DELETE' })
       if (!res.ok) {
         showMsg('Error borrando')
