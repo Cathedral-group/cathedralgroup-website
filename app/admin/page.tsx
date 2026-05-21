@@ -5,9 +5,7 @@ import { Suspense } from 'react'
 import CashFlowBar from '@/components/admin/CashFlowBar'
 import QuickAddButton from '@/components/admin/QuickAddButton'
 import PeriodSelector from '@/components/admin/PeriodSelector'
-import SystemHealthCompact from '@/components/admin/SystemHealthCompact'
 import FiscalCalendarCompact from '@/components/admin/FiscalCalendarCompact'
-import EnablePushButton from '@/components/admin/EnablePushButton'
 import DashboardCharts from './DashboardCharts'
 import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 import { CATHEDRAL_INVESTMENT_SL_ID } from '@/lib/company-context'
@@ -382,15 +380,14 @@ export default async function AdminDashboard({
         </div>
       </div>
 
-      {/* Botón de activar notificaciones push (solo se ve si no está activado o falta config) */}
-      <div className="mb-4">
-        <EnablePushButton />
-      </div>
+      {/* Feedback David sesión 21/05 noche:
+            - EnablePushButton movido a versión mini en NotificationBell (esquina sup-derecha)
+            - SystemHealthCompact movido a /admin/sistema
+            - Bloque "Pendientes de tu atención" movido a /admin/sistema
+            Dashboard queda limpio: Calendario fiscal + alertas docs + charts.
+      */}
 
-      {/* Salud del sistema — widget compacto enlazado a /admin/eval */}
-      <SystemHealthCompact />
-
-      {/* Calendario fiscal AEAT — modelos pendientes / vencidos */}
+      {/* Calendario fiscal AEAT — modelos pendientes / vencidos (filas finas) */}
       <FiscalCalendarCompact />
 
       {/* ── Alertas: documentos por vencer / vencidos ── */}
@@ -460,228 +457,9 @@ export default async function AdminDashboard({
         )
       })()}
 
-      {/* ── Pendientes de tu atención (personal + sistema) ── */}
-      {(() => {
-        const empMap: Record<string, string> = {}
-        for (const e of stats.employeesList as Array<{ id: string; nombre: string | null }>) {
-          empMap[e.id] = e.nombre ?? e.id.slice(0, 8)
-        }
+      {/* Pendientes de tu atención + sistema notifications — movido a /admin/sistema
+            feedback David sesión 21/05 noche. Dashboard queda limpio. */}
 
-        type AbsRow = { id: string; tipo: string; fecha_inicio: string; fecha_fin: string; solicitado_at: string; employee_id: string }
-        type TicketRow = { id: string; tipo: string; created_at: string; employee_id: string }
-        type ExpenseRow = { id: string; tipo: string; fecha: string; importe: number | null; created_at: string; employee_id: string }
-        type ParteRow = { id: string; fecha: string; employee_id: string; entrada_geofence_status: string | null; salida_geofence_status: string | null; project_id: string | null }
-        type SysNotif = { id: string; severity: 'info' | 'warning' | 'critical'; title: string; message: string | null; source: string; created_at: string }
-
-        const totalPendientesPersonal =
-          stats.absencesPending.length + stats.ticketsPending.length + stats.expensesPending.length
-        const totalAnomalias = stats.parteAnomalias.length
-        const totalNotif = stats.sysNotifications.length
-
-        if (totalPendientesPersonal === 0 && totalAnomalias === 0 && totalNotif === 0) return null
-
-        const ABSENCE_LABELS: Record<string, string> = {
-          vacaciones: 'Vacaciones',
-          baja_medica: 'Baja médica',
-          permiso_retribuido: 'Permiso retribuido',
-          asuntos_propios: 'Asuntos propios',
-          banco_horas: 'Banco horas',
-        }
-
-        const fmtDate = (s: string) =>
-          new Date(s.includes('T') ? s : s + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
-
-        return (
-          <div className="mb-8 bg-white border border-neutral-100 rounded">
-            <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-                📋 Pendientes de tu atención
-              </h2>
-              <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">
-                {totalPendientesPersonal + totalAnomalias + totalNotif} en total
-              </span>
-            </div>
-            <div className="divide-y divide-neutral-50">
-              {/* Notificaciones del sistema (críticas primero) */}
-              {(stats.sysNotifications as SysNotif[])
-                .sort((a, b) => {
-                  const order = { critical: 0, warning: 1, info: 2 } as const
-                  return order[a.severity] - order[b.severity]
-                })
-                .map((n) => {
-                  const cls =
-                    n.severity === 'critical'
-                      ? 'border-l-red-500 hover:bg-red-50'
-                      : n.severity === 'warning'
-                      ? 'border-l-amber-500 hover:bg-amber-50'
-                      : 'border-l-neutral-300 hover:bg-neutral-50'
-                  const icon = n.severity === 'critical' ? '🔴' : n.severity === 'warning' ? '⚠️' : 'ℹ️'
-                  return (
-                    <Link
-                      key={n.id}
-                      href="/admin/sistema"
-                      className={`flex items-center gap-3 px-5 py-3 border-l-4 transition-colors group ${cls}`}
-                    >
-                      <span className="text-base flex-none">{icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-neutral-900 truncate">{n.title}</p>
-                        {n.message && (
-                          <p className="text-xs text-neutral-500 truncate">{n.message}</p>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-neutral-400 uppercase tracking-widest whitespace-nowrap">
-                        {n.source}
-                      </span>
-                      <span className="text-neutral-300 text-xs group-hover:text-neutral-600">→</span>
-                    </Link>
-                  )
-                })}
-
-              {/* Ausencias pendientes */}
-              {(stats.absencesPending as AbsRow[]).map((a) => (
-                <Link
-                  key={a.id}
-                  href="/admin/personal/ausencias"
-                  className="flex items-center gap-3 px-5 py-3 border-l-4 border-l-blue-400 hover:bg-blue-50 transition-colors group"
-                >
-                  <span className="text-base flex-none">🌴</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-neutral-900">
-                      {empMap[a.employee_id] ?? '—'} solicita {ABSENCE_LABELS[a.tipo] ?? a.tipo}
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      {fmtDate(a.fecha_inicio)} → {fmtDate(a.fecha_fin)}
-                    </p>
-                  </div>
-                  <span className="text-[10px] text-blue-700 font-bold uppercase tracking-widest whitespace-nowrap">
-                    Aprobar
-                  </span>
-                  <span className="text-blue-300 text-xs group-hover:text-blue-700">→</span>
-                </Link>
-              ))}
-
-              {/* Tickets / albaranes / facturas subidos por trabajadores */}
-              {(stats.ticketsPending as TicketRow[]).slice(0, 5).map((t) => (
-                <Link
-                  key={t.id}
-                  href="/admin/personal/tickets-trabajador"
-                  className="flex items-center gap-3 px-5 py-3 border-l-4 border-l-purple-400 hover:bg-purple-50 transition-colors group"
-                >
-                  <span className="text-base flex-none">🧾</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-neutral-900">
-                      {empMap[t.employee_id] ?? '—'} subió un {t.tipo}
-                    </p>
-                    <p className="text-xs text-neutral-500">{fmtDate(t.created_at)} — pendiente de revisar</p>
-                  </div>
-                  <span className="text-[10px] text-purple-700 font-bold uppercase tracking-widest whitespace-nowrap">
-                    Revisar
-                  </span>
-                  <span className="text-purple-300 text-xs group-hover:text-purple-700">→</span>
-                </Link>
-              ))}
-              {stats.ticketsPending.length > 5 && (
-                <Link
-                  href="/admin/personal/tickets-trabajador"
-                  className="flex items-center gap-3 px-5 py-2 text-xs text-neutral-500 hover:bg-purple-50/30"
-                >
-                  + {stats.ticketsPending.length - 5} ticket{stats.ticketsPending.length - 5 === 1 ? '' : 's'} más sin revisar →
-                </Link>
-              )}
-
-              {/* Gastos reembolsables */}
-              {(stats.expensesPending as ExpenseRow[]).slice(0, 5).map((g) => (
-                <Link
-                  key={g.id}
-                  href="/admin/personal/gastos-trabajador"
-                  className="flex items-center gap-3 px-5 py-3 border-l-4 border-l-orange-400 hover:bg-orange-50 transition-colors group"
-                >
-                  <span className="text-base flex-none">💶</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-neutral-900">
-                      {empMap[g.employee_id] ?? '—'} apuntó gasto: {g.tipo}
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      {fmtDate(g.fecha)} {g.importe != null && `— ${formatEUR(Number(g.importe))}`}
-                    </p>
-                  </div>
-                  <span className="text-[10px] text-orange-700 font-bold uppercase tracking-widest whitespace-nowrap">
-                    Validar
-                  </span>
-                  <span className="text-orange-300 text-xs group-hover:text-orange-700">→</span>
-                </Link>
-              ))}
-              {stats.expensesPending.length > 5 && (
-                <Link
-                  href="/admin/personal/gastos-trabajador"
-                  className="flex items-center gap-3 px-5 py-2 text-xs text-neutral-500 hover:bg-orange-50/30"
-                >
-                  + {stats.expensesPending.length - 5} gasto{stats.expensesPending.length - 5 === 1 ? '' : 's'} más pendientes →
-                </Link>
-              )}
-
-              {/* Partes con anomalía de geofence (últimos 7 días) */}
-              {(stats.parteAnomalias as ParteRow[]).slice(0, 5).map((p) => {
-                const outside =
-                  p.entrada_geofence_status === 'outside' || p.salida_geofence_status === 'outside'
-                const status = outside ? 'fuera del radio' : 'GPS impreciso'
-                return (
-                  <Link
-                    key={p.id}
-                    href="/admin/personal/dietario"
-                    className={`flex items-center gap-3 px-5 py-3 border-l-4 transition-colors group ${
-                      outside ? 'border-l-red-400 hover:bg-red-50' : 'border-l-amber-300 hover:bg-amber-50'
-                    }`}
-                  >
-                    <span className="text-base flex-none">📍</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-neutral-900">
-                        {empMap[p.employee_id] ?? '—'} fichó {status}
-                      </p>
-                      <p className="text-xs text-neutral-500">{fmtDate(p.fecha)} — revisar ubicación</p>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-widest whitespace-nowrap ${
-                        outside ? 'text-red-700' : 'text-amber-700'
-                      }`}
-                    >
-                      Revisar
-                    </span>
-                    <span className={`text-xs group-hover:${outside ? 'text-red-700' : 'text-amber-700'} ${outside ? 'text-red-300' : 'text-amber-300'}`}>→</span>
-                  </Link>
-                )
-              })}
-              {stats.parteAnomalias.length > 5 && (
-                <Link
-                  href="/admin/personal/dietario"
-                  className="flex items-center gap-3 px-5 py-2 text-xs text-neutral-500 hover:bg-amber-50/30"
-                >
-                  + {stats.parteAnomalias.length - 5} fichaje{stats.parteAnomalias.length - 5 === 1 ? '' : 's'} más con anomalía →
-                </Link>
-              )}
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* ── KPI Cards (clickable) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-10">
-        {kpis.map(({ label, value, color, sub, href }) => (
-          <Link
-            key={label}
-            href={href}
-            className="bg-white p-5 border border-neutral-100 rounded hover:border-primary hover:shadow-sm transition-all group"
-          >
-            <p className={`text-xl font-bold ${color} leading-tight`}>{value}</p>
-            {sub && (
-              <p className="text-[11px] text-neutral-400 mt-0.5">{sub}</p>
-            )}
-            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mt-2 group-hover:text-primary transition-colors">
-              {label} →
-            </p>
-          </Link>
-        ))}
-      </div>
 
       {/* ── Charts ── */}
       <DashboardCharts
