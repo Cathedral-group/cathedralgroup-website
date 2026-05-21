@@ -279,7 +279,9 @@ export default function CalendarioView({
             {/* Semana */}
             <div className="mt-8">
               <div className="flex items-center mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Semana</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                  Semana · {fmtDateShort(weekDays[0])} → {fmtDateShort(weekDays[6])}
+                </p>
                 {navArrows(() => shiftWeek(-1), () => shiftWeek(1))}
               </div>
               <ViewSemana
@@ -294,7 +296,9 @@ export default function CalendarioView({
             {/* Mes completo */}
             <div className="mt-8">
               <div className="flex items-center mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Mes completo</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                  Mes completo · {new Date(refFecha + 'T00:00:00').toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                </p>
                 {navArrows(() => shiftMonth(-1), () => shiftMonth(1))}
               </div>
               <ViewMes
@@ -308,7 +312,9 @@ export default function CalendarioView({
             {/* Año completo (12 mini-meses navegación) */}
             <div className="mt-8">
               <div className="flex items-center mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Año completo</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                  Año completo · {new Date(refFecha + 'T00:00:00').getFullYear()}
+                </p>
                 {navArrows(() => shiftYear(-1), () => shiftYear(1))}
               </div>
               <ViewAno
