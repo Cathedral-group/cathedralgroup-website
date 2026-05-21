@@ -810,8 +810,12 @@ function ViewMes({
           }
           const flim = fiscalByLimit[d] ?? []
           const fini = fiscalByStart[d] ?? []
-          // Una línea por asignación trabajador+obra (no agrupar por obra)
-          const asignacionesDia = dayEvents.filter((e) => e.event_type === 'assignment')
+          // Una línea por asignación trabajador+obra. Las asignaciones del
+          // cuadrante son time_records (planificado); worker_assignments es el
+          // modelo legacy. Incluir ambos, solo con proyecto y trabajador.
+          const asignacionesDia = dayEvents.filter(
+            (e) => (e.event_type === 'assignment' || e.event_type === 'time_record') && e.project_id && e.employee_id,
+          )
           // Prioridad fondo: fiscal límite > fiscal inicio > festivo > socio > hoy
           const cellBg = isOtherMonth
             ? 'bg-stone-50/30 text-stone-300'
