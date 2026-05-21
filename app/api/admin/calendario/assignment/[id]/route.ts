@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     return NextResponse.json({ error: 'id inválido' }, { status: 400 })
   }
 
-  let body: { fecha?: string; project_id?: string | null }
+  let body: { fecha?: string; project_id?: string | null; employee_id?: string }
   try {
     body = await request.json()
   } catch {
@@ -44,6 +44,9 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
   const patch: Record<string, unknown> = {}
   if (body.fecha && /^\d{4}-\d{2}-\d{2}$/.test(body.fecha)) patch.fecha = body.fecha
   if (body.project_id !== undefined) patch.project_id = body.project_id
+  if (body.employee_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.employee_id)) {
+    patch.employee_id = body.employee_id
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })

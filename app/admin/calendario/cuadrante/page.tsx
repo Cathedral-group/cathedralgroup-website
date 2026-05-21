@@ -59,7 +59,12 @@ export default async function CuadrantePage({
   const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
-  const [employeesRes, projectsRes, assignmentsRes, holidaysRes, absencesRes] = await Promise.all([
+  // Usage stats: proyectos con asignaciones últimas 8 semanas → orden uso-reciente
+  const recentSince = new Date(weekStart)
+  recentSince.setDate(weekStart.getDate() - 56)
+  const recentSinceIso = toLocalISODate(recentSince)
+
+  const [employeesRes, projectsRes, assignmentsRes, holidaysRes, absencesRes, recentUsageRes] = await Promise.all([
     supabase
       .from('employees')
       .select('id, nombre, fecha_baja')
@@ -92,7 +97,32 @@ export default async function CuadrantePage({
       .in('status', ['approved', 'pending'])
       .lte('fecha_inicio', hastaIso)
       .gte('fecha_fin', desdeIso),
+    // Stats uso reciente últimas 8 semanas (orden inteligente sidebar)
+    supabase
+      .from('time_records')
+      .select('project_id, fecha')
+      .gte('fecha', recentSinceIso)
+      .not('project_id', 'is', null),
   ])
+
+  // Construir mapa project_id → max(fecha) y count
+  const usageMap: Record<string, { lastUse: string; count: number }> = {}
+  for (const r of (recentUsageRes.data ?? []) as Array<{ project_id: string; fecha: string }>) {
+    if (!r.project_id) continue
+    const ex = usageMap[r.project_id]
+    if (!ex || r.fecha > ex.lastUse) {
+      usageMap[r.project_id] = { lastUse: r.fecha, count: (ex?.count || 0) + 1 }
+    } else {
+      ex.count++
+    }
+  }
+  // Ordenar project_ids por uso reciente desc
+  const recentProjectIds = Object.entries(usageMap)
+    .sort((a, b) => {
+      if (a[1].lastUse !== b[1].lastUse) return a[1].lastUse > b[1].lastUse ? -1 : 1
+      return b[1].count - a[1].count
+    })
+    .map(([id]) => id)
 
   const todayStr = toLocalISODate(new Date())
   const employees = (employeesRes.data ?? [])
@@ -128,6 +158,7 @@ export default async function CuadrantePage({
         status: string
       }>}
       today={todayStr}
+      recentProjectIds={recentProjectIds}
     />
   )
 }

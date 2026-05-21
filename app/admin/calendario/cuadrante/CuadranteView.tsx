@@ -47,6 +47,7 @@ interface Props {
   holidays: Holiday[]
   absences: Absence[]
   today: string
+  recentProjectIds: string[]
 }
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -87,7 +88,7 @@ function projectColor(id: string | null): string {
 
 export default function CuadranteView({
   refFecha, weekDays, employees, projects, assignments: initialAssignments,
-  holidays, absences, today,
+  holidays, absences, today, recentProjectIds,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments)
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -119,6 +120,24 @@ export default function CuadranteView({
     for (const p of projects) m[p.id] = p
     return m
   }, [projects])
+
+  // Orden inteligente sidebar: usados últimas 8 semanas primero (orden uso
+  // reciente), resto al final ordenado por code desc.
+  const sortedProjects = useMemo(() => {
+    const recentSet = new Set(recentProjectIds)
+    const recent: Project[] = []
+    const unused: Project[] = []
+    const byId: Record<string, Project> = {}
+    for (const p of projects) byId[p.id] = p
+    for (const id of recentProjectIds) {
+      if (byId[id]) recent.push(byId[id])
+    }
+    for (const p of projects) {
+      if (!recentSet.has(p.id)) unused.push(p)
+    }
+    unused.sort((a, b) => (a.code < b.code ? 1 : -1))
+    return { recent, unused }
+  }, [projects, recentProjectIds])
 
   // Festivos por fecha
   const holidayByDate = useMemo(() => {
@@ -269,7 +288,7 @@ export default function CuadranteView({
       const res = await fetch(`/api/admin/calendario/assignment/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fecha: new_fecha }),
+        body: JSON.stringify({ fecha: new_fecha, employee_id: new_employee_id }),
       })
       const json = await res.json()
       if (!res.ok || !json.ok) {
@@ -427,8 +446,21 @@ export default function CuadranteView({
             Proyectos · arrastra a celdas
           </p>
           <ul className="grid grid-cols-2 gap-1.5">
-            {projects.map((p) => (
+            {sortedProjects.recent.length > 0 && (
+              <li className="col-span-2 text-[9px] font-bold uppercase tracking-widest text-emerald-600 mt-1">
+                ★ Recientes ({sortedProjects.recent.length})
+              </li>
+            )}
+            {sortedProjects.recent.map((p) => (
               <DraggableProject key={p.id} project={p} />
+            ))}
+            {sortedProjects.unused.length > 0 && sortedProjects.recent.length > 0 && (
+              <li className="col-span-2 text-[9px] font-bold uppercase tracking-widest text-stone-400 mt-2">
+                Resto ({sortedProjects.unused.length})
+              </li>
+            )}
+            {sortedProjects.unused.map((p) => (
+              <DraggableProject key={p.id} project={p} dim />
             ))}
             {projects.length === 0 && (
               <li className="col-span-2 text-xs text-stone-400 italic">Sin proyectos activos</li>
@@ -448,7 +480,7 @@ export default function CuadranteView({
 }
 
 // ─── Sub-componente: proyecto draggable ─────────────────────────────────
-function DraggableProject({ project }: { project: Project }) {
+function DraggableProject({ project, dim = false }: { project: Project; dim?: boolean }) {
   const ref = useRef<HTMLLIElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -468,7 +500,7 @@ function DraggableProject({ project }: { project: Project }) {
   return (
     <li
       ref={ref}
-      className={`${color} border rounded px-2 py-1.5 cursor-grab text-xs select-none ${dragging ? 'opacity-40' : ''}`}
+      className={`${color} border rounded px-2 py-1.5 cursor-grab text-xs select-none ${dragging ? 'opacity-40' : ''} ${dim ? 'opacity-60' : ''}`}
       title={project.name ?? ''}
     >
       <div className="text-sm font-medium leading-tight">{displayLine}</div>
