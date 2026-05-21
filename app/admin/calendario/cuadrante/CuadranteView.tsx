@@ -297,10 +297,10 @@ export default function CuadranteView({
             <span>›</span>
             <Link href="/admin/calendario" className="hover:text-stone-900">Calendario</Link>
             <span>›</span>
-            <span className="text-stone-900">Cuadrante</span>
+            <span className="text-stone-900">Asignaciones</span>
           </div>
           <h1 className="mt-1 text-2xl font-light tracking-tight text-stone-900">
-            Cuadrante semanal · {fmtDayShort(weekDays[0])} → {fmtDayShort(weekDays[6])}
+            Asignaciones · {fmtDayShort(weekDays[0])} → {fmtDayShort(weekDays[6])}
           </h1>
           <p className="text-xs text-stone-500 mt-0.5">
             Arrastra proyectos del lateral a las celdas. Drag entre celdas = mover. Shift+drag = copiar.

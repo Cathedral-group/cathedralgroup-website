@@ -202,12 +202,14 @@ export default function CalendarioView({
               semana ya muestra Día + Semana + Mes + Año apilados verticalmente.
               Flechas navegación movidas a headers de cada sección. */}
 
-          {/* Gantt multi-proyecto */}
+          {/* Botón Asignaciones (feedback David sesión 22/05: en lugar de
+              "Cuadrante" se llama Asignaciones. Gantt pendiente desarrollo
+              futuro — ocultado por ahora). */}
           <Link
-            href="/admin/calendario/gantt"
-            className="rounded border border-stone-300 px-3 py-1.5 text-xs uppercase tracking-widest text-stone-700 hover:bg-stone-50"
+            href="/admin/calendario/cuadrante"
+            className="rounded border border-emerald-300 bg-emerald-50 px-4 py-1.5 text-xs uppercase tracking-widest text-emerald-800 font-semibold hover:bg-emerald-100"
           >
-            📊 Gantt
+            📋 Asignaciones
           </Link>
         </div>
       </div>
