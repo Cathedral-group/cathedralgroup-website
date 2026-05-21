@@ -968,16 +968,16 @@ function ViewAno({
                   <button
                     key={i}
                     onClick={() => onClickDay(day.d)}
-                    className={`relative px-1 py-0.5 text-center font-mono transition-colors hover:bg-emerald-100 ${cls}`}
+                    className={`relative px-1 pt-0.5 pb-1.5 text-center font-mono transition-colors hover:bg-emerald-100 ${cls}`}
                     title={tooltip}
                   >
                     {new Date(day.d + 'T00:00:00').getDate()}
                     {flags && (flags.assignment || flags.task || flags.reunion || flags.absence) && (
-                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 flex gap-0.5">
-                        {flags.reunion && <span className="w-1 h-1 rounded-full bg-violet-600" />}
-                        {flags.task && <span className="w-1 h-1 rounded-full bg-blue-500" />}
-                        {flags.assignment && <span className="w-1 h-1 rounded-full bg-emerald-600" />}
-                        {flags.absence && <span className="w-1 h-1 rounded-full bg-pink-500" />}
+                      <span className="absolute bottom-0 left-0 right-0 flex h-1.5 rounded-b overflow-hidden">
+                        {flags.reunion && <span className="flex-1 bg-violet-600" />}
+                        {flags.task && <span className="flex-1 bg-blue-500" />}
+                        {flags.assignment && <span className="flex-1 bg-emerald-600" />}
+                        {flags.absence && <span className="flex-1 bg-pink-500" />}
                       </span>
                     )}
                   </button>
