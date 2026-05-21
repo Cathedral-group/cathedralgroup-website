@@ -33,6 +33,12 @@ interface Employee {
   nombre: string | null
 }
 
+interface Socio {
+  user_id: string
+  email: string
+  nombre: string
+}
+
 interface Project {
   id: string
   code: string
@@ -75,6 +81,7 @@ interface Props {
   refFecha: string
   events: CalendarEvent[]
   employees: Employee[]
+  socios?: Socio[]
   projects: Project[]
   cuadranteWeekDays?: string[]
   cuadranteAssignments?: CuadranteAssignment[]
@@ -133,7 +140,7 @@ function daysBetween(desde: string, hasta: string): string[] {
 const DAY_NAMES = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
 
 export default function CalendarioView({
-  vista, desde, hasta, refFecha, events, employees, projects,
+  vista, desde, hasta, refFecha, events, employees, socios = [], projects,
   cuadranteWeekDays, cuadranteAssignments, cuadranteHolidays, cuadranteAbsences,
   yearHolidays = [], fiscalEntries = [],
 }: Props) {
@@ -412,6 +419,7 @@ export default function CalendarioView({
         <DrawerDay
           fecha={drawerDay}
           employees={employees}
+          socios={socios}
           projects={projects}
           events={eventsByDay[drawerDay] ?? []}
           onClose={() => setDrawerDay(null)}
@@ -658,11 +666,15 @@ function CellContent({ events }: { events: CalendarEvent[] }) {
             : ''}
         </div>
       )}
-      {tasks.length > 0 && (
-        <div className="text-[10px] text-blue-600">
-          📋 {tasks.length} tarea{tasks.length === 1 ? '' : 's'}
-        </div>
-      )}
+      {tasks.map((t, i) => {
+        const subtipo = String(t.payload?.subtipo ?? 'tarea')
+        const hIni = t.payload?.hora_inicio ? String(t.payload.hora_inicio).slice(0, 5) : null
+        return (
+          <div key={i} className={`text-[10px] truncate ${subtipo === 'reunion' ? 'text-violet-700' : 'text-blue-600'}`} title={String(t.payload?.texto ?? '')}>
+            {subtipo === 'reunion' ? '🤝' : '📋'} {hIni && <span className="font-mono">{hIni} </span>}{String(t.payload?.texto ?? '')}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -696,10 +708,12 @@ function ViewMes({
           const isToday = d === today
           const isOtherMonth = date.getMonth() !== refMonth
           const dayEvents = eventsByDay[d] ?? []
+          const taskEvents = dayEvents.filter((e) => e.event_type === 'task')
           const byType = {
             assignment: dayEvents.filter((e) => e.event_type === 'assignment').length,
             absence: dayEvents.filter((e) => e.event_type === 'absence').length,
-            task: dayEvents.filter((e) => e.event_type === 'task').length,
+            task: taskEvents.filter((e) => String(e.payload?.subtipo ?? 'tarea') !== 'reunion').length,
+            reunion: taskEvents.filter((e) => String(e.payload?.subtipo ?? 'tarea') === 'reunion').length,
             holiday: dayEvents.filter((e) => e.event_type === 'holiday').length,
           }
           const flim = fiscalByLimit[d] ?? []
@@ -751,6 +765,9 @@ function ViewMes({
               )}
               {byType.absence > 0 && (
                 <div className="mt-0.5 text-[10px] text-amber-700">🏖️ {byType.absence}</div>
+              )}
+              {byType.reunion > 0 && (
+                <div className="mt-0.5 text-[10px] text-violet-700">🤝 {byType.reunion} reunión{byType.reunion === 1 ? '' : 'es'}</div>
               )}
               {byType.task > 0 && (
                 <div className="mt-0.5 text-[10px] text-blue-600">📋 {byType.task}</div>
@@ -883,17 +900,28 @@ function ViewAno({
 /* ───────── Drawer lateral ───────── */
 
 function DrawerDay({
-  fecha, events, employees, projects, onClose,
+  fecha, events, employees, socios, projects, onClose,
 }: {
   fecha: string
   events: CalendarEvent[]
   employees: Employee[]
+  socios: Socio[]
   projects: Project[]
   onClose: () => void
 }) {
   // ─── Multi-row state ───
   type AsigRow = { id: string; employee_id: string; project_id: string; observaciones: string }
-  type TareaRow = { id: string; project_id: string; texto: string; prioridad: string }
+  type TareaRow = {
+    id: string
+    project_id: string
+    texto: string
+    prioridad: string
+    subtipo: 'tarea' | 'reunion'
+    hora_inicio: string
+    hora_fin: string
+    socio_user_ids: string[]
+    employee_ids: string[]
+  }
   type AusenciaRow = { id: string; employee_id: string; tipo: string; fecha_fin: string; motivo_detalle: string }
   type FestivoRow = { id: string; nombre: string }
 
@@ -908,15 +936,28 @@ function DrawerDay({
 
   const newId = () => Math.random().toString(36).slice(2)
   const addAsig = () => setAsigRows((p) => [...p, { id: newId(), employee_id: '', project_id: '', observaciones: '' }])
-  const addTarea = () => setTareaRows((p) => [...p, { id: newId(), project_id: '', texto: '', prioridad: 'media' }])
+  const addTarea = () => setTareaRows((p) => [...p, { id: newId(), project_id: '', texto: '', prioridad: 'media', subtipo: 'tarea', hora_inicio: '', hora_fin: '', socio_user_ids: [], employee_ids: [] }])
   const addAusencia = () => setAusenciaRows((p) => [...p, { id: newId(), employee_id: '', tipo: 'vacaciones', fecha_fin: fecha, motivo_detalle: '' }])
   const addFestivo = () => setFestivoRows((p) => [...p, { id: newId(), nombre: '' }])
+
+  // Toggle attendee (socio o trabajador) en una fila de tarea
+  const toggleArr = (arr: string[], id: string): string[] =>
+    arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]
 
   async function saveAll() {
     const payload = {
       fecha,
       asignaciones: asigRows.filter((r) => r.employee_id),
-      tareas: tareaRows.filter((r) => r.texto.trim()),
+      tareas: tareaRows.filter((r) => r.texto.trim()).map((r) => ({
+        project_id: r.project_id || null,
+        texto: r.texto,
+        prioridad: r.prioridad,
+        subtipo: r.subtipo,
+        hora_inicio: r.hora_inicio || null,
+        hora_fin: r.hora_fin || null,
+        socio_user_ids: r.socio_user_ids,
+        employee_ids: r.employee_ids,
+      })),
       ausencias: ausenciaRows.filter((r) => r.employee_id && r.tipo),
       festivos: festivoRows.filter((r) => r.nombre.trim()),
     }
@@ -957,12 +998,14 @@ function DrawerDay({
     const byProject: Record<string, CalendarEvent[]> = {}
     const ausencias: CalendarEvent[] = []
     const festivos: CalendarEvent[] = []
+    const tareasSinProyecto: CalendarEvent[] = []
     for (const e of events) {
       if (e.event_type === 'absence') ausencias.push(e)
       else if (e.event_type === 'holiday') festivos.push(e)
       else if (e.project_id) (byProject[e.project_id] ??= []).push(e)
+      else if (e.event_type === 'task') tareasSinProyecto.push(e)
     }
-    return { byProject, ausencias, festivos }
+    return { byProject, ausencias, festivos, tareasSinProyecto }
   }, [events])
 
   return (
@@ -1032,35 +1075,110 @@ function DrawerDay({
               )}
             </div>
 
-            {/* Tareas */}
+            {/* Tareas / Reuniones */}
             <div className="border-b border-stone-100">
               <button
                 onClick={() => setOpenSection(openSection === 'tarea' ? null : 'tarea')}
                 className="w-full px-3 py-2 text-left text-xs hover:bg-stone-50 flex items-center justify-between"
               >
-                <span>📋 Tareas {tareaRows.length > 0 && <span className="text-emerald-600 font-semibold">({tareaRows.length})</span>}</span>
+                <span>📋 Tareas / Reuniones {tareaRows.length > 0 && <span className="text-emerald-600 font-semibold">({tareaRows.length})</span>}</span>
                 <span className="text-stone-400">{openSection === 'tarea' ? '−' : '+'}</span>
               </button>
               {openSection === 'tarea' && (
-                <div className="px-3 pb-3 space-y-2">
-                  {tareaRows.map((r, idx) => (
-                    <div key={r.id} className="grid grid-cols-12 gap-1 items-center">
-                      <select value={r.project_id} onChange={(e) => setTareaRows((p) => p.map((x, i) => i === idx ? { ...x, project_id: e.target.value } : x))} className="col-span-3 text-xs border border-stone-300 rounded px-1 py-1">
-                        <option value="">— Proy —</option>
-                        {projects.map((pj) => <option key={pj.id} value={pj.id}>{pj.code}</option>)}
-                      </select>
-                      <input type="text" placeholder="Texto tarea" value={r.texto} onChange={(e) => setTareaRows((p) => p.map((x, i) => i === idx ? { ...x, texto: e.target.value } : x))} className="col-span-6 text-xs border border-stone-300 rounded px-1 py-1" />
-                      <select value={r.prioridad} onChange={(e) => setTareaRows((p) => p.map((x, i) => i === idx ? { ...x, prioridad: e.target.value } : x))} className="col-span-2 text-xs border border-stone-300 rounded px-1 py-1">
-                        <option value="baja">Baja</option>
-                        <option value="media">Media</option>
-                        <option value="alta">Alta</option>
-                        <option value="critica">Crítica</option>
-                      </select>
-                      <button onClick={() => setTareaRows((p) => p.filter((_, i) => i !== idx))} className="col-span-1 text-xs text-red-500 hover:text-red-700">×</button>
-                    </div>
-                  ))}
+                <div className="px-3 pb-3 space-y-3">
+                  {tareaRows.map((r, idx) => {
+                    const upd = (patch: Partial<TareaRow>) =>
+                      setTareaRows((p) => p.map((x, i) => i === idx ? { ...x, ...patch } : x))
+                    return (
+                      <div key={r.id} className="border border-stone-200 rounded p-2 space-y-2">
+                        {/* Tipo + borrar */}
+                        <div className="flex items-center justify-between">
+                          <div className="inline-flex rounded border border-stone-300 overflow-hidden text-[10px]">
+                            <button
+                              onClick={() => upd({ subtipo: 'tarea' })}
+                              className={`px-2 py-1 ${r.subtipo === 'tarea' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-600'}`}
+                            >📋 Tarea</button>
+                            <button
+                              onClick={() => upd({ subtipo: 'reunion' })}
+                              className={`px-2 py-1 border-l border-stone-300 ${r.subtipo === 'reunion' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-600'}`}
+                            >🤝 Reunión</button>
+                          </div>
+                          <button onClick={() => setTareaRows((p) => p.filter((_, i) => i !== idx))} className="text-sm text-red-500 hover:text-red-700">×</button>
+                        </div>
+
+                        {/* Texto */}
+                        <input
+                          type="text"
+                          placeholder={r.subtipo === 'reunion' ? 'Asunto reunión (ej. firma notario)' : 'Texto tarea'}
+                          value={r.texto}
+                          onChange={(e) => upd({ texto: e.target.value })}
+                          className="w-full text-xs border border-stone-300 rounded px-2 py-1"
+                        />
+
+                        {/* Hora inicio / fin + proyecto + prioridad */}
+                        <div className="grid grid-cols-2 gap-1">
+                          <label className="text-[10px] text-stone-500">Hora inicio
+                            <input type="time" value={r.hora_inicio} onChange={(e) => upd({ hora_inicio: e.target.value })} className="w-full text-xs border border-stone-300 rounded px-1 py-1" />
+                          </label>
+                          <label className="text-[10px] text-stone-500">Hora fin
+                            <input type="time" value={r.hora_fin} onChange={(e) => upd({ hora_fin: e.target.value })} className="w-full text-xs border border-stone-300 rounded px-1 py-1" />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <select value={r.project_id} onChange={(e) => upd({ project_id: e.target.value })} className="text-xs border border-stone-300 rounded px-1 py-1">
+                            <option value="">— Sin proyecto —</option>
+                            {projects.map((pj) => <option key={pj.id} value={pj.id}>{pj.code}</option>)}
+                          </select>
+                          <select value={r.prioridad} onChange={(e) => upd({ prioridad: e.target.value })} className="text-xs border border-stone-300 rounded px-1 py-1">
+                            <option value="baja">Baja</option>
+                            <option value="media">Media</option>
+                            <option value="alta">Alta</option>
+                            <option value="critica">Crítica</option>
+                          </select>
+                        </div>
+
+                        {/* Socios (multi) */}
+                        {socios.length > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-stone-400 mb-1">Socios</p>
+                            <div className="flex flex-wrap gap-1">
+                              {socios.map((s) => {
+                                const on = r.socio_user_ids.includes(s.user_id)
+                                return (
+                                  <button
+                                    key={s.user_id}
+                                    onClick={() => upd({ socio_user_ids: toggleArr(r.socio_user_ids, s.user_id) })}
+                                    className={`text-[10px] px-2 py-1 rounded border ${on ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-stone-600 border-stone-300'}`}
+                                  >{on ? '✓ ' : ''}{s.nombre}</button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Trabajadores (multi) */}
+                        {employees.length > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-stone-400 mb-1">Trabajadores</p>
+                            <div className="flex flex-wrap gap-1">
+                              {employees.map((emp) => {
+                                const on = r.employee_ids.includes(emp.id)
+                                return (
+                                  <button
+                                    key={emp.id}
+                                    onClick={() => upd({ employee_ids: toggleArr(r.employee_ids, emp.id) })}
+                                    className={`text-[10px] px-2 py-1 rounded border ${on ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-stone-600 border-stone-300'}`}
+                                  >{on ? '✓ ' : ''}{emp.nombre}</button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                   <button onClick={addTarea} className="text-[10px] uppercase tracking-widest text-emerald-700 hover:text-emerald-900">
-                    + Añadir tarea
+                    + Añadir tarea / reunión
                   </button>
                 </div>
               )}
@@ -1159,6 +1277,19 @@ function DrawerDay({
             </section>
           )}
 
+          {groups.tareasSinProyecto.length > 0 && (
+            <section>
+              <h3 className="text-[10px] uppercase tracking-widest text-stone-500 mb-1">📋 Tareas y reuniones</h3>
+              <ul className="space-y-1 text-sm">
+                {groups.tareasSinProyecto.map((e, i) => (
+                  <li key={`${e.ref_id}-${i}`}>
+                    <EventRow event={e} compact />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {Object.entries(groups.byProject).map(([projId, evs]) => {
             const ref = evs.find((e) => e.project_code)
             return (
@@ -1217,13 +1348,40 @@ function EventRow({ event, compact = false }: { event: CalendarEvent; compact?: 
   }
   if (event.event_type === 'task') {
     const estado = String(event.payload?.estado ?? 'pendiente')
+    const subtipo = String(event.payload?.subtipo ?? 'tarea')
+    const taskIcon = subtipo === 'reunion' ? '🤝' : '📋'
+    const hIni = event.payload?.hora_inicio ? String(event.payload.hora_inicio).slice(0, 5) : null
+    const hFin = event.payload?.hora_fin ? String(event.payload.hora_fin).slice(0, 5) : null
+    const attendees = Array.isArray(event.payload?.attendees)
+      ? (event.payload!.attendees as Array<{ tipo: string; nombre: string; estado: string }>)
+      : []
     return (
       <div className={compact ? 'text-xs' : 'px-4 py-2 text-sm'}>
-        {icon} <span className={estado === 'hecha' ? 'line-through text-stone-400' : ''}>
-          {String(event.payload?.texto ?? '')}
-        </span>
-        {event.employee_nombre && <span className="text-stone-500"> · {event.employee_nombre}</span>}
-        {!event.employee_id && <span className="text-stone-400"> · sin asignar</span>}
+        <div>
+          {taskIcon}{' '}
+          {hIni && <span className="font-mono text-xs text-stone-600">{hIni}{hFin ? `–${hFin}` : ''} </span>}
+          <span className={estado === 'hecha' ? 'line-through text-stone-400' : ''}>
+            {String(event.payload?.texto ?? '')}
+          </span>
+        </div>
+        {attendees.length > 0 && (
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {attendees.map((a, i) => (
+              <span
+                key={i}
+                className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  a.estado === 'hecho'
+                    ? 'bg-emerald-100 text-emerald-800 line-through'
+                    : a.tipo === 'socio'
+                    ? 'bg-violet-100 text-violet-800'
+                    : 'bg-sky-100 text-sky-800'
+                }`}
+              >
+                {a.estado === 'hecho' ? '✓ ' : ''}{a.nombre}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     )
   }

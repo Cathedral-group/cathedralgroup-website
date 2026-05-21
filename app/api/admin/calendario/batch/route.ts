@@ -44,7 +44,21 @@ async function authCheck() {
 }
 
 interface AsigInput { employee_id: string; project_id?: string | null; observaciones?: string }
-interface TareaInput { project_id?: string | null; texto: string; prioridad?: string; fecha_objetivo?: string | null }
+interface TareaInput {
+  project_id?: string | null
+  texto: string
+  prioridad?: string
+  fecha_objetivo?: string | null
+  subtipo?: string
+  hora_inicio?: string | null
+  hora_fin?: string | null
+  socio_user_ids?: string[]
+  employee_ids?: string[]
+}
+
+const HHMM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const normHora = (h?: string | null): string | null => (h && HHMM_RE.test(h) ? h : null)
 interface AusenciaInput { employee_id: string; tipo: string; fecha_fin: string; motivo_detalle?: string }
 interface FestivoInput { nombre: string; ambito?: string }
 
@@ -99,22 +113,53 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // ───── 2. Tareas → project_tasks ─────
+  // ───── 2. Tareas / reuniones → project_tasks (+ task_attendees) ─────
+  // Insertamos 1 a 1 para recuperar el id y crear los attendees (socios y/o
+  // trabajadores). Reunión = subtipo 'reunion' con varios socios.
   if (body.tareas && Array.isArray(body.tareas)) {
-    const rows = body.tareas
-      .filter((t) => t.texto && t.texto.trim())
-      .map((t) => ({
-        company_id: companyId,
-        project_id: t.project_id || null,
-        texto: t.texto.trim(),
-        prioridad: VALID_PRIORIDADES.includes(t.prioridad || '') ? t.prioridad : 'media',
-        estado: 'pendiente',
-        fecha_objetivo: t.fecha_objetivo || fecha,
-      }))
-    if (rows.length > 0) {
-      const { error, data } = await supabase.from('project_tasks').insert(rows).select()
-      if (error) results.tareas.errors.push(error.message)
-      else results.tareas.ok = data?.length ?? rows.length
+    for (const t of body.tareas) {
+      if (!t.texto || !t.texto.trim()) continue
+
+      const subtipo = t.subtipo === 'reunion' ? 'reunion' : 'tarea'
+      const { data: taskRow, error: taskErr } = await supabase
+        .from('project_tasks')
+        .insert({
+          company_id: companyId,
+          project_id: t.project_id || null,
+          texto: t.texto.trim(),
+          prioridad: VALID_PRIORIDADES.includes(t.prioridad || '') ? t.prioridad : 'media',
+          estado: 'pendiente',
+          fecha_objetivo: t.fecha_objetivo || fecha,
+          subtipo,
+          hora_inicio: normHora(t.hora_inicio),
+          hora_fin: normHora(t.hora_fin),
+          tipo: 'interna_socio',
+          created_by_email: user.email,
+          created_source: 'admin_calendario',
+        })
+        .select('id')
+        .single()
+
+      if (taskErr || !taskRow) {
+        results.tareas.errors.push(taskErr?.message || 'no se creó tarea')
+        continue
+      }
+
+      // Attendees: cada fila exactamente un target (CHECK BD)
+      const socioIds = (t.socio_user_ids ?? []).filter((id) => UUID_RE.test(id))
+      const empIds = (t.employee_ids ?? []).filter((id) => UUID_RE.test(id))
+      const attendeeRows = [
+        ...socioIds.map((uid) => ({ task_id: taskRow.id, socio_user_id: uid })),
+        ...empIds.map((eid) => ({ task_id: taskRow.id, employee_id: eid })),
+      ]
+      if (attendeeRows.length > 0) {
+        const { error: attErr } = await supabase.from('task_attendees').insert(attendeeRows)
+        if (attErr) {
+          results.tareas.errors.push(`attendees: ${attErr.message}`)
+          continue
+        }
+      }
+      results.tareas.ok++
     }
   }
 

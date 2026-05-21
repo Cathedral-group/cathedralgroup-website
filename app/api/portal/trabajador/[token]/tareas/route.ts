@@ -106,9 +106,28 @@ export async function GET(
     delEquipo = data ?? []
   }
 
+  // 3. Tareas/reuniones donde soy attendee (modelo multi-attendee task_attendees).
+  // El estado individual vive en task_attendees.estado (no en project_tasks).
+  const { data: attendeeRows, error: e3 } = await supabase
+    .from('task_attendees')
+    .select(
+      `id, estado, completed_at,
+       task:task_id!inner (
+         id, texto, notas, fecha_objetivo, hora_inicio, hora_fin, subtipo, prioridad,
+         project:project_id ( id, code, name )
+       )`,
+    )
+    .eq('employee_id', validation.employeeId)
+    .is('task.deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (e3) return NextResponse.json({ error: e3.message }, { status: 500 })
+
   return NextResponse.json({
     mias: misTareas ?? [],
     equipo: delEquipo,
+    asignadas: attendeeRows ?? [],
     today_project_ids: todayProjectIds,
   })
 }
@@ -234,8 +253,35 @@ export async function PATCH(
 
   const id = (body.id ?? '').trim()
   if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
-  if (!['toggle', 'take', 'release'].includes(body.action ?? '')) {
+  if (!['toggle', 'take', 'release', 'attendee_toggle'].includes(body.action ?? '')) {
     return NextResponse.json({ error: 'action inválida' }, { status: 400 })
+  }
+
+  // attendee_toggle: marca/desmarca MI fila en task_attendees (multi-attendee).
+  // No afecta a otros attendees. Sin notificación admin (David: basta ver panel).
+  if (body.action === 'attendee_toggle') {
+    const { data: att, error: attErr } = await supabase
+      .from('task_attendees')
+      .select('id, estado')
+      .eq('task_id', id)
+      .eq('employee_id', validation.employeeId)
+      .maybeSingle()
+    if (attErr) return NextResponse.json({ error: attErr.message }, { status: 500 })
+    if (!att) return NextResponse.json({ error: 'No eres participante de esta tarea' }, { status: 403 })
+
+    const next = att.estado === 'hecho' ? 'pendiente' : 'hecho'
+    const nowIso = new Date().toISOString()
+    const { error: updErr } = await supabase
+      .from('task_attendees')
+      .update({
+        estado: next,
+        completed_at: next === 'hecho' ? nowIso : null,
+        completed_by_email: null,
+        updated_at: nowIso,
+      })
+      .eq('id', att.id)
+    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
+    return NextResponse.json({ ok: true, estado: next })
   }
 
   // Cargar tarea + verificar permiso

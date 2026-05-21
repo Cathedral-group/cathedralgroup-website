@@ -40,6 +40,23 @@ interface Task {
   project: Project | Project[] | null
 }
 
+interface AttendeeTask {
+  id: string // id de la fila task_attendees
+  estado: 'pendiente' | 'hecho' | 'rechazado'
+  completed_at: string | null
+  task: {
+    id: string
+    texto: string
+    notas: string | null
+    fecha_objetivo: string | null
+    hora_inicio: string | null
+    hora_fin: string | null
+    subtipo: 'tarea' | 'reunion'
+    prioridad: string
+    project: Project | Project[] | null
+  } | null
+}
+
 interface Props {
   token: string
 }
@@ -54,6 +71,7 @@ function todayStr() { return new Date().toISOString().slice(0, 10) }
 export default function MisTareasBlock({ token }: Props) {
   const [mias, setMias] = useState<Task[]>([])
   const [equipo, setEquipo] = useState<Task[]>([])
+  const [asignadas, setAsignadas] = useState<AttendeeTask[]>([])
   const [todayProjectIds, setTodayProjectIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -74,6 +92,7 @@ export default function MisTareasBlock({ token }: Props) {
       const json = await res.json()
       setMias(json.mias ?? [])
       setEquipo(json.equipo ?? [])
+      setAsignadas(json.asignadas ?? [])
       setTodayProjectIds(json.today_project_ids ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error cargando tareas')
@@ -146,6 +165,25 @@ export default function MisTareasBlock({ token }: Props) {
     }
   }
 
+  async function attendeeToggle(a: AttendeeTask) {
+    if (!a.task) return
+    setBusyId(a.id)
+    try {
+      const res = await fetch(`/api/portal/trabajador/${token}/tareas`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: a.task.id, action: 'attendee_toggle' }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'Error')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   async function createNew() {
     if (!newProjectId || !newTexto.trim()) { setError('Obra y texto requeridos'); return }
     setCreating(true); setError(null)
@@ -172,7 +210,7 @@ export default function MisTareasBlock({ token }: Props) {
     }
   }
 
-  if (loading && mias.length === 0 && equipo.length === 0) {
+  if (loading && mias.length === 0 && equipo.length === 0 && asignadas.length === 0) {
     return null // No molestamos hasta tener datos
   }
 
@@ -181,7 +219,7 @@ export default function MisTareasBlock({ token }: Props) {
     setNewProjectId(todayProjectIds[0])
   }
 
-  const tieneAlgo = mias.length > 0 || equipo.length > 0
+  const tieneAlgo = mias.length > 0 || equipo.length > 0 || asignadas.length > 0
 
   if (!tieneAlgo && !showAdd) {
     return (
@@ -304,6 +342,51 @@ export default function MisTareasBlock({ token }: Props) {
                 onTake={() => take(t)}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tareas y reuniones donde participo (multi-attendee) */}
+      {asignadas.length > 0 && (
+        <div className="border-t-2 border-stone-100">
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-stone-400 bg-stone-50">
+            Tareas y reuniones asignadas
+          </div>
+          <div className="divide-y divide-stone-100">
+            {asignadas.map((a) => {
+              const t = a.task
+              if (!t) return null
+              const proj = singleRef(t.project)
+              const done = a.estado === 'hecho'
+              const hIni = t.hora_inicio ? t.hora_inicio.slice(0, 5) : null
+              const hFin = t.hora_fin ? t.hora_fin.slice(0, 5) : null
+              return (
+                <div key={a.id} className={`px-3 py-2.5 flex items-start gap-3 ${done ? 'opacity-60' : ''}`}>
+                  <button
+                    type="button"
+                    onClick={() => attendeeToggle(a)}
+                    disabled={busyId === a.id}
+                    className={`mt-0.5 flex-none w-6 h-6 rounded-full border-2 flex items-center justify-center text-sm ${
+                      done ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-stone-300'
+                    } disabled:opacity-50`}
+                    title={done ? 'Hecho. Tap para desmarcar.' : 'Tap para marcar hecho.'}
+                  >
+                    {done ? '✓' : ''}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm ${done ? 'line-through text-stone-400' : 'text-stone-900'}`}>
+                      {t.subtipo === 'reunion' ? '🤝 ' : '📋 '}{t.texto}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-stone-500">
+                      {hIni && <span className="font-mono">🕐 {hIni}{hFin ? `–${hFin}` : ''}</span>}
+                      {proj && <span className="font-mono">{proj.code}</span>}
+                      {t.fecha_objetivo && <span>📅 {t.fecha_objetivo}</span>}
+                      {t.notas && <span className="text-stone-400 truncate">· {t.notas}</span>}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

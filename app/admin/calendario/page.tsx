@@ -169,6 +169,21 @@ export default async function CalendarioPage({
     (e) => !e.fecha_baja || (e.fecha_baja as string) > todayStr,
   ).map((e) => ({ id: e.id, nombre: e.nombre }))
 
+  // Socios (para asignar tareas/reuniones). RPC SECURITY DEFINER: JOIN auth.users.
+  const { data: sociosData } = await supabase.rpc('get_company_members_with_email', {
+    p_company_id: activeCompanyId,
+  })
+  // Nombre legible derivado del email: "d.vieco@..." → "D. Vieco"
+  const socioLabel = (email: string): string => {
+    const local = email.split('@')[0] ?? email
+    return local
+      .split('.')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
+  }
+  const socios = ((sociosData ?? []) as Array<{ user_id: string; email: string; role: string }>)
+    .map((s) => ({ user_id: s.user_id, email: s.email, nombre: socioLabel(s.email) }))
+
   return (
     <CalendarioView
       vista={vista}
@@ -177,6 +192,7 @@ export default async function CalendarioPage({
       refFecha={toLocalISODate(ref)}
       events={eventsRes.data ?? []}
       employees={employees}
+      socios={socios}
       projects={(projectsRes.data ?? []).map((p) => ({
         id: p.id, code: p.code, name: p.name, status: p.status,
         address: (p as { address?: string | null }).address ?? null,
