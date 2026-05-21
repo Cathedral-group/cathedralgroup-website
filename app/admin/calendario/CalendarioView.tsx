@@ -312,10 +312,12 @@ export default function CalendarioView({
         />
       )}
 
-      {/* Drawer lateral con TODO el día */}
+      {/* Drawer lateral con TODO el día + creación batch */}
       {drawerDay && (
         <DrawerDay
           fecha={drawerDay}
+          employees={employees}
+          projects={projects}
           events={eventsByDay[drawerDay] ?? []}
           onClose={() => setDrawerDay(null)}
         />
@@ -663,7 +665,76 @@ function ViewAno({
 
 /* ───────── Drawer lateral ───────── */
 
-function DrawerDay({ fecha, events, onClose }: { fecha: string; events: CalendarEvent[]; onClose: () => void }) {
+function DrawerDay({
+  fecha, events, employees, projects, onClose,
+}: {
+  fecha: string
+  events: CalendarEvent[]
+  employees: Employee[]
+  projects: Project[]
+  onClose: () => void
+}) {
+  // ─── Multi-row state ───
+  type AsigRow = { id: string; employee_id: string; project_id: string; observaciones: string }
+  type TareaRow = { id: string; project_id: string; texto: string; prioridad: string }
+  type AusenciaRow = { id: string; employee_id: string; tipo: string; fecha_fin: string; motivo_detalle: string }
+  type FestivoRow = { id: string; nombre: string }
+
+  const [asigRows, setAsigRows] = useState<AsigRow[]>([])
+  const [tareaRows, setTareaRows] = useState<TareaRow[]>([])
+  const [ausenciaRows, setAusenciaRows] = useState<AusenciaRow[]>([])
+  const [festivoRows, setFestivoRows] = useState<FestivoRow[]>([])
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [openSection, setOpenSection] = useState<'asig' | 'tarea' | 'ausencia' | 'festivo' | null>(null)
+  const router = useRouter()
+
+  const newId = () => Math.random().toString(36).slice(2)
+  const addAsig = () => setAsigRows((p) => [...p, { id: newId(), employee_id: '', project_id: '', observaciones: '' }])
+  const addTarea = () => setTareaRows((p) => [...p, { id: newId(), project_id: '', texto: '', prioridad: 'media' }])
+  const addAusencia = () => setAusenciaRows((p) => [...p, { id: newId(), employee_id: '', tipo: 'vacaciones', fecha_fin: fecha, motivo_detalle: '' }])
+  const addFestivo = () => setFestivoRows((p) => [...p, { id: newId(), nombre: '' }])
+
+  async function saveAll() {
+    const payload = {
+      fecha,
+      asignaciones: asigRows.filter((r) => r.employee_id),
+      tareas: tareaRows.filter((r) => r.texto.trim()),
+      ausencias: ausenciaRows.filter((r) => r.employee_id && r.tipo),
+      festivos: festivoRows.filter((r) => r.nombre.trim()),
+    }
+    const total = payload.asignaciones.length + payload.tareas.length + payload.ausencias.length + payload.festivos.length
+    if (total === 0) {
+      setSaveMessage('No hay nada que crear. Añade al menos un ítem.')
+      return
+    }
+    setSaving(true)
+    setSaveMessage(null)
+    try {
+      const res = await fetch('/api/admin/calendario/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) {
+        const errs = Object.entries(json.results ?? {}).flatMap(([k, v]) => (v as { errors: string[] }).errors.map((e) => `${k}: ${e}`)).join(' · ')
+        setSaveMessage(`Error: ${errs || json.error || 'desconocido'}`)
+        setSaving(false)
+        return
+      }
+      setSaveMessage(`✓ ${json.total_created} ítems creados`)
+      setAsigRows([]); setTareaRows([]); setAusenciaRows([]); setFestivoRows([])
+      setOpenSection(null)
+      router.refresh()
+    } catch (e: unknown) {
+      const m = e instanceof Error ? e.message : 'Network error'
+      setSaveMessage(`Error: ${m}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // Agrupar por proyecto, ausencias y festivos aparte
   const groups = useMemo(() => {
     const byProject: Record<string, CalendarEvent[]> = {}
@@ -692,6 +763,154 @@ function DrawerDay({ fecha, events, onClose }: { fecha: string; events: Calendar
         </div>
 
         <div className="p-4 space-y-4">
+          {/* ─── CREACIÓN BATCH (feedback David sesión 21/05 noche) ─── */}
+          <div className="border border-stone-200 rounded">
+            <div className="bg-stone-50 px-3 py-2 border-b border-stone-200 flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-700">
+                ➕ Añadir al día
+              </p>
+              <button
+                onClick={saveAll}
+                disabled={saving || (asigRows.length + tareaRows.length + ausenciaRows.length + festivoRows.length === 0)}
+                className="text-[10px] uppercase tracking-widest px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:bg-stone-300 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Guardando…' : 'Guardar todo'}
+              </button>
+            </div>
+
+            {saveMessage && (
+              <div className={`px-3 py-2 text-[11px] ${saveMessage.startsWith('✓') ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+                {saveMessage}
+              </div>
+            )}
+
+            {/* Asignaciones */}
+            <div className="border-b border-stone-100">
+              <button
+                onClick={() => setOpenSection(openSection === 'asig' ? null : 'asig')}
+                className="w-full px-3 py-2 text-left text-xs hover:bg-stone-50 flex items-center justify-between"
+              >
+                <span>👷 Asignaciones {asigRows.length > 0 && <span className="text-emerald-600 font-semibold">({asigRows.length})</span>}</span>
+                <span className="text-stone-400">{openSection === 'asig' ? '−' : '+'}</span>
+              </button>
+              {openSection === 'asig' && (
+                <div className="px-3 pb-3 space-y-2">
+                  {asigRows.map((r, idx) => (
+                    <div key={r.id} className="grid grid-cols-12 gap-1 items-center">
+                      <select value={r.employee_id} onChange={(e) => setAsigRows((p) => p.map((x, i) => i === idx ? { ...x, employee_id: e.target.value } : x))} className="col-span-5 text-xs border border-stone-300 rounded px-1 py-1">
+                        <option value="">— Trabajador —</option>
+                        {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nombre}</option>)}
+                      </select>
+                      <select value={r.project_id} onChange={(e) => setAsigRows((p) => p.map((x, i) => i === idx ? { ...x, project_id: e.target.value } : x))} className="col-span-5 text-xs border border-stone-300 rounded px-1 py-1">
+                        <option value="">— Proyecto —</option>
+                        {projects.map((pj) => <option key={pj.id} value={pj.id}>{pj.code}</option>)}
+                      </select>
+                      <button onClick={() => setAsigRows((p) => p.filter((_, i) => i !== idx))} className="col-span-2 text-xs text-red-500 hover:text-red-700">×</button>
+                    </div>
+                  ))}
+                  <button onClick={addAsig} className="text-[10px] uppercase tracking-widest text-emerald-700 hover:text-emerald-900">
+                    + Añadir asignación
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Tareas */}
+            <div className="border-b border-stone-100">
+              <button
+                onClick={() => setOpenSection(openSection === 'tarea' ? null : 'tarea')}
+                className="w-full px-3 py-2 text-left text-xs hover:bg-stone-50 flex items-center justify-between"
+              >
+                <span>📋 Tareas {tareaRows.length > 0 && <span className="text-emerald-600 font-semibold">({tareaRows.length})</span>}</span>
+                <span className="text-stone-400">{openSection === 'tarea' ? '−' : '+'}</span>
+              </button>
+              {openSection === 'tarea' && (
+                <div className="px-3 pb-3 space-y-2">
+                  {tareaRows.map((r, idx) => (
+                    <div key={r.id} className="grid grid-cols-12 gap-1 items-center">
+                      <select value={r.project_id} onChange={(e) => setTareaRows((p) => p.map((x, i) => i === idx ? { ...x, project_id: e.target.value } : x))} className="col-span-3 text-xs border border-stone-300 rounded px-1 py-1">
+                        <option value="">— Proy —</option>
+                        {projects.map((pj) => <option key={pj.id} value={pj.id}>{pj.code}</option>)}
+                      </select>
+                      <input type="text" placeholder="Texto tarea" value={r.texto} onChange={(e) => setTareaRows((p) => p.map((x, i) => i === idx ? { ...x, texto: e.target.value } : x))} className="col-span-6 text-xs border border-stone-300 rounded px-1 py-1" />
+                      <select value={r.prioridad} onChange={(e) => setTareaRows((p) => p.map((x, i) => i === idx ? { ...x, prioridad: e.target.value } : x))} className="col-span-2 text-xs border border-stone-300 rounded px-1 py-1">
+                        <option value="baja">Baja</option>
+                        <option value="media">Media</option>
+                        <option value="alta">Alta</option>
+                        <option value="critica">Crítica</option>
+                      </select>
+                      <button onClick={() => setTareaRows((p) => p.filter((_, i) => i !== idx))} className="col-span-1 text-xs text-red-500 hover:text-red-700">×</button>
+                    </div>
+                  ))}
+                  <button onClick={addTarea} className="text-[10px] uppercase tracking-widest text-emerald-700 hover:text-emerald-900">
+                    + Añadir tarea
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Ausencias */}
+            <div className="border-b border-stone-100">
+              <button
+                onClick={() => setOpenSection(openSection === 'ausencia' ? null : 'ausencia')}
+                className="w-full px-3 py-2 text-left text-xs hover:bg-stone-50 flex items-center justify-between"
+              >
+                <span>🏖️ Ausencias {ausenciaRows.length > 0 && <span className="text-emerald-600 font-semibold">({ausenciaRows.length})</span>}</span>
+                <span className="text-stone-400">{openSection === 'ausencia' ? '−' : '+'}</span>
+              </button>
+              {openSection === 'ausencia' && (
+                <div className="px-3 pb-3 space-y-2">
+                  {ausenciaRows.map((r, idx) => (
+                    <div key={r.id} className="grid grid-cols-12 gap-1 items-center">
+                      <select value={r.employee_id} onChange={(e) => setAusenciaRows((p) => p.map((x, i) => i === idx ? { ...x, employee_id: e.target.value } : x))} className="col-span-4 text-xs border border-stone-300 rounded px-1 py-1">
+                        <option value="">— Trab —</option>
+                        {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nombre}</option>)}
+                      </select>
+                      <select value={r.tipo} onChange={(e) => setAusenciaRows((p) => p.map((x, i) => i === idx ? { ...x, tipo: e.target.value } : x))} className="col-span-4 text-xs border border-stone-300 rounded px-1 py-1">
+                        <option value="vacaciones">Vacaciones</option>
+                        <option value="baja_medica">Baja médica</option>
+                        <option value="permiso_retribuido">Permiso retribuido</option>
+                        <option value="asuntos_propios">Asuntos propios</option>
+                        <option value="ausencia_no_justificada">No justificada</option>
+                        <option value="banco_horas">Banco horas</option>
+                      </select>
+                      <input type="date" value={r.fecha_fin} onChange={(e) => setAusenciaRows((p) => p.map((x, i) => i === idx ? { ...x, fecha_fin: e.target.value } : x))} className="col-span-3 text-xs border border-stone-300 rounded px-1 py-1" />
+                      <button onClick={() => setAusenciaRows((p) => p.filter((_, i) => i !== idx))} className="col-span-1 text-xs text-red-500 hover:text-red-700">×</button>
+                    </div>
+                  ))}
+                  <button onClick={addAusencia} className="text-[10px] uppercase tracking-widest text-emerald-700 hover:text-emerald-900">
+                    + Añadir ausencia
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Festivos */}
+            <div>
+              <button
+                onClick={() => setOpenSection(openSection === 'festivo' ? null : 'festivo')}
+                className="w-full px-3 py-2 text-left text-xs hover:bg-stone-50 flex items-center justify-between"
+              >
+                <span>🇪🇸 Festivos custom {festivoRows.length > 0 && <span className="text-emerald-600 font-semibold">({festivoRows.length})</span>}</span>
+                <span className="text-stone-400">{openSection === 'festivo' ? '−' : '+'}</span>
+              </button>
+              {openSection === 'festivo' && (
+                <div className="px-3 pb-3 space-y-2">
+                  {festivoRows.map((r, idx) => (
+                    <div key={r.id} className="grid grid-cols-12 gap-1 items-center">
+                      <input type="text" placeholder="Nombre festivo" value={r.nombre} onChange={(e) => setFestivoRows((p) => p.map((x, i) => i === idx ? { ...x, nombre: e.target.value } : x))} className="col-span-11 text-xs border border-stone-300 rounded px-1 py-1" />
+                      <button onClick={() => setFestivoRows((p) => p.filter((_, i) => i !== idx))} className="col-span-1 text-xs text-red-500 hover:text-red-700">×</button>
+                    </div>
+                  ))}
+                  <button onClick={addFestivo} className="text-[10px] uppercase tracking-widest text-emerald-700 hover:text-emerald-900">
+                    + Añadir festivo
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ─── LISTA EXISTENTE EVENTOS ─── */}
           {events.length === 0 && (
             <p className="text-sm text-stone-500">Nada programado este día.</p>
           )}
