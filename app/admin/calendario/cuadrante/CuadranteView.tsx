@@ -531,7 +531,7 @@ function AssignmentChip({
       <span className="flex-1 truncate" title={project?.name ?? ''}>{label}</span>
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(assignment.id) }}
-        className="text-[10px] opacity-50 hover:opacity-100 hover:text-red-700"
+        className="text-base font-bold leading-none opacity-60 hover:opacity-100 hover:text-red-700 px-1.5 -mr-1"
         title="Borrar"
       >
         ×
