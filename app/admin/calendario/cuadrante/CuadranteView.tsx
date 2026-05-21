@@ -91,7 +91,27 @@ export default function CuadranteView({
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [shiftDown, setShiftDown] = useState(false)
+  const shiftRef = useRef(false)
   const router = useRouter()
+
+  // Tracking global tecla Shift: Pragmatic DnD `location.current.input` NO
+  // expone shiftKey. Solución: window listeners + ref. Visual hint UI cuando
+  // está presionado para que David sepa "modo copiar activo".
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') { shiftRef.current = true; setShiftDown(true) }
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') { shiftRef.current = false; setShiftDown(false) }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [])
 
   // Project lookup
   const projectMap = useMemo(() => {
@@ -182,8 +202,9 @@ export default function CuadranteView({
 
         // 2. Drag asignación existente → otra celda
         if (sourceData.type === 'assignment') {
-          // Detectar Shift presionado via event modifiers
-          const isCopy = (location.current.input as { shiftKey?: boolean }).shiftKey === true
+          // Shift trackeado vía window keydown/keyup ref (Pragmatic DnD no
+          // expone shiftKey en location.current.input).
+          const isCopy = shiftRef.current
           if (isCopy) {
             if (!sourceData.project_id) {
               showMsg('Asignación sin proyecto — no se puede copiar')
@@ -312,6 +333,12 @@ export default function CuadranteView({
           <button onClick={() => shiftWeek(1)} className="px-3 py-1.5 text-sm hover:bg-stone-50">Semana siguiente ›</button>
         </div>
       </div>
+
+      {shiftDown && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded shadow-lg">
+          ⇧ Modo COPIAR activo · suelta para duplicar
+        </div>
+      )}
 
       {feedback && (
         <div className="mb-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm px-3 py-2 rounded">
