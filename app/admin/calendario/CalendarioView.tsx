@@ -315,7 +315,7 @@ export default function CalendarioView({
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-200 border border-amber-300" /> Inicio plazo impuestos</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-300 border border-stone-400" /> Festivo</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-200 border border-emerald-300" /> Asignación trabajador</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-200 border border-violet-300" /> Tareas/reuniones socios</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-200 border border-violet-300" /> Tareas/reuniones empresa</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-pink-500" /> Ausencia</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500" /> Tarea de obra</span>
       </div>
@@ -860,9 +860,15 @@ function ViewMes({
               {byType.absence > 0 && (
                 <div className="mt-0.5 text-[10px] text-amber-700">🏖️ {byType.absence}</div>
               )}
-              {byType.socio > 0 && (
-                <div className="mt-0.5 text-[10px] text-violet-800 bg-violet-100 rounded px-1 inline-block">👥 {byType.socio} socios</div>
-              )}
+              {socioEvents.map((e, i) => {
+                const hIni = e.payload?.hora_inicio ? String(e.payload.hora_inicio).slice(0, 5) : null
+                const esReunion = String(e.payload?.subtipo ?? '') === 'reunion'
+                return (
+                  <div key={`s-${i}`} className="mt-0.5 text-[10px] text-violet-800 bg-violet-100 rounded px-1 truncate" title={String(e.payload?.texto ?? '')}>
+                    {esReunion ? '🤝' : '📋'} {hIni && <span className="font-mono">{hIni} </span>}{String(e.payload?.texto ?? '')}
+                  </div>
+                )
+              })}
               {byType.reunion > 0 && (
                 <div className="mt-0.5 text-[10px] text-violet-700">🤝 {byType.reunion} reunión{byType.reunion === 1 ? '' : 'es'}</div>
               )}
@@ -976,7 +982,7 @@ function ViewAno({
                   + (isHoliday ? ' · Festivo' : '')
                   + (fLim ? ` · LÍMITE: ${(fiscalByLimit[day.d] ?? []).map((f) => `${f.modelo} ${f.periodo}`).join(', ')}` : '')
                   + (fIni ? ` · Inicio plazo: ${(fiscalByStart[day.d] ?? []).map((f) => `${f.modelo} ${f.periodo}`).join(', ')}` : '')
-                  + (flags?.socio ? ' · Tarea socios' : '')
+                  + (flags?.socio ? ' · Tarea empresa' : '')
                   + (flags?.reunion ? ' · Reunión' : '')
                   + (flags?.task ? ' · Tarea' : '')
                   + (flags?.assignment ? ' · Asignación' : '')
@@ -1273,7 +1279,7 @@ function DrawerDay({
                         {/* Socios (multi) */}
                         {socios.length > 0 && (
                           <div>
-                            <p className="text-[10px] uppercase tracking-widest text-stone-400 mb-1">Socios</p>
+                            <p className="text-[10px] uppercase tracking-widest text-stone-400 mb-1">Empresa</p>
                             <div className="flex flex-wrap gap-1">
                               {socios.map((s) => {
                                 const on = r.socio_user_ids.includes(s.user_id)
