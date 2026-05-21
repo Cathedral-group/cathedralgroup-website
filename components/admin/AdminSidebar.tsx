@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import ActiveCompanyBadge from './ActiveCompanyBadge'
+import { useRegistry } from '@/lib/use-registry'
+import { useUploadQueueCounts } from '@/lib/upload-queue-context'
 
 /* ── Types ── */
 type NavItem = {
@@ -107,15 +109,23 @@ function IconUpload() {
    Items con `children` activan drill-down: al click, la sidebar
    muestra solo los hijos con flecha "← Volver".
    ────────────────────────────────────────────────────────────── */
-const NAV_SECTIONS: NavSection[] = [
+/**
+ * NAV_SECTIONS_STATIC — secciones que NO dependen del registry. Documentos
+ * se inserta dinámicamente desde useRegistry() en el componente.
+ *
+ * Cambios sesión 21/05/2026 noche (Plan A Bloque C):
+ * - Quitada sección "Documentos" estática completa (17 items)
+ * - Quitado "📷 Subir documento" de Principal (movido a Documentos)
+ * - Quitado "Facturas" de Finanzas (movido a Documentos)
+ * - Quitado "Revisión IA" de Sistema (movido a Documentos)
+ * - "Presupuestos" de Comercial (mantenido por flujo comercial, también
+ *   aparece bajo Documentos)
+ */
+const NAV_SECTIONS_STATIC: NavSection[] = [
   {
     label: 'Principal',
     items: [
       { label: 'Dashboard',      href: '/admin',               icon: <IconDashboard /> },
-      {
-        label: '📷 Subir documento', href: '/admin/upload',    icon: <IconUpload />,
-        description: 'Sube facturas, tickets, albaranes desde cámara móvil o drag-drop. OCR automático.',
-      },
       {
         label: 'Calendario',     href: '/admin/calendario',    icon: <IconDashboard />,
         description: 'Qué pasa cada día: asignaciones, ausencias, festivos, tareas, fichajes (día/semana/mes)',
@@ -131,7 +141,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Leads',          href: '/admin/leads',         icon: <IconLeads /> },
       { label: 'Clientes',       href: '/admin/clientes',      icon: <IconClientes /> },
-      { label: 'Presupuestos',   href: '/admin/presupuestos',  icon: <IconPresupuestos /> },
     ],
   },
   {
@@ -142,24 +151,10 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Proveedores',    href: '/admin/proveedores',   icon: <IconProveedores /> },
     ],
   },
+  // [SECCIÓN DOCUMENTOS INYECTADA AQUÍ DINÁMICAMENTE — buildDocumentosSection()]
   {
-    label: 'Finanzas',
+    label: 'Personal',
     items: [
-      {
-        label: 'Facturas',       href: '/admin/facturas',      icon: <IconFacturas />,
-        children: [
-          { label: 'Todas',                href: '/admin/facturas' },
-          { label: 'Emitidas (cobros)',    href: '/admin/facturas?direccion=emitida' },
-          { label: 'Recibidas (pagos)',    href: '/admin/facturas?direccion=recibida' },
-          { label: '— Alertas IA',         href: '#header' },
-          { label: 'Errores',              href: '/admin/facturas?alerta=errores',         badge: 'red',   badgeKey: 'errors' },
-          { label: 'Manuscritos',          href: '/admin/facturas?alerta=manuscritos' },
-          { label: 'Mala calidad imagen',  href: '/admin/facturas?alerta=mala_calidad' },
-          { label: 'Datos dudosos',        href: '/admin/facturas?alerta=datos_dudosos' },
-          { label: 'Fecha sospechosa',     href: '/admin/facturas?alerta=fecha_alerta' },
-          { label: 'Importe sospechoso',   href: '/admin/facturas?alerta=importe_alerta' },
-        ],
-      },
       {
         label: 'Personal',       href: '/admin/personal',      icon: <IconPersonal />,
         badge: 'red', badgeKey: 'personal_total',
@@ -188,61 +183,8 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: 'Documentos',
-    items: [
-      {
-        label: '📂 Todos (hub global)',
-        href: '/admin/documentos',
-        icon: <IconCorporativo />,
-        description: 'Vista cross-doc-type con filtros (facturas + contratos + escrituras + seguros + nóminas + modelos fiscales + etc)',
-      },
-      { label: 'Escrituras',     href: '/admin/documentos/escrituras',  icon: <IconEscrituras /> },
-      { label: 'Contratos',      href: '/admin/documentos/contratos',   icon: <IconContratos /> },
-      { label: 'Licencias',      href: '/admin/documentos/licencias',   icon: <IconLicencias /> },
-      { label: 'Seguros',        href: '/admin/documentos/seguros',     icon: <IconSeguros /> },
-      { label: 'Fiscal',         href: '/admin/documentos/fiscal',      icon: <IconFiscal /> },
-      { label: 'Flota & Gastos', href: '/admin/documentos/flota',       icon: <IconFlota /> },
-      { label: 'Corporativo',    href: '/admin/documentos/corporativo', icon: <IconCorporativo /> },
-      // Tipados: tablas BD dedicadas (multidoctype schema, mayo 2026)
-      { label: 'Contratos (tabla)',       href: '/admin/documentos/tipados/contratos',            icon: <IconContratos />,
-        description: 'Tabla BD contratos: arrendamientos, obra, servicios, suministro, préstamo…' },
-      { label: 'Seguros (pólizas)',       href: '/admin/documentos/tipados/seguros',              icon: <IconSeguros />,
-        description: 'Tabla BD seguros: decenal LOE, RC, multirriesgo, automóvil…' },
-      { label: 'Modelos fiscales',        href: '/admin/documentos/tipados/modelos-fiscales',     icon: <IconFiscal />,
-        description: 'Presentaciones AEAT: 303, 111, 115, 347, 349, 390, 200, 720…' },
-      { label: 'Justificantes de pago',   href: '/admin/documentos/tipados/justificantes-pago',   icon: <IconFacturas />,
-        description: 'Transferencias, recibos, adeudos SEPA, NRC AEAT con conciliación' },
-      { label: 'Albaranes',               href: '/admin/documentos/tipados/albaranes',            icon: <IconProveedores />,
-        description: 'Albaranes proveedores con vínculo a factura' },
-      { label: 'Notas simples',           href: '/admin/documentos/tipados/notas-simples',        icon: <IconEscrituras />,
-        description: 'Notas simples del Registro de la Propiedad' },
-      { label: 'Certificaciones obra',    href: '/admin/documentos/tipados/certificaciones-obra', icon: <IconInformes />,
-        description: 'Certificaciones mensuales: importe origen, retención LOE 5%, % ejecución' },
-      { label: 'Informes / Tasaciones',   href: '/admin/documentos/tipados/informes',             icon: <IconInformes />,
-        description: 'Tasaciones ECO/805, IVA, periciales, due diligence, informes técnicos' },
-    ],
-  },
-  {
     label: 'Sistema',
     items: [
-      {
-        label: 'Revisión IA',    href: '/admin/revision',      icon: <IconRevision />,
-        description: 'Documentos extraídos por IA pendientes de validar manualmente',
-        badge: 'red', badgeKey: 'orphans',
-        children: [
-          { label: 'Todos pendientes',    href: '/admin/revision' },
-          { label: 'Procesados IA',       href: '/admin/revision?cat=procesados_ia' },
-          { label: 'Duplicados',          href: '/admin/revision?cat=duplicados' },
-          { label: 'No legibles',         href: '/admin/revision?cat=no_legibles' },
-          { label: 'Sin clasificar',      href: '/admin/revision?cat=sin_clasificar' },
-          { label: 'Datos incompletos',   href: '/admin/revision?cat=datos_incompletos' },
-          { label: 'Baja confianza',      href: '/admin/revision?cat=baja_confianza' },
-          { label: 'Reenviadas',          href: '/admin/revision?cat=reenviadas' },
-          { label: 'Huérfanos persistentes', href: '/admin/revision?cat=huerfanos_persistentes', badge: 'red', badgeKey: 'orphans' },
-          { label: 'Documentos pendientes', href: '/admin/revision?cat=documentos_pendientes' },
-          { label: 'Resueltos',           href: '/admin/revision?cat=resueltos' },
-        ],
-      },
       {
         label: 'Forensic',       href: '/admin/forensic',      icon: <IconForensic />,
         description: 'Análisis forense anti-fraude: detecta manipulación, duplicados y datos sospechosos',
@@ -280,6 +222,78 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
+/**
+ * Construye sección "📂 Documentos" dinámica leyendo doc_types desde
+ * SSOT registry. Inyectada en posición 3 (entre "Obra & Operaciones" y "Personal").
+ */
+function buildDocumentosSection(
+  docTypes: Array<{ code: string; display_name: string; display_name_plural: string | null; table_name: string; display_order: number; enabled: boolean }> | null,
+  uploadCount: number,
+): NavSection {
+  const children: NavItem[] = [
+    { label: '📂 Todos (hub global)',  href: '/admin/documentos' },
+    {
+      label: uploadCount > 0 ? `📷 Subir documento (${uploadCount})` : '📷 Subir documento',
+      href: '/admin/upload',
+    },
+    {
+      label: 'Revisión IA',
+      href: '/admin/revision',
+      badge: 'red',
+      badgeKey: 'orphans',
+    },
+    { label: 'Forensic anti-fraude',  href: '/admin/forensic' },
+    { label: '— Por tipo —', href: '#header' },
+  ]
+
+  // 19 doc_types desde registry, ordenados por display_order. Si registry no
+  // cargado aún, fallback con tipos canónicos hardcoded.
+  if (docTypes && docTypes.length > 0) {
+    for (const dt of docTypes) {
+      if (!dt.enabled) continue
+      // Map code → ruta destino (hub global con filtro por tipo)
+      children.push({
+        label: dt.display_name_plural || dt.display_name,
+        href: `/admin/documentos?tipo=${dt.code}`,
+      })
+    }
+  } else {
+    // Fallback minimal mientras registry carga
+    children.push(
+      { label: 'Facturas', href: '/admin/facturas' },
+      { label: 'Presupuestos', href: '/admin/presupuestos' },
+      { label: 'Contratos', href: '/admin/documentos?tipo=contrato' },
+      { label: 'Escrituras', href: '/admin/documentos?tipo=escritura' },
+    )
+  }
+
+  return {
+    label: 'Documentos',
+    items: [
+      {
+        label: '📂 Documentos',
+        href: '/admin/documentos',
+        icon: <IconCorporativo />,
+        description: 'Hub global cross-doc-type. Subir, revisar IA, ver todos los tipos desde aquí.',
+        children,
+      },
+    ],
+  }
+}
+
+function buildNavSections(
+  docTypes: Parameters<typeof buildDocumentosSection>[0],
+  uploadCount: number,
+): NavSection[] {
+  // Inserta Documentos entre "Obra & Operaciones" y "Personal"
+  const docSection = buildDocumentosSection(docTypes, uploadCount)
+  return [
+    ...NAV_SECTIONS_STATIC.slice(0, 3),
+    docSection,
+    ...NAV_SECTIONS_STATIC.slice(3),
+  ]
+}
+
 interface AdminSidebarProps {
   isOpen?: boolean
   onToggle?: () => void
@@ -300,11 +314,21 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
   const [expensesPending, setExpensesPending] = useState<number | null>(null)
   const [partesAnomalia, setPartesAnomalia] = useState<number | null>(null)
   const [agentDiagnosesPending, setAgentDiagnosesPending] = useState<number | null>(null)
+
+  // SSOT registry + upload queue counts → genera NAV_SECTIONS dinámico
+  const { registry } = useRegistry()
+  const uploadCounts = useUploadQueueCounts()
+  const NAV_SECTIONS = useMemo(
+    () => buildNavSections(registry?.doc_types ?? null, uploadCounts.total),
+    [registry, uploadCounts.total],
+  )
+
   // Drill-down: label del item padre cuyo árbol estamos mostrando.
   // Inicializado de forma síncrona desde pathname para que en el primer render
   // ya aparezca el drill correcto sin parpadeo.
   const [drillInto, setDrillInto] = useState<string | null>(() => {
-    for (const section of NAV_SECTIONS) {
+    const sections = buildNavSections(null, 0)
+    for (const section of sections) {
       for (const item of section.items) {
         if (item.children && pathname === item.href.split('?')[0]) {
           return item.label
