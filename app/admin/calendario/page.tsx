@@ -69,8 +69,18 @@ export default async function CalendarioPage({
     const offsetEnd = dEnd === 0 ? 0 : 7 - dEnd
     hasta.setDate(hasta.getDate() + offsetEnd)
   }
-  const desdeIso = desde.toISOString().slice(0, 10)
-  const hastaIso = hasta.toISOString().slice(0, 10)
+  // Fix timezone bug sesión 22/05: toISOString() convierte a UTC. Si server
+  // TZ != UTC (ej Vercel runtime CEST), construcciones `new Date(y,m,d)` →
+  // toISOString quedaba 1-2h en UTC menor → slice(0,10) saltaba al día anterior.
+  // Usar getFullYear/Month/Date locales que respetan el constructor.
+  const toLocalISODate = (d: Date): string => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+  const desdeIso = toLocalISODate(desde)
+  const hastaIso = toLocalISODate(hasta)
 
   const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
@@ -99,7 +109,7 @@ export default async function CalendarioPage({
       .limit(100),
   ])
 
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = toLocalISODate(new Date())
   const employees = (employeesRes.data ?? []).filter(
     (e) => !e.fecha_baja || (e.fecha_baja as string) > todayStr,
   ).map((e) => ({ id: e.id, nombre: e.nombre }))
@@ -109,7 +119,7 @@ export default async function CalendarioPage({
       vista={vista}
       desde={desdeIso}
       hasta={hastaIso}
-      refFecha={ref.toISOString().slice(0, 10)}
+      refFecha={toLocalISODate(ref)}
       events={eventsRes.data ?? []}
       employees={employees}
       projects={projectsRes.data ?? []}
