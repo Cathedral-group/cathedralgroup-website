@@ -85,7 +85,24 @@ export default async function CalendarioPage({
   const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
-  const [eventsRes, employeesRes, projectsRes] = await Promise.all([
+  // Para cuadrante embed (vista semana arriba) calculamos rango semana lunes-dom
+  const refForWeek = new Date(ref)
+  const dRefWeek = refForWeek.getDay()
+  const offsetMonWeek = dRefWeek === 0 ? -6 : 1 - dRefWeek
+  const weekStartDate = new Date(refForWeek)
+  weekStartDate.setDate(refForWeek.getDate() + offsetMonWeek)
+  const weekEndDate = new Date(weekStartDate)
+  weekEndDate.setDate(weekStartDate.getDate() + 6)
+  const weekStartIso = toLocalISODate(weekStartDate)
+  const weekEndIso = toLocalISODate(weekEndDate)
+  const weekDaysArr: string[] = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStartDate)
+    d.setDate(weekStartDate.getDate() + i)
+    weekDaysArr.push(toLocalISODate(d))
+  }
+
+  const [eventsRes, employeesRes, projectsRes, assignmentsRes, holidaysRes, absencesRes] = await Promise.all([
     supabase
       .from('calendar_events')
       .select('*')
@@ -101,12 +118,31 @@ export default async function CalendarioPage({
       .order('nombre'),
     supabase
       .from('projects')
-      .select('id, code, name, status')
+      .select('id, code, name, status, address')
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
-      .not('status', 'in', '(cancelado,completado,finalizado)')
+      .not('status', 'eq', 'cancelado')
       .order('code', { ascending: false })
-      .limit(100),
+      .limit(200),
+    // Cuadrante: time_records semana actual
+    supabase
+      .from('time_records')
+      .select('id, employee_id, fecha, project_id, horas_ordinarias, horas_extra')
+      .gte('fecha', weekStartIso)
+      .lte('fecha', weekEndIso),
+    supabase
+      .from('holidays')
+      .select('fecha, nombre, ambito')
+      .eq('company_id', activeCompanyId)
+      .gte('fecha', weekStartIso)
+      .lte('fecha', weekEndIso),
+    supabase
+      .from('worker_absences')
+      .select('employee_id, tipo, fecha_inicio, fecha_fin, status')
+      .eq('company_id', activeCompanyId)
+      .in('status', ['approved', 'pending'])
+      .lte('fecha_inicio', weekEndIso)
+      .gte('fecha_fin', weekStartIso),
   ])
 
   const todayStr = toLocalISODate(new Date())
@@ -122,7 +158,14 @@ export default async function CalendarioPage({
       refFecha={toLocalISODate(ref)}
       events={eventsRes.data ?? []}
       employees={employees}
-      projects={projectsRes.data ?? []}
+      projects={(projectsRes.data ?? []).map((p) => ({
+        id: p.id, code: p.code, name: p.name, status: p.status,
+        address: (p as { address?: string | null }).address ?? null,
+      }))}
+      cuadranteWeekDays={weekDaysArr}
+      cuadranteAssignments={(assignmentsRes.data ?? []) as Array<{ id: string; employee_id: string; fecha: string; project_id: string | null; horas_ordinarias: number | null; horas_extra: number | null }>}
+      cuadranteHolidays={(holidaysRes.data ?? []) as Array<{ fecha: string; nombre: string; ambito: string }>}
+      cuadranteAbsences={(absencesRes.data ?? []) as Array<{ employee_id: string; tipo: string; fecha_inicio: string; fecha_fin: string; status: string }>}
     />
   )
 }

@@ -13,6 +13,7 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
+import CuadranteView from './cuadrante/CuadranteView'
 
 interface CalendarEvent {
   fecha: string
@@ -37,6 +38,24 @@ interface Project {
   code: string
   name: string | null
   status: string | null
+  address?: string | null
+}
+
+interface CuadranteAssignment {
+  id: string
+  employee_id: string
+  fecha: string
+  project_id: string | null
+  horas_ordinarias: number | null
+  horas_extra: number | null
+}
+interface CuadranteHoliday { fecha: string; nombre: string; ambito: string }
+interface CuadranteAbsence {
+  employee_id: string
+  tipo: string
+  fecha_inicio: string
+  fecha_fin: string
+  status: string
 }
 
 interface Props {
@@ -47,6 +66,10 @@ interface Props {
   events: CalendarEvent[]
   employees: Employee[]
   projects: Project[]
+  cuadranteWeekDays?: string[]
+  cuadranteAssignments?: CuadranteAssignment[]
+  cuadranteHolidays?: CuadranteHoliday[]
+  cuadranteAbsences?: CuadranteAbsence[]
 }
 
 const EVENT_ICONS: Record<CalendarEvent['event_type'], string> = {
@@ -99,6 +122,7 @@ const DAY_NAMES = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
 
 export default function CalendarioView({
   vista, desde, hasta, refFecha, events, employees, projects,
+  cuadranteWeekDays, cuadranteAssignments, cuadranteHolidays, cuadranteAbsences,
 }: Props) {
   void projects // pueden usarse para filtros futuros
   const router = useRouter()
@@ -262,6 +286,24 @@ export default function CalendarioView({
         )
         return (
           <>
+            {/* Cuadrante semanal embed ARRIBA del todo (feedback David sesión 22/05 noche) */}
+            {cuadranteWeekDays && cuadranteAssignments && cuadranteHolidays && cuadranteAbsences && (
+              <div className="mb-8">
+                <CuadranteView
+                  refFecha={refFecha}
+                  weekDays={cuadranteWeekDays}
+                  employees={employees.map((e) => ({ id: e.id, nombre: e.nombre ?? '—' }))}
+                  projects={projects.map((p) => ({
+                    id: p.id, code: p.code, name: p.name, status: p.status,
+                    address: p.address ?? null,
+                  }))}
+                  assignments={cuadranteAssignments}
+                  holidays={cuadranteHolidays}
+                  absences={cuadranteAbsences}
+                  today={todayStr}
+                />
+              </div>
+            )}
             {/* Día (refFecha) arriba */}
             <div>
               <div className="flex items-center mb-2">
