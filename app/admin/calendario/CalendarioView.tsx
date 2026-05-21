@@ -304,6 +304,18 @@ export default function CalendarioView({
         </span>
       </div>
 
+      {/* Leyenda de colores */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-stone-600">
+        <span className="text-stone-400 uppercase tracking-widest">Colores:</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200 border border-red-300" /> Límite impuestos</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-200 border border-amber-300" /> Inicio plazo impuestos</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-300 border border-stone-400" /> Festivo</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-200 border border-emerald-300" /> Asignación trabajador</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-200 border border-violet-300" /> Tareas/reuniones socios</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-pink-500" /> Ausencia</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500" /> Tarea de obra</span>
+      </div>
+
       {/* Vista */}
       {vista === 'dia' && (
         <ViewDia
