@@ -198,6 +198,14 @@ export default function UploadView(_props: Props) {
         const err = await res.json()
         if (err?.error) errMsg = err.error
       } catch {}
+      // Traducir errores BD a mensajes amigables castellano.
+      if (/uq_admin_uploads_company_hash|duplicate key.*hash/i.test(errMsg)) {
+        errMsg = 'Archivo duplicado — ya está en la base de datos (mismo contenido).'
+      } else if (/duplicate key/i.test(errMsg)) {
+        errMsg = 'Archivo duplicado — registro ya existe.'
+      } else if (/file_hash|sha256/i.test(errMsg)) {
+        errMsg = 'Archivo duplicado detectado por hash SHA-256.'
+      }
       throw new Error(errMsg)
     }
     return res.json()
