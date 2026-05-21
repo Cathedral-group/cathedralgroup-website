@@ -68,12 +68,12 @@ export default async function CuadrantePage({
       .order('nombre'),
     supabase
       .from('projects')
-      .select('id, code, name, status')
+      .select('id, code, name, status, address')
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
-      .not('status', 'in', '(cancelado,completado,finalizado)')
+      .not('status', 'eq', 'cancelado')
       .order('code', { ascending: false })
-      .limit(100),
+      .limit(200),
     supabase
       .from('time_records')
       .select('id, employee_id, fecha, project_id, horas_ordinarias, horas_extra')
@@ -109,6 +109,7 @@ export default async function CuadrantePage({
         code: p.code,
         name: p.name,
         status: p.status,
+        address: (p as { address?: string | null }).address ?? null,
       }))}
       assignments={(assignmentsRes.data ?? []) as Array<{
         id: string

@@ -20,7 +20,7 @@ import Link from 'next/link'
 import { draggable, dropTargetForElements, monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 
 interface Employee { id: string; nombre: string }
-interface Project { id: string; code: string; name: string | null; status: string | null }
+interface Project { id: string; code: string; name: string | null; status: string | null; address: string | null }
 interface Assignment {
   id: string
   employee_id: string
@@ -198,6 +198,19 @@ export default function CuadranteView({
   }, [holidayByDate, absenceMap])
 
   async function createAssignment(employee_id: string, fecha: string, project_id: string) {
+    // Optimistic update: añadir asignación local con id temporal antes del POST.
+    // Si POST falla → rollback. Si OK → router.refresh substituirá con id real.
+    const tempId = `temp-${Math.random().toString(36).slice(2)}`
+    const optimistic: Assignment = {
+      id: tempId,
+      employee_id,
+      fecha,
+      project_id,
+      horas_ordinarias: 8,
+      horas_extra: null,
+    }
+    setAssignments((prev) => [...prev, optimistic])
+
     try {
       const res = await fetch('/api/admin/calendario/batch', {
         method: 'POST',
@@ -209,12 +222,16 @@ export default function CuadranteView({
       })
       const json = await res.json()
       if (!res.ok || !json.ok) {
+        // Rollback optimistic
+        setAssignments((prev) => prev.filter((a) => a.id !== tempId))
         showMsg(`Error: ${json.error || 'no se creó'}`)
         return
       }
       showMsg(`✓ Asignado ${projectMap[project_id]?.code ?? ''}`)
       router.refresh()
-    } catch (e) {
+    } catch {
+      // Rollback en error red
+      setAssignments((prev) => prev.filter((a) => a.id !== tempId))
       showMsg('Error red al crear')
     }
   }
@@ -413,13 +430,15 @@ function DraggableProject({ project }: { project: Project }) {
   }, [project.id])
 
   const color = projectColor(project.id)
+  const displayLine = project.address || project.name || project.code
   return (
     <li
       ref={ref}
       className={`${color} border rounded px-2 py-1.5 cursor-grab text-xs select-none ${dragging ? 'opacity-40' : ''}`}
+      title={project.name ?? ''}
     >
-      <div className="font-mono font-semibold">{project.code}</div>
-      <div className="text-[10px] truncate opacity-70">{project.name ?? ''}</div>
+      <div className="text-sm font-medium leading-tight">{displayLine}</div>
+      <div className="text-[10px] font-mono opacity-60 mt-0.5">{project.code}</div>
     </li>
   )
 }
