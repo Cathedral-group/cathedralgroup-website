@@ -144,9 +144,21 @@ export default function CalendarioView({
   cuadranteWeekDays, cuadranteAssignments, cuadranteHolidays, cuadranteAbsences,
   yearHolidays = [], fiscalEntries = [],
 }: Props) {
-  void projects // pueden usarse para filtros futuros
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Dirección+número como etiqueta de proyecto (feedback David: en el panel
+  // siempre la dirección, no el código). Fallback a code si no hay address.
+  const projectsById = useMemo(() => {
+    const m: Record<string, Project> = {}
+    for (const p of projects) m[p.id] = p
+    return m
+  }, [projects])
+  const projLabel = (id: string | null | undefined, fallbackCode?: string | null): string => {
+    if (!id) return fallbackCode ?? ''
+    const p = projectsById[id]
+    return p?.address || p?.name || p?.code || fallbackCode || ''
+  }
 
   const [layers, setLayers] = useState({
     assignment: true,
@@ -359,6 +371,7 @@ export default function CalendarioView({
                 today={todayStr}
                 onClickDay={(d) => setDrawerDay(d)}
                 projects={projects}
+                projLabel={projLabel}
                 fiscalByStart={fiscalByStart}
                 fiscalByLimit={fiscalByLimit}
               />
@@ -377,6 +390,7 @@ export default function CalendarioView({
                 refFecha={refFecha}
                 today={todayStr}
                 onClickDay={(d) => setDrawerDay(d)}
+                projLabel={projLabel}
                 fiscalByStart={fiscalByStart}
                 fiscalByLimit={fiscalByLimit}
               />
@@ -409,6 +423,7 @@ export default function CalendarioView({
           refFecha={refFecha}
           today={todayStr}
           onClickDay={(d) => setDrawerDay(d)}
+          projLabel={projLabel}
           fiscalByStart={fiscalByStart}
           fiscalByLimit={fiscalByLimit}
         />
@@ -517,7 +532,7 @@ function ViewDia({
 /* ───────── Vista Semana ───────── */
 
 function ViewSemana({
-  days, employees, matrix, eventsByDay, today, onClickDay, projects,
+  days, employees, matrix, eventsByDay, today, onClickDay, projects, projLabel,
   fiscalByStart = {}, fiscalByLimit = {},
 }: {
   days: string[]
@@ -527,6 +542,7 @@ function ViewSemana({
   today: string
   onClickDay: (d: string) => void
   projects: Project[]
+  projLabel: (id: string | null | undefined, fallbackCode?: string | null) => string
   fiscalByStart?: Record<string, FiscalEntry[]>
   fiscalByLimit?: Record<string, FiscalEntry[]>
 }) {
@@ -626,7 +642,7 @@ function ViewSemana({
                       isToday ? 'bg-emerald-50/30' : ''
                     }`}
                   >
-                    <CellContent events={cellEvents} />
+                    <CellContent events={cellEvents} projLabel={projLabel} />
                   </td>
                 )
               })}
@@ -638,7 +654,12 @@ function ViewSemana({
   )
 }
 
-function CellContent({ events }: { events: CalendarEvent[] }) {
+function CellContent({
+  events, projLabel,
+}: {
+  events: CalendarEvent[]
+  projLabel: (id: string | null | undefined, fallbackCode?: string | null) => string
+}) {
   if (events.length === 0) return <span className="text-[10px] text-stone-300">—</span>
 
   const assignment = events.find((e) => e.event_type === 'assignment')
@@ -654,8 +675,8 @@ function CellContent({ events }: { events: CalendarEvent[] }) {
         </div>
       )}
       {assignment && (
-        <div className="text-[10px] font-mono truncate">
-          👷 {assignment.project_code}
+        <div className="text-[10px] truncate" title={projLabel(assignment.project_id, assignment.project_code)}>
+          👷 {projLabel(assignment.project_id, assignment.project_code)}
         </div>
       )}
       {timeRec && (
@@ -682,7 +703,7 @@ function CellContent({ events }: { events: CalendarEvent[] }) {
 /* ───────── Vista Mes ───────── */
 
 function ViewMes({
-  days, eventsByDay, refFecha, today, onClickDay,
+  days, eventsByDay, refFecha, today, onClickDay, projLabel,
   fiscalByStart = {}, fiscalByLimit = {},
 }: {
   days: string[]
@@ -690,6 +711,7 @@ function ViewMes({
   refFecha: string
   today: string
   onClickDay: (d: string) => void
+  projLabel: (id: string | null | undefined, fallbackCode?: string | null) => string
   fiscalByStart?: Record<string, FiscalEntry[]>
   fiscalByLimit?: Record<string, FiscalEntry[]>
 }) {
@@ -718,10 +740,10 @@ function ViewMes({
           }
           const flim = fiscalByLimit[d] ?? []
           const fini = fiscalByStart[d] ?? []
-          // Proyectos únicos del día
+          // Proyectos únicos del día (dirección, no código)
           const projectsToday = new Set<string>()
           for (const e of dayEvents) {
-            if (e.project_code) projectsToday.add(e.project_code)
+            if (e.project_id) projectsToday.add(projLabel(e.project_id, e.project_code))
           }
           // Prioridad fondo: fiscal límite > fiscal inicio > festivo > hoy > otro mes
           const cellBg = isOtherMonth
@@ -1292,10 +1314,12 @@ function DrawerDay({
 
           {Object.entries(groups.byProject).map(([projId, evs]) => {
             const ref = evs.find((e) => e.project_code)
+            const projObj = projects.find((p) => p.id === projId)
+            const projTitle = projObj?.address || ref?.project_name || ref?.project_code || ''
             return (
               <section key={projId}>
                 <h3 className="text-[10px] uppercase tracking-widest text-stone-500 mb-1">
-                  👷 {ref?.project_code} {ref?.project_name && `— ${ref.project_name}`}
+                  👷 {projTitle}
                 </h3>
                 <ul className="space-y-1 text-sm">
                   {evs.map((e, i) => (
