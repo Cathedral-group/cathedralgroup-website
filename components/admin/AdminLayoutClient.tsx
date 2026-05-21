@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminSidebar from './AdminSidebar'
 import NotificationBell from './NotificationBell'
+import UploadQueueFloater from './UploadQueueFloater'
+import { UploadQueueProvider } from '@/lib/upload-queue-context'
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -40,7 +42,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   const toggleSidebar = () => setSidebarOpen((prev) => !prev)
 
   return (
-    <>
+    <UploadQueueProvider>
       <AdminSidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
 
       {/* Mobile top bar with hamburger */}
@@ -81,6 +83,9 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
       <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-8 md:ml-56">
         {children}
       </main>
-    </>
+
+      {/* Floater cola upload — visible cross-page cuando hay items */}
+      <UploadQueueFloater />
+    </UploadQueueProvider>
   )
 }
