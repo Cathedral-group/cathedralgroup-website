@@ -125,30 +125,48 @@ const NAV_SECTIONS_STATIC: NavSection[] = [
   {
     label: 'Principal',
     items: [
-      { label: 'Dashboard',      href: '/admin',               icon: <IconDashboard /> },
+      {
+        label: 'Dashboard',      href: '/admin',               icon: <IconDashboard />,
+        description: 'Vista general del negocio: ingresos, gastos, alertas y métricas clave',
+      },
       {
         label: 'Calendario',     href: '/admin/calendario',    icon: <IconDashboard />,
-        description: 'Qué pasa cada día: asignaciones, ausencias, festivos, tareas, fichajes (día/semana/mes)',
+        description: 'Qué pasa cada día: asignaciones, ausencias, festivos, tareas, fichajes',
       },
       {
         label: 'Grupo',          href: '/admin/grupo',         icon: <IconCorporativo />,
-        description: 'Empresas del grupo (multi-SL): Cathedral House Investment + futuras SL hermanas',
+        description: 'Empresas del grupo (multi-SL) y sociedades hermanas',
       },
     ],
   },
   {
     label: 'Comercial',
     items: [
-      { label: 'Leads',          href: '/admin/leads',         icon: <IconLeads /> },
-      { label: 'Clientes',       href: '/admin/clientes',      icon: <IconClientes /> },
+      {
+        label: 'Leads',          href: '/admin/leads',         icon: <IconLeads />,
+        description: 'Oportunidades comerciales captadas (web, llamadas, referidos)',
+      },
+      {
+        label: 'Clientes',       href: '/admin/clientes',      icon: <IconClientes />,
+        description: 'Cartera de clientes activos con histórico de contratos',
+      },
     ],
   },
   {
     label: 'Obra & Operaciones',
     items: [
-      { label: 'Proyectos',      href: '/admin/proyectos',     icon: <IconProyectos /> },
-      { label: 'Operaciones',    href: '/admin/operaciones',   icon: <IconOperaciones /> },
-      { label: 'Proveedores',    href: '/admin/proveedores',   icon: <IconProveedores /> },
+      {
+        label: 'Proyectos',      href: '/admin/proyectos',     icon: <IconProyectos />,
+        description: 'Proyectos activos: obras, reformas, promociones',
+      },
+      {
+        label: 'Operaciones',    href: '/admin/operaciones',   icon: <IconOperaciones />,
+        description: 'Compraventa, alquiler, flipping y operaciones inmobiliarias',
+      },
+      {
+        label: 'Proveedores',    href: '/admin/proveedores',   icon: <IconProveedores />,
+        description: 'Listado proveedores, NIF y datos bancarios',
+      },
     ],
   },
   // [SECCIÓN DOCUMENTOS INYECTADA AQUÍ DINÁMICAMENTE — buildDocumentosSection()]
@@ -175,10 +193,13 @@ const NAV_SECTIONS_STATIC: NavSection[] = [
           { label: 'Prevención (PRL)',            href: '/admin/personal?seccion=prl' },
         ],
       },
-      { label: 'Informes',       href: '/admin/informes',      icon: <IconInformes /> },
+      {
+        label: 'Informes',       href: '/admin/informes',      icon: <IconInformes />,
+        description: 'Informes de gestión: pérdidas y ganancias, costes proyectos, márgenes',
+      },
       {
         label: 'Fiscal AEAT',    href: '/admin/fiscal',        icon: <IconFiscal />,
-        description: 'Calendario AEAT + generador automático borradores 303/111 desde invoices',
+        description: 'Calendario AEAT + generador automático borradores 303 y 111',
       },
     ],
   },
@@ -215,9 +236,18 @@ const NAV_SECTIONS_STATIC: NavSection[] = [
           { label: 'Registry (SSOT)',     href: '/admin/sistema/registry' },
         ],
       },
-      { label: 'Archivo',        href: '/admin/archivo',       icon: <IconArchivo /> },
-      { label: 'Papelera',       href: '/admin/papelera',      icon: <IconPapelera /> },
-      { label: 'Configuración',  href: '/admin/configuracion', icon: <IconConfiguracion /> },
+      {
+        label: 'Archivo',        href: '/admin/archivo',       icon: <IconArchivo />,
+        description: 'Histórico documentos cerrados o archivados (consulta solo)',
+      },
+      {
+        label: 'Papelera',       href: '/admin/papelera',      icon: <IconPapelera />,
+        description: 'Documentos eliminados recientemente, recuperables 30 días',
+      },
+      {
+        label: 'Configuración',  href: '/admin/configuracion', icon: <IconConfiguracion />,
+        description: 'Ajustes generales del sistema, integraciones y permisos',
+      },
     ],
   },
 ]
@@ -622,7 +652,7 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
                           onToggle()
                         }
                       }}
-                      className={`flex items-start gap-2.5 px-5 py-2.5 text-sm transition-colors ${
+                      className={`flex items-start gap-2.5 px-5 py-2.5 text-sm transition-colors border-b border-neutral-100 ${
                         active && !hasChildren
                           ? 'bg-primary/8 text-primary font-semibold border-r-2 border-primary'
                           : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
@@ -715,7 +745,7 @@ export default function AdminSidebar({ isOpen = false, onToggle }: AdminSidebarP
                           onToggle()
                         }
                       }}
-                      className={`flex items-center gap-2 px-5 py-2 text-sm transition-colors ${
+                      className={`flex items-center gap-2 px-5 py-2 text-sm transition-colors border-b border-neutral-100 ${
                         childActive
                           ? 'bg-primary/8 text-primary font-semibold border-r-2 border-primary'
                           : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'

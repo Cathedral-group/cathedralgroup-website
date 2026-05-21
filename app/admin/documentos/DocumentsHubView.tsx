@@ -724,8 +724,9 @@ export default function DocumentsHubView({
         </div>
       </div>
 
-      {/* ─── 5 KPI cards ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+      {/* ─── 4 KPI cards (quitado "Contraparte top mes" por feedback David
+              sesión 21/05: confuso con 1 solo doc por contraparte) ─── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <KpiCard label="Total documentos" value={String(kpis.total)} />
         <KpiCard
           label="Pendientes revisar"
@@ -738,7 +739,6 @@ export default function DocumentsHubView({
           value={kpis.tipoTopLabel}
           hint={`${kpis.tipoTopCount} doc${kpis.tipoTopCount === 1 ? '' : 's'}`}
         />
-        <KpiCard label="Contraparte top mes" value={kpis.partyTopName || '—'} hint={formatEur(kpis.partyTopSum)} />
       </div>
 
       {/* ─── Layout sidebar izquierda + main ─── */}
@@ -961,30 +961,16 @@ export default function DocumentsHubView({
 
         {/* ──────────── MAIN ──────────── */}
         <section className="space-y-4">
-          {/* Quick filters horizontales + búsqueda */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {QUICK_FILTERS.map((qf) => (
-              <button
-                key={qf.value}
-                onClick={() => setF('quickFilter', qf.value)}
-                className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 transition-colors ${
-                  filters.quickFilter === qf.value
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400'
-                }`}
-              >
-                {qf.label}
-              </button>
-            ))}
-            <div className="ml-auto w-full sm:w-auto">
-              <input
-                type="search"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Buscar filename, número, contraparte..."
-                className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-80"
-              />
-            </div>
+          {/* Búsqueda sola (quick filter chips arriba quitados por feedback David
+              sesión 21/05: duplicaban filtros del sidebar izquierda) */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Buscar filename, número, contraparte..."
+              className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm w-full sm:w-80"
+            />
           </div>
 
           {filteredTotal != null && (
