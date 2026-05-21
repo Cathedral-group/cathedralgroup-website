@@ -75,12 +75,21 @@ function fmtDateLong(s: string): string {
   })
 }
 
+// Fix timezone bug sesión 22/05: toISOString() convierte a UTC, en Madrid
+// (UTC+1/+2) días local 00:00 → UTC día anterior 23:00. Usar formato local.
+function toLocalISODate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function daysBetween(desde: string, hasta: string): string[] {
   const out: string[] = []
   const d = new Date(desde + 'T00:00:00')
   const end = new Date(hasta + 'T00:00:00')
   while (d <= end) {
-    out.push(d.toISOString().slice(0, 10))
+    out.push(toLocalISODate(d))
     d.setDate(d.getDate() + 1)
   }
   return out
@@ -105,7 +114,7 @@ export default function CalendarioView({
   const [drawerDay, setDrawerDay] = useState<string | null>(null)
 
   const days = useMemo(() => daysBetween(desde, hasta), [desde, hasta])
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = toLocalISODate(new Date())
 
   // Agrupar eventos por día
   const eventsByDay = useMemo(() => {
@@ -145,7 +154,7 @@ export default function CalendarioView({
     if (vista === 'dia') ref.setDate(ref.getDate() + direction)
     else if (vista === 'semana') ref.setDate(ref.getDate() + 7 * direction)
     else ref.setMonth(ref.getMonth() + direction)
-    goTo(ref.toISOString().slice(0, 10))
+    goTo(toLocalISODate(ref))
   }
 
   return (
@@ -184,7 +193,7 @@ export default function CalendarioView({
           <div className="inline-flex rounded border border-stone-300 overflow-hidden">
             <button onClick={() => nav(-1)} className="px-2 py-1.5 text-sm hover:bg-stone-50">‹</button>
             <button
-              onClick={() => goTo(new Date().toISOString().slice(0, 10))}
+              onClick={() => goTo(toLocalISODate(new Date()))}
               className="px-3 py-1.5 text-xs uppercase tracking-widest hover:bg-stone-50"
             >
               Hoy
@@ -245,7 +254,7 @@ export default function CalendarioView({
         for (let i = 0; i < 7; i++) {
           const d = new Date(weekStart)
           d.setDate(weekStart.getDate() + i)
-          weekDays.push(d.toISOString().slice(0, 10))
+          weekDays.push(toLocalISODate(d))
         }
         return (
           <>
@@ -593,6 +602,16 @@ function ViewAno({
   const monthLabels = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const dayHeaders = ['L','M','X','J','V','S','D']
 
+  // Fix timezone bug sesión 22/05: toISOString() convierte a UTC, en Madrid
+  // (UTC+1/+2) días local 00:00 → UTC día anterior 23:00 → slice(0,10)
+  // devolvía fecha errónea. Usar formato local YYYY-MM-DD manual.
+  function toLocalISODate(d: Date): string {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
   function buildMonthDays(year: number, month: number): Array<{ d: string; otherMonth: boolean }> {
     const first = new Date(year, month, 1)
     const last = new Date(year, month + 1, 0)
@@ -609,7 +628,7 @@ function ViewAno({
     const cursor = new Date(start)
     while (cursor <= end) {
       out.push({
-        d: cursor.toISOString().slice(0, 10),
+        d: toLocalISODate(cursor),
         otherMonth: cursor.getMonth() !== month,
       })
       cursor.setDate(cursor.getDate() + 1)
