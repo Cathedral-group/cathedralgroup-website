@@ -23,7 +23,7 @@ const CSP_HEADER = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
-  "frame-src 'self' https://challenges.cloudflare.com",
+  "frame-src 'self' https://challenges.cloudflare.com https://drive.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

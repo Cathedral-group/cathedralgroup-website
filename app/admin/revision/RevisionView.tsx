@@ -279,6 +279,33 @@ function ConfidenceBadge({ confidence }: { confidence: number | null }) {
   return <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${color}`}>{pct}%</span>
 }
 
+function DocumentPreview({ drive_url, filename }: { drive_url: string | null | undefined; filename?: string | null }) {
+  if (!drive_url) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded p-4 text-center">
+        <p className="text-amber-800 text-sm font-medium">⚠ Pendiente subida a Drive</p>
+        <p className="text-xs text-amber-600 mt-1">{filename || 'Sin archivo'}</p>
+        <p className="text-[10px] text-amber-500 mt-2">El workflow no completó la subida. Revisar logs n8n.</p>
+      </div>
+    )
+  }
+  const previewUrl = drive_url.replace(/\/view(\?.*)?$/, '/preview')
+  return (
+    <div className="space-y-2">
+      <iframe
+        src={previewUrl}
+        className="w-full h-[400px] md:h-[600px] border border-neutral-200 rounded bg-neutral-50"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+        title={filename || 'Preview documento'}
+      />
+      <a href={drive_url} target="_blank" rel="noopener noreferrer"
+         className="block text-xs text-blue-600 hover:underline text-right">
+        Abrir en Drive (nueva pestaña) ↗
+      </a>
+    </div>
+  )
+}
+
 function ReviewBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     pendiente: 'bg-amber-100 text-amber-700',
@@ -1112,6 +1139,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
               <button onClick={() => setSelectedDoc(null)} className="text-neutral-400 hover:text-neutral-600 text-xl">&times;</button>
             </div>
             <div className="p-4 space-y-4 text-sm">
+              <DocumentPreview drive_url={selectedDoc.drive_url as string | null} filename={selectedDoc.original_filename as string | null} />
               {(selectedDoc.resumen_ia as string | undefined) && (
                 <div className="bg-blue-50 border border-blue-200 rounded p-3">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-1">Resumen IA</p>
@@ -1122,9 +1150,6 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 <div><span className="text-neutral-400">Confianza:</span> <ConfidenceBadge confidence={selectedDoc.ai_confidence} /></div>
                 <div><span className="text-neutral-400">Origen:</span> {selectedDoc.source as string || '--'}</div>
                 <div className="col-span-2 break-all"><span className="text-neutral-400">Original:</span> {selectedDoc.original_filename as string || '--'}</div>
-                {(selectedDoc.drive_url as string | undefined) && (
-                  <div className="col-span-2"><a href={selectedDoc.drive_url as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver en Google Drive →</a></div>
-                )}
               </div>
               {(selectedDoc.datos_extraidos as object | undefined) && (
                 <details className="bg-neutral-50 rounded p-3">
@@ -1233,6 +1258,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
             </div>
 
             <div className="p-4 space-y-4 text-sm">
+              <DocumentPreview drive_url={selectedQuote.drive_url} filename={selectedQuote.original_filename} />
               {selectedQuote.resumen_ia && (
                 <div className="bg-blue-50 border border-blue-200 rounded p-3">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-1">Resumen IA</p>
@@ -1243,10 +1269,6 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
               <div className="bg-neutral-50 rounded-lg p-3">
                 <p className="text-xs text-neutral-500 mb-1">Archivo original</p>
                 <p className="text-sm font-mono break-all">{selectedQuote.original_filename || 'Sin nombre'}</p>
-                {selectedQuote.drive_url && (
-                  <a href={selectedQuote.drive_url} target="_blank" rel="noopener noreferrer"
-                    className="inline-block mt-2 text-xs text-blue-600 hover:underline">Ver en Google Drive →</a>
-                )}
               </div>
 
               {/* Líneas */}
@@ -1406,6 +1428,9 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
 
             <div className="p-4 space-y-4">
 
+              {/* Vista previa documento Drive */}
+              <DocumentPreview drive_url={selected.drive_url} filename={selected.original_filename} />
+
               {/* Resumen IA — bloque destacado */}
               {ai?.resumen_ia && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -1460,16 +1485,10 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                 )
               })()}
 
-              {/* File info */}
+              {/* File info (link Drive ya está en DocumentPreview arriba) */}
               <div className="bg-neutral-50 rounded-lg p-3">
                 <p className="text-xs text-neutral-500 mb-1">Archivo original</p>
                 <p className="text-sm font-mono break-all">{selected.original_filename || 'Sin nombre'}</p>
-                {selected.drive_url && (
-                  <a href={selected.drive_url} target="_blank" rel="noopener noreferrer"
-                    className="inline-block mt-2 text-xs text-blue-600 hover:underline">
-                    Ver en Google Drive &rarr;
-                  </a>
-                )}
               </div>
 
               {/* AI extraction — datos completos */}
