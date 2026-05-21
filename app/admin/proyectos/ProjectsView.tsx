@@ -576,14 +576,14 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
   }
 
   async function createProject() {
-    if (!newForm.code || !newForm.name) return
+    if (!newForm.name) return
     setSavingNew(true)
     try {
+      // No enviamos code: el trigger projects_autocode lo genera (PREFIJO-AÑO-NNN)
       const res = await fetch('/api/db/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          code: newForm.code,
           name: newForm.name,
           type: newForm.type || null,
           status: newForm.status,
@@ -982,8 +982,10 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
           <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-4">Nuevo proyecto</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
             <div>
-              <label className={labelCls}>Código *</label>
-              <input value={newForm.code} onChange={e => setNewForm({...newForm, code: e.target.value})} className={inputCls} placeholder="Ej: MAD-2026-001" />
+              <label className={labelCls}>Código</label>
+              <div className={`${inputCls} bg-neutral-50 text-neutral-400 flex items-center`}>
+                Se asigna automático
+              </div>
             </div>
             <div>
               <label className={labelCls}>Nombre *</label>
@@ -1151,7 +1153,7 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
           <div className="flex gap-3">
             <button
               onClick={createProject}
-              disabled={savingNew || !newForm.code || !newForm.name}
+              disabled={savingNew || !newForm.name}
               className="bg-neutral-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-widest hover:bg-primary transition-colors disabled:opacity-50"
             >
               {savingNew ? '...' : 'Crear proyecto'}
