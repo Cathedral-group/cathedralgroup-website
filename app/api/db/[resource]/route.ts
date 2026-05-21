@@ -79,6 +79,12 @@ const SOFT_DELETE_TABLES = new Set([
   'time_records', 'vacation_records', 'leave_permits', 'overtime_records',
   'it_leaves', 'finiquitos', 'tax_filings', 'ss_filings',
   'prl_documents', 'equality_pay_register', 'collective_agreements',
+  // ─── Tipados multi-doc-type (sesión 19-20/05 + Plan A 21/05) ──
+  'contratos', 'escrituras', 'presupuestos', 'certificados', 'certificaciones_obra',
+  'seguros', 'licencias', 'modelos_fiscales', 'justificantes_pago',
+  'albaranes', 'notas_simples', 'informes', 'documentos_otros',
+  // ─── SSOT registry (sesión 21/05) ─────────────────────────────
+  'parties', 'properties',
 ])
 
 // Map URL segment to actual table name
@@ -118,6 +124,23 @@ function tableFor(resource: string): string | null {
     'prl-documents': 'prl_documents',
     'equality-pay-register': 'equality_pay_register',
     'collective-agreements': 'collective_agreements',
+    // ─── Tipados multi-doc-type (sesión 19-20/05 + Plan A 21/05) ──
+    contratos: 'contratos',
+    escrituras: 'escrituras',
+    presupuestos: 'presupuestos',
+    certificados: 'certificados',
+    'certificaciones-obra': 'certificaciones_obra',
+    seguros: 'seguros',
+    licencias: 'licencias',
+    'modelos-fiscales': 'modelos_fiscales',
+    'justificantes-pago': 'justificantes_pago',
+    albaranes: 'albaranes',
+    'notas-simples': 'notas_simples',
+    informes: 'informes',
+    'documentos-otros': 'documentos_otros',
+    // ─── SSOT registry (sesión 21/05) ─────────────────────────────
+    parties: 'parties',
+    properties: 'properties',
   }
   return map[resource] ?? null
 }
