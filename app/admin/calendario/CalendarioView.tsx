@@ -689,9 +689,14 @@ function CellContent({
       )}
       {tasks.map((t, i) => {
         const subtipo = String(t.payload?.subtipo ?? 'tarea')
+        const esSocio = String(t.payload?.tipo ?? '') === 'interna_socio'
         const hIni = t.payload?.hora_inicio ? String(t.payload.hora_inicio).slice(0, 5) : null
         return (
-          <div key={i} className={`text-[10px] truncate ${subtipo === 'reunion' ? 'text-violet-700' : 'text-blue-600'}`} title={String(t.payload?.texto ?? '')}>
+          <div
+            key={i}
+            className={`text-[10px] truncate ${esSocio ? 'bg-violet-100 text-violet-800 rounded px-1' : subtipo === 'reunion' ? 'text-violet-700' : 'text-blue-600'}`}
+            title={String(t.payload?.texto ?? '')}
+          >
             {subtipo === 'reunion' ? '🤝' : '📋'} {hIni && <span className="font-mono">{hIni} </span>}{String(t.payload?.texto ?? '')}
           </div>
         )
@@ -731,11 +736,14 @@ function ViewMes({
           const isOtherMonth = date.getMonth() !== refMonth
           const dayEvents = eventsByDay[d] ?? []
           const taskEvents = dayEvents.filter((e) => e.event_type === 'task')
+          const socioEvents = taskEvents.filter((e) => String(e.payload?.tipo ?? '') === 'interna_socio')
+          const noSocio = taskEvents.filter((e) => String(e.payload?.tipo ?? '') !== 'interna_socio')
           const byType = {
             assignment: dayEvents.filter((e) => e.event_type === 'assignment').length,
             absence: dayEvents.filter((e) => e.event_type === 'absence').length,
-            task: taskEvents.filter((e) => String(e.payload?.subtipo ?? 'tarea') !== 'reunion').length,
-            reunion: taskEvents.filter((e) => String(e.payload?.subtipo ?? 'tarea') === 'reunion').length,
+            task: noSocio.filter((e) => String(e.payload?.subtipo ?? 'tarea') !== 'reunion').length,
+            reunion: noSocio.filter((e) => String(e.payload?.subtipo ?? 'tarea') === 'reunion').length,
+            socio: socioEvents.length,
             holiday: dayEvents.filter((e) => e.event_type === 'holiday').length,
           }
           const flim = fiscalByLimit[d] ?? []
@@ -787,6 +795,9 @@ function ViewMes({
               )}
               {byType.absence > 0 && (
                 <div className="mt-0.5 text-[10px] text-amber-700">🏖️ {byType.absence}</div>
+              )}
+              {byType.socio > 0 && (
+                <div className="mt-0.5 text-[10px] text-violet-800 bg-violet-100 rounded px-1 inline-block">👥 {byType.socio} socios</div>
               )}
               {byType.reunion > 0 && (
                 <div className="mt-0.5 text-[10px] text-violet-700">🤝 {byType.reunion} reunión{byType.reunion === 1 ? '' : 'es'}</div>
@@ -1012,6 +1023,21 @@ function DrawerDay({
       setSaveMessage(`Error: ${m}`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function deleteTask(id: string) {
+    if (!confirm('¿Borrar esta tarea/reunión?')) return
+    try {
+      const res = await fetch(`/api/admin/calendario/task/${id}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json.ok) {
+        setSaveMessage(`Error borrando: ${json.error ?? res.status}`)
+        return
+      }
+      router.refresh()
+    } catch {
+      setSaveMessage('Error de red al borrar')
     }
   }
 
@@ -1305,7 +1331,7 @@ function DrawerDay({
               <ul className="space-y-1 text-sm">
                 {groups.tareasSinProyecto.map((e, i) => (
                   <li key={`${e.ref_id}-${i}`}>
-                    <EventRow event={e} compact />
+                    <EventRow event={e} compact onDelete={deleteTask} />
                   </li>
                 ))}
               </ul>
@@ -1324,7 +1350,7 @@ function DrawerDay({
                 <ul className="space-y-1 text-sm">
                   {evs.map((e, i) => (
                     <li key={`${e.event_type}-${e.ref_id}-${i}`}>
-                      <EventRow event={e} compact />
+                      <EventRow event={e} compact onDelete={e.event_type === 'task' ? deleteTask : undefined} />
                     </li>
                   ))}
                 </ul>
@@ -1345,7 +1371,7 @@ function DrawerDay({
 
 /* ───────── Event row genérico ───────── */
 
-function EventRow({ event, compact = false }: { event: CalendarEvent; compact?: boolean }) {
+function EventRow({ event, compact = false, onDelete }: { event: CalendarEvent; compact?: boolean; onDelete?: (id: string) => void }) {
   const icon = EVENT_ICONS[event.event_type]
   if (event.event_type === 'assignment') {
     return (
@@ -1373,20 +1399,34 @@ function EventRow({ event, compact = false }: { event: CalendarEvent; compact?: 
   if (event.event_type === 'task') {
     const estado = String(event.payload?.estado ?? 'pendiente')
     const subtipo = String(event.payload?.subtipo ?? 'tarea')
+    const esSocio = String(event.payload?.tipo ?? '') === 'interna_socio'
     const taskIcon = subtipo === 'reunion' ? '🤝' : '📋'
     const hIni = event.payload?.hora_inicio ? String(event.payload.hora_inicio).slice(0, 5) : null
     const hFin = event.payload?.hora_fin ? String(event.payload.hora_fin).slice(0, 5) : null
     const attendees = Array.isArray(event.payload?.attendees)
       ? (event.payload!.attendees as Array<{ tipo: string; nombre: string; estado: string }>)
       : []
+    // Tareas/reuniones internas de socios → fondo morado (feedback David)
+    const wrapCls = compact
+      ? `text-xs ${esSocio ? 'bg-violet-50 border border-violet-200 rounded px-1.5 py-1' : ''}`
+      : `px-4 py-2 text-sm ${esSocio ? 'bg-violet-50' : ''}`
     return (
-      <div className={compact ? 'text-xs' : 'px-4 py-2 text-sm'}>
-        <div>
-          {taskIcon}{' '}
-          {hIni && <span className="font-mono text-xs text-stone-600">{hIni}{hFin ? `–${hFin}` : ''} </span>}
-          <span className={estado === 'hecha' ? 'line-through text-stone-400' : ''}>
-            {String(event.payload?.texto ?? '')}
-          </span>
+      <div className={wrapCls}>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            {taskIcon}{' '}
+            {hIni && <span className="font-mono text-xs text-stone-600">{hIni}{hFin ? `–${hFin}` : ''} </span>}
+            <span className={estado === 'hecha' ? 'line-through text-stone-400' : ''}>
+              {String(event.payload?.texto ?? '')}
+            </span>
+          </div>
+          {onDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(event.ref_id) }}
+              className="flex-none text-sm text-stone-400 hover:text-red-600 leading-none"
+              title="Borrar"
+            >×</button>
+          )}
         </div>
         {attendees.length > 0 && (
           <div className="mt-0.5 flex flex-wrap gap-1">
