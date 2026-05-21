@@ -816,6 +816,11 @@ function ViewMes({
           const asignacionesDia = dayEvents.filter(
             (e) => (e.event_type === 'assignment' || e.event_type === 'time_record') && e.project_id && e.employee_id,
           )
+          // Tamaño de fuente adaptativo: cuantas más líneas, más pequeño, para
+          // que entren ~5 ítems en el recuadro sin desbordar.
+          const totalItems = flim.length + fini.length + (byType.holiday > 0 ? 1 : 0)
+            + asignacionesDia.length + (byType.absence > 0 ? 1 : 0) + socioEvents.length
+          const fz = totalItems <= 3 ? 'text-[10px]' : totalItems <= 5 ? 'text-[9px]' : 'text-[8px]'
           // Prioridad fondo: fiscal límite > fiscal inicio > festivo > socio > hoy
           const cellBg = isOtherMonth
             ? 'bg-stone-50/30 text-stone-300'
@@ -840,34 +845,34 @@ function ViewMes({
                 {date.getDate()}
               </div>
               {byType.holiday > 0 && (
-                <div className="mt-0.5 text-[10px] text-stone-700 truncate">Festivo</div>
+                <div className={`mt-0.5 ${fz} text-stone-700 truncate`}>Festivo</div>
               )}
               {flim.map((f) => (
-                <div key={`l-${f.modelo}-${f.periodo}`} className="mt-0.5 text-[10px] text-red-800 font-semibold truncate" title={f.descripcion ?? ''}>
+                <div key={`l-${f.modelo}-${f.periodo}`} className={`mt-0.5 ${fz} text-red-800 font-semibold truncate`} title={f.descripcion ?? ''}>
                   🛑 {f.modelo} {f.periodo}
                 </div>
               ))}
               {fini.map((f) => (
-                <div key={`s-${f.modelo}-${f.periodo}`} className="mt-0.5 text-[10px] text-amber-900 truncate" title={f.descripcion ?? ''}>
+                <div key={`s-${f.modelo}-${f.periodo}`} className={`mt-0.5 ${fz} text-amber-900 truncate`} title={f.descripcion ?? ''}>
                   🟡 {f.modelo} {f.periodo}
                 </div>
               ))}
-              {asignacionesDia.slice(0, 3).map((e, i) => (
-                <div key={`a-${i}`} className="mt-0.5 text-[10px] text-emerald-800 truncate" title={`${e.employee_nombre ?? ''} · ${projLabel(e.project_id, e.project_code)}`}>
+              {asignacionesDia.slice(0, 6).map((e, i) => (
+                <div key={`a-${i}`} className={`mt-0.5 ${fz} text-emerald-800 truncate`} title={`${e.employee_nombre ?? ''} · ${projLabel(e.project_id, e.project_code)}`}>
                   👷 {e.employee_nombre ?? '—'} · {projLabel(e.project_id, e.project_code)}
                 </div>
               ))}
-              {asignacionesDia.length > 3 && (
-                <div className="text-[10px] text-stone-400">+{asignacionesDia.length - 3} más</div>
+              {asignacionesDia.length > 6 && (
+                <div className={`${fz} text-stone-400`}>+{asignacionesDia.length - 6} más</div>
               )}
               {byType.absence > 0 && (
-                <div className="mt-0.5 text-[10px] text-amber-700">🏖️ {byType.absence}</div>
+                <div className={`mt-0.5 ${fz} text-amber-700`}>🏖️ {byType.absence}</div>
               )}
               {socioEvents.map((e, i) => {
                 const hIni = e.payload?.hora_inicio ? String(e.payload.hora_inicio).slice(0, 5) : null
                 const esReunion = String(e.payload?.subtipo ?? '') === 'reunion'
                 return (
-                  <div key={`s-${i}`} className="mt-0.5 text-[10px] text-violet-800 bg-violet-100 rounded px-1 truncate" title={String(e.payload?.texto ?? '')}>
+                  <div key={`s-${i}`} className={`mt-0.5 ${fz} text-violet-800 bg-violet-100 rounded px-1 truncate`} title={String(e.payload?.texto ?? '')}>
                     {esReunion ? '🤝' : '📋'} {hIni && <span className="font-mono">{hIni} </span>}{String(e.payload?.texto ?? '')}
                   </div>
                 )
