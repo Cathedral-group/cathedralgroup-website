@@ -287,6 +287,17 @@ export default function CalendarioView({
                 onClickDay={(d) => setDrawerDay(d)}
               />
             </div>
+            {/* Año completo (12 mini-meses navegación) */}
+            <div className="mt-8">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
+                Año completo
+              </p>
+              <ViewAno
+                refFecha={refFecha}
+                today={todayStr}
+                onClickDay={(d) => goTo(d, 'semana')}
+              />
+            </div>
           </>
         )
       })()}
@@ -555,6 +566,97 @@ function ViewMes({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/* ───────── Vista Año (12 mini-meses navegación) ─────────
+   Feedback David sesión 21/05 noche: "debajo ya el año para rematar".
+   12 mini-calendarios grid 3×4 (responsive 2×6 móvil). Solo navegación
+   visual: click día/mes → goTo refFecha (refetch backend con nueva fecha
+   activa). No carga eventos año completo (sería costoso); mes activo
+   conserva sus eventos por dots/highlight. */
+
+function ViewAno({
+  refFecha, today, onClickDay,
+}: {
+  refFecha: string
+  today: string
+  onClickDay: (d: string) => void
+}) {
+  const refDate = new Date(refFecha + 'T00:00:00')
+  const year = refDate.getFullYear()
+  const refMonth = refDate.getMonth()
+
+  const monthLabels = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const dayHeaders = ['L','M','X','J','V','S','D']
+
+  function buildMonthDays(year: number, month: number): Array<{ d: string; otherMonth: boolean }> {
+    const first = new Date(year, month, 1)
+    const last = new Date(year, month + 1, 0)
+    const dStart = first.getDay()
+    const offsetStart = dStart === 0 ? -6 : 1 - dStart
+    const start = new Date(first)
+    start.setDate(first.getDate() + offsetStart)
+    const dEnd = last.getDay()
+    const offsetEnd = dEnd === 0 ? 0 : 7 - dEnd
+    const end = new Date(last)
+    end.setDate(last.getDate() + offsetEnd)
+
+    const out: Array<{ d: string; otherMonth: boolean }> = []
+    const cursor = new Date(start)
+    while (cursor <= end) {
+      out.push({
+        d: cursor.toISOString().slice(0, 10),
+        otherMonth: cursor.getMonth() !== month,
+      })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    return out
+  }
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+      {Array.from({ length: 12 }, (_, m) => {
+        const monthDays = buildMonthDays(year, m)
+        const isActiveMonth = m === refMonth
+        return (
+          <div
+            key={m}
+            className={`rounded-lg border bg-white overflow-hidden ${
+              isActiveMonth ? 'border-emerald-300' : 'border-stone-200'
+            }`}
+          >
+            <div className={`px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest border-b ${
+              isActiveMonth ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-stone-50 text-stone-600 border-stone-200'
+            }`}>
+              {monthLabels[m]} {year}
+            </div>
+            <div className="grid grid-cols-7 text-[9px]">
+              {dayHeaders.map((h) => (
+                <div key={h} className="px-1 py-0.5 text-center text-stone-400">
+                  {h}
+                </div>
+              ))}
+              {monthDays.map((day, i) => {
+                const isToday = day.d === today
+                return (
+                  <button
+                    key={i}
+                    onClick={() => onClickDay(day.d)}
+                    className={`px-1 py-0.5 text-center font-mono transition-colors hover:bg-emerald-100 ${
+                      day.otherMonth ? 'text-stone-300' : 'text-stone-700'
+                    } ${isToday ? 'bg-emerald-200 text-emerald-900 font-bold' : ''}`}
+                    title={day.d}
+                  >
+                    {new Date(day.d + 'T00:00:00').getDate()}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
