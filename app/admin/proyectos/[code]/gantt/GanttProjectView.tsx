@@ -146,8 +146,8 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     // margen: 1 semana antes, mínimo 8 semanas de ancho
     min = addDays(min, -7)
     if (diffDays(max, min) < 56) max = addDays(min, 56)
-    // margen amplio al final (6 semanas) para poder añadir días sueltos lejanos
-    max = addDays(startOfWeek(max), 42)
+    // margen amplio al final (16 semanas ≈ 4 meses) para añadir días sueltos lejanos
+    max = addDays(startOfWeek(max), 112)
     const total = diffDays(max, min) + 1
     const ws: { label: string; offsetDays: number }[] = []
     let cur = new Date(min)
