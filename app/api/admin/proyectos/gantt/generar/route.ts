@@ -172,5 +172,16 @@ export async function POST(request: NextRequest) {
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ ok: true, tareas: count, capitulos: grupos.length, fin: tasks[tasks.length - 1]?.fecha_fin_plan })
+  // Línea base: guarda la planificación prevista para medir desviación después
+  const inicioPrevisto = tasks[0]?.fecha_inicio_plan ?? null
+  const finPrevisto = tasks[tasks.length - 1]?.fecha_fin_plan ?? null
+  const horasPrevistas = grupos.reduce((s, g) => s + horasPorGrupo[g], 0)
+  await supabase.from('projects').update({
+    gantt_inicio_previsto: inicioPrevisto,
+    gantt_fin_previsto: finPrevisto,
+    gantt_horas_previstas: Math.round(horasPrevistas),
+    gantt_trabajadores_previstos: numTrab,
+  }).eq('id', body.project_id)
+
+  return NextResponse.json({ ok: true, tareas: count, capitulos: grupos.length, fin: finPrevisto })
 }

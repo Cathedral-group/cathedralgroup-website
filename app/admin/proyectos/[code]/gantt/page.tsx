@@ -20,7 +20,7 @@ export default async function ProjectGanttPage({ params }: PageProps) {
 
   const { data: project } = await supabase
     .from('projects')
-    .select('id, code, name, status, start_date, end_date_planned, end_date_real, company_id')
+    .select('id, code, name, status, start_date, end_date_planned, end_date_real, company_id, gantt_inicio_previsto, gantt_fin_previsto, gantt_horas_previstas, gantt_trabajadores_previstos')
     .eq('code', code)
     .eq('company_id', activeCompanyId)
     .is('deleted_at', null)

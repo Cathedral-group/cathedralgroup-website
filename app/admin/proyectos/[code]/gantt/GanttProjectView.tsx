@@ -27,6 +27,10 @@ interface Project {
   start_date: string | null
   end_date_planned: string | null
   end_date_real: string | null
+  gantt_inicio_previsto?: string | null
+  gantt_fin_previsto?: string | null
+  gantt_horas_previstas?: number | null
+  gantt_trabajadores_previstos?: number | null
 }
 
 interface Seg { inicio: string; fin: string }
@@ -280,6 +284,36 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
   const planificadas = sorted.filter((t) => segmentosDe(t).length > 0)
   const sinPlanificar = sorted.filter((t) => segmentosDe(t).length === 0)
 
+  // ─── Resumen: previsto vs actual ───
+  const fmtDia = (iso: string | null | undefined) =>
+    iso ? new Date(iso + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
+  function busDaysBetween(aISO: string, bISO: string): number {
+    const a = parseISO(aISO), b = parseISO(bISO)
+    if (!a || !b) return 0
+    const sign = b >= a ? 1 : -1
+    const lo = b >= a ? a : b, hi = b >= a ? b : a
+    let n = 0; const c = new Date(lo)
+    while (c < hi) { c.setDate(c.getDate() + 1); const dow = c.getDay(); if (dow !== 0 && dow !== 6 && !holidayMap[toISO(c)]) n++ }
+    return n * sign
+  }
+  const { finActual, inicioActual, diasTrabajoTotal } = useMemo(() => {
+    let fin: string | null = null, ini: string | null = null, dias = 0
+    for (const t of tasks) {
+      for (const s of segmentosDe(t)) {
+        if (!fin || s.fin > fin) fin = s.fin
+        if (!ini || s.inicio < ini) ini = s.inicio
+        // días de trabajo del segmento (laborables, sin findes/festivos)
+        const a = parseISO(s.inicio), b = parseISO(s.fin)
+        if (a && b) { const c = new Date(a); while (c <= b) { const dow = c.getDay(); if (dow !== 0 && dow !== 6 && !holidayMap[toISO(c)]) dias++; c.setDate(c.getDate() + 1) } }
+      }
+    }
+    return { finActual: fin, inicioActual: ini, diasTrabajoTotal: dias }
+  }, [tasks, holidayMap])
+  const finPrevisto = project.gantt_fin_previsto ?? null
+  const nTrab = project.gantt_trabajadores_previstos ?? 2
+  const desviacionDias = finPrevisto && finActual ? busDaysBetween(finPrevisto, finActual) : null
+  const desviacionHoras = desviacionDias !== null ? desviacionDias * 8 * nTrab : null
+
   return (
     <div>
       <div className="mb-6 flex items-end justify-between gap-3 flex-wrap">
@@ -301,6 +335,44 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
           </button>
         </div>
       </div>
+
+      {/* Resumen del proyecto */}
+      {planificadas.length > 0 && (
+        <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
+            <div className="text-[9px] uppercase tracking-widest text-stone-400">Inicio</div>
+            <div className="text-sm font-medium text-stone-800">{fmtDia(inicioActual)}</div>
+          </div>
+          <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
+            <div className="text-[9px] uppercase tracking-widest text-stone-400">Fin previsto</div>
+            <div className="text-sm font-medium text-stone-800">{fmtDia(finPrevisto)}</div>
+          </div>
+          <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
+            <div className="text-[9px] uppercase tracking-widest text-stone-400">Fin actual</div>
+            <div className="text-sm font-medium text-stone-800">{fmtDia(finActual)}</div>
+          </div>
+          <div className={`rounded-lg border px-3 py-2 ${desviacionDias === null ? 'border-stone-200 bg-white' : desviacionDias > 0 ? 'border-red-200 bg-red-50' : desviacionDias < 0 ? 'border-emerald-200 bg-emerald-50' : 'border-stone-200 bg-white'}`}>
+            <div className="text-[9px] uppercase tracking-widest text-stone-400">Desviación</div>
+            <div className={`text-sm font-bold ${desviacionDias === null ? 'text-stone-400' : desviacionDias > 0 ? 'text-red-700' : desviacionDias < 0 ? 'text-emerald-700' : 'text-stone-700'}`}>
+              {desviacionDias === null ? '—'
+                : desviacionDias === 0 ? 'En plazo'
+                : `${desviacionDias > 0 ? '+' : ''}${desviacionDias} día${Math.abs(desviacionDias) === 1 ? '' : 's'}`}
+            </div>
+            {desviacionHoras !== null && desviacionDias !== 0 && (
+              <div className="text-[10px] text-stone-500">{desviacionHoras > 0 ? '+' : ''}{desviacionHoras} h</div>
+            )}
+          </div>
+          <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
+            <div className="text-[9px] uppercase tracking-widest text-stone-400">Días de trabajo</div>
+            <div className="text-sm font-medium text-blue-700">{diasTrabajoTotal} d</div>
+          </div>
+          <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
+            <div className="text-[9px] uppercase tracking-widest text-stone-400">Horas previstas</div>
+            <div className="text-sm font-medium text-stone-800">{project.gantt_horas_previstas ? `${project.gantt_horas_previstas} h` : '—'}</div>
+            {nTrab ? <div className="text-[10px] text-stone-500">{nTrab} trabajadores</div> : null}
+          </div>
+        </div>
+      )}
 
       {planificadas.length === 0 && sinPlanificar.length === 0 && (
         <div className="rounded-lg border border-stone-200 bg-white p-8 text-center text-sm text-stone-500">
