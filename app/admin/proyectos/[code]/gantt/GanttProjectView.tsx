@@ -99,6 +99,57 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
   const [generando, setGenerando] = useState(false)
   const router = useRouter()
 
+  // ─── Equipo de la obra (recursos: empleados + externos) ───
+  interface Resource { id: string; type: 'empleado' | 'externo'; display_name: string; trade: string | null; lent_by: string | null; active: boolean; employee_id: string | null }
+  const [resources, setResources] = useState<Resource[]>([])
+  const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set())
+  const [teamBusy, setTeamBusy] = useState<string | null>(null)
+  const [nuevoExterno, setNuevoExterno] = useState('')
+  const [teamMsg, setTeamMsg] = useState<string | null>(null)
+
+  const cargarEquipo = async () => {
+    const [resAll, resAsg] = await Promise.all([
+      fetch('/api/admin/recursos').then((r) => r.json()).catch(() => ({ rows: [] })),
+      fetch(`/api/admin/proyectos/gantt/recursos?project=${project.id}`).then((r) => r.json()).catch(() => ({ resource_ids: [] })),
+    ])
+    setResources(resAll.rows ?? [])
+    setAssignedIds(new Set(resAsg.resource_ids ?? []))
+  }
+  useEffect(() => { cargarEquipo() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleRecurso = async (resourceId: string, asignado: boolean) => {
+    setTeamBusy(resourceId); setTeamMsg(null)
+    try {
+      const res = await fetch('/api/admin/proyectos/gantt/recursos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: project.id, resource_id: resourceId, action: asignado ? 'remove' : 'add' }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setTeamMsg('✗ ' + (json.error || 'Error')); return }
+      setAssignedIds((prev) => { const n = new Set(prev); if (asignado) n.delete(resourceId); else n.add(resourceId); return n })
+      if (!asignado && json.creados != null) {
+        setTeamMsg(`✓ Asignado a ${json.creados} días${json.ya_ocupados ? ` (${json.ya_ocupados} ya ocupados en otra obra)` : ''}`)
+      }
+      router.refresh()
+    } finally { setTeamBusy(null) }
+  }
+
+  const anadirExterno = async () => {
+    const name = nuevoExterno.trim()
+    if (!name) return
+    setTeamBusy('__nuevo__'); setTeamMsg(null)
+    try {
+      const res = await fetch('/api/admin/recursos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: name }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setTeamMsg('✗ ' + (json.error || 'Error')); return }
+      setNuevoExterno('')
+      await cargarEquipo()
+    } finally { setTeamBusy(null) }
+  }
+
   const holidayMap = useMemo(() => {
     const m: Record<string, string> = {}
     for (const h of holidays) m[h.fecha] = h.nombre
@@ -418,6 +469,39 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
           Este proyecto no tiene tareas. Genera desde el presupuesto o añádelas en la planificación.
         </div>
       )}
+
+      {/* ─── Equipo de la obra: asignar recursos (empleados + externos) ─── */}
+      <div className="mb-4 rounded-lg border border-stone-200 bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-stone-500">Equipo de la obra</p>
+          {teamMsg && <span className={`text-xs ${teamMsg.startsWith('✓') ? 'text-emerald-600' : 'text-red-600'}`}>{teamMsg}</span>}
+        </div>
+        <p className="text-[11px] text-stone-400 mb-3">Marca quién trabaja en esta obra. Se rellena el cuadrante de los días planificados automáticamente.</p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {resources.filter((r) => r.active).map((r) => {
+            const on = assignedIds.has(r.id)
+            return (
+              <button key={r.id} onClick={() => toggleRecurso(r.id, on)} disabled={teamBusy === r.id}
+                className={`text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
+                  on ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-stone-600 border-stone-300 hover:border-stone-400'
+                }`}
+                title={r.type === 'externo' ? `Externo${r.lent_by ? ' · ' + r.lent_by : ''}` : 'Empleado'}>
+                {on ? '✓ ' : '+ '}{r.display_name}{r.type === 'externo' ? ' (ext.)' : ''}
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <input value={nuevoExterno} onChange={(e) => setNuevoExterno(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') anadirExterno() }}
+            placeholder="Nuevo trabajador externo…"
+            className="text-xs border border-stone-300 rounded px-2 py-1.5 w-56 focus:ring-1 focus:ring-emerald-500 outline-none" />
+          <button onClick={anadirExterno} disabled={teamBusy === '__nuevo__' || !nuevoExterno.trim()}
+            className="text-xs bg-stone-800 text-white px-3 py-1.5 rounded hover:bg-stone-700 disabled:opacity-50">
+            + Añadir externo
+          </button>
+        </div>
+      </div>
 
       {planificadas.length > 0 && (
         <div className="rounded-lg border border-stone-200 bg-white overflow-x-auto">
