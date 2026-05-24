@@ -322,6 +322,17 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
         const a = parseISO(s.inicio), b = parseISO(s.fin)
         if (a && b) { const c = new Date(a); while (c <= b) { const dow = c.getDay(); if (dow !== 0 && dow !== 6 && !holidayMap[toISO(c)]) dias++; c.setDate(c.getDate() + 1) } }
       }
+      // días extra (sábados/domingos/festivos añadidos a mano): cada uno suma 1 día trabajado.
+      // No solapan con los laborables de segmentos porque caen en findes/festivos.
+      for (const x of (t.dias_extra ?? [])) {
+        const fecha = typeof x === 'string' ? x : x?.fecha
+        const horas = typeof x === 'string' ? 1 : (x?.horas ?? 0)
+        if (fecha && horas > 0) {
+          dias++
+          if (!fin || fecha > fin) fin = fecha
+          if (!ini || fecha < ini) ini = fecha
+        }
+      }
     }
     return { finActual: fin, inicioActual: ini, diasTrabajoTotal: dias }
   }, [tasks, holidayMap])
