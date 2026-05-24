@@ -114,7 +114,7 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
 
   // Rango temporal: del mínimo inicio al máximo fin de las tareas planificadas;
   // fallback al start_date del proyecto + 8 semanas.
-  const { rangeStart, totalDays, weeks } = useMemo(() => {
+  const { rangeStart, totalDays, weeks, weekends } = useMemo(() => {
     const dates: Date[] = []
     for (const t of tasks) {
       const ini = parseISO(t.fecha_inicio_plan)
@@ -141,7 +141,14 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
       })
       cur = addDays(cur, 7)
     }
-    return { rangeStart: min, totalDays: total, weeks: ws }
+    // Sábados (gris) y domingos (rojo) — no laborables
+    const wk: { offset: number; domingo: boolean }[] = []
+    for (let i = 0; i < total; i++) {
+      const dow = addDays(min, i).getDay()
+      if (dow === 6) wk.push({ offset: i, domingo: false })
+      else if (dow === 0) wk.push({ offset: i, domingo: true })
+    }
+    return { rangeStart: min, totalDays: total, weeks: ws, weekends: wk }
   }, [tasks, project.start_date])
 
   const todayOffset = diffDays(new Date(new Date().setHours(0, 0, 0, 0)), rangeStart)
@@ -185,6 +192,23 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
       window.removeEventListener('pointerup', onUp)
     }
   }, [preview])
+
+  async function partirTarea(id: string) {
+    if (!confirm('Partir esta tarea en dos (deja un hueco de 2 días y el resto continúa después). Luego puedes arrastrar cada parte. ¿Continuar?')) return
+    setBusyId(id)
+    try {
+      const res = await fetch('/api/admin/proyectos/gantt/partir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: id, hueco_dias: 2 }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
+      setMsg('✓ Tarea partida'); router.refresh()
+    } catch {
+      setMsg('Error de red al partir')
+    } finally { setBusyId(null) }
+  }
 
   function startDrag(e: React.PointerEvent, id: string, mode: 'move' | 'resize', ini: Date, fin: Date) {
     e.preventDefault()
@@ -275,6 +299,14 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
                 Tarea
               </div>
               <div className="relative" style={{ width: totalDays * DAY_W }}>
+                {weekends.map((w, i) => (
+                  <div
+                    key={`wk-${i}`}
+                    className={`absolute top-0 h-full ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`}
+                    style={{ left: w.offset * DAY_W, width: DAY_W }}
+                    title={w.domingo ? 'Domingo (no laborable)' : 'Sábado (no laborable)'}
+                  />
+                ))}
                 {weeks.map((w, i) => (
                   <div
                     key={i}
@@ -328,6 +360,10 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
                     </div>
                   </div>
                   <div className="relative py-2" style={{ width: totalDays * DAY_W }}>
+                    {/* sábados (gris) y domingos (rojo): no laborables */}
+                    {weekends.map((w, i) => (
+                      <div key={`wk-${i}`} className={`absolute top-0 h-full ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`} style={{ left: w.offset * DAY_W, width: DAY_W }} />
+                    ))}
                     {/* rejilla semanal */}
                     {weeks.map((w, i) => (
                       <div key={i} className="absolute top-0 h-full border-l border-stone-100" style={{ left: w.offsetDays * DAY_W }} />
@@ -359,6 +395,15 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
                           <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium pointer-events-none">
                             {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{liveDur >= 3 ? `${liveDur}d` : ''}
                           </span>
+                          {/* botón partir (✂) — solo si dura ≥2 días */}
+                          {dur >= 2 && !pv && (
+                            <button
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); partirTarea(t.id) }}
+                              className="absolute top-0 left-0 h-full px-1 flex items-center text-white/70 hover:text-white text-[10px] bg-black/10 hover:bg-black/30"
+                              title="Partir la tarea (los trabajadores se van unos días)"
+                            >✂</button>
+                          )}
                           {/* handle resize borde derecho */}
                           <div
                             onPointerDown={(e) => startDrag(e, t.id, 'resize', ini, fin)}
@@ -417,6 +462,8 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500" /> Hecha</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-amber-500 bg-blue-600" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 2px, transparent 2px, transparent 4px)' }} /> ★ Extra / remate</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-2 ring-red-500 bg-stone-400" /> ⚠ Retraso</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-100 border border-stone-200" /> Sábado</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> Domingo</span>
         <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-400" /> Hoy</span>
       </div>
     </div>
