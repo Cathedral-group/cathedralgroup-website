@@ -278,6 +278,25 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     postDiaExtra(id, fecha, 0)
   }
 
+  // Borrar un corte (pausa) de una tarea por índice
+  async function borrarPausa(id: string, index: number) {
+    setBusyId(id)
+    try {
+      const res = await fetch('/api/admin/proyectos/gantt/pausa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: id, index }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, pausas: json.pausas } : t)))
+      setMsg('✓ Corte borrado')
+      router.refresh()
+    } catch {
+      setMsg('Error de red')
+    } finally { setBusyId(null) }
+  }
+
   function startDrag(e: React.PointerEvent, id: string, mode: 'move' | 'resize', ini: Date, fin: Date) {
     e.preventDefault()
     e.stopPropagation()
@@ -448,6 +467,27 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                         >✂</button>
                       )}
                     </div>
+                    {/* cortes (pausas) de la tarea, con opción de borrar */}
+                    {Array.isArray(t.pausas) && t.pausas.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {t.pausas.map((p, pi) => {
+                          const d1 = parseISO(p.desde), d2 = parseISO(p.hasta)
+                          const e1 = d1 ? d1.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) : p.desde
+                          const e2 = d2 ? d2.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) : p.hasta
+                          return (
+                            <span key={`pa-${pi}`} className="inline-flex items-center gap-1 text-[9px] bg-amber-50 text-amber-800 border border-amber-200 rounded px-1 py-0.5">
+                              ✂ {e1}–{e2}
+                              <button
+                                onClick={() => borrarPausa(t.id, pi)}
+                                disabled={busyId === t.id}
+                                className="text-amber-400 hover:text-red-600 font-bold leading-none"
+                                title="Borrar este corte"
+                              >×</button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
                     {/* días extra (finde/festivo trabajados) con opción de borrar */}
                     {extraMap.size > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
