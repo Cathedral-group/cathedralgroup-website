@@ -71,18 +71,21 @@ export async function POST(request: NextRequest) {
   const D = businessDaysBetween(ini, fin, skip)
   if (D < 2) return NextResponse.json({ error: 'La tarea dura 1 día; no se puede partir' }, { status: 400 })
 
+  // Corte por la mitad de los días de trabajo. Se inserta una pausa de `hueco`
+  // días laborables; la tarea sigue en una fila y su fin se desplaza.
   const corte = Math.floor(D / 2)
-  const finPrimera = addBusinessDays(ini, corte - 1, skip)
-  const iniNueva = addBusinessDays(finPrimera, 1 + hueco, skip)
-  const finNueva = addBusinessDays(iniNueva, (D - corte) - 1, skip)
+  const finPrimera = addBusinessDays(ini, corte - 1, skip)       // último día de trabajo antes de la pausa
+  const pausaDesde = addBusinessDays(finPrimera, 1, skip)        // primer día laborable de la pausa
+  const pausaHasta = addBusinessDays(finPrimera, hueco, skip)    // último día laborable de la pausa
+  const nuevoFin = addBusinessDays(fin, hueco, skip)             // el resto del trabajo se desplaza tras la pausa
 
-  const { data: newId, error } = await supabase.rpc('split_task', {
+  const { error } = await supabase.rpc('split_task', {
     p_task_id: body.task_id,
-    p_fin_primera: toISO(finPrimera),
-    p_ini_nueva: toISO(iniNueva),
-    p_fin_nueva: toISO(finNueva),
+    p_pausa_desde: toISO(pausaDesde),
+    p_pausa_hasta: toISO(pausaHasta),
+    p_nuevo_fin: toISO(nuevoFin),
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ ok: true, nueva_tarea_id: newId, hueco_dias: hueco })
+  return NextResponse.json({ ok: true, pausa: [toISO(pausaDesde), toISO(pausaHasta)], hueco_dias: hueco })
 }

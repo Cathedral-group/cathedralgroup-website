@@ -38,6 +38,7 @@ interface Task {
   orden: number | null
   parent_task_id: string | null
   dependencias: unknown
+  pausas?: Array<{ desde: string; hasta: string }> | null
 }
 
 interface Props {
@@ -169,6 +170,14 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     }
     return out
   }, [rangeStart, totalDays, holidayMap])
+
+  // Offsets no laborables (findes + festivos) para cortar las barras
+  const nonWorkingSet = useMemo(() => {
+    const s = new Set<number>()
+    for (const w of weekends) s.add(w.offset)
+    for (const f of festivos) s.add(f.offset)
+    return s
+  }, [weekends, festivos])
 
   // ─── Drag / resize de barras ───
   // mode 'move' arrastra toda la barra (cambia inicio+fin manteniendo duración).
@@ -355,8 +364,6 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
               // Extras (remates fuera de presupuesto) → azul + rayado
               const esExtra = t.tipo === 'obra_remate'
               const color = esExtra ? 'bg-blue-600' : (ESTADO_COLOR[t.estado] ?? 'bg-stone-400')
-              // % avance por estado
-              const pct = t.estado === 'hecha' ? 100 : t.estado === 'en_curso' ? 50 : 0
               // Retraso: fin planificado pasado y no terminada
               const esRetraso = !!t.fecha_fin_plan && t.fecha_fin_plan < hoyISO && t.estado !== 'hecha'
               return (
@@ -406,52 +413,61 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                     {todayOffset >= 0 && todayOffset < totalDays && (
                       <div className="absolute top-0 h-full w-px bg-red-400/50" style={{ left: todayOffset * DAY_W }} />
                     )}
-                    {/* barra (arrastrable: mover toda la barra; borde dcho: estirar días) */}
+                    {/* barra partida en segmentos: solo días de trabajo (sin findes,
+                        festivos ni pausas). Dos o más barras en la misma línea. */}
                     {(() => {
                       const pv = preview?.id === t.id ? preview : null
                       const liveOffset = offset + (pv?.mode === 'move' ? pv.deltaDays : 0)
                       const liveDur = Math.max(1, dur + (pv?.mode === 'resize' ? pv.deltaDays : 0))
-                      return (
+                      // pausas de la tarea → offsets no laborables propios
+                      const pausaSet = new Set<number>()
+                      for (const p of (t.pausas ?? [])) {
+                        const pd = parseISO(p.desde), ph = parseISO(p.hasta)
+                        if (pd && ph) { let c = new Date(pd); while (c <= ph) { pausaSet.add(diffDays(c, rangeStart)); c = addDays(c, 1) } }
+                      }
+                      const noTrabajo = (off: number) => nonWorkingSet.has(off) || pausaSet.has(off)
+                      // tramos consecutivos de trabajo
+                      const segs: { rel: number; len: number }[] = []
+                      let i = 0
+                      while (i < liveDur) {
+                        if (noTrabajo(liveOffset + i)) { i++; continue }
+                        let j = i
+                        while (j < liveDur && !noTrabajo(liveOffset + j)) j++
+                        segs.push({ rel: i, len: j - i })
+                        i = j
+                      }
+                      const diasTrabajo = segs.reduce((s, x) => s + x.len, 0)
+                      const lastIdx = segs.length - 1
+                      const tip = `${t.fecha_inicio_plan} → ${t.fecha_fin_plan} · ${diasTrabajo} días de trabajo · ${t.estado}${esExtra ? ' · EXTRA' : ''}${esRetraso ? ' · ⚠ RETRASO' : ''} · arrastra para mover, borde derecho para alargar`
+                      return segs.map((s, si) => (
                         <div
+                          key={`seg-${si}`}
                           onPointerDown={(e) => startDrag(e, t.id, 'move', ini, fin)}
-                          className={`absolute h-5 rounded ${color} overflow-hidden cursor-grab active:cursor-grabbing select-none ${esRetraso ? 'ring-2 ring-red-500' : esExtra ? 'ring-1 ring-amber-500' : ''} ${pv ? 'opacity-80 ring-2 ring-blue-400' : ''}`}
+                          className={`absolute h-5 rounded ${color} overflow-hidden cursor-grab active:cursor-grabbing select-none ${esRetraso ? 'ring-2 ring-red-500' : esExtra ? 'ring-1 ring-amber-500' : ''} ${pv ? 'opacity-80' : ''}`}
                           style={{
-                            left: liveOffset * DAY_W,
-                            width: liveDur * DAY_W - 2,
+                            left: (liveOffset + s.rel) * DAY_W,
+                            width: s.len * DAY_W - 2,
                             top: 4,
                             touchAction: 'none',
                             ...(esExtra ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 4px, transparent 4px, transparent 8px)' } : {}),
                           }}
-                          title={`${t.fecha_inicio_plan} → ${t.fecha_fin_plan} (${dur} días) · ${t.estado} · ${pct}%${esExtra ? ' · EXTRA (remate)' : ''}${esRetraso ? ' · ⚠ RETRASO' : ''} · arrastra para mover, borde derecho para alargar`}
+                          title={tip}
                         >
-                          {pct > 0 && pct < 100 && (
-                            <div className="absolute inset-y-0 left-0 bg-black/25 pointer-events-none" style={{ width: `${pct}%` }} />
+                          {si === 0 && (
+                            <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium pointer-events-none whitespace-nowrap">
+                              {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{diasTrabajo}d
+                            </span>
                           )}
-                          {/* corta la barra en los días no laborables que cruza */}
-                          {[
-                            ...weekends.map((w) => ({ offset: w.offset, cls: w.domingo ? 'bg-red-100' : 'bg-stone-100' })),
-                            ...festivos.map((f) => ({ offset: f.offset, cls: 'bg-orange-200' })),
-                          ]
-                            .filter((x) => x.offset >= liveOffset && x.offset < liveOffset + liveDur)
-                            .map((x, i) => (
-                              <div
-                                key={`gap-${i}`}
-                                className={`absolute top-0 h-full ${x.cls} pointer-events-none`}
-                                style={{ left: (x.offset - liveOffset) * DAY_W, width: DAY_W }}
-                              />
-                            ))}
-                          <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium pointer-events-none">
-                            {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{liveDur >= 3 ? `${liveDur}d` : ''}
-                          </span>
-                          {/* handle resize borde derecho */}
-                          <div
-                            onPointerDown={(e) => startDrag(e, t.id, 'resize', ini, fin)}
-                            className="absolute top-0 right-0 h-full w-2 cursor-ew-resize bg-white/30 hover:bg-white/60"
-                            style={{ touchAction: 'none' }}
-                            title="Arrastra para alargar/acortar días"
-                          />
+                          {si === lastIdx && (
+                            <div
+                              onPointerDown={(e) => startDrag(e, t.id, 'resize', ini, fin)}
+                              className="absolute top-0 right-0 h-full w-2 cursor-ew-resize bg-white/30 hover:bg-white/60"
+                              style={{ touchAction: 'none' }}
+                              title="Arrastra para alargar/acortar días"
+                            />
+                          )}
                         </div>
-                      )
+                      ))
                     })()}
                   </div>
                 </div>
