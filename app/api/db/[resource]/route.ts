@@ -411,7 +411,7 @@ td.pending-positive{color:#16a34a}
   </div>
 </div></body></html>`
 
-  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="cathedral-documento.pdf"' } })
+  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Certificacion ${quote.number}${certNumber ? ` ${certNumber}` : ''}.pdf"` } })
 }
 
 async function buildInvoicePdf(id: string): Promise<NextResponse> {
@@ -582,7 +582,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
   </div>
 </div></body></html>`
 
-  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="cathedral-documento.pdf"' } })
+  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${docTypeLabel} ${inv.number ?? ''}.pdf"` } })
 }
 
 async function buildQuotePdf(id: string): Promise<NextResponse> {
@@ -726,7 +726,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   </div>
 </div></body></html>`
 
-  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="cathedral-documento.pdf"' } })
+  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Presupuesto ${quote.number}.pdf"` } })
 }
 
 export async function GET(request: NextRequest, ctx: Ctx) {
