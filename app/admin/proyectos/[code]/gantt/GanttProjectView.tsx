@@ -10,7 +10,7 @@
  * A medida (sin librería externa) para control total y compatibilidad React 19.
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -146,6 +146,52 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
 
   const todayOffset = diffDays(new Date(new Date().setHours(0, 0, 0, 0)), rangeStart)
   const hoyISO = toISO(new Date()) // fecha local (no UTC) para comparar retrasos
+
+  // ─── Drag / resize de barras ───
+  // mode 'move' arrastra toda la barra (cambia inicio+fin manteniendo duración).
+  // mode 'resize' estira el borde derecho (cambia solo el fin → más/menos días).
+  const dragRef = useRef<{ id: string; mode: 'move' | 'resize'; startX: number; ini: Date; fin: Date } | null>(null)
+  const [preview, setPreview] = useState<{ id: string; mode: 'move' | 'resize'; deltaDays: number } | null>(null)
+
+  useEffect(() => {
+    if (!preview) return
+    function onMove(e: PointerEvent) {
+      const d = dragRef.current
+      if (!d) return
+      const deltaDays = Math.round((e.clientX - d.startX) / DAY_W)
+      setPreview({ id: d.id, mode: d.mode, deltaDays })
+    }
+    function onUp() {
+      const d = dragRef.current
+      const pv = preview
+      dragRef.current = null
+      setPreview(null)
+      if (!d || !pv || pv.deltaDays === 0) return
+      if (d.mode === 'move') {
+        const nIni = addDays(d.ini, pv.deltaDays)
+        const nFin = addDays(d.fin, pv.deltaDays)
+        saveDates(d.id, { fecha_inicio_plan: toISO(nIni), fecha_fin_plan: toISO(nFin) })
+      } else {
+        // resize: el fin no puede quedar antes del inicio (mínimo 1 día)
+        let nFin = addDays(d.fin, pv.deltaDays)
+        if (nFin < d.ini) nFin = new Date(d.ini)
+        saveDates(d.id, { fecha_fin_plan: toISO(nFin) })
+      }
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [preview])
+
+  function startDrag(e: React.PointerEvent, id: string, mode: 'move' | 'resize', ini: Date, fin: Date) {
+    e.preventDefault()
+    e.stopPropagation()
+    dragRef.current = { id, mode, startX: e.clientX, ini, fin }
+    setPreview({ id, mode, deltaDays: 0 })
+  }
 
   async function saveDates(id: string, patch: { fecha_inicio_plan?: string | null; fecha_fin_plan?: string | null }) {
     setBusyId(id)
@@ -289,25 +335,40 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
                     {todayOffset >= 0 && todayOffset < totalDays && (
                       <div className="absolute top-0 h-full w-px bg-red-400/50" style={{ left: todayOffset * DAY_W }} />
                     )}
-                    {/* barra */}
-                    <div
-                      className={`absolute h-5 rounded ${color} overflow-hidden ${esRetraso ? 'ring-2 ring-red-500' : esExtra ? 'ring-1 ring-amber-500' : ''}`}
-                      style={{
-                        left: offset * DAY_W,
-                        width: dur * DAY_W - 2,
-                        top: 4,
-                        ...(esExtra ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 4px, transparent 4px, transparent 8px)' } : {}),
-                      }}
-                      title={`${t.fecha_inicio_plan} → ${t.fecha_fin_plan} (${dur} días) · ${t.estado} · ${pct}%${esExtra ? ' · EXTRA (remate)' : ''}${esRetraso ? ' · ⚠ RETRASO' : ''}`}
-                    >
-                      {/* relleno de avance */}
-                      {pct > 0 && pct < 100 && (
-                        <div className="absolute inset-y-0 left-0 bg-black/25" style={{ width: `${pct}%` }} />
-                      )}
-                      <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium">
-                        {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{dur >= 3 ? `${dur}d` : ''}
-                      </span>
-                    </div>
+                    {/* barra (arrastrable: mover toda la barra; borde dcho: estirar días) */}
+                    {(() => {
+                      const pv = preview?.id === t.id ? preview : null
+                      const liveOffset = offset + (pv?.mode === 'move' ? pv.deltaDays : 0)
+                      const liveDur = Math.max(1, dur + (pv?.mode === 'resize' ? pv.deltaDays : 0))
+                      return (
+                        <div
+                          onPointerDown={(e) => startDrag(e, t.id, 'move', ini, fin)}
+                          className={`absolute h-5 rounded ${color} overflow-hidden cursor-grab active:cursor-grabbing select-none ${esRetraso ? 'ring-2 ring-red-500' : esExtra ? 'ring-1 ring-amber-500' : ''} ${pv ? 'opacity-80 ring-2 ring-blue-400' : ''}`}
+                          style={{
+                            left: liveOffset * DAY_W,
+                            width: liveDur * DAY_W - 2,
+                            top: 4,
+                            touchAction: 'none',
+                            ...(esExtra ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 4px, transparent 4px, transparent 8px)' } : {}),
+                          }}
+                          title={`${t.fecha_inicio_plan} → ${t.fecha_fin_plan} (${dur} días) · ${t.estado} · ${pct}%${esExtra ? ' · EXTRA (remate)' : ''}${esRetraso ? ' · ⚠ RETRASO' : ''} · arrastra para mover, borde derecho para alargar`}
+                        >
+                          {pct > 0 && pct < 100 && (
+                            <div className="absolute inset-y-0 left-0 bg-black/25 pointer-events-none" style={{ width: `${pct}%` }} />
+                          )}
+                          <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium pointer-events-none">
+                            {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{liveDur >= 3 ? `${liveDur}d` : ''}
+                          </span>
+                          {/* handle resize borde derecho */}
+                          <div
+                            onPointerDown={(e) => startDrag(e, t.id, 'resize', ini, fin)}
+                            className="absolute top-0 right-0 h-full w-2 cursor-ew-resize bg-white/30 hover:bg-white/60"
+                            style={{ touchAction: 'none' }}
+                            title="Arrastra para alargar/acortar días"
+                          />
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               )
