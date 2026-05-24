@@ -19,6 +19,7 @@ interface QuoteItem {
   chapter_code?: string           // from catalog, used for sorting
   chapter_name?: string           // from catalog, used for sorting
   notes?: string                  // per-item observation or clarification
+  horas_por_unidad?: number | null // rendimiento h/ud (catálogo CYPE) para estimar horas obra
   vat_pct: number
   total: number
   certified_pct: number
@@ -894,7 +895,7 @@ export default function QuoteEditor({
     })
   }, [])
 
-  const addItemsFromCatalog = useCallback((catalogItems: { description: string; unit: string; unit_price: number; base_unit_price: number; chapter_code?: string; chapter_name?: string }[]) => {
+  const addItemsFromCatalog = useCallback((catalogItems: { description: string; unit: string; unit_price: number; base_unit_price: number; chapter_code?: string; chapter_name?: string; horas_por_unidad?: number | null }[]) => {
     setForm((prev) => {
       const newItems = catalogItems.map((ci) => {
         const item = {
@@ -905,6 +906,7 @@ export default function QuoteEditor({
           base_unit_price: ci.base_unit_price,
           chapter_code: ci.chapter_code,
           chapter_name: ci.chapter_name,
+          horas_por_unidad: ci.horas_por_unidad ?? null,
           quality_level: prev.quality_level,
         }
         item.total = calcItemTotal(item)
@@ -1462,6 +1464,33 @@ export default function QuoteEditor({
                     </span>
                   </div>
                 )}
+                {(() => {
+                  // Horas de mano de obra estimadas (cantidad × rendimiento CYPE)
+                  const totalHoras = form.items.reduce((s, it) => s + (it.quantity || 0) * (it.horas_por_unidad ?? 0), 0)
+                  if (totalHoras <= 0) return null
+                  const jornadas = totalHoras / 8 // jornada efectiva ~8h convenio
+                  return (
+                    <div className="border-t border-neutral-200 pt-2 mt-1 space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-neutral-500">Horas de obra estimadas</span>
+                        <span className="tabular-nums font-medium text-blue-700">
+                          {totalHoras.toLocaleString('es-ES', { maximumFractionDigits: 1 })} h
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-neutral-400">
+                        <span>≈ jornadas (8 h/persona)</span>
+                        <span className="tabular-nums">
+                          {jornadas.toLocaleString('es-ES', { maximumFractionDigits: 1 })} ·
+                          {' '}{(jornadas / 2).toLocaleString('es-ES', { maximumFractionDigits: 0 })} días con 2 ·
+                          {' '}{(jornadas / 3).toLocaleString('es-ES', { maximumFractionDigits: 0 })} días con 3
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400 leading-tight">
+                        Estimación basada en rendimientos del catálogo (mano de obra). Las partidas sin rendimiento no suman.
+                      </p>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })()}

@@ -11,13 +11,14 @@ interface CatalogItem {
   description: string
   unit: string
   unit_price: number
+  horas_por_unidad: number | null
   notes: string | null
 }
 
 interface CatalogModalProps {
   qualityCoefficient: number
   qualityLabel: string
-  onAdd: (items: { description: string; unit: string; unit_price: number; base_unit_price: number; chapter_code: string; chapter_name: string }[]) => void
+  onAdd: (items: { description: string; unit: string; unit_price: number; base_unit_price: number; chapter_code: string; chapter_name: string; horas_por_unidad: number | null }[]) => void
   onClose: () => void
 }
 
@@ -81,6 +82,7 @@ export default function CatalogModal({ qualityCoefficient, qualityLabel, onAdd, 
         base_unit_price: it.unit_price,
         chapter_code: it.chapter_code,
         chapter_name: it.chapter_name,
+        horas_por_unidad: it.horas_por_unidad,
       }))
     onAdd(toAdd)
   }
