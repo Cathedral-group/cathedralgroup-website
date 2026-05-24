@@ -92,6 +92,9 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     return m
   }, [holidays])
   const [tasks, setTasks] = useState(initialTasks)
+  // Sincroniza con los datos del servidor tras router.refresh (si no, el estado
+  // local ignora la prop nueva y los cambios no se ven sin recargar a mano).
+  useEffect(() => { setTasks(initialTasks) }, [initialTasks])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [generando, setGenerando] = useState(false)
@@ -246,6 +249,8 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
       })
       const json = await res.json()
       if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
+      // optimista: refleja al instante en el estado local
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, dias_extra: json.dias_extra } : t)))
       setMsg(json.activo ? `✓ Día de trabajo añadido (${horas}h)` : '✓ Día quitado')
       router.refresh()
     } catch {
