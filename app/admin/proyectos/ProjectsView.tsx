@@ -1463,7 +1463,11 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                   className="text-xs font-bold bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition-colors">
                   ✏️ Editar presupuesto
                 </a>
-                {/* Secundaria */}
+                {/* Secundarias */}
+                <a href={`/admin/proyectos/${selected.code}/gantt`}
+                  className="text-xs bg-white border border-neutral-300 text-neutral-700 px-4 py-2 rounded hover:border-neutral-400 transition-colors">
+                  📊 Planificación
+                </a>
                 <a href={`/admin/proyectos/${selected.code}/mano-de-obra`}
                   className="text-xs bg-white border border-neutral-300 text-neutral-700 px-4 py-2 rounded hover:border-neutral-400 transition-colors">
                   👷 Mano de obra
