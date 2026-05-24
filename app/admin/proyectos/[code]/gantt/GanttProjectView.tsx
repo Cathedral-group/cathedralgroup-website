@@ -236,18 +236,7 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     } finally { setBusyId(null) }
   }
 
-  async function toggleDiaExtra(id: string, fecha: string, yaActivo: boolean) {
-    let horas = 0
-    if (yaActivo) {
-      // ya es día de trabajo → preguntar si quitar
-      if (!confirm('Quitar este día de trabajo extra?')) return
-      horas = 0
-    } else {
-      const h = prompt('¿Cuántas horas se trabajan ese día? (sábado suele ser 4)', '4')
-      if (h === null || h.trim() === '') return
-      horas = Math.max(0, Math.min(24, parseFloat(h.replace(',', '.')) || 0))
-      if (horas === 0) return
-    }
+  async function postDiaExtra(id: string, fecha: string, horas: number) {
     setBusyId(id)
     try {
       const res = await fetch('/api/admin/proyectos/gantt/dia-extra', {
@@ -262,6 +251,20 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     } catch {
       setMsg('Error de red')
     } finally { setBusyId(null) }
+  }
+
+  // Click en un día no laborable dentro de la tarea → añadir como día de trabajo
+  function anadirDiaExtra(id: string, fecha: string) {
+    const h = prompt('¿Cuántas horas se trabajan ese día? (un sábado suele ser 4)', '4')
+    if (h === null || h.trim() === '') return
+    const horas = Math.max(0, Math.min(24, parseFloat(h.replace(',', '.')) || 0))
+    if (horas === 0) return
+    postDiaExtra(id, fecha, horas)
+  }
+
+  // Quitar día extra (botón × en la lista)
+  function quitarDiaExtra(id: string, fecha: string) {
+    postDiaExtra(id, fecha, 0)
   }
 
   function startDrag(e: React.PointerEvent, id: string, mode: 'move' | 'resize', ini: Date, fin: Date) {
@@ -434,6 +437,26 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                         >✂</button>
                       )}
                     </div>
+                    {/* días extra (finde/festivo trabajados) con opción de borrar */}
+                    {extraMap.size > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {Array.from(extraMap.entries()).sort((a, b) => a[0] - b[0]).map(([off, horas]) => {
+                          const f = addDays(rangeStart, off)
+                          const etiqueta = f.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' })
+                          return (
+                            <span key={`exl-${off}`} className="inline-flex items-center gap-1 text-[9px] bg-blue-50 text-blue-700 border border-blue-200 rounded px-1 py-0.5">
+                              {etiqueta} · {horas}h
+                              <button
+                                onClick={() => quitarDiaExtra(t.id, toISO(f))}
+                                disabled={busyId === t.id}
+                                className="text-blue-400 hover:text-red-600 font-bold leading-none"
+                                title="Quitar este día de trabajo extra"
+                              >×</button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div
                     className="relative py-2"
@@ -445,7 +468,8 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                       const off = Math.floor((e.clientX - rect.left) / DAY_W)
                       if (off < offset || off >= offset + dur) return // fuera del rango de la tarea
                       if (!nonWorkingSet.has(off)) return // solo días no laborables
-                      toggleDiaExtra(t.id, toISO(addDays(rangeStart, off)), extraMap.has(off))
+                      if (extraMap.has(off)) return // ya añadido: se quita con la × de la lista
+                      anadirDiaExtra(t.id, toISO(addDays(rangeStart, off)))
                     }}
                   >
                     {/* sábados (gris) y domingos (rojo): no laborables. pointer-events-none → el click llega al div para togglear */}
