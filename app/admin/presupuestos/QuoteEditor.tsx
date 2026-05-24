@@ -264,6 +264,7 @@ export default function QuoteEditor({
   ])
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
   const [openCatalogForRow, setOpenCatalogForRow] = useState<number | null>(null)
+  const [numTrabajadores, setNumTrabajadores] = useState(2) // para estimar días de obra
   const [catalogDropdownPos, setCatalogDropdownPos] = useState({ top: 0, left: 0 })
   const [certModalOpen, setCertModalOpen] = useState(false)
   const [certDraft, setCertDraft] = useState<number[]>([])
@@ -1469,24 +1470,34 @@ export default function QuoteEditor({
                   const totalHoras = form.items.reduce((s, it) => s + (it.quantity || 0) * (it.horas_por_unidad ?? 0), 0)
                   if (totalHoras <= 0) return null
                   const jornadas = totalHoras / 8 // jornada efectiva ~8h convenio
+                  const diasObra = numTrabajadores > 0 ? Math.ceil(jornadas / numTrabajadores) : 0
                   return (
-                    <div className="border-t border-neutral-200 pt-2 mt-1 space-y-1">
+                    <div className="border-t border-neutral-200 pt-2 mt-1 space-y-1.5">
                       <div className="flex justify-between text-sm">
                         <span className="text-neutral-500">Horas de obra estimadas</span>
                         <span className="tabular-nums font-medium text-blue-700">
                           {totalHoras.toLocaleString('es-ES', { maximumFractionDigits: 1 })} h
                         </span>
                       </div>
-                      <div className="flex justify-between text-xs text-neutral-400">
-                        <span>≈ jornadas (8 h/persona)</span>
-                        <span className="tabular-nums">
-                          {jornadas.toLocaleString('es-ES', { maximumFractionDigits: 1 })} ·
-                          {' '}{(jornadas / 2).toLocaleString('es-ES', { maximumFractionDigits: 0 })} días con 2 ·
-                          {' '}{(jornadas / 3).toLocaleString('es-ES', { maximumFractionDigits: 0 })} días con 3
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-neutral-500 flex items-center gap-1.5">
+                          Con
+                          <input
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={numTrabajadores}
+                            onChange={(e) => setNumTrabajadores(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-14 bg-white border border-neutral-300 rounded px-1.5 py-0.5 text-center tabular-nums"
+                          />
+                          trabajador{numTrabajadores === 1 ? '' : 'es'}
+                        </span>
+                        <span className="tabular-nums font-bold text-blue-800">
+                          ≈ {diasObra} día{diasObra === 1 ? '' : 's'} laborables
                         </span>
                       </div>
                       <p className="text-[10px] text-neutral-400 leading-tight">
-                        Estimación basada en rendimientos del catálogo (mano de obra). Las partidas sin rendimiento no suman.
+                        Estimación de mano de obra (rendimientos del catálogo, jornada 8 h). Las partidas sin rendimiento no suman; no incluye secado/curado ni esperas entre oficios.
                       </p>
                     </div>
                   )
