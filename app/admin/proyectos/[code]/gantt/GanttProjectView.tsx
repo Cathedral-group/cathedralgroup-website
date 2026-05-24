@@ -86,8 +86,31 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
   const [tasks, setTasks] = useState(initialTasks)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [generando, setGenerando] = useState(false)
   const router = useRouter()
   const DAY_W = 22 // ancho px por día
+
+  // Autogenerar el Gantt desde el presupuesto del proyecto
+  async function generarDesdePresupuesto() {
+    const hayAuto = tasks.length > 0
+    if (hayAuto && !confirm('Esto regenera la planificación automática desde el presupuesto (las tareas auto-generadas se reemplazan; las que hayas añadido o movido a mano se conservan). ¿Continuar?')) return
+    setGenerando(true); setMsg(null)
+    try {
+      const res = await fetch('/api/admin/proyectos/gantt/generar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: project.id, num_trabajadores: 2 }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
+      setMsg(`✓ Generadas ${json.tareas} tareas (fin ${json.fin})`)
+      router.refresh()
+    } catch {
+      setMsg('Error de red al generar')
+    } finally {
+      setGenerando(false)
+    }
+  }
 
   // Rango temporal: del mínimo inicio al máximo fin de las tareas planificadas;
   // fallback al start_date del proyecto + 8 semanas.
@@ -175,9 +198,19 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
           </h1>
           <p className="text-xs text-stone-500 mt-0.5">Planificación temporal de la obra · {planificadas.length} tareas en el diagrama</p>
         </div>
-        {msg && (
-          <div className={`text-xs px-3 py-1.5 rounded ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg}</div>
-        )}
+        <div className="flex items-center gap-2">
+          {msg && (
+            <div className={`text-xs px-3 py-1.5 rounded ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg}</div>
+          )}
+          <button
+            onClick={generarDesdePresupuesto}
+            disabled={generando}
+            className="text-xs bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 font-medium"
+            title="Crea las tareas del Gantt agrupando las partidas del presupuesto por capítulo, en orden de obra y con fechas en cascada"
+          >
+            {generando ? 'Generando…' : '⚡ Generar desde presupuesto'}
+          </button>
+        </div>
       </div>
 
       {planificadas.length === 0 && sinPlanificar.length === 0 && (
