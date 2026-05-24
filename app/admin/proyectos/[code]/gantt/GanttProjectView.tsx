@@ -225,7 +225,7 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
           <div className="min-w-max">
             {/* Cabecera semanas */}
             <div className="flex border-b border-stone-200 bg-stone-50 sticky top-0 z-10">
-              <div className="w-[260px] flex-none px-3 py-2 text-[10px] uppercase tracking-widest text-stone-500 border-r border-stone-200">
+              <div className="w-[260px] flex-none px-3 py-2 text-[10px] uppercase tracking-widest text-stone-500 border-r border-stone-200 sticky left-0 z-30 bg-stone-50">
                 Tarea
               </div>
               <div className="relative" style={{ width: totalDays * DAY_W }}>
@@ -259,7 +259,7 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
               const esRetraso = !!t.fecha_fin_plan && t.fecha_fin_plan < hoyISO && t.estado !== 'hecha'
               return (
                 <div key={t.id} className="flex border-b border-stone-100 hover:bg-stone-50/50">
-                  <div className="w-[260px] flex-none px-3 py-2 border-r border-stone-100">
+                  <div className="w-[260px] flex-none px-3 py-2 border-r border-stone-100 sticky left-0 z-20 bg-white">
                     <div className="text-xs font-medium text-stone-800 truncate" title={t.texto}>
                       {t.subtipo === 'reunion' ? '🤝 ' : ''}{t.texto}
                     </div>
