@@ -1,11 +1,16 @@
 'use client'
 
 /**
- * GanttProjectView — diagrama de Gantt por obra.
+ * GanttProjectView — diagrama de Gantt por obra (modelo de segmentos).
  *
- * Timeline horizontal por semanas. Cada tarea es una fila con su barra
- * posicionada según fecha_inicio_plan → fecha_fin_plan. Editable: fechas por
- * tarea (date inputs) que persisten vía PATCH /api/admin/proyectos/gantt.
+ * Cada tarea tiene un array de segmentos de trabajo [{inicio,fin}]. Cada
+ * segmento es una barra; los huecos entre segmentos son las pausas (no se
+ * modelan como dato). Dentro de cada segmento, los findes/festivos se dibujan
+ * como hueco (no se trabaja) y no cuentan como días, salvo días extra.
+ *
+ * Edición: mover segmento, redimensionar por izquierda/derecha, partir (divide
+ * un segmento en dos) y fusionar (une dos segmentos contiguos cerrando el
+ * hueco). Toda edición manda el array completo a /api/admin/proyectos/gantt/segmentos.
  *
  * A medida (sin librería externa) para control total y compatibilidad React 19.
  */
@@ -24,6 +29,8 @@ interface Project {
   end_date_real: string | null
 }
 
+interface Seg { inicio: string; fin: string }
+
 interface Task {
   id: string
   texto: string
@@ -31,14 +38,10 @@ interface Task {
   prioridad: string
   subtipo: string | null
   tipo: string | null
-  phase_id: string | null
-  fecha_objetivo: string | null
   fecha_inicio_plan: string | null
   fecha_fin_plan: string | null
   orden: number | null
-  parent_task_id: string | null
-  dependencias: unknown
-  pausas?: Array<{ desde: string; hasta: string }> | null
+  segmentos?: Seg[] | null
   dias_extra?: Array<{ fecha: string; horas: number }> | string[] | null
 }
 
@@ -49,34 +52,22 @@ interface Props {
 }
 
 const DAY_MS = 86400000
+const DAY_W = 22
 
-function parseISO(s: string | null): Date | null {
+function parseISO(s: string | null | undefined): Date | null {
   if (!s) return null
   const d = new Date(s + 'T00:00:00')
   return isNaN(d.getTime()) ? null : d
 }
 function toISO(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
-}
+function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 function startOfWeek(d: Date): Date {
-  const r = new Date(d)
-  const dow = r.getDay()
-  const off = dow === 0 ? -6 : 1 - dow
-  r.setDate(r.getDate() + off)
-  r.setHours(0, 0, 0, 0)
-  return r
+  const r = new Date(d); const dow = r.getDay(); const off = dow === 0 ? -6 : 1 - dow
+  r.setDate(r.getDate() + off); r.setHours(0, 0, 0, 0); return r
 }
-function diffDays(a: Date, b: Date): number {
-  return Math.round((a.getTime() - b.getTime()) / DAY_MS)
-}
+function diffDays(a: Date, b: Date): number { return Math.round((a.getTime() - b.getTime()) / DAY_MS) }
 
 const ESTADO_COLOR: Record<string, string> = {
   pendiente: 'bg-stone-400',
@@ -85,54 +76,37 @@ const ESTADO_COLOR: Record<string, string> = {
   bloqueada: 'bg-red-500',
 }
 
+// Segmentos de una tarea (con fallback a fecha_inicio/fin si no hay)
+function segmentosDe(t: Task): Seg[] {
+  if (Array.isArray(t.segmentos) && t.segmentos.length > 0) {
+    return [...t.segmentos].sort((a, b) => (a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : 0))
+  }
+  if (t.fecha_inicio_plan && t.fecha_fin_plan) return [{ inicio: t.fecha_inicio_plan, fin: t.fecha_fin_plan }]
+  return []
+}
+
 export default function GanttProjectView({ project, tasks: initialTasks, holidays = [] }: Props) {
-  const holidayMap = useMemo(() => {
-    const m: Record<string, string> = {}
-    for (const h of holidays) m[h.fecha] = h.nombre
-    return m
-  }, [holidays])
   const [tasks, setTasks] = useState(initialTasks)
-  // Sincroniza con los datos del servidor tras router.refresh (si no, el estado
-  // local ignora la prop nueva y los cambios no se ven sin recargar a mano).
   useEffect(() => { setTasks(initialTasks) }, [initialTasks])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [generando, setGenerando] = useState(false)
   const router = useRouter()
-  const DAY_W = 22 // ancho px por día
 
-  // Autogenerar el Gantt desde el presupuesto del proyecto
-  async function generarDesdePresupuesto() {
-    const hayAuto = tasks.length > 0
-    if (hayAuto && !confirm('Esto regenera la planificación automática desde el presupuesto (las tareas auto-generadas se reemplazan; las que hayas añadido o movido a mano se conservan). ¿Continuar?')) return
-    setGenerando(true); setMsg(null)
-    try {
-      const res = await fetch('/api/admin/proyectos/gantt/generar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: project.id, num_trabajadores: 2 }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
-      setMsg(`✓ Generadas ${json.tareas} tareas (fin ${json.fin})`)
-      router.refresh()
-    } catch {
-      setMsg('Error de red al generar')
-    } finally {
-      setGenerando(false)
-    }
-  }
+  const holidayMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const h of holidays) m[h.fecha] = h.nombre
+    return m
+  }, [holidays])
 
-  // Rango temporal: del mínimo inicio al máximo fin de las tareas planificadas;
-  // fallback al start_date del proyecto + 8 semanas.
+  // ─── Rango temporal ───
   const { rangeStart, totalDays, weeks, weekends } = useMemo(() => {
     const dates: Date[] = []
     for (const t of tasks) {
-      const ini = parseISO(t.fecha_inicio_plan)
-      const fin = parseISO(t.fecha_fin_plan)
-      if (ini) dates.push(ini)
-      if (fin) dates.push(fin)
-      // incluir días extra (pueden estar lejos de la barra, p.ej. un mes después)
+      for (const s of segmentosDe(t)) {
+        const i = parseISO(s.inicio), f = parseISO(s.fin)
+        if (i) dates.push(i); if (f) dates.push(f)
+      }
       for (const x of (t.dias_extra ?? [])) {
         const d = parseISO(typeof x === 'string' ? x : x.fecha)
         if (d) dates.push(d)
@@ -142,23 +116,16 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     if (projStart) dates.push(projStart)
     let min = dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : new Date()
     let max = dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : addDays(new Date(), 56)
-    min = startOfWeek(min)
-    // margen: 1 semana antes, mínimo 8 semanas de ancho
-    min = addDays(min, -7)
+    min = addDays(startOfWeek(min), -7)
     if (diffDays(max, min) < 56) max = addDays(min, 56)
-    // margen amplio al final (16 semanas ≈ 4 meses) para añadir días sueltos lejanos
-    max = addDays(startOfWeek(max), 112)
+    max = addDays(startOfWeek(max), 112) // margen amplio (16 sem) para días lejanos
     const total = diffDays(max, min) + 1
     const ws: { label: string; offsetDays: number }[] = []
     let cur = new Date(min)
     while (cur <= max) {
-      ws.push({
-        label: cur.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
-        offsetDays: diffDays(cur, min),
-      })
+      ws.push({ label: cur.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }), offsetDays: diffDays(cur, min) })
       cur = addDays(cur, 7)
     }
-    // Sábados (gris) y domingos (rojo) — no laborables
     const wk: { offset: number; domingo: boolean }[] = []
     for (let i = 0; i < total; i++) {
       const dow = addDays(min, i).getDay()
@@ -169,9 +136,8 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
   }, [tasks, project.start_date])
 
   const todayOffset = diffDays(new Date(new Date().setHours(0, 0, 0, 0)), rangeStart)
-  const hoyISO = toISO(new Date()) // fecha local (no UTC) para comparar retrasos
+  const hoyISO = toISO(new Date())
 
-  // Festivos dentro del rango visible (franja naranja, no laborable)
   const festivos = useMemo(() => {
     const out: { offset: number; nombre: string }[] = []
     for (let i = 0; i < totalDays; i++) {
@@ -181,7 +147,6 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     return out
   }, [rangeStart, totalDays, holidayMap])
 
-  // Offsets no laborables (findes + festivos) para cortar las barras
   const nonWorkingSet = useMemo(() => {
     const s = new Set<number>()
     for (const w of weekends) s.add(w.offset)
@@ -189,82 +154,67 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     return s
   }, [weekends, festivos])
 
-  // ─── Drag / resize de barras ───
-  // mode 'move' arrastra toda la barra (cambia inicio+fin manteniendo duración).
-  // mode 'resize' estira el borde derecho (cambia solo el fin → más/menos días).
-  const dragRef = useRef<{ id: string; mode: 'move' | 'resize'; startX: number; ini: Date; fin: Date } | null>(null)
-  const [preview, setPreview] = useState<{ id: string; mode: 'move' | 'resize'; deltaDays: number } | null>(null)
-
-  useEffect(() => {
-    if (!preview) return
-    function onMove(e: PointerEvent) {
-      const d = dragRef.current
-      if (!d) return
-      const deltaDays = Math.round((e.clientX - d.startX) / DAY_W)
-      setPreview({ id: d.id, mode: d.mode, deltaDays })
-    }
-    function onUp() {
-      const d = dragRef.current
-      const pv = preview
-      dragRef.current = null
-      setPreview(null)
-      if (!d || !pv || pv.deltaDays === 0) return
-      if (d.mode === 'move') {
-        const nIni = addDays(d.ini, pv.deltaDays)
-        const nFin = addDays(d.fin, pv.deltaDays)
-        saveDates(d.id, { fecha_inicio_plan: toISO(nIni), fecha_fin_plan: toISO(nFin) })
-      } else {
-        // resize: el fin no puede quedar antes del inicio (mínimo 1 día)
-        let nFin = addDays(d.fin, pv.deltaDays)
-        if (nFin < d.ini) nFin = new Date(d.ini)
-        saveDates(d.id, { fecha_fin_plan: toISO(nFin) })
-      }
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-  }, [preview])
-
-  async function partirTarea(id: string) {
-    if (!confirm('Partir esta tarea en dos (deja un hueco de 2 días y el resto continúa después). Luego puedes arrastrar cada parte. ¿Continuar?')) return
+  // ─── Persistencia ───
+  async function saveSegmentos(id: string, segmentos: Seg[]) {
     setBusyId(id)
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, segmentos } : t)))
     try {
-      const res = await fetch('/api/admin/proyectos/gantt/partir', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: id, hueco_dias: 2 }),
+      const res = await fetch('/api/admin/proyectos/gantt/segmentos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: id, segmentos }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); router.refresh(); return }
+      setMsg('✓ Guardado')
+      setTimeout(() => setMsg(null), 1200)
+      router.refresh()
+    } catch { setMsg('Error de red'); router.refresh() } finally { setBusyId(null) }
+  }
+
+  async function generarDesdePresupuesto() {
+    if (tasks.length > 0 && !confirm('Regenera la planificación automática desde el presupuesto. Las tareas auto-generadas se reemplazan. ¿Continuar?')) return
+    setGenerando(true); setMsg(null)
+    try {
+      const res = await fetch('/api/admin/proyectos/gantt/generar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: project.id, num_trabajadores: 2 }),
       })
       const json = await res.json()
       if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
-      setMsg('✓ Tarea partida'); router.refresh()
-    } catch {
-      setMsg('Error de red al partir')
-    } finally { setBusyId(null) }
+      setMsg(`✓ Generadas ${json.tareas} tareas`); router.refresh()
+    } catch { setMsg('Error de red al generar') } finally { setGenerando(false) }
   }
 
+  // Partir un segmento en dos (hueco de 2 días naturales) → array nuevo
+  function partirSegmento(segs: Seg[], idx: number): Seg[] {
+    const s = segs[idx]
+    const ini = parseISO(s.inicio)!, fin = parseISO(s.fin)!
+    const dias = diffDays(fin, ini) + 1
+    if (dias < 2) return segs
+    const medio = Math.floor(dias / 2)
+    const fin1 = addDays(ini, medio - 1)
+    const ini2 = addDays(fin1, 3)        // hueco de 2 días naturales
+    const fin2 = addDays(fin, 2)         // desplaza el resto
+    const next = [...segs]
+    next.splice(idx, 1, { inicio: toISO(ini), fin: toISO(fin1) }, { inicio: toISO(ini2), fin: toISO(fin2) })
+    return next
+  }
+
+  // Días extra (sin cambios de modelo: finde/festivo trabajados)
   async function postDiaExtra(id: string, fecha: string, horas: number) {
     setBusyId(id)
     try {
       const res = await fetch('/api/admin/proyectos/gantt/dia-extra', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: id, fecha, horas }),
       })
       const json = await res.json()
       if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
-      // optimista: refleja al instante en el estado local
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, dias_extra: json.dias_extra } : t)))
       setMsg(json.activo ? `✓ Día de trabajo añadido (${horas}h)` : '✓ Día quitado')
       router.refresh()
-    } catch {
-      setMsg('Error de red')
-    } finally { setBusyId(null) }
+    } catch { setMsg('Error de red') } finally { setBusyId(null) }
   }
-
-  // Click en un día no laborable dentro de la tarea → añadir como día de trabajo
   function anadirDiaExtra(id: string, fecha: string) {
     const h = prompt('¿Cuántas horas se trabajan ese día? (un sábado suele ser 4)', '4')
     if (h === null || h.trim() === '') return
@@ -272,99 +222,84 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     if (horas === 0) return
     postDiaExtra(id, fecha, horas)
   }
+  function quitarDiaExtra(id: string, fecha: string) { postDiaExtra(id, fecha, 0) }
 
-  // Quitar día extra (botón × en la lista)
-  function quitarDiaExtra(id: string, fecha: string) {
-    postDiaExtra(id, fecha, 0)
-  }
+  // ─── Drag (mover / redimensionar izquierda o derecha de un segmento) ───
+  type DragMode = 'move' | 'resize-left' | 'resize-right'
+  const dragRef = useRef<{ id: string; segIdx: number; mode: DragMode; startX: number; segs: Seg[] } | null>(null)
+  const [preview, setPreview] = useState<{ id: string; segIdx: number; mode: DragMode; deltaDays: number } | null>(null)
 
-  // Borrar un corte (pausa) de una tarea por índice
-  async function borrarPausa(id: string, index: number) {
-    setBusyId(id)
-    try {
-      const res = await fetch('/api/admin/proyectos/gantt/pausa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: id, index }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
-      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, pausas: json.pausas } : t)))
-      setMsg('✓ Corte borrado')
-      router.refresh()
-    } catch {
-      setMsg('Error de red')
-    } finally { setBusyId(null) }
-  }
-
-  function startDrag(e: React.PointerEvent, id: string, mode: 'move' | 'resize', ini: Date, fin: Date) {
-    e.preventDefault()
-    e.stopPropagation()
-    dragRef.current = { id, mode, startX: e.clientX, ini, fin }
-    setPreview({ id, mode, deltaDays: 0 })
-  }
-
-  async function saveDates(id: string, patch: { fecha_inicio_plan?: string | null; fecha_fin_plan?: string | null }) {
-    setBusyId(id)
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
-    try {
-      const res = await fetch('/api/admin/proyectos/gantt', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...patch }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); router.refresh(); return }
-      setMsg('✓ Guardado')
-      setTimeout(() => setMsg(null), 1500)
-    } catch {
-      setMsg('Error de red'); router.refresh()
-    } finally {
-      setBusyId(null)
+  useEffect(() => {
+    if (!preview) return
+    function onMove(e: PointerEvent) {
+      const d = dragRef.current
+      if (!d) return
+      setPreview({ id: d.id, segIdx: d.segIdx, mode: d.mode, deltaDays: Math.round((e.clientX - d.startX) / DAY_W) })
     }
+    function onUp() {
+      const d = dragRef.current
+      const pv = preview
+      dragRef.current = null
+      setPreview(null)
+      if (!d || !pv || pv.deltaDays === 0) return
+      const segs = d.segs.map((s) => ({ ...s }))
+      const seg = segs[d.segIdx]
+      const ini = parseISO(seg.inicio)!, fin = parseISO(seg.fin)!
+      if (d.mode === 'move') {
+        seg.inicio = toISO(addDays(ini, pv.deltaDays))
+        seg.fin = toISO(addDays(fin, pv.deltaDays))
+      } else if (d.mode === 'resize-left') {
+        let nIni = addDays(ini, pv.deltaDays)
+        if (nIni > fin) nIni = new Date(fin)
+        seg.inicio = toISO(nIni)
+      } else {
+        let nFin = addDays(fin, pv.deltaDays)
+        if (nFin < ini) nFin = new Date(ini)
+        seg.fin = toISO(nFin)
+      }
+      saveSegmentos(d.id, segs)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp) }
+  }, [preview]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function startDrag(e: React.PointerEvent, id: string, segIdx: number, mode: DragMode, segs: Seg[]) {
+    e.preventDefault(); e.stopPropagation()
+    dragRef.current = { id, segIdx, mode, startX: e.clientX, segs }
+    setPreview({ id, segIdx, mode, deltaDays: 0 })
   }
 
   const sorted = useMemo(() => {
     return [...tasks].sort((a, b) => {
       const ao = a.orden ?? 9999, bo = b.orden ?? 9999
       if (ao !== bo) return ao - bo
-      const ai = parseISO(a.fecha_inicio_plan)?.getTime() ?? Infinity
-      const bi = parseISO(b.fecha_inicio_plan)?.getTime() ?? Infinity
+      const ai = parseISO(segmentosDe(a)[0]?.inicio)?.getTime() ?? Infinity
+      const bi = parseISO(segmentosDe(b)[0]?.inicio)?.getTime() ?? Infinity
       return ai - bi
     })
   }, [tasks])
 
-  const sinPlanificar = sorted.filter((t) => !t.fecha_inicio_plan || !t.fecha_fin_plan)
-  const planificadas = sorted.filter((t) => t.fecha_inicio_plan && t.fecha_fin_plan)
+  const planificadas = sorted.filter((t) => segmentosDe(t).length > 0)
+  const sinPlanificar = sorted.filter((t) => segmentosDe(t).length === 0)
 
   return (
     <div>
       <div className="mb-6 flex items-end justify-between gap-3 flex-wrap">
         <div>
           <div className="flex items-center gap-3 text-sm text-stone-500">
-            <Link href="/admin" className="hover:text-stone-900">Admin</Link>
-            <span>›</span>
-            <Link href="/admin/proyectos" className="hover:text-stone-900">Proyectos</Link>
-            <span>›</span>
-            <span className="text-stone-900">{project.code}</span>
-            <span>›</span>
+            <Link href="/admin" className="hover:text-stone-900">Admin</Link><span>›</span>
+            <Link href="/admin/proyectos" className="hover:text-stone-900">Proyectos</Link><span>›</span>
+            <span className="text-stone-900">{project.code}</span><span>›</span>
             <span className="text-stone-900">Gantt</span>
           </div>
-          <h1 className="mt-1 text-2xl font-light tracking-tight text-stone-900">
-            {project.name || project.code}
-          </h1>
-          <p className="text-xs text-stone-500 mt-0.5">Planificación temporal de la obra · {planificadas.length} tareas en el diagrama</p>
+          <h1 className="mt-1 text-2xl font-light tracking-tight text-stone-900">{project.name || project.code}</h1>
+          <p className="text-xs text-stone-500 mt-0.5">Planificación temporal · {planificadas.length} tareas</p>
         </div>
         <div className="flex items-center gap-2">
-          {msg && (
-            <div className={`text-xs px-3 py-1.5 rounded ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg}</div>
-          )}
-          <button
-            onClick={generarDesdePresupuesto}
-            disabled={generando}
-            className="text-xs bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 font-medium"
-            title="Crea las tareas del Gantt agrupando las partidas del presupuesto por capítulo, en orden de obra y con fechas en cascada"
-          >
+          {msg && <div className={`text-xs px-3 py-1.5 rounded ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg}</div>}
+          <button onClick={generarDesdePresupuesto} disabled={generando}
+            className="text-xs bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 font-medium">
             {generando ? 'Generando…' : '⚡ Generar desde presupuesto'}
           </button>
         </div>
@@ -372,44 +307,25 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
 
       {planificadas.length === 0 && sinPlanificar.length === 0 && (
         <div className="rounded-lg border border-stone-200 bg-white p-8 text-center text-sm text-stone-500">
-          Este proyecto no tiene tareas. Añádelas desde la planificación del proyecto.
+          Este proyecto no tiene tareas. Genera desde el presupuesto o añádelas en la planificación.
         </div>
       )}
 
-      {/* GANTT */}
       {planificadas.length > 0 && (
         <div className="rounded-lg border border-stone-200 bg-white overflow-x-auto">
           <div className="min-w-max">
-            {/* Cabecera semanas */}
+            {/* Cabecera */}
             <div className="flex border-b border-stone-200 bg-stone-50 sticky top-0 z-10">
-              <div className="w-[260px] flex-none px-3 py-2 text-[10px] uppercase tracking-widest text-stone-500 border-r border-stone-200 sticky left-0 z-30 bg-stone-50">
-                Tarea
-              </div>
+              <div className="w-[260px] flex-none px-3 py-2 text-[10px] uppercase tracking-widest text-stone-500 border-r border-stone-200 sticky left-0 z-30 bg-stone-50">Tarea</div>
               <div className="relative" style={{ width: totalDays * DAY_W }}>
                 {weekends.map((w, i) => (
-                  <div
-                    key={`wk-${i}`}
-                    className={`absolute top-0 h-full ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`}
-                    style={{ left: w.offset * DAY_W, width: DAY_W }}
-                    title={w.domingo ? 'Domingo (no laborable)' : 'Sábado (no laborable)'}
-                  />
+                  <div key={`wk-${i}`} className={`absolute top-0 h-full pointer-events-none ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`} style={{ left: w.offset * DAY_W, width: DAY_W }} title={w.domingo ? 'Domingo' : 'Sábado'} />
                 ))}
                 {festivos.map((f, i) => (
-                  <div
-                    key={`fe-${i}`}
-                    className="absolute top-0 h-full bg-orange-200"
-                    style={{ left: f.offset * DAY_W, width: DAY_W }}
-                    title={`Festivo: ${f.nombre}`}
-                  />
+                  <div key={`fe-${i}`} className="absolute top-0 h-full bg-orange-200 pointer-events-none" style={{ left: f.offset * DAY_W, width: DAY_W }} title={`Festivo: ${f.nombre}`} />
                 ))}
                 {weeks.map((w, i) => (
-                  <div
-                    key={i}
-                    className="absolute top-0 h-full border-l border-stone-200 px-1 py-2 text-[9px] text-stone-400"
-                    style={{ left: w.offsetDays * DAY_W }}
-                  >
-                    {w.label}
-                  </div>
+                  <div key={i} className="absolute top-0 h-full border-l border-stone-200 px-1 py-2 text-[9px] text-stone-400" style={{ left: w.offsetDays * DAY_W }}>{w.label}</div>
                 ))}
                 {todayOffset >= 0 && todayOffset < totalDays && (
                   <div className="absolute top-0 h-full w-px bg-red-400 z-20" style={{ left: todayOffset * DAY_W }} title="Hoy" />
@@ -417,18 +333,13 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
               </div>
             </div>
 
-            {/* Filas tareas */}
+            {/* Filas */}
             {planificadas.map((t) => {
-              const ini = parseISO(t.fecha_inicio_plan)!
-              const fin = parseISO(t.fecha_fin_plan)!
-              const offset = diffDays(ini, rangeStart)
-              const dur = Math.max(1, diffDays(fin, ini) + 1)
-              // Extras (remates fuera de presupuesto) → azul + rayado
+              const segs = segmentosDe(t)
+              const color = t.tipo === 'obra_remate' ? 'bg-blue-600' : (ESTADO_COLOR[t.estado] ?? 'bg-stone-400')
               const esExtra = t.tipo === 'obra_remate'
-              const color = esExtra ? 'bg-blue-600' : (ESTADO_COLOR[t.estado] ?? 'bg-stone-400')
-              // Retraso: fin planificado pasado y no terminada
               const esRetraso = !!t.fecha_fin_plan && t.fecha_fin_plan < hoyISO && t.estado !== 'hecha'
-              // Días extra (finde/festivo trabajados) → offset:horas. Tolera formato legacy.
+              // días extra → offset:horas
               const extraMap = new Map<number, number>()
               for (const x of (t.dias_extra ?? [])) {
                 const fecha = typeof x === 'string' ? x : x.fecha
@@ -442,169 +353,152 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                     <div className="text-xs font-medium text-stone-800 truncate" title={t.texto}>
                       {t.subtipo === 'reunion' ? '🤝 ' : ''}{t.texto}
                     </div>
-                    <div className="mt-0.5 flex items-center gap-1">
-                      <input
-                        type="date"
-                        value={t.fecha_inicio_plan ?? ''}
-                        disabled={busyId === t.id}
-                        onChange={(e) => saveDates(t.id, { fecha_inicio_plan: e.target.value || null })}
-                        className="text-[9px] border border-stone-200 rounded px-1 py-0.5 w-[88px]"
-                      />
-                      <span className="text-[9px] text-stone-300">→</span>
-                      <input
-                        type="date"
-                        value={t.fecha_fin_plan ?? ''}
-                        disabled={busyId === t.id}
-                        onChange={(e) => saveDates(t.id, { fecha_fin_plan: e.target.value || null })}
-                        className="text-[9px] border border-stone-200 rounded px-1 py-0.5 w-[88px]"
-                      />
-                      {dur >= 2 && (
-                        <button
-                          onClick={() => partirTarea(t.id)}
-                          disabled={busyId === t.id}
-                          className="flex-none text-[11px] text-stone-400 hover:text-blue-600 disabled:opacity-40 px-0.5"
-                          title="Partir la tarea (los trabajadores se van unos días y el resto continúa después)"
-                        >✂</button>
-                      )}
+                    <div className="mt-0.5 text-[9px] text-stone-400">
+                      {t.fecha_inicio_plan} → {t.fecha_fin_plan}
                     </div>
-                    {/* cortes (pausas) de la tarea, con opción de borrar */}
-                    {Array.isArray(t.pausas) && t.pausas.length > 0 && (
+                    {/* huecos (pausas) entre segmentos, con fusionar */}
+                    {segs.length > 1 && (
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {t.pausas.map((p, pi) => {
-                          const d1 = parseISO(p.desde), d2 = parseISO(p.hasta)
-                          const e1 = d1 ? d1.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) : p.desde
-                          const e2 = d2 ? d2.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) : p.hasta
+                        {segs.slice(0, -1).map((s, gi) => {
+                          const finA = parseISO(s.fin)!, iniB = parseISO(segs[gi + 1].inicio)!
+                          const d1 = addDays(finA, 1).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
+                          const d2 = addDays(iniB, -1).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
                           return (
-                            <span key={`pa-${pi}`} className="inline-flex items-center gap-1 text-[9px] bg-amber-50 text-amber-800 border border-amber-200 rounded px-1 py-0.5">
-                              ✂ {e1}–{e2}
+                            <span key={`gap-${gi}`} className="inline-flex items-center gap-1 text-[9px] bg-amber-50 text-amber-800 border border-amber-200 rounded px-1 py-0.5">
+                              ✂ {d1}–{d2}
                               <button
-                                onClick={() => borrarPausa(t.id, pi)}
+                                onClick={() => {
+                                  const next = [...segs]
+                                  next.splice(gi, 2, { inicio: segs[gi].inicio, fin: segs[gi + 1].fin })
+                                  saveSegmentos(t.id, next)
+                                }}
                                 disabled={busyId === t.id}
                                 className="text-amber-400 hover:text-red-600 font-bold leading-none"
-                                title="Borrar este corte"
+                                title="Quitar este corte (une los dos tramos)"
                               >×</button>
                             </span>
                           )
                         })}
                       </div>
                     )}
-                    {/* días extra (finde/festivo trabajados) con opción de borrar */}
+                    {/* días extra con borrar */}
                     {extraMap.size > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {Array.from(extraMap.entries()).sort((a, b) => a[0] - b[0]).map(([off, horas]) => {
                           const f = addDays(rangeStart, off)
-                          const etiqueta = f.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' })
                           return (
                             <span key={`exl-${off}`} className="inline-flex items-center gap-1 text-[9px] bg-blue-50 text-blue-700 border border-blue-200 rounded px-1 py-0.5">
-                              {etiqueta} · {horas}h
-                              <button
-                                onClick={() => quitarDiaExtra(t.id, toISO(f))}
-                                disabled={busyId === t.id}
-                                className="text-blue-400 hover:text-red-600 font-bold leading-none"
-                                title="Quitar este día de trabajo extra"
-                              >×</button>
+                              {f.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' })} · {horas}h
+                              <button onClick={() => quitarDiaExtra(t.id, toISO(f))} disabled={busyId === t.id}
+                                className="text-blue-400 hover:text-red-600 font-bold leading-none" title="Quitar día de trabajo extra">×</button>
                             </span>
                           )
                         })}
                       </div>
                     )}
                   </div>
+
+                  {/* Timeline de la fila */}
                   <div
                     className="relative py-2"
                     style={{ width: totalDays * DAY_W }}
-                    title="Clica cualquier día gris/rojo/naranja (sábado/domingo/festivo) de esta fila para añadirlo como día de trabajo, aunque esté lejos de la barra"
+                    title="Clica un día gris/rojo/naranja para añadirlo como día de trabajo extra"
                     onClick={(e) => {
-                      if (e.target !== e.currentTarget) return // solo clicks en zona libre (las barras capturan el suyo)
+                      if (e.target !== e.currentTarget) return
                       const rect = e.currentTarget.getBoundingClientRect()
                       const off = Math.floor((e.clientX - rect.left) / DAY_W)
-                      if (off < 0 || off >= totalDays) return // fuera del calendario visible
-                      if (!nonWorkingSet.has(off)) return // solo días no laborables (finde/festivo)
-                      if (extraMap.has(off)) return // ya añadido: se quita con la × de la lista
+                      if (off < 0 || off >= totalDays) return
+                      if (!nonWorkingSet.has(off)) return
+                      if (extraMap.has(off)) return
                       anadirDiaExtra(t.id, toISO(addDays(rangeStart, off)))
                     }}
                   >
-                    {/* sábados (gris) y domingos (rojo): no laborables. pointer-events-none → el click llega al div para togglear */}
                     {weekends.map((w, i) => (
                       <div key={`wk-${i}`} className={`absolute top-0 h-full pointer-events-none ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`} style={{ left: w.offset * DAY_W, width: DAY_W }} />
                     ))}
                     {festivos.map((f, i) => (
                       <div key={`fe-${i}`} className="absolute top-0 h-full bg-orange-200 pointer-events-none" style={{ left: f.offset * DAY_W, width: DAY_W }} />
                     ))}
-                    {/* rejilla semanal */}
                     {weeks.map((w, i) => (
                       <div key={i} className="absolute top-0 h-full border-l border-stone-100 pointer-events-none" style={{ left: w.offsetDays * DAY_W }} />
                     ))}
                     {todayOffset >= 0 && todayOffset < totalDays && (
                       <div className="absolute top-0 h-full w-px bg-red-400/50 pointer-events-none" style={{ left: todayOffset * DAY_W }} />
                     )}
-                    {/* barra partida en segmentos: solo días de trabajo (sin findes,
-                        festivos ni pausas). Dos o más barras en la misma línea. */}
-                    {(() => {
-                      const pv = preview?.id === t.id ? preview : null
-                      const liveOffset = offset + (pv?.mode === 'move' ? pv.deltaDays : 0)
-                      const liveDur = Math.max(1, dur + (pv?.mode === 'resize' ? pv.deltaDays : 0))
-                      // pausas de la tarea → offsets no laborables propios
-                      const pausaSet = new Set<number>()
-                      for (const p of (t.pausas ?? [])) {
-                        const pd = parseISO(p.desde), ph = parseISO(p.hasta)
-                        if (pd && ph) { let c = new Date(pd); while (c <= ph) { pausaSet.add(diffDays(c, rangeStart)); c = addDays(c, 1) } }
-                      }
-                      // findes/festivos/pausas = hueco. Los días extra se pintan aparte
-                      // como mini-barra (jornada parcial), no se fusionan al segmento.
-                      const noTrabajo = (off: number) => nonWorkingSet.has(off) || pausaSet.has(off)
-                      // tramos consecutivos de trabajo
-                      const segs: { rel: number; len: number }[] = []
+
+                    {/* una barra por segmento; dentro, cortada en findes/festivos */}
+                    {segs.map((s, segIdx) => {
+                      const pv = preview?.id === t.id && preview.segIdx === segIdx ? preview : null
+                      const segIni = parseISO(s.inicio)!, segFin = parseISO(s.fin)!
+                      let off0 = diffDays(segIni, rangeStart)
+                      let off1 = diffDays(segFin, rangeStart) // inclusive
+                      if (pv?.mode === 'move') { off0 += pv.deltaDays; off1 += pv.deltaDays }
+                      else if (pv?.mode === 'resize-left') { off0 = Math.min(off1, off0 + pv.deltaDays) }
+                      else if (pv?.mode === 'resize-right') { off1 = Math.max(off0, off1 + pv.deltaDays) }
+                      const segLen = off1 - off0 + 1
+                      // sub-tramos laborables dentro del segmento (cortar findes/festivos)
+                      const subs: { rel: number; len: number }[] = []
                       let i = 0
-                      while (i < liveDur) {
-                        if (noTrabajo(liveOffset + i)) { i++; continue }
+                      while (i < segLen) {
+                        if (nonWorkingSet.has(off0 + i)) { i++; continue }
                         let j = i
-                        while (j < liveDur && !noTrabajo(liveOffset + j)) j++
-                        segs.push({ rel: i, len: j - i })
+                        while (j < segLen && !nonWorkingSet.has(off0 + j)) j++
+                        subs.push({ rel: i, len: j - i })
                         i = j
                       }
-                      const diasTrabajo = segs.reduce((s, x) => s + x.len, 0)
-                      const lastIdx = segs.length - 1
-                      const tip = `${t.fecha_inicio_plan} → ${t.fecha_fin_plan} · ${diasTrabajo} días de trabajo · ${t.estado}${esExtra ? ' · EXTRA' : ''}${esRetraso ? ' · ⚠ RETRASO' : ''} · arrastra para mover, borde derecho para alargar`
-                      return segs.map((s, si) => (
-                        <div
-                          key={`seg-${si}`}
-                          onPointerDown={(e) => startDrag(e, t.id, 'move', ini, fin)}
-                          className={`absolute h-5 rounded ${color} overflow-hidden cursor-grab active:cursor-grabbing select-none ${esRetraso ? 'ring-2 ring-red-500' : esExtra ? 'ring-1 ring-amber-500' : ''} ${pv ? 'opacity-80' : ''}`}
-                          style={{
-                            left: (liveOffset + s.rel) * DAY_W,
-                            width: s.len * DAY_W - 2,
-                            top: 4,
-                            touchAction: 'none',
-                            ...(esExtra ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 4px, transparent 4px, transparent 8px)' } : {}),
-                          }}
-                          title={tip}
-                        >
-                          {si === 0 && (
-                            <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium pointer-events-none whitespace-nowrap">
-                              {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{diasTrabajo}d
-                            </span>
-                          )}
-                          {si === lastIdx && (
+                      const diasTrabajo = subs.reduce((a, x) => a + x.len, 0)
+                      const partible = (diffDays(segFin, segIni) + 1) >= 2
+                      return (
+                        <div key={`seg-${segIdx}`}>
+                          {subs.map((sub, sui) => (
                             <div
-                              onPointerDown={(e) => startDrag(e, t.id, 'resize', ini, fin)}
-                              className="absolute top-0 right-0 h-full w-2 cursor-ew-resize bg-white/30 hover:bg-white/60"
-                              style={{ touchAction: 'none' }}
-                              title="Arrastra para alargar/acortar días"
-                            />
+                              key={`sub-${sui}`}
+                              onPointerDown={(e) => startDrag(e, t.id, segIdx, 'move', segs)}
+                              className={`absolute h-5 rounded ${color} overflow-hidden cursor-grab active:cursor-grabbing select-none ${esRetraso ? 'ring-1 ring-red-500' : ''} ${pv ? 'opacity-80' : ''}`}
+                              style={{
+                                left: (off0 + sub.rel) * DAY_W, width: sub.len * DAY_W - 2, top: 4, touchAction: 'none',
+                                ...(esExtra ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 4px, transparent 4px, transparent 8px)' } : {}),
+                              }}
+                              title={`${s.inicio} → ${s.fin} · ${diasTrabajo} días de trabajo${esExtra ? ' · EXTRA' : ''}${esRetraso ? ' · ⚠ RETRASO' : ''}`}
+                            >
+                              {sui === 0 && (
+                                <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium pointer-events-none whitespace-nowrap">
+                                  {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{diasTrabajo}d
+                                </span>
+                              )}
+                              {/* handle resize izquierda (en el primer sub-tramo) */}
+                              {sui === 0 && (
+                                <div onPointerDown={(e) => startDrag(e, t.id, segIdx, 'resize-left', segs)}
+                                  className="absolute top-0 left-0 h-full w-2 cursor-ew-resize bg-white/30 hover:bg-white/60"
+                                  style={{ touchAction: 'none' }} title="Arrastra para mover el inicio" />
+                              )}
+                              {/* handle resize derecha (en el último sub-tramo) */}
+                              {sui === subs.length - 1 && (
+                                <div onPointerDown={(e) => startDrag(e, t.id, segIdx, 'resize-right', segs)}
+                                  className="absolute top-0 right-0 h-full w-2 cursor-ew-resize bg-white/30 hover:bg-white/60"
+                                  style={{ touchAction: 'none' }} title="Arrastra para mover el fin" />
+                              )}
+                            </div>
+                          ))}
+                          {/* botón partir el segmento (✂) sobre el primer sub-tramo */}
+                          {partible && subs[0] && !pv && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); saveSegmentos(t.id, partirSegmento(segs, segIdx)) }}
+                              className="absolute z-10 text-[9px] bg-white/80 hover:bg-white text-stone-600 rounded px-0.5 leading-none"
+                              style={{ left: (off0 + subs[0].rel) * DAY_W + 1, top: 5 }}
+                              title="Partir este tramo en dos"
+                            >✂</button>
                           )}
                         </div>
-                      ))
-                    })()}
-                    {/* días extra (finde/festivo trabajados): mini-barra de jornada parcial */}
+                      )
+                    })}
+
+                    {/* mini-barras de días extra (jornada parcial) */}
                     {Array.from(extraMap.entries()).map(([off, horas]) => {
                       const altura = Math.min(20, Math.max(4, Math.round((horas / 8) * 20)))
                       return (
-                        <div
-                          key={`ex-${off}`}
-                          className={`absolute rounded ${color} ring-1 ring-blue-500 pointer-events-none flex items-end justify-center`}
-                          style={{ left: off * DAY_W, width: DAY_W - 2, height: altura, bottom: 6 }}
-                          title={`Día de trabajo extra: ${horas}h`}
-                        >
+                        <div key={`ex-${off}`} className={`absolute rounded ${color} ring-1 ring-blue-500 pointer-events-none flex items-end justify-center`}
+                          style={{ left: off * DAY_W, width: DAY_W - 2, height: altura, bottom: 6 }} title={`Día extra: ${horas}h`}>
                           <span className="text-[7px] text-white leading-none pb-0.5">{horas}h</span>
                         </div>
                       )
@@ -617,32 +511,20 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
         </div>
       )}
 
-      {/* Tareas sin planificar — asignar fechas */}
+      {/* Tareas sin planificar */}
       {sinPlanificar.length > 0 && (
         <div className="mt-6 rounded-lg border border-stone-200 bg-white">
           <div className="px-4 py-2 border-b border-stone-100 bg-stone-50/60 text-xs font-bold uppercase tracking-widest text-stone-500">
-            Sin planificar ({sinPlanificar.length}) — asigna fechas para que aparezcan en el diagrama
+            Sin planificar ({sinPlanificar.length}) — asigna fechas
           </div>
           <ul className="divide-y divide-stone-100">
             {sinPlanificar.map((t) => (
               <li key={t.id} className="px-4 py-2 flex items-center justify-between gap-3">
                 <span className="text-sm text-stone-700 truncate">{t.subtipo === 'reunion' ? '🤝 ' : '📋 '}{t.texto}</span>
                 <div className="flex items-center gap-1 flex-none">
-                  <input
-                    type="date"
-                    value={t.fecha_inicio_plan ?? ''}
-                    disabled={busyId === t.id}
-                    onChange={(e) => saveDates(t.id, { fecha_inicio_plan: e.target.value || null })}
-                    className="text-[10px] border border-stone-200 rounded px-1 py-0.5"
-                  />
-                  <span className="text-[10px] text-stone-300">→</span>
-                  <input
-                    type="date"
-                    value={t.fecha_fin_plan ?? ''}
-                    disabled={busyId === t.id}
-                    onChange={(e) => saveDates(t.id, { fecha_fin_plan: e.target.value || null })}
-                    className="text-[10px] border border-stone-200 rounded px-1 py-0.5"
-                  />
+                  <input type="date" disabled={busyId === t.id}
+                    onChange={(e) => { if (e.target.value) saveSegmentos(t.id, [{ inicio: e.target.value, fin: e.target.value }]) }}
+                    className="text-[10px] border border-stone-200 rounded px-1 py-0.5" title="Fecha de inicio (luego ajusta el fin arrastrando)" />
                 </div>
               </li>
             ))}
@@ -655,12 +537,11 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-400" /> Pendiente</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500" /> En curso</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500" /> Hecha</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-amber-500 bg-blue-600" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 2px, transparent 2px, transparent 4px)' }} /> ★ Extra / remate</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-2 ring-red-500 bg-stone-400" /> ⚠ Retraso</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-600 ring-1 ring-amber-500" /> Extra/remate</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-100 border border-stone-200" /> Sábado</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> Domingo</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200 border border-orange-300" /> Festivo</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-400" /> Hoy</span>
+        <span className="flex items-center gap-1">✂ corte · clic día = añadir trabajo extra · arrastra bordes para redimensionar</span>
       </div>
     </div>
   )
