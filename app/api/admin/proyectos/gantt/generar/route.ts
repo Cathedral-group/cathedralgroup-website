@@ -72,7 +72,12 @@ async function authCheck() {
   return data.user
 }
 
-interface QuoteItem { chapter_code?: string; chapter_name?: string; quantity?: number; horas_por_unidad?: number | null }
+interface QuoteItem { chapter_code?: string; chapter_name?: string; description?: string; quantity?: number; horas_por_unidad?: number | null }
+
+// Acabados de madera (tarima, parquet, rodapiés, zócalos): van al FINAL,
+// separados de su capítulo de origen.
+const MADERA_FINAL_RE = /tarima|parquet|laminad|flotante|rodapi|z[oó]calo/i
+const GRUPO_MADERA = '__madera_final__'
 
 export async function POST(request: NextRequest) {
   const user = await authCheck()
@@ -98,34 +103,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'El proyecto no tiene presupuesto con partidas' }, { status: 400 })
   }
 
-  // Agrupar horas por capítulo
-  const horasPorCap: Record<string, number> = {}
-  const nombrePorCap: Record<string, string> = {}
+  // Agrupar horas por capítulo. Los acabados de madera (tarima, parquet,
+  // rodapiés, zócalos) se extraen de su capítulo y van a un grupo final.
+  const horasPorGrupo: Record<string, number> = {}
+  const ordenPorGrupo: Record<string, number> = {}
+  const nombrePorGrupo: Record<string, string> = {}
   for (const it of items) {
     const ch = it.chapter_code
     if (!ch || !CAP[ch]) continue
     const horas = (Number(it.quantity) || 0) * (Number(it.horas_por_unidad) || 0)
-    horasPorCap[ch] = (horasPorCap[ch] ?? 0) + horas
-    nombrePorCap[ch] = it.chapter_name || CAP[ch].nombre
+    const esMadera = MADERA_FINAL_RE.test(it.description || '')
+    const grupo = esMadera ? GRUPO_MADERA : ch
+    horasPorGrupo[grupo] = (horasPorGrupo[grupo] ?? 0) + horas
+    if (esMadera) {
+      ordenPorGrupo[grupo] = 150
+      nombrePorGrupo[grupo] = 'Tarima y rodapiés'
+    } else {
+      ordenPorGrupo[grupo] = CAP[ch].orden
+      nombrePorGrupo[grupo] = it.chapter_name || CAP[ch].nombre
+    }
   }
-  const caps = Object.keys(horasPorCap)
-    .filter((ch) => horasPorCap[ch] > 0)
-    .sort((a, b) => CAP[a].orden - CAP[b].orden)
-  if (caps.length === 0) {
+  const grupos = Object.keys(horasPorGrupo)
+    .filter((g) => horasPorGrupo[g] > 0)
+    .sort((a, b) => ordenPorGrupo[a] - ordenPorGrupo[b])
+  if (grupos.length === 0) {
     return NextResponse.json({ error: 'Las partidas no tienen rendimientos (horas) para planificar' }, { status: 400 })
   }
 
   // Cascada de fechas laborables desde start_date (o hoy)
   const startBase = project.start_date ? new Date(project.start_date + 'T00:00:00') : new Date()
   let cursor = nextBusinessDay(startBase)
-  const tasks = caps.map((ch) => {
-    const dur = Math.max(1, Math.ceil(horasPorCap[ch] / (8 * numTrab)))
+  const tasks = grupos.map((g) => {
+    const dur = Math.max(1, Math.ceil(horasPorGrupo[g] / (8 * numTrab)))
     const fini = nextBusinessDay(cursor)
     const ffin = addBusinessDays(fini, dur - 1)
     cursor = addBusinessDays(ffin, 1)
     return {
-      texto: nombrePorCap[ch] || CAP[ch].nombre,
-      orden: CAP[ch].orden,
+      texto: nombrePorGrupo[g],
+      orden: ordenPorGrupo[g],
       fecha_inicio_plan: toDateStr(fini),
       fecha_fin_plan: toDateStr(ffin),
     }
