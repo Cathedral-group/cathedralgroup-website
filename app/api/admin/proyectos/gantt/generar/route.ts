@@ -46,20 +46,23 @@ const CAP: Record<string, { orden: number; nombre: string }> = {
   '25': { orden: 185, nombre: 'Varios' },
 }
 
-function isWeekend(d: Date) { const x = d.getDay(); return x === 0 || x === 6 }
-function nextBusinessDay(d: Date): Date {
-  const r = new Date(d)
-  while (isWeekend(r)) r.setDate(r.getDate() + 1)
-  return r
-}
-function addBusinessDays(start: Date, n: number): Date {
-  const d = new Date(start)
-  let added = 0
-  while (added < n) { d.setDate(d.getDate() + 1); if (!isWeekend(d)) added++ }
-  return d
-}
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function isNonWorking(d: Date, skip: Set<string>) {
+  const x = d.getDay()
+  return x === 0 || x === 6 || skip.has(toDateStr(d))
+}
+function nextBusinessDay(d: Date, skip: Set<string>): Date {
+  const r = new Date(d)
+  while (isNonWorking(r, skip)) r.setDate(r.getDate() + 1)
+  return r
+}
+function addBusinessDays(start: Date, n: number, skip: Set<string>): Date {
+  const d = new Date(start)
+  let added = 0
+  while (added < n) { d.setDate(d.getDate() + 1); if (!isNonWorking(d, skip)) added++ }
+  return d
 }
 
 async function authCheck() {
@@ -103,8 +106,13 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminSupabaseClient()
 
   const { data: project } = await supabase
-    .from('projects').select('id, start_date').eq('id', body.project_id).is('deleted_at', null).maybeSingle()
+    .from('projects').select('id, start_date, company_id').eq('id', body.project_id).is('deleted_at', null).maybeSingle()
   if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
+
+  // Festivos de la empresa → no cuentan como días laborables
+  const { data: hols } = await supabase
+    .from('holidays').select('fecha').eq('company_id', project.company_id)
+  const skipSet = new Set<string>((hols ?? []).map((h) => h.fecha as string))
 
   // Presupuesto más reciente del proyecto
   const { data: quote } = await supabase
@@ -144,12 +152,12 @@ export async function POST(request: NextRequest) {
 
   // Cascada de fechas laborables desde start_date (o hoy)
   const startBase = project.start_date ? new Date(project.start_date + 'T00:00:00') : new Date()
-  let cursor = nextBusinessDay(startBase)
+  let cursor = nextBusinessDay(startBase, skipSet)
   const tasks = grupos.map((g) => {
     const dur = Math.max(1, Math.ceil(horasPorGrupo[g] / (8 * numTrab)))
-    const fini = nextBusinessDay(cursor)
-    const ffin = addBusinessDays(fini, dur - 1)
-    cursor = addBusinessDays(ffin, 1)
+    const fini = nextBusinessDay(cursor, skipSet)
+    const ffin = addBusinessDays(fini, dur - 1, skipSet)
+    cursor = addBusinessDays(ffin, 1, skipSet)
     return {
       texto: nombrePorGrupo[g],
       orden: ordenPorGrupo[g],

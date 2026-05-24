@@ -16,19 +16,21 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function isWeekend(d: Date) { const x = d.getDay(); return x === 0 || x === 6 }
-function addBusinessDays(start: Date, n: number): Date {
-  const d = new Date(start); let a = 0
-  while (a < n) { d.setDate(d.getDate() + 1); if (!isWeekend(d)) a++ }
-  return d
-}
-function businessDaysBetween(a: Date, b: Date): number {
-  let n = 0; const d = new Date(a)
-  while (d < b) { d.setDate(d.getDate() + 1); if (!isWeekend(d)) n++ }
-  return n + 1
-}
 function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function isNonWorking(d: Date, skip: Set<string>) {
+  const x = d.getDay(); return x === 0 || x === 6 || skip.has(toISO(d))
+}
+function addBusinessDays(start: Date, n: number, skip: Set<string>): Date {
+  const d = new Date(start); let a = 0
+  while (a < n) { d.setDate(d.getDate() + 1); if (!isNonWorking(d, skip)) a++ }
+  return d
+}
+function businessDaysBetween(a: Date, b: Date, skip: Set<string>): number {
+  let n = 0; const d = new Date(a)
+  while (d < b) { d.setDate(d.getDate() + 1); if (!isNonWorking(d, skip)) n++ }
+  return n + 1
 }
 
 async function authCheck() {
@@ -53,21 +55,26 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminSupabaseClient()
   const { data: task } = await supabase
     .from('project_tasks')
-    .select('id, fecha_inicio_plan, fecha_fin_plan')
+    .select('id, fecha_inicio_plan, fecha_fin_plan, company_id')
     .eq('id', body.task_id).is('deleted_at', null).maybeSingle()
   if (!task || !task.fecha_inicio_plan || !task.fecha_fin_plan) {
     return NextResponse.json({ error: 'La tarea no tiene fechas planificadas' }, { status: 400 })
   }
 
+  // Festivos → no cuentan como días laborables
+  const { data: hols } = await supabase
+    .from('holidays').select('fecha').eq('company_id', task.company_id)
+  const skip = new Set<string>((hols ?? []).map((h) => h.fecha as string))
+
   const ini = new Date(task.fecha_inicio_plan + 'T00:00:00')
   const fin = new Date(task.fecha_fin_plan + 'T00:00:00')
-  const D = businessDaysBetween(ini, fin)
+  const D = businessDaysBetween(ini, fin, skip)
   if (D < 2) return NextResponse.json({ error: 'La tarea dura 1 día; no se puede partir' }, { status: 400 })
 
   const corte = Math.floor(D / 2)
-  const finPrimera = addBusinessDays(ini, corte - 1)
-  const iniNueva = addBusinessDays(finPrimera, 1 + hueco)
-  const finNueva = addBusinessDays(iniNueva, (D - corte) - 1)
+  const finPrimera = addBusinessDays(ini, corte - 1, skip)
+  const iniNueva = addBusinessDays(finPrimera, 1 + hueco, skip)
+  const finNueva = addBusinessDays(iniNueva, (D - corte) - 1, skip)
 
   const { data: newId, error } = await supabase.rpc('split_task', {
     p_task_id: body.task_id,

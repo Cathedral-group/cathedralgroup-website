@@ -41,10 +41,18 @@ export default async function ProjectGanttPage({ params }: PageProps) {
     .order('fecha_inicio_plan', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true })
 
+  // Festivos de la empresa (para marcarlos en el Gantt y no contar como horas)
+  const { data: holidays } = await supabase
+    .from('holidays')
+    .select('fecha, nombre')
+    .eq('company_id', activeCompanyId)
+    .order('fecha')
+
   return (
     <GanttProjectView
       project={project}
       tasks={(tasks ?? []) as never}
+      holidays={(holidays ?? []) as Array<{ fecha: string; nombre: string }>}
     />
   )
 }

@@ -43,6 +43,7 @@ interface Task {
 interface Props {
   project: Project
   tasks: Task[]
+  holidays?: Array<{ fecha: string; nombre: string }>
 }
 
 const DAY_MS = 86400000
@@ -82,7 +83,12 @@ const ESTADO_COLOR: Record<string, string> = {
   bloqueada: 'bg-red-500',
 }
 
-export default function GanttProjectView({ project, tasks: initialTasks }: Props) {
+export default function GanttProjectView({ project, tasks: initialTasks, holidays = [] }: Props) {
+  const holidayMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const h of holidays) m[h.fecha] = h.nombre
+    return m
+  }, [holidays])
   const [tasks, setTasks] = useState(initialTasks)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -153,6 +159,16 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
 
   const todayOffset = diffDays(new Date(new Date().setHours(0, 0, 0, 0)), rangeStart)
   const hoyISO = toISO(new Date()) // fecha local (no UTC) para comparar retrasos
+
+  // Festivos dentro del rango visible (franja naranja, no laborable)
+  const festivos = useMemo(() => {
+    const out: { offset: number; nombre: string }[] = []
+    for (let i = 0; i < totalDays; i++) {
+      const iso = toISO(addDays(rangeStart, i))
+      if (holidayMap[iso]) out.push({ offset: i, nombre: holidayMap[iso] })
+    }
+    return out
+  }, [rangeStart, totalDays, holidayMap])
 
   // ─── Drag / resize de barras ───
   // mode 'move' arrastra toda la barra (cambia inicio+fin manteniendo duración).
@@ -307,6 +323,14 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
                     title={w.domingo ? 'Domingo (no laborable)' : 'Sábado (no laborable)'}
                   />
                 ))}
+                {festivos.map((f, i) => (
+                  <div
+                    key={`fe-${i}`}
+                    className="absolute top-0 h-full bg-orange-200"
+                    style={{ left: f.offset * DAY_W, width: DAY_W }}
+                    title={`Festivo: ${f.nombre}`}
+                  />
+                ))}
                 {weeks.map((w, i) => (
                   <div
                     key={i}
@@ -363,6 +387,9 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
                     {/* sábados (gris) y domingos (rojo): no laborables */}
                     {weekends.map((w, i) => (
                       <div key={`wk-${i}`} className={`absolute top-0 h-full ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`} style={{ left: w.offset * DAY_W, width: DAY_W }} />
+                    ))}
+                    {festivos.map((f, i) => (
+                      <div key={`fe-${i}`} className="absolute top-0 h-full bg-orange-200" style={{ left: f.offset * DAY_W, width: DAY_W }} />
                     ))}
                     {/* rejilla semanal */}
                     {weeks.map((w, i) => (
@@ -464,6 +491,7 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-2 ring-red-500 bg-stone-400" /> ⚠ Retraso</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-100 border border-stone-200" /> Sábado</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> Domingo</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200 border border-orange-300" /> Festivo</span>
         <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-400" /> Hoy</span>
       </div>
     </div>
