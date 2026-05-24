@@ -185,19 +185,16 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     } catch { setMsg('Error de red al generar') } finally { setGenerando(false) }
   }
 
-  // Partir un segmento en dos (hueco de 2 días naturales) → array nuevo
-  function partirSegmento(segs: Seg[], idx: number): Seg[] {
-    const s = segs[idx]
-    const ini = parseISO(s.inicio)!, fin = parseISO(s.fin)!
-    const dias = diffDays(fin, ini) + 1
-    if (dias < 2) return segs
-    const medio = Math.floor(dias / 2)
-    const fin1 = addDays(ini, medio - 1)
-    const ini2 = addDays(fin1, 3)        // hueco de 2 días naturales
-    const fin2 = addDays(fin, 2)         // desplaza el resto
-    const next = [...segs]
-    next.splice(idx, 1, { inicio: toISO(ini), fin: toISO(fin1) }, { inicio: toISO(ini2), fin: toISO(fin2) })
-    return next
+  // Añadir una barra nueva (segmento independiente) en la misma línea. Se coloca
+  // tras el último tramo; el usuario la mueve/redimensiona donde quiera.
+  function anadirSegmento(id: string, segs: Seg[]) {
+    const ultimoFin = segs.length > 0
+      ? segs.reduce((m, s) => (s.fin > m ? s.fin : m), segs[0].fin)
+      : toISO(new Date())
+    const base = parseISO(ultimoFin) ?? new Date()
+    const ini = addDays(base, 3)   // unos días después del final
+    const fin = addDays(ini, 2)    // 3 días de duración por defecto
+    saveSegmentos(id, [...segs, { inicio: toISO(ini), fin: toISO(fin) }])
   }
 
   // Días extra (sin cambios de modelo: finde/festivo trabajados)
@@ -350,8 +347,16 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
               return (
                 <div key={t.id} className="flex border-b border-stone-100 hover:bg-stone-50/50">
                   <div className="w-[260px] flex-none px-3 py-2 border-r border-stone-100 sticky left-0 z-20 bg-white">
-                    <div className="text-xs font-medium text-stone-800 truncate" title={t.texto}>
-                      {t.subtipo === 'reunion' ? '🤝 ' : ''}{t.texto}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="text-xs font-medium text-stone-800 truncate" title={t.texto}>
+                        {t.subtipo === 'reunion' ? '🤝 ' : ''}{t.texto}
+                      </div>
+                      <button
+                        onClick={() => anadirSegmento(t.id, segs)}
+                        disabled={busyId === t.id}
+                        className="flex-none text-[11px] text-blue-500 hover:text-blue-700 disabled:opacity-40 px-1 border border-blue-200 rounded leading-none"
+                        title="Añadir otra barra de trabajo en esta misma línea (p.ej. el oficio vuelve más adelante)"
+                      >＋</button>
                     </div>
                     <div className="mt-0.5 text-[9px] text-stone-400">
                       {t.fecha_inicio_plan} → {t.fecha_fin_plan}
@@ -364,8 +369,8 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                           const d1 = addDays(finA, 1).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
                           const d2 = addDays(iniB, -1).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
                           return (
-                            <span key={`gap-${gi}`} className="inline-flex items-center gap-1 text-[9px] bg-amber-50 text-amber-800 border border-amber-200 rounded px-1 py-0.5">
-                              ✂ {d1}–{d2}
+                            <span key={`gap-${gi}`} className="inline-flex items-center gap-1 text-[9px] bg-amber-50 text-amber-800 border border-amber-200 rounded px-1 py-0.5" title="Parada entre barras">
+                              parada {d1}–{d2}
                               <button
                                 onClick={() => {
                                   const next = [...segs]
@@ -374,7 +379,7 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                                 }}
                                 disabled={busyId === t.id}
                                 className="text-amber-400 hover:text-red-600 font-bold leading-none"
-                                title="Quitar este corte (une los dos tramos)"
+                                title="Unir los dos tramos (quitar la parada)"
                               >×</button>
                             </span>
                           )
@@ -447,7 +452,6 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                         i = j
                       }
                       const diasTrabajo = subs.reduce((a, x) => a + x.len, 0)
-                      const partible = (diffDays(segFin, segIni) + 1) >= 2
                       return (
                         <div key={`seg-${segIdx}`}>
                           {subs.map((sub, sui) => (
@@ -480,15 +484,6 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                               )}
                             </div>
                           ))}
-                          {/* botón partir el segmento (✂) sobre el primer sub-tramo */}
-                          {partible && subs[0] && !pv && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); saveSegmentos(t.id, partirSegmento(segs, segIdx)) }}
-                              className="absolute z-10 text-[9px] bg-white/80 hover:bg-white text-stone-600 rounded px-0.5 leading-none"
-                              style={{ left: (off0 + subs[0].rel) * DAY_W + 1, top: 5 }}
-                              title="Partir este tramo en dos"
-                            >✂</button>
-                          )}
                         </div>
                       )
                     })}
@@ -541,7 +536,7 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-100 border border-stone-200" /> Sábado</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> Domingo</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200 border border-orange-300" /> Festivo</span>
-        <span className="flex items-center gap-1">✂ corte · clic día = añadir trabajo extra · arrastra bordes para redimensionar</span>
+        <span className="flex items-center gap-1">＋ añade otra barra en la línea · arrastra bordes para redimensionar · clic en día gris/rojo = trabajo extra</span>
       </div>
     </div>
   )
