@@ -132,6 +132,11 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
       const fin = parseISO(t.fecha_fin_plan)
       if (ini) dates.push(ini)
       if (fin) dates.push(fin)
+      // incluir días extra (pueden estar lejos de la barra, p.ej. un mes después)
+      for (const x of (t.dias_extra ?? [])) {
+        const d = parseISO(typeof x === 'string' ? x : x.fecha)
+        if (d) dates.push(d)
+      }
     }
     const projStart = parseISO(project.start_date)
     if (projStart) dates.push(projStart)
@@ -141,7 +146,8 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     // margen: 1 semana antes, mínimo 8 semanas de ancho
     min = addDays(min, -7)
     if (diffDays(max, min) < 56) max = addDays(min, 56)
-    max = addDays(startOfWeek(max), 13) // completar 2 semanas tras el último
+    // margen amplio al final (6 semanas) para poder añadir días sueltos lejanos
+    max = addDays(startOfWeek(max), 42)
     const total = diffDays(max, min) + 1
     const ws: { label: string; offsetDays: number }[] = []
     let cur = new Date(min)
@@ -466,13 +472,13 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                   <div
                     className="relative py-2"
                     style={{ width: totalDays * DAY_W }}
-                    title="Clica un día gris/rojo/naranja dentro de la tarea para añadirlo o quitarlo como día de trabajo"
+                    title="Clica cualquier día gris/rojo/naranja (sábado/domingo/festivo) de esta fila para añadirlo como día de trabajo, aunque esté lejos de la barra"
                     onClick={(e) => {
                       if (e.target !== e.currentTarget) return // solo clicks en zona libre (las barras capturan el suyo)
                       const rect = e.currentTarget.getBoundingClientRect()
                       const off = Math.floor((e.clientX - rect.left) / DAY_W)
-                      if (off < offset || off >= offset + dur) return // fuera del rango de la tarea
-                      if (!nonWorkingSet.has(off)) return // solo días no laborables
+                      if (off < 0 || off >= totalDays) return // fuera del calendario visible
+                      if (!nonWorkingSet.has(off)) return // solo días no laborables (finde/festivo)
                       if (extraMap.has(off)) return // ya añadido: se quita con la × de la lista
                       anadirDiaExtra(t.id, toISO(addDays(rangeStart, off)))
                     }}
