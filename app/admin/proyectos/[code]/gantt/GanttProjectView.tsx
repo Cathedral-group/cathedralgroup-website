@@ -175,6 +175,20 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     } catch { setMsg('Error de red'); router.refresh() } finally { setBusyId(null) }
   }
 
+  async function confirmarPlanificacion() {
+    if (!confirm('Confirmar esta planificación como línea base? A partir de aquí se medirá la desviación (días/horas de más o de menos).')) return
+    setBusyId('__confirm__')
+    try {
+      const res = await fetch('/api/admin/proyectos/gantt/confirmar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: project.id, num_trabajadores: 2 }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
+      setMsg('✓ Planificación confirmada'); router.refresh()
+    } catch { setMsg('Error de red') } finally { setBusyId(null) }
+  }
+
   async function generarDesdePresupuesto() {
     if (tasks.length > 0 && !confirm('Regenera la planificación automática desde el presupuesto. Las tareas auto-generadas se reemplazan. ¿Continuar?')) return
     setGenerando(true); setMsg(null)
@@ -329,6 +343,13 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
         </div>
         <div className="flex items-center gap-2">
           {msg && <div className={`text-xs px-3 py-1.5 rounded ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg}</div>}
+          {planificadas.length > 0 && (
+            <button onClick={confirmarPlanificacion} disabled={busyId === '__confirm__'}
+              className={`text-xs px-4 py-2 rounded font-medium disabled:opacity-50 ${finPrevisto ? 'border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+              title="Fija la planificación actual como línea base para medir la desviación">
+              {busyId === '__confirm__' ? 'Confirmando…' : finPrevisto ? '✓ Reconfirmar base' : '✓ Confirmar planificación'}
+            </button>
+          )}
           <button onClick={generarDesdePresupuesto} disabled={generando}
             className="text-xs bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 font-medium">
             {generando ? 'Generando…' : '⚡ Generar desde presupuesto'}
@@ -354,7 +375,7 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
           <div className={`rounded-lg border px-3 py-2 ${desviacionDias === null ? 'border-stone-200 bg-white' : desviacionDias > 0 ? 'border-red-200 bg-red-50' : desviacionDias < 0 ? 'border-emerald-200 bg-emerald-50' : 'border-stone-200 bg-white'}`}>
             <div className="text-[9px] uppercase tracking-widest text-stone-400">Desviación</div>
             <div className={`text-sm font-bold ${desviacionDias === null ? 'text-stone-400' : desviacionDias > 0 ? 'text-red-700' : desviacionDias < 0 ? 'text-emerald-700' : 'text-stone-700'}`}>
-              {desviacionDias === null ? '—'
+              {desviacionDias === null ? 'Sin confirmar'
                 : desviacionDias === 0 ? 'En plazo'
                 : `${desviacionDias > 0 ? '+' : ''}${desviacionDias} día${Math.abs(desviacionDias) === 1 ? '' : 's'}`}
             </div>
