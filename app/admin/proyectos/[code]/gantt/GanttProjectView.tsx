@@ -328,7 +328,7 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
         const fecha = typeof x === 'string' ? x : x?.fecha
         const horas = typeof x === 'string' ? 1 : (x?.horas ?? 0)
         if (fecha && horas > 0) {
-          dias++
+          dias += horas / 8 // proporcional: jornada completa 8h = 1 día, sábado 4h = 0,5
           if (!fin || fecha > fin) fin = fecha
           if (!ini || fecha < ini) ini = fecha
         }
@@ -403,7 +403,7 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
           </div>
           <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
             <div className="text-[9px] uppercase tracking-widest text-stone-400">Días de trabajo</div>
-            <div className="text-sm font-medium text-blue-700">{diasTrabajoTotal} d</div>
+            <div className="text-sm font-medium text-blue-700">{Number(diasTrabajoTotal.toFixed(1)).toLocaleString('es-ES')} d</div>
           </div>
           <div className="rounded-lg border border-stone-200 bg-white px-3 py-2">
             <div className="text-[9px] uppercase tracking-widest text-stone-400">Horas previstas</div>
