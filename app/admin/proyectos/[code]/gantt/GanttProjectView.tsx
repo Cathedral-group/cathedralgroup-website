@@ -427,6 +427,19 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                           {pct > 0 && pct < 100 && (
                             <div className="absolute inset-y-0 left-0 bg-black/25 pointer-events-none" style={{ width: `${pct}%` }} />
                           )}
+                          {/* corta la barra en los días no laborables que cruza */}
+                          {[
+                            ...weekends.map((w) => ({ offset: w.offset, cls: w.domingo ? 'bg-red-100' : 'bg-stone-100' })),
+                            ...festivos.map((f) => ({ offset: f.offset, cls: 'bg-orange-200' })),
+                          ]
+                            .filter((x) => x.offset >= liveOffset && x.offset < liveOffset + liveDur)
+                            .map((x, i) => (
+                              <div
+                                key={`gap-${i}`}
+                                className={`absolute top-0 h-full ${x.cls} pointer-events-none`}
+                                style={{ left: (x.offset - liveOffset) * DAY_W, width: DAY_W }}
+                              />
+                            ))}
                           <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium pointer-events-none">
                             {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{liveDur >= 3 ? `${liveDur}d` : ''}
                           </span>
