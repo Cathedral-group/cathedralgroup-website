@@ -57,6 +57,8 @@ interface Props {
 
 const DAY_MS = 86400000
 const DAY_W = 22
+// Acrónimo de día de la semana indexado por getDay() (0=domingo)
+const WEEKDAY_ABBR = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
 
 function parseISO(s: string | null | undefined): Date | null {
   if (!s) return null
@@ -411,7 +413,7 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
           <div className="min-w-max">
             {/* Cabecera */}
             <div className="flex border-b border-stone-200 bg-stone-50 sticky top-0 z-10">
-              <div className="w-[260px] flex-none px-3 py-2 text-[10px] uppercase tracking-widest text-stone-500 border-r border-stone-200 sticky left-0 z-30 bg-stone-50">Tarea</div>
+              <div className="w-[260px] flex-none px-3 flex items-end pb-1 text-[10px] uppercase tracking-widest text-stone-500 border-r border-stone-200 sticky left-0 z-30 bg-stone-50">Tarea</div>
               <div className="relative" style={{ width: totalDays * DAY_W }}>
                 {weekends.map((w, i) => (
                   <div key={`wk-${i}`} className={`absolute top-0 h-full pointer-events-none ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`} style={{ left: w.offset * DAY_W, width: DAY_W }} title={w.domingo ? 'Domingo' : 'Sábado'} />
@@ -419,9 +421,24 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                 {festivos.map((f, i) => (
                   <div key={`fe-${i}`} className="absolute top-0 h-full bg-orange-200 pointer-events-none" style={{ left: f.offset * DAY_W, width: DAY_W }} title={`Festivo: ${f.nombre}`} />
                 ))}
-                {weeks.map((w, i) => (
-                  <div key={i} className="absolute top-0 h-full border-l border-stone-200 px-1 py-2 text-[9px] text-stone-400" style={{ left: w.offsetDays * DAY_W }}>{w.label}</div>
-                ))}
+                {/* Tira superior: etiqueta mes/semana */}
+                <div className="relative h-4">
+                  {weeks.map((w, i) => (
+                    <div key={i} className="absolute top-0 border-l border-stone-200 pl-1 text-[9px] text-stone-400 leading-4" style={{ left: w.offsetDays * DAY_W }}>{w.label}</div>
+                  ))}
+                </div>
+                {/* Tira inferior: acrónimo de día (L M X J V S D) con separadores gris claro */}
+                <div className="relative flex h-4">
+                  {Array.from({ length: totalDays }).map((_, i) => {
+                    const dow = addDays(rangeStart, i).getDay()
+                    const finde = dow === 0 || dow === 6
+                    return (
+                      <div key={i} className={`flex-none text-center text-[8px] leading-4 border-l border-stone-200/70 ${finde ? 'text-stone-400 font-semibold' : 'text-stone-400'}`} style={{ width: DAY_W }}>
+                        {WEEKDAY_ABBR[dow]}
+                      </div>
+                    )
+                  })}
+                </div>
                 {todayOffset >= 0 && todayOffset < totalDays && (
                   <div className="absolute top-0 h-full w-px bg-red-400 z-20" style={{ left: todayOffset * DAY_W }} title="Hoy" />
                 )}
