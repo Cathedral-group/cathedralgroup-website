@@ -239,6 +239,7 @@ export default function QuoteEditor({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [sentAt, setSentAt] = useState<string | null>(form.sent_at ?? null)
   const [sentChannel, setSentChannel] = useState<string | null>(form.sent_channel ?? null)
@@ -1011,94 +1012,113 @@ export default function QuoteEditor({
         <div className="ml-auto flex items-center gap-2">
           {savedIdRef.current && (
             <>
-              <button
-                onClick={openSendModal}
-                className="hidden sm:block border border-neutral-800 bg-neutral-900 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-primary transition-colors relative"
-              >
-                {sentAt ? '✓ Enviado' : 'Enviar'}
-              </button>
-              <button
-                onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
-                className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-neutral-400 transition-colors"
-                title="Generar PDF del presupuesto"
-              >
-                PDF Presupuesto
-              </button>
-              {form.portal_token && (
-                <button
-                  onClick={async () => {
-                    if (!confirm(
-                      '¿Regenerar el token del portal?\n\n' +
-                      'El enlace y QR anterior dejarán de funcionar inmediatamente. ' +
-                      'Tendrás que descargar un PDF nuevo y reenviárselo al cliente con el QR actualizado.\n\n' +
-                      'Usa esto solo si sospechas que el enlace se ha filtrado.'
-                    )) return
-                    try {
-                      const res = await fetch('/api/admin/rotate-portal-token', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ quoteId: savedIdRef.current }),
-                      })
-                      const data = await res.json()
-                      if (!res.ok) {
-                        alert('Error: ' + (data.error || 'no se pudo rotar el token'))
-                        return
-                      }
-                      setForm(prev => ({ ...prev, portal_token: data.portalToken }))
-                      alert(
-                        '✅ Token regenerado.\n\n' +
-                        'Nueva URL del portal:\n' + data.portalUrl + '\n\n' +
-                        'Recuerda generar un PDF nuevo y reenviarlo al cliente — el QR del PDF anterior ya no funciona.'
-                      )
-                    } catch (e) {
-                      alert('Error de red: ' + String(e))
-                    }
-                  }}
-                  className="hidden sm:block border border-amber-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-amber-700 hover:border-amber-500 hover:bg-amber-50 transition-colors"
-                  title="Regenerar el token del portal cliente. El enlace anterior dejará de funcionar."
-                >
-                  ↻ Token portal
-                </button>
-              )}
+              {/* Indicador pasivo: visto por el cliente */}
               {form.portal_viewed_at && (
                 <span
-                  className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-green-600 bg-green-50 border border-green-200"
+                  className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-green-600"
                   title={`Visto por el cliente el ${new Date(form.portal_viewed_at).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
                 >
                   👁 Visto
                 </span>
               )}
-              {form.items.some((it) => (it.certified_pct ?? 0) > 0) && (
-                <>
-                  <button
-                    onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}&type=certificacion`, '_blank')}
-                    className="hidden sm:block border border-neutral-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-green-600 hover:border-green-400 hover:bg-green-50 transition-colors"
-                    title="Generar PDF de certificación parcial"
-                  >
-                    PDF Cert.
-                  </button>
-                  <button
-                    onClick={() => { if (confirm(`¿Cerrar y bloquear Certificación ${(form.certifications?.length ?? 0) + 1}?`)) handleCloseCertification() }}
-                    disabled={closingCert}
-                    className="hidden sm:block border border-green-600 text-green-700 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-green-600 hover:text-white transition-colors disabled:opacity-50"
-                    title="Cerrar y bloquear la certificación actual"
-                  >
-                    Cerrar Cert. {(form.certifications?.length ?? 0) + 1}
-                  </button>
-                </>
-              )}
-              <button onClick={handleConvertToInvoice} disabled={generatingInvoice} className="hidden sm:block bg-blue-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors disabled:opacity-50">
+              {/* Primaria */}
+              <button
+                onClick={openSendModal}
+                className="hidden sm:block bg-primary text-white px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/90 transition-colors"
+              >
+                {sentAt ? '✓ Enviado' : 'Enviar'}
+              </button>
+              {/* Secundarias */}
+              <button
+                onClick={() => window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}`, '_blank')}
+                className="hidden sm:block border border-neutral-300 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-700 hover:border-neutral-400 transition-colors"
+                title="Generar PDF del presupuesto"
+              >
+                PDF
+              </button>
+              <button onClick={handleConvertToInvoice} disabled={generatingInvoice} className="hidden sm:block border border-neutral-300 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-700 hover:border-neutral-400 transition-colors disabled:opacity-50">
                 {generatingInvoice ? 'Generando...' : '→ Factura'}
               </button>
-              {confirmDelete ? (
-                <button onClick={handleDelete} className="bg-red-600 text-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-red-700 transition-colors">
-                  Confirmar
+              {/* Overflow ⋯ Más: acciones poco frecuentes + destructiva */}
+              <div className="relative hidden sm:block">
+                <button
+                  onClick={() => setMoreOpen((v) => !v)}
+                  className="border border-neutral-300 px-3 py-1.5 text-[12px] font-bold text-neutral-600 hover:border-neutral-400 transition-colors leading-none"
+                  title="Más acciones"
+                >
+                  ⋯
                 </button>
-              ) : (
-                <button onClick={() => setConfirmDelete(true)} className="border border-red-200 text-red-500 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50 transition-colors">
-                  Eliminar
-                </button>
-              )}
+                {moreOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                    <div className="absolute right-0 mt-1 z-50 w-56 bg-white border border-neutral-200 shadow-lg rounded py-1 text-left">
+                      {form.portal_token && (
+                        <button
+                          onClick={async () => {
+                            setMoreOpen(false)
+                            if (!confirm(
+                              '¿Regenerar el token del portal?\n\n' +
+                              'El enlace y QR anterior dejarán de funcionar inmediatamente. ' +
+                              'Tendrás que descargar un PDF nuevo y reenviárselo al cliente con el QR actualizado.\n\n' +
+                              'Usa esto solo si sospechas que el enlace se ha filtrado.'
+                            )) return
+                            try {
+                              const res = await fetch('/api/admin/rotate-portal-token', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ quoteId: savedIdRef.current }),
+                              })
+                              const data = await res.json()
+                              if (!res.ok) {
+                                alert('Error: ' + (data.error || 'no se pudo rotar el token'))
+                                return
+                              }
+                              setForm(prev => ({ ...prev, portal_token: data.portalToken }))
+                              alert(
+                                '✅ Token regenerado.\n\n' +
+                                'Nueva URL del portal:\n' + data.portalUrl + '\n\n' +
+                                'Recuerda generar un PDF nuevo y reenviarlo al cliente — el QR del PDF anterior ya no funciona.'
+                              )
+                            } catch (e) {
+                              alert('Error de red: ' + String(e))
+                            }
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 transition-colors"
+                        >
+                          ↻ Regenerar token portal
+                        </button>
+                      )}
+                      {form.items.some((it) => (it.certified_pct ?? 0) > 0) && (
+                        <>
+                          <button
+                            onClick={() => { setMoreOpen(false); window.open(`/api/db/presupuesto-pdf?id=${savedIdRef.current}&type=certificacion`, '_blank') }}
+                            className="w-full text-left px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 transition-colors"
+                          >
+                            📄 PDF certificación
+                          </button>
+                          <button
+                            onClick={() => { setMoreOpen(false); if (confirm(`¿Cerrar y bloquear Certificación ${(form.certifications?.length ?? 0) + 1}?`)) handleCloseCertification() }}
+                            disabled={closingCert}
+                            className="w-full text-left px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-50 transition-colors disabled:opacity-50"
+                          >
+                            🔒 Cerrar certificación {(form.certifications?.length ?? 0) + 1}
+                          </button>
+                        </>
+                      )}
+                      <div className="my-1 border-t border-neutral-100" />
+                      {confirmDelete ? (
+                        <button onClick={() => { setMoreOpen(false); handleDelete() }} className="w-full text-left px-3 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-colors">
+                          Confirmar eliminación
+                        </button>
+                      ) : (
+                        <button onClick={() => setConfirmDelete(true)} className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                          🗑 Eliminar presupuesto
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </>
           )}
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-900 text-xl leading-none ml-1">&#x2715;</button>

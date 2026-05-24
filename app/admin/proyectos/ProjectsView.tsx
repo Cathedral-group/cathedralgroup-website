@@ -1454,34 +1454,34 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               )
             })()}
 
-            {/* Acceso rápido vista de documentos del proyecto */}
-            <div className="mb-4 flex flex-wrap gap-2">
-              <a href={`/admin/proyectos/${selected.code}/documentos`}
-                className="text-xs bg-neutral-900 text-white px-3 py-2 rounded hover:bg-neutral-700">
-                📄 Ver documentos del proyecto
-              </a>
-              <a href={`/admin/proyectos/${selected.code}/gantt`}
-                className="text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700">
-                📊 Diagrama de Gantt
-              </a>
-              <a href={`/admin/presupuestos?proyecto=${selected.id}`}
-                className="text-xs bg-amber-500 text-white px-3 py-2 rounded hover:bg-amber-600">
-                ✏️ Editar presupuesto
-              </a>
-              <a href={`/api/db/presupuesto-pdf?project=${selected.id}`} target="_blank" rel="noopener noreferrer"
-                className="text-xs bg-amber-50 text-amber-800 px-3 py-2 rounded hover:bg-amber-100 border border-amber-200">
-                📄 PDF
-              </a>
-              <a href={`/admin/proyectos/${selected.code}/mano-de-obra`}
-                className="text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded hover:bg-emerald-100">
-                👷 Mano de obra
-              </a>
-              {selected.drive_folder_url && (
-                <a href={selected.drive_folder_url} target="_blank" rel="noopener noreferrer"
-                  className="text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded hover:bg-blue-100">
-                  📁 Carpeta Drive ↗
+            {/* Acciones del proyecto — jerarquía única: 1 primaria sólida, resto neutro/ghost.
+                Documentos y Gantt NO van aquí: tienen su propia pestaña (Documentos / Planificación). */}
+            <div className="mb-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Primaria */}
+                <a href={`/admin/presupuestos?proyecto=${selected.id}`}
+                  className="text-xs font-bold bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition-colors">
+                  ✏️ Editar presupuesto
                 </a>
-              )}
+                {/* Secundaria */}
+                <a href={`/admin/proyectos/${selected.code}/mano-de-obra`}
+                  className="text-xs bg-white border border-neutral-300 text-neutral-700 px-4 py-2 rounded hover:border-neutral-400 transition-colors">
+                  👷 Mano de obra
+                </a>
+              </div>
+              {/* Terciarias (ghost) */}
+              <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px]">
+                <a href={`/api/db/presupuesto-pdf?project=${selected.id}`} target="_blank" rel="noopener noreferrer"
+                  className="text-neutral-500 hover:text-neutral-800 transition-colors">
+                  📄 PDF presupuesto
+                </a>
+                {selected.drive_folder_url && (
+                  <a href={selected.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                    className="text-neutral-500 hover:text-neutral-800 transition-colors">
+                    📁 Carpeta Drive ↗
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* Quick status change */}
@@ -1748,6 +1748,13 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
               {/* ─── Tab: Fases ─── */}
               {activeTab === 'fases' && (
                 <div className="space-y-6">
+                  {/* Acceso al diagrama de Gantt — planificación temporal completa */}
+                  <a href={`/admin/proyectos/${selected.code}/gantt`}
+                    className="flex items-center justify-between rounded border border-blue-200 bg-blue-50 px-4 py-3 hover:bg-blue-100 transition-colors">
+                    <span className="text-sm font-bold text-blue-800">📊 Abrir diagrama de Gantt</span>
+                    <span className="text-[11px] text-blue-600">Planificación temporal con barras →</span>
+                  </a>
+
                   {/* Vista principal: planificación con tareas + certificación manual */}
                   <PlanificacionTab
                     projectId={selected.id}

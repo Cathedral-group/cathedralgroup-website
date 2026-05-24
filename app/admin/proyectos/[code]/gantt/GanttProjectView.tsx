@@ -351,8 +351,13 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
             </button>
           )}
           <button onClick={generarDesdePresupuesto} disabled={generando}
-            className="text-xs bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 font-medium">
-            {generando ? 'Generando…' : '⚡ Generar desde presupuesto'}
+            className={`text-xs px-4 py-2 rounded disabled:opacity-50 font-medium transition-colors ${
+              planificadas.length === 0
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'border border-neutral-300 bg-white text-neutral-700 hover:border-neutral-400'
+            }`}
+            title={planificadas.length === 0 ? 'Crea la planificación automática desde las partidas del presupuesto' : 'Reemplaza la planificación auto-generada por una nueva desde el presupuesto'}>
+            {generando ? 'Generando…' : planificadas.length === 0 ? '⚡ Generar desde presupuesto' : '⚡ Regenerar'}
           </button>
         </div>
       </div>
