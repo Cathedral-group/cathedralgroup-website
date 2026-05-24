@@ -381,6 +381,14 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                         onChange={(e) => saveDates(t.id, { fecha_fin_plan: e.target.value || null })}
                         className="text-[9px] border border-stone-200 rounded px-1 py-0.5 w-[88px]"
                       />
+                      {dur >= 2 && (
+                        <button
+                          onClick={() => partirTarea(t.id)}
+                          disabled={busyId === t.id}
+                          className="flex-none text-[11px] text-stone-400 hover:text-blue-600 disabled:opacity-40 px-0.5"
+                          title="Partir la tarea (los trabajadores se van unos días y el resto continúa después)"
+                        >✂</button>
+                      )}
                     </div>
                   </div>
                   <div className="relative py-2" style={{ width: totalDays * DAY_W }}>
@@ -422,15 +430,6 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                           <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium pointer-events-none">
                             {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{liveDur >= 3 ? `${liveDur}d` : ''}
                           </span>
-                          {/* botón partir (✂) — solo si dura ≥2 días */}
-                          {dur >= 2 && !pv && (
-                            <button
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onClick={(e) => { e.stopPropagation(); partirTarea(t.id) }}
-                              className="absolute top-0 left-0 h-full px-1 flex items-center text-white/70 hover:text-white text-[10px] bg-black/10 hover:bg-black/30"
-                              title="Partir la tarea (los trabajadores se van unos días)"
-                            >✂</button>
-                          )}
                           {/* handle resize borde derecho */}
                           <div
                             onPointerDown={(e) => startDrag(e, t.id, 'resize', ini, fin)}
