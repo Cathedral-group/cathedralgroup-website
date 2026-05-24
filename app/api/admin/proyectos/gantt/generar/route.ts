@@ -152,5 +152,5 @@ export async function POST(request: NextRequest) {
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ ok: true, tareas: count, capitulos: caps.length, fin: tasks[tasks.length - 1]?.fecha_fin_plan })
+  return NextResponse.json({ ok: true, tareas: count, capitulos: grupos.length, fin: tasks[tasks.length - 1]?.fecha_fin_plan })
 }
