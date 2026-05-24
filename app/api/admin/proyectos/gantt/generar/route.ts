@@ -74,10 +74,22 @@ async function authCheck() {
 
 interface QuoteItem { chapter_code?: string; chapter_name?: string; description?: string; quantity?: number; horas_por_unidad?: number | null }
 
-// Acabados de madera (tarima, parquet, rodapiés, zócalos): van al FINAL,
-// separados de su capítulo de origen.
-const MADERA_FINAL_RE = /tarima|parquet|laminad|flotante|rodapi|z[oó]calo/i
+// Acabados de madera al FINAL (con la tarima), separados de su capítulo:
+//  - tarima/parquet/laminado/flotante → siempre al final
+//  - rodapié/zócalo SOLO si es de madera (NO el cerámico/porcelánico, que va
+//    con el solado/alicatado en su capítulo)
+const TARIMA_RE = /tarima|parquet|laminad|flotante/i
+const RODAPIE_RE = /rodapi|z[oó]calo/i
+const MADERA_RE = /madera|mdf|\bdm\b|lacad|pino|roble|sapell|melamin|haya|nogal|chapad/i
+const CERAMICO_RE = /cer[aá]mic|porcel[aá]nic|gres|m[aá]rmol|piedra|terrazo|microcement/i
 const GRUPO_MADERA = '__madera_final__'
+
+function esAcabadoMaderaFinal(desc: string): boolean {
+  if (TARIMA_RE.test(desc)) return true
+  // rodapié/zócalo: al final solo si es de madera y NO cerámico
+  if (RODAPIE_RE.test(desc) && MADERA_RE.test(desc) && !CERAMICO_RE.test(desc)) return true
+  return false
+}
 
 export async function POST(request: NextRequest) {
   const user = await authCheck()
@@ -112,7 +124,7 @@ export async function POST(request: NextRequest) {
     const ch = it.chapter_code
     if (!ch || !CAP[ch]) continue
     const horas = (Number(it.quantity) || 0) * (Number(it.horas_por_unidad) || 0)
-    const esMadera = MADERA_FINAL_RE.test(it.description || '')
+    const esMadera = esAcabadoMaderaFinal(it.description || '')
     const grupo = esMadera ? GRUPO_MADERA : ch
     horasPorGrupo[grupo] = (horasPorGrupo[grupo] ?? 0) + horas
     if (esMadera) {
