@@ -39,7 +39,7 @@ interface Task {
   parent_task_id: string | null
   dependencias: unknown
   pausas?: Array<{ desde: string; hasta: string }> | null
-  dias_extra?: string[] | null
+  dias_extra?: Array<{ fecha: string; horas: number }> | string[] | null
 }
 
 interface Props {
@@ -236,17 +236,28 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     } finally { setBusyId(null) }
   }
 
-  async function toggleDiaExtra(id: string, fecha: string) {
+  async function toggleDiaExtra(id: string, fecha: string, yaActivo: boolean) {
+    let horas = 0
+    if (yaActivo) {
+      // ya es día de trabajo → preguntar si quitar
+      if (!confirm('Quitar este día de trabajo extra?')) return
+      horas = 0
+    } else {
+      const h = prompt('¿Cuántas horas se trabajan ese día? (sábado suele ser 4)', '4')
+      if (h === null || h.trim() === '') return
+      horas = Math.max(0, Math.min(24, parseFloat(h.replace(',', '.')) || 0))
+      if (horas === 0) return
+    }
     setBusyId(id)
     try {
       const res = await fetch('/api/admin/proyectos/gantt/dia-extra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: id, fecha }),
+        body: JSON.stringify({ task_id: id, fecha, horas }),
       })
       const json = await res.json()
       if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
-      setMsg(json.activo ? '✓ Día de trabajo añadido' : '✓ Día quitado')
+      setMsg(json.activo ? `✓ Día de trabajo añadido (${horas}h)` : '✓ Día quitado')
       router.refresh()
     } catch {
       setMsg('Error de red')
@@ -384,6 +395,14 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
               const color = esExtra ? 'bg-blue-600' : (ESTADO_COLOR[t.estado] ?? 'bg-stone-400')
               // Retraso: fin planificado pasado y no terminada
               const esRetraso = !!t.fecha_fin_plan && t.fecha_fin_plan < hoyISO && t.estado !== 'hecha'
+              // Días extra (finde/festivo trabajados) → offset:horas. Tolera formato legacy.
+              const extraMap = new Map<number, number>()
+              for (const x of (t.dias_extra ?? [])) {
+                const fecha = typeof x === 'string' ? x : x.fecha
+                const horas = typeof x === 'string' ? 8 : x.horas
+                const d = parseISO(fecha)
+                if (d) extraMap.set(diffDays(d, rangeStart), horas)
+              }
               return (
                 <div key={t.id} className="flex border-b border-stone-100 hover:bg-stone-50/50">
                   <div className="w-[260px] flex-none px-3 py-2 border-r border-stone-100 sticky left-0 z-20 bg-white">
@@ -426,7 +445,7 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                       const off = Math.floor((e.clientX - rect.left) / DAY_W)
                       if (off < offset || off >= offset + dur) return // fuera del rango de la tarea
                       if (!nonWorkingSet.has(off)) return // solo días no laborables
-                      toggleDiaExtra(t.id, toISO(addDays(rangeStart, off)))
+                      toggleDiaExtra(t.id, toISO(addDays(rangeStart, off)), extraMap.has(off))
                     }}
                   >
                     {/* sábados (gris) y domingos (rojo): no laborables. pointer-events-none → el click llega al div para togglear */}
@@ -455,13 +474,9 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                         const pd = parseISO(p.desde), ph = parseISO(p.hasta)
                         if (pd && ph) { let c = new Date(pd); while (c <= ph) { pausaSet.add(diffDays(c, rangeStart)); c = addDays(c, 1) } }
                       }
-                      // días extra: el admin decidió trabajar ese finde/festivo → cuenta como trabajo
-                      const extraSet = new Set<number>()
-                      for (const f of (t.dias_extra ?? [])) {
-                        const d = parseISO(f)
-                        if (d) extraSet.add(diffDays(d, rangeStart))
-                      }
-                      const noTrabajo = (off: number) => (nonWorkingSet.has(off) || pausaSet.has(off)) && !extraSet.has(off)
+                      // findes/festivos/pausas = hueco. Los días extra se pintan aparte
+                      // como mini-barra (jornada parcial), no se fusionan al segmento.
+                      const noTrabajo = (off: number) => nonWorkingSet.has(off) || pausaSet.has(off)
                       // tramos consecutivos de trabajo
                       const segs: { rel: number; len: number }[] = []
                       let i = 0
@@ -505,6 +520,20 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                         </div>
                       ))
                     })()}
+                    {/* días extra (finde/festivo trabajados): mini-barra de jornada parcial */}
+                    {Array.from(extraMap.entries()).map(([off, horas]) => {
+                      const altura = Math.min(20, Math.max(4, Math.round((horas / 8) * 20)))
+                      return (
+                        <div
+                          key={`ex-${off}`}
+                          className={`absolute rounded ${color} ring-1 ring-blue-500 pointer-events-none flex items-end justify-center`}
+                          style={{ left: off * DAY_W, width: DAY_W - 2, height: altura, bottom: 6 }}
+                          title={`Día de trabajo extra: ${horas}h`}
+                        >
+                          <span className="text-[7px] text-white leading-none pb-0.5">{horas}h</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )
