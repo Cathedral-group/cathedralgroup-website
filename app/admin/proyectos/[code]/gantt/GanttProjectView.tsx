@@ -39,6 +39,7 @@ interface Task {
   parent_task_id: string | null
   dependencias: unknown
   pausas?: Array<{ desde: string; hasta: string }> | null
+  dias_extra?: string[] | null
 }
 
 interface Props {
@@ -235,6 +236,23 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
     } finally { setBusyId(null) }
   }
 
+  async function toggleDiaExtra(id: string, fecha: string) {
+    setBusyId(id)
+    try {
+      const res = await fetch('/api/admin/proyectos/gantt/dia-extra', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: id, fecha }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) { setMsg(`Error: ${json.error ?? res.status}`); return }
+      setMsg(json.activo ? '✓ Día de trabajo añadido' : '✓ Día quitado')
+      router.refresh()
+    } catch {
+      setMsg('Error de red')
+    } finally { setBusyId(null) }
+  }
+
   function startDrag(e: React.PointerEvent, id: string, mode: 'move' | 'resize', ini: Date, fin: Date) {
     e.preventDefault()
     e.stopPropagation()
@@ -398,20 +416,32 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                       )}
                     </div>
                   </div>
-                  <div className="relative py-2" style={{ width: totalDays * DAY_W }}>
-                    {/* sábados (gris) y domingos (rojo): no laborables */}
+                  <div
+                    className="relative py-2"
+                    style={{ width: totalDays * DAY_W }}
+                    title="Clica un día gris/rojo/naranja dentro de la tarea para añadirlo o quitarlo como día de trabajo"
+                    onClick={(e) => {
+                      if (e.target !== e.currentTarget) return // solo clicks en zona libre (las barras capturan el suyo)
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const off = Math.floor((e.clientX - rect.left) / DAY_W)
+                      if (off < offset || off >= offset + dur) return // fuera del rango de la tarea
+                      if (!nonWorkingSet.has(off)) return // solo días no laborables
+                      toggleDiaExtra(t.id, toISO(addDays(rangeStart, off)))
+                    }}
+                  >
+                    {/* sábados (gris) y domingos (rojo): no laborables. pointer-events-none → el click llega al div para togglear */}
                     {weekends.map((w, i) => (
-                      <div key={`wk-${i}`} className={`absolute top-0 h-full ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`} style={{ left: w.offset * DAY_W, width: DAY_W }} />
+                      <div key={`wk-${i}`} className={`absolute top-0 h-full pointer-events-none ${w.domingo ? 'bg-red-100' : 'bg-stone-100'}`} style={{ left: w.offset * DAY_W, width: DAY_W }} />
                     ))}
                     {festivos.map((f, i) => (
-                      <div key={`fe-${i}`} className="absolute top-0 h-full bg-orange-200" style={{ left: f.offset * DAY_W, width: DAY_W }} />
+                      <div key={`fe-${i}`} className="absolute top-0 h-full bg-orange-200 pointer-events-none" style={{ left: f.offset * DAY_W, width: DAY_W }} />
                     ))}
                     {/* rejilla semanal */}
                     {weeks.map((w, i) => (
-                      <div key={i} className="absolute top-0 h-full border-l border-stone-100" style={{ left: w.offsetDays * DAY_W }} />
+                      <div key={i} className="absolute top-0 h-full border-l border-stone-100 pointer-events-none" style={{ left: w.offsetDays * DAY_W }} />
                     ))}
                     {todayOffset >= 0 && todayOffset < totalDays && (
-                      <div className="absolute top-0 h-full w-px bg-red-400/50" style={{ left: todayOffset * DAY_W }} />
+                      <div className="absolute top-0 h-full w-px bg-red-400/50 pointer-events-none" style={{ left: todayOffset * DAY_W }} />
                     )}
                     {/* barra partida en segmentos: solo días de trabajo (sin findes,
                         festivos ni pausas). Dos o más barras en la misma línea. */}
@@ -425,7 +455,13 @@ export default function GanttProjectView({ project, tasks: initialTasks, holiday
                         const pd = parseISO(p.desde), ph = parseISO(p.hasta)
                         if (pd && ph) { let c = new Date(pd); while (c <= ph) { pausaSet.add(diffDays(c, rangeStart)); c = addDays(c, 1) } }
                       }
-                      const noTrabajo = (off: number) => nonWorkingSet.has(off) || pausaSet.has(off)
+                      // días extra: el admin decidió trabajar ese finde/festivo → cuenta como trabajo
+                      const extraSet = new Set<number>()
+                      for (const f of (t.dias_extra ?? [])) {
+                        const d = parseISO(f)
+                        if (d) extraSet.add(diffDays(d, rangeStart))
+                      }
+                      const noTrabajo = (off: number) => (nonWorkingSet.has(off) || pausaSet.has(off)) && !extraSet.has(off)
                       // tramos consecutivos de trabajo
                       const segs: { rel: number; len: number }[] = []
                       let i = 0

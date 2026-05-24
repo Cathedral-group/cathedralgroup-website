@@ -32,7 +32,7 @@ export default async function ProjectGanttPage({ params }: PageProps) {
     .from('project_tasks')
     .select(
       `id, texto, estado, prioridad, subtipo, tipo, phase_id,
-       fecha_objetivo, fecha_inicio_plan, fecha_fin_plan, orden, parent_task_id, dependencias, pausas,
+       fecha_objetivo, fecha_inicio_plan, fecha_fin_plan, orden, parent_task_id, dependencias, pausas, dias_extra,
        hora_inicio, hora_fin`,
     )
     .eq('project_id', project.id)
