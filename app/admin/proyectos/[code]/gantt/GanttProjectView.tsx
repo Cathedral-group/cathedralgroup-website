@@ -217,6 +217,8 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
               const offset = diffDays(ini, rangeStart)
               const dur = Math.max(1, diffDays(fin, ini) + 1)
               const color = ESTADO_COLOR[t.estado] ?? 'bg-stone-400'
+              // Extras (remates fuera de presupuesto) → barra rayada
+              const esExtra = t.tipo === 'obra_remate'
               return (
                 <div key={t.id} className="flex border-b border-stone-100 hover:bg-stone-50/50">
                   <div className="w-[260px] flex-none px-3 py-2 border-r border-stone-100">
@@ -251,11 +253,16 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
                     )}
                     {/* barra */}
                     <div
-                      className={`absolute h-5 rounded ${color} flex items-center px-1.5 text-[9px] text-white font-medium overflow-hidden`}
-                      style={{ left: offset * DAY_W, width: dur * DAY_W - 2, top: 4 }}
-                      title={`${t.fecha_inicio_plan} → ${t.fecha_fin_plan} (${dur} días) · ${t.estado}`}
+                      className={`absolute h-5 rounded ${color} flex items-center px-1.5 text-[9px] text-white font-medium overflow-hidden ${esExtra ? 'ring-1 ring-amber-500' : ''}`}
+                      style={{
+                        left: offset * DAY_W,
+                        width: dur * DAY_W - 2,
+                        top: 4,
+                        ...(esExtra ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 4px, transparent 4px, transparent 8px)' } : {}),
+                      }}
+                      title={`${t.fecha_inicio_plan} → ${t.fecha_fin_plan} (${dur} días) · ${t.estado}${esExtra ? ' · EXTRA (remate)' : ''}`}
                     >
-                      {dur >= 3 ? `${dur}d` : ''}
+                      {esExtra ? '★ ' : ''}{dur >= 3 ? `${dur}d` : ''}
                     </div>
                   </div>
                 </div>
@@ -303,6 +310,7 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-400" /> Pendiente</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500" /> En curso</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500" /> Hecha</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-amber-500 bg-stone-400" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 2px, transparent 2px, transparent 4px)' }} /> ★ Extra / remate</span>
         <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-400" /> Hoy</span>
       </div>
     </div>
