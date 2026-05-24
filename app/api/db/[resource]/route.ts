@@ -260,9 +260,19 @@ td.bold{font-weight:600}
 .print-bar{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:10px 24px;display:flex;align-items:center;justify-content:space-between;z-index:100}
 .print-bar span{font-size:11px;font-weight:600;letter-spacing:.06em}
 .btn-print{background:#B4A898;color:#fff;border:0;padding:7px 18px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
-@media print{body{padding-top:0}.print-bar{display:none!important}}
-/* Chrome/Safari imprimen en blanco con min-height:100vh + flex: forzar flujo normal al imprimir */
-@media print{html,body{height:auto!important}.page{min-height:0!important;display:block!important;max-width:none!important}}
+/* Safari imprime en blanco con min-height:100vh + flexbox (WebKit bug familia flexbugs #197 /
+   webkit #6790). Fix robusto: romper cadena de altura/overflow en TODOS los ancestros,
+   convertir flex→block, resetear flex:1 de .content y la barra fixed. */
+@media print{
+  html,body,.page,.content{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}
+  .page,.content,.footer{display:block!important}
+  .content{flex:none!important}
+  .footer{margin-top:0!important}
+  .page{max-width:none!important;width:auto!important;margin:0!important}
+  body{padding-top:0!important;background:#fff!important}
+  .print-bar{display:none!important;position:static!important}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 @page{margin:14mm}
 `
 
