@@ -118,8 +118,8 @@ Si la obra se paralizara más de 30 días por causas ajenas a nuestra empresa, n
 
 CONDICIONES DE PAGO
 
-- 40 % a la aceptación del presupuesto, mediante transferencia bancaria.
-- 60 % restante mediante certificaciones mensuales según el avance de obra.
+- 40 % a la aceptación del presupuesto, mediante transferencia bancaria, en concepto de anticipo para el inicio de los trabajos.
+- 60 % restante mediante certificaciones de obra a origen, según el avance realmente ejecutado. En cada certificación se mide el total ejecutado acumulado hasta la fecha y se factura la diferencia respecto a lo ya certificado, descontando la parte proporcional del anticipo entregado, que queda así amortizado al alcanzar el 100 % de la obra.
 
 El retraso en los pagos devengará intereses de demora del 2 % mensual desde la fecha de vencimiento. La empresa no responderá de daños indirectos o consecuenciales derivados de la ejecución de los trabajos.
 
