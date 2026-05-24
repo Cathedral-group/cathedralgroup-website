@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import QuoteEditor from './QuoteEditor'
 
 type SortField = 'number' | 'client' | 'total' | 'created_at' | 'status'
@@ -129,6 +129,30 @@ export default function QuotesView({ quotes: initialQuotes, clients, projects, u
   // Sort
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  // Deep-link: abrir presupuesto directo desde otra página
+  // ?abrir=<quote_id>  o  ?proyecto=<project_id> (abre el más reciente del proyecto)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const quoteId = params.get('abrir')
+    const projId = params.get('proyecto')
+    if (!quoteId && !projId) return
+    let target: Quote | undefined
+    if (quoteId) {
+      target = data.find((q) => q.id === quoteId)
+    } else if (projId) {
+      target = data
+        .filter((q) => q.project_id === projId)
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0]
+    }
+    if (target) {
+      setEditingQuote(target)
+      setEditorOpen(true)
+    }
+    // limpiar el param de la URL para no reabrir al refrescar
+    window.history.replaceState(null, '', window.location.pathname)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {

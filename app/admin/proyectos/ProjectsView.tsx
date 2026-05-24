@@ -1464,9 +1464,13 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                 className="text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700">
                 📊 Diagrama de Gantt
               </a>
+              <a href={`/admin/presupuestos?proyecto=${selected.id}`}
+                className="text-xs bg-amber-500 text-white px-3 py-2 rounded hover:bg-amber-600">
+                ✏️ Editar presupuesto
+              </a>
               <a href={`/api/db/presupuesto-pdf?project=${selected.id}`} target="_blank" rel="noopener noreferrer"
                 className="text-xs bg-amber-50 text-amber-800 px-3 py-2 rounded hover:bg-amber-100 border border-amber-200">
-                📄 Ver presupuesto (PDF)
+                📄 PDF
               </a>
               <a href={`/admin/proyectos/${selected.code}/mano-de-obra`}
                 className="text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded hover:bg-emerald-100">
