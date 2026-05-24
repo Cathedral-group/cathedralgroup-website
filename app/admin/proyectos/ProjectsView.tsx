@@ -1460,6 +1460,14 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
                 className="text-xs bg-neutral-900 text-white px-3 py-2 rounded hover:bg-neutral-700">
                 📄 Ver documentos del proyecto
               </a>
+              <a href={`/admin/proyectos/${selected.code}/gantt`}
+                className="text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700">
+                📊 Diagrama de Gantt
+              </a>
+              <a href={`/admin/proyectos/${selected.code}/mano-de-obra`}
+                className="text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded hover:bg-emerald-100">
+                👷 Mano de obra
+              </a>
               {selected.drive_folder_url && (
                 <a href={selected.drive_folder_url} target="_blank" rel="noopener noreferrer"
                   className="text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded hover:bg-blue-100">
