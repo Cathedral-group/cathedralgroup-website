@@ -122,6 +122,7 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
   }, [tasks, project.start_date])
 
   const todayOffset = diffDays(new Date(new Date().setHours(0, 0, 0, 0)), rangeStart)
+  const hoyISO = toISO(new Date()) // fecha local (no UTC) para comparar retrasos
 
   async function saveDates(id: string, patch: { fecha_inicio_plan?: string | null; fecha_fin_plan?: string | null }) {
     setBusyId(id)
@@ -216,9 +217,13 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
               const fin = parseISO(t.fecha_fin_plan)!
               const offset = diffDays(ini, rangeStart)
               const dur = Math.max(1, diffDays(fin, ini) + 1)
-              const color = ESTADO_COLOR[t.estado] ?? 'bg-stone-400'
-              // Extras (remates fuera de presupuesto) → barra rayada
+              // Extras (remates fuera de presupuesto) → azul + rayado
               const esExtra = t.tipo === 'obra_remate'
+              const color = esExtra ? 'bg-blue-600' : (ESTADO_COLOR[t.estado] ?? 'bg-stone-400')
+              // % avance por estado
+              const pct = t.estado === 'hecha' ? 100 : t.estado === 'en_curso' ? 50 : 0
+              // Retraso: fin planificado pasado y no terminada
+              const esRetraso = !!t.fecha_fin_plan && t.fecha_fin_plan < hoyISO && t.estado !== 'hecha'
               return (
                 <div key={t.id} className="flex border-b border-stone-100 hover:bg-stone-50/50">
                   <div className="w-[260px] flex-none px-3 py-2 border-r border-stone-100">
@@ -253,16 +258,22 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
                     )}
                     {/* barra */}
                     <div
-                      className={`absolute h-5 rounded ${color} flex items-center px-1.5 text-[9px] text-white font-medium overflow-hidden ${esExtra ? 'ring-1 ring-amber-500' : ''}`}
+                      className={`absolute h-5 rounded ${color} overflow-hidden ${esRetraso ? 'ring-2 ring-red-500' : esExtra ? 'ring-1 ring-amber-500' : ''}`}
                       style={{
                         left: offset * DAY_W,
                         width: dur * DAY_W - 2,
                         top: 4,
                         ...(esExtra ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 4px, transparent 4px, transparent 8px)' } : {}),
                       }}
-                      title={`${t.fecha_inicio_plan} → ${t.fecha_fin_plan} (${dur} días) · ${t.estado}${esExtra ? ' · EXTRA (remate)' : ''}`}
+                      title={`${t.fecha_inicio_plan} → ${t.fecha_fin_plan} (${dur} días) · ${t.estado} · ${pct}%${esExtra ? ' · EXTRA (remate)' : ''}${esRetraso ? ' · ⚠ RETRASO' : ''}`}
                     >
-                      {esExtra ? '★ ' : ''}{dur >= 3 ? `${dur}d` : ''}
+                      {/* relleno de avance */}
+                      {pct > 0 && pct < 100 && (
+                        <div className="absolute inset-y-0 left-0 bg-black/25" style={{ width: `${pct}%` }} />
+                      )}
+                      <span className="relative flex items-center h-full px-1.5 text-[9px] text-white font-medium">
+                        {esRetraso ? '⚠ ' : esExtra ? '★ ' : ''}{dur >= 3 ? `${dur}d` : ''}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -310,7 +321,8 @@ export default function GanttProjectView({ project, tasks: initialTasks }: Props
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-400" /> Pendiente</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500" /> En curso</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500" /> Hecha</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-amber-500 bg-stone-400" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 2px, transparent 2px, transparent 4px)' }} /> ★ Extra / remate</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-1 ring-amber-500 bg-blue-600" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 2px, transparent 2px, transparent 4px)' }} /> ★ Extra / remate</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-2 ring-red-500 bg-stone-400" /> ⚠ Retraso</span>
         <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-400" /> Hoy</span>
       </div>
     </div>
