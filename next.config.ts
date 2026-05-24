@@ -31,7 +31,7 @@ const CSP_HEADER = [
 ].join('; ')
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['gray-matter', 'reading-time'],
+  serverExternalPackages: ['gray-matter', 'reading-time', 'puppeteer-core', '@sparticuz/chromium'],
   async headers() {
     return [
       {

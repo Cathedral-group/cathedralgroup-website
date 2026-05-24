@@ -3,6 +3,11 @@ import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/sup
 import { isAdminEmail } from '@/lib/auth-allowlist'
 import { resolveCompanyIdForRequest, tableHasCompanyId } from '@/lib/company-context'
 import QRCode from 'qrcode'
+import { htmlToPdf } from '@/lib/html-to-pdf'
+
+// Chrome headless (generación de PDF) requiere runtime Node y margen de tiempo para arranque en frío.
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 function escapeHtml(text: string | null | undefined): string {
   if (text == null) return ''
@@ -182,7 +187,7 @@ function buildPdfHeader(division: string | null): string {
   return `
     <div class="header">
       <div class="company-block">
-        <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
+        <img src="https://cathedralgroup.es/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group</div>
         ${divisionLine}
         <div class="company-tagline">Reformas y promociones de lujo · Madrid</div>
@@ -353,7 +358,7 @@ td.pending-positive{color:#16a34a}
   <div class="header">
     <div>
       <div class="company-identity">
-        <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
+        <img src="https://cathedralgroup.es/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
       </div>
       <div class="company-detail">Cathedral House Investment S.L. · CIF B19761915</div>
@@ -406,7 +411,7 @@ td.pending-positive{color:#16a34a}
   </div>
 </div></body></html>`
 
-  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="cathedral-documento.pdf"' } })
 }
 
 async function buildInvoicePdf(id: string): Promise<NextResponse> {
@@ -503,7 +508,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
   <div class="header">
     <div>
       <div class="company-identity">
-        <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
+        <img src="https://cathedralgroup.es/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
       </div>
       <div class="company-detail">Cathedral House Investment S.L. · CIF B19761915</div>
@@ -577,7 +582,7 @@ async function buildInvoicePdf(id: string): Promise<NextResponse> {
   </div>
 </div></body></html>`
 
-  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="cathedral-documento.pdf"' } })
 }
 
 async function buildQuotePdf(id: string): Promise<NextResponse> {
@@ -670,7 +675,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   <div class="header">
     <div>
       <div class="company-identity">
-        <img src="/img/logo.png" alt="Cathedral Group" class="logo" />
+        <img src="https://cathedralgroup.es/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group${division ? ` · ${division}` : ''}</div>
       </div>
       <div class="company-detail">Cathedral House Investment S.L. · CIF B19761915</div>
@@ -721,7 +726,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   </div>
 </div></body></html>`
 
-  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  return new NextResponse(new Uint8Array(await htmlToPdf(html)), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="cathedral-documento.pdf"' } })
 }
 
 export async function GET(request: NextRequest, ctx: Ctx) {
