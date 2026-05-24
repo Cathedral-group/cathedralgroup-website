@@ -261,6 +261,9 @@ td.bold{font-weight:600}
 .print-bar span{font-size:11px;font-weight:600;letter-spacing:.06em}
 .btn-print{background:#B4A898;color:#fff;border:0;padding:7px 18px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 @media print{body{padding-top:0}.print-bar{display:none!important}}
+/* Chrome/Safari imprimen en blanco con min-height:100vh + flex: forzar flujo normal al imprimir */
+@media print{html,body{height:auto!important}.page{min-height:0!important;display:block!important;max-width:none!important}}
+@page{margin:14mm}
 `
 
 async function buildCertificationPdf(id: string, certNumber?: number): Promise<NextResponse> {
