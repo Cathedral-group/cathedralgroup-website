@@ -716,7 +716,19 @@ export async function GET(request: NextRequest, ctx: Ctx) {
 
   // presupuesto-pdf: session auth OR portal_token (public access)
   if (resource === 'presupuesto-pdf') {
-    const id = request.nextUrl.searchParams.get('id')
+    let id = request.nextUrl.searchParams.get('id')
+    // Acceso directo desde la ficha de proyecto: ?project=<id> → busca su presupuesto
+    const projectParam = request.nextUrl.searchParams.get('project')
+    if (!id && projectParam) {
+      const user = await authCheck()
+      if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+      const supabase = createAdminSupabaseClient()
+      const { data: q } = await supabase
+        .from('quotes').select('id').eq('project_id', projectParam).is('deleted_at', null)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (!q) return new NextResponse('Este proyecto no tiene presupuesto', { status: 404 })
+      id = q.id
+    }
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
     const portalToken = request.nextUrl.searchParams.get('portal_token')
