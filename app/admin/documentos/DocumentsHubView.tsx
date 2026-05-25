@@ -56,6 +56,11 @@ export interface DocumentRow {
   drive_url: string | null
 }
 
+// Enlace al documento: Drive si existe, si no el archivo en Supabase Storage.
+function docHref(r: { drive_url: string | null; source_table: string; source_id: string }): string {
+  return r.drive_url || `/api/admin/documentos/file?table=${encodeURIComponent(r.source_table)}&id=${r.source_id}`
+}
+
 export interface SavedView {
   id: string
   name: string
@@ -1219,17 +1224,15 @@ function DocumentsTable({
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                    {r.drive_url && (
-                      <a
-                        href={r.drive_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[12px] text-neutral-400 hover:text-neutral-700"
-                        title="Ver en Drive"
-                      >
-                        ↗
-                      </a>
-                    )}
+                    <a
+                      href={docHref(r)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[12px] text-neutral-400 hover:text-neutral-700"
+                      title={r.drive_url ? 'Ver en Drive' : 'Ver documento'}
+                    >
+                      ↗
+                    </a>
                   </td>
                 </tr>
               )
@@ -1357,17 +1360,15 @@ function DocumentsTable({
                   )}
                 </div>
                 <div className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                  {r.drive_url && (
-                    <a
-                      href={r.drive_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[12px] text-neutral-400 hover:text-neutral-700"
-                      title="Ver en Drive"
-                    >
-                      ↗
-                    </a>
-                  )}
+                  <a
+                    href={docHref(r)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[12px] text-neutral-400 hover:text-neutral-700"
+                    title={r.drive_url ? 'Ver en Drive' : 'Ver documento'}
+                  >
+                    ↗
+                  </a>
                 </div>
               </div>
             )
@@ -1466,25 +1467,21 @@ function DocumentDrawer({
 
           {/* Documento original — botón nueva pestaña (iframe Drive bloqueado por
               cookies third-party Chrome/Safari; mismo patrón fix b3320c1 RevisionView) */}
-          {doc.drive_url ? (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">Documento original</p>
-              <a
-                href={doc.drive_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm rounded hover:bg-primary/90 transition"
-              >
-                📄 Ver PDF en Google Drive
-                <span className="text-xs">↗</span>
-              </a>
-              <p className="text-[10px] text-neutral-400 mt-2">Se abre en nueva pestaña (cookies third-party de Drive bloquean iframe).</p>
-            </div>
-          ) : (
-            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2">
-              <p className="text-xs text-amber-700">⚠ Pendiente subida a Drive — el documento está en Supabase Storage pero aún no se ha replicado a Drive.</p>
-            </div>
-          )}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">Documento original</p>
+            <a
+              href={docHref(doc)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm rounded hover:bg-primary/90 transition"
+            >
+              📄 Ver documento
+              <span className="text-xs">↗</span>
+            </a>
+            <p className="text-[10px] text-neutral-400 mt-2">
+              {doc.drive_url ? 'Google Drive — se abre en nueva pestaña.' : 'Archivo en Supabase Storage — enlace temporal firmado.'}
+            </p>
+          </div>
 
           {/* Audit log (stub) */}
           <div>
