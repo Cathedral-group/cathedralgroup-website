@@ -227,7 +227,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
   const [search, setSearch] = useState('')
   const [reprocessingId, setReprocessingId] = useState<string | null>(null)
   // Modo de agrupación visual (sin romper la tabla, solo ordena + inserta separadores)
-  const [groupMode, setGroupMode] = useState<'lista' | 'mes' | 'proveedor' | 'proyecto'>('lista')
+  const [groupMode, setGroupMode] = useState<'lista' | 'mes' | 'trimestre' | 'proveedor' | 'proyecto'>('lista')
 
   // Sort: default by entry date descending
   const [sortField, setSortField] = useState<SortField>('created_at')
@@ -358,6 +358,16 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
           label: `${MES_NOMBRE_LOCAL[d.getMonth()+1]} ${d.getFullYear()}`
         }
       }
+      if (groupMode === 'trimestre') {
+        const d = inv.issue_date ? new Date(inv.issue_date + 'T00:00:00') : null
+        if (!d || isNaN(d.getTime())) return { key: 'sin_fecha', label: 'Sin fecha' }
+        const q = Math.floor(d.getMonth() / 3) + 1
+        const TRIM_LABEL = ['', 'Ene–Mar', 'Abr–Jun', 'Jul–Sep', 'Oct–Dic']
+        return {
+          key: `${d.getFullYear()}-T${q}`,
+          label: `${d.getFullYear()} · T${q} (${TRIM_LABEL[q]})`
+        }
+      }
       if (groupMode === 'proveedor') {
         const name = inv.empresa || (inv.supplier_nif ? supplierMap[inv.supplier_nif] : null) || '(sin proveedor)'
         return { key: name.toLowerCase(), label: name }
@@ -373,7 +383,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
       const ka = keyOf(a)
       const kb = keyOf(b)
       // Para "mes" orden cronológico desc; para otros alfabético
-      const cmp = groupMode === 'mes' ? kb.key.localeCompare(ka.key) : ka.key.localeCompare(kb.key)
+      const cmp = (groupMode === 'mes' || groupMode === 'trimestre') ? kb.key.localeCompare(ka.key) : ka.key.localeCompare(kb.key)
       if (cmp !== 0) return cmp
       // Mantener sub-orden por created_at desc dentro del grupo
       return (b.created_at || '').localeCompare(a.created_at || '')
@@ -769,6 +779,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
           { v: 'mes',       label: 'Mes',       Icon: IconCalendar, hint: 'Agrupado por mes de emisión' },
           { v: 'proveedor', label: 'Proveedor', Icon: IconUser,     hint: 'Agrupado por proveedor / empresa emisora' },
           { v: 'proyecto',  label: 'Proyecto',  Icon: IconBuilding, hint: 'Agrupado por proyecto / obra' },
+          { v: 'trimestre', label: 'Trimestre', Icon: IconCalendar, hint: 'Agrupado por trimestre fiscal (IVA). Combínalo con el filtro Emitidas/Recibidas para el modelo 303' },
         ] as const).map(opt => {
           const Ic = opt.Icon
           return (
