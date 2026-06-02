@@ -32,8 +32,9 @@ const ALLOWED_TABLES = new Set([
 // Tablas que además tienen columna storage_bucket.
 const TABLES_WITH_BUCKET = new Set(['admin_uploads', 'worker_attachments'])
 // Tablas que tienen columna drive_url (Google Drive — pipeline email).
-// documentos_otros / admin_uploads / worker_attachments NO la tienen → no pedirla (evita 42703).
+// admin_uploads / worker_attachments NO la tienen → no pedirla (evita 42703).
 const TABLES_WITH_DRIVE_URL = new Set([
+  'documentos_otros',
   'albaranes', 'certificaciones_obra', 'certificados', 'contratos', 'documents',
   'escrituras', 'informes', 'invoices', 'justificantes_pago', 'licencias',
   'modelos_fiscales', 'notas_simples', 'payrolls', 'presupuestos', 'seguros',
