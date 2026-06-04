@@ -45,7 +45,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   // Login y reset-password van SIEMPRE sin chrome del panel (aunque exista sesión de
   // recovery aal1, que el layout server cuenta como autenticada → mostraba el sidebar
   // en la página de reset y desviaba al usuario a un challenge MFA en mitad del flujo).
-  const noChrome = pathname === '/admin/login' || pathname === '/admin/reset-password'
+  const noChrome = pathname === '/admin/login' || pathname === '/admin/reset-password' || pathname === '/admin/mfa' || pathname === '/admin/mfa/setup'
   if (noChrome) return <>{children}</>
 
   return (

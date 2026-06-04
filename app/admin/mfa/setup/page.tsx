@@ -64,8 +64,9 @@ export default function MFASetupPage() {
       setLoading(false)
       return
     }
-    router.push('/admin')
-    router.refresh()
+    // Recarga dura: el navegador hace la petición completa con la cookie aal2 ya escrita
+    // (router.push navegaba antes de propagar la cookie → la pantalla se quedaba bloqueada).
+    window.location.assign('/admin')
   }
 
   if (enrolling) {
