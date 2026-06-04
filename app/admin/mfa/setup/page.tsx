@@ -20,12 +20,17 @@ export default function MFASetupPage() {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) { router.push('/admin/login'); return }
 
-      // Check if already enrolled
+      // ¿Ya tiene un factor VERIFICADO? → ir a verificar (listFactors().totp solo trae verified).
       const { data: factors } = await supabase.auth.mfa.listFactors()
       if (factors?.totp?.length) {
-        // Already enrolled but session not verified — go to verify
         router.push('/admin/mfa')
         return
+      }
+      // Limpiar factores TOTP huérfanos (sin verificar) de intentos abandonados — viven en .all,
+      // no en .totp. Sin esto, el re-enroll falla por friendlyName duplicado y deja al socio atascado.
+      const orphans = (factors?.all ?? []).filter(f => f.factor_type === 'totp' && f.status !== 'verified')
+      for (const o of orphans) {
+        await supabase.auth.mfa.unenroll({ factorId: o.id })
       }
 
       // Enroll new TOTP factor

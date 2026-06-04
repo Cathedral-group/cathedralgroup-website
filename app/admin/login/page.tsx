@@ -19,8 +19,17 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0)
   const [showReset, setShowReset] = useState(false)
 
-  // Check if already authenticated
+  // Mensajes de ?error/?reset + evitar el bucle de redirect: si el middleware nos mandó aquí
+  // con un ?error=, NO auto-redirigir (si no, getUser ve la sesión válida → /admin → middleware
+  // rebota otra vez → bucle).
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const err = params.get('error')
+    const reset = params.get('reset')
+    if (err === 'unauthorized') setError('No autorizado. Tu cuenta no tiene acceso al panel.')
+    else if (err === 'mfa_check_failed') setError('No se pudo verificar la verificación en 2 pasos. Vuelve a iniciar sesión.')
+    if (reset === 'success') setSuccess('Contraseña actualizada. Inicia sesión con tu nueva contraseña.')
+    if (err) return
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) router.push('/admin')
@@ -116,8 +125,8 @@ export default function LoginPage() {
 
     setAttempts(0)
     sessionStorage.removeItem('login_lockout')
-    // Log login event (fire-and-forget) — registro adicional en admin_audit_log para trazabilidad
-    fetch('/api/login-log', { method: 'POST' }).catch(() => {})
+    // El registro de acceso (login-log) se hace tras verificar el 2FA en /admin/mfa, cuando la
+    // sesión ya es aal2 (el endpoint exige aal2; aquí, recién metida la contraseña, es aal1 → 401).
     router.push('/admin')
     router.refresh()
   }
@@ -184,6 +193,7 @@ export default function LoginPage() {
                 />
               </div>
 
+              {success && <p className="text-green-600 text-sm text-center">{success}</p>}
               {error && <p className="text-red-600 text-sm text-center">{error}</p>}
               {isLocked && countdown > 0 && (
                 <p className="text-neutral-500 text-xs text-center">

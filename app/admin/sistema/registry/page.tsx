@@ -22,7 +22,7 @@ export default async function RegistryPage() {
   const { data: userData } = await authClient.auth.getUser()
   const user = userData?.user
   if (!user?.email || !isAdminEmail(user.email)) {
-    redirect('/login?next=/admin/sistema/registry')
+    redirect('/admin/login')
   }
   const { data: aal } = await authClient.auth.mfa.getAuthenticatorAssuranceLevel()
   if (!aal || aal.currentLevel !== 'aal2') {

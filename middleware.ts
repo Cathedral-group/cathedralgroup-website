@@ -1,11 +1,11 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isAdminEmail } from '@/lib/auth-allowlist'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Only protect admin routes — skip login and reset-password
+  // Solo protegemos /admin — login, reset-password y mfa quedan fuera (manejan su propio flujo)
   if (!pathname.startsWith('/admin')) return NextResponse.next()
   if (
     pathname.startsWith('/admin/login') ||
@@ -15,74 +15,63 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const response = NextResponse.next()
+  const response = NextResponse.next({ request: { headers: request.headers } })
+
+  // @supabase/ssr puede refrescar y ROTAR el refresh-token durante getUser(). Capturamos las
+  // cookies que escribe para copiarlas en CUALQUIER respuesta de redirect — si no, una rotación
+  // durante un request que redirige perdería el token nuevo y cerraría la sesión antes de tiempo
+  // (contrato @supabase/ssr).
+  let pendingCookies: { name: string; value: string; options: CookieOptions }[] = []
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return request.cookies.getAll() },
+        getAll() {
+          return request.cookies.getAll()
+        },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options)
-          })
+          pendingCookies = cookiesToSet
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
         },
       },
     }
   )
 
+  // Redirect que preserva las cookies refrescadas (rotation-safe).
+  const redirectTo = (path: string, errorCode?: string) => {
+    const url = request.nextUrl.clone()
+    url.pathname = path
+    if (errorCode) url.searchParams.set('error', errorCode)
+    const res = NextResponse.redirect(url)
+    pendingCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
+    return res
+  }
+
   const { data, error } = await supabase.auth.getUser()
 
-  if (error || !data?.user) {
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/admin/login'
-    return NextResponse.redirect(loginUrl)
-  }
+  if (error || !data?.user) return redirectTo('/admin/login')
 
-  // Allow-list enforcement: solo emails autorizados (defensa contra signups o usuarios huérfanos)
+  // Allow-list: solo emails autorizados (defensa contra signups o usuarios huérfanos)
   if (!isAdminEmail(data.user.email)) {
-    // Logout y redirect — la sesión es válida pero el email NO está en la allow-list
     await supabase.auth.signOut()
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/admin/login'
-    loginUrl.searchParams.set('error', 'unauthorized')
-    return NextResponse.redirect(loginUrl)
+    return redirectTo('/admin/login', 'unauthorized')
   }
 
-  // MFA enforcement: check assurance level
-  // FP18 fix: chequear error explícito. Si MFA endpoint falla, denegar acceso
-  // (fail-closed) en vez de continuar con aal=null y arriesgar redirect-loop.
+  // MFA enforcement: fail-closed si el chequeo de nivel falla (sin revelar detalle)
   const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  if (aalError) {
-    console.error('[middleware] MFA getAuthenticatorAssuranceLevel error:', aalError.message, {
-      user: data.user.email,
-    })
-    // Fail-closed: redirigir a login con error genérico (NO revelar detalle)
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/admin/login'
-    loginUrl.searchParams.set('error', 'mfa_check_failed')
-    return NextResponse.redirect(loginUrl)
-  }
-  if (!aal) {
-    // Caso atípico: sin error pero sin data. Fail-closed igual.
-    console.warn('[middleware] MFA aal data is null without error, fail-closed', { user: data.user.email })
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/admin/login'
-    loginUrl.searchParams.set('error', 'mfa_check_failed')
-    return NextResponse.redirect(loginUrl)
+  if (aalError || !aal) {
+    console.error('[middleware] MFA aal check failed', { user: data.user.email, err: aalError?.message })
+    return redirectTo('/admin/login', 'mfa_check_failed')
   }
   if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
-    // User has MFA enrolled but hasn't verified it this session
-    const mfaUrl = request.nextUrl.clone()
-    mfaUrl.pathname = '/admin/mfa'
-    return NextResponse.redirect(mfaUrl)
+    // Tiene MFA enrolado pero no verificado en esta sesión → verificar
+    return redirectTo('/admin/mfa')
   }
   if (aal.nextLevel !== 'aal2') {
-    // User has no MFA factor enrolled yet — force setup
-    const setupUrl = request.nextUrl.clone()
-    setupUrl.pathname = '/admin/mfa/setup'
-    return NextResponse.redirect(setupUrl)
+    // Sin factor MFA enrolado todavía → forzar setup
+    return redirectTo('/admin/mfa/setup')
   }
 
   return response

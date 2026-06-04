@@ -39,6 +39,8 @@ export default function MFAVerifyPage() {
       setLoading(false)
       return
     }
+    // Registro de acceso: ahora la sesión es aal2 (en el login era aal1 y el endpoint daba 401).
+    fetch('/api/login-log', { method: 'POST' }).catch(() => {})
     // Recarga dura: el navegador hace la petición completa con la cookie aal2 ya escrita,
     // así el servidor ve aal2 y sirve /admin. (router.push navega antes de propagar la cookie
     // → el middleware ve aal1 y rebota a /admin/mfa → la pantalla se quedaba bloqueada.)
