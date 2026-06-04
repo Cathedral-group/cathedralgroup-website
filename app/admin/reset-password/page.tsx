@@ -11,23 +11,63 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [ready, setReady] = useState(false)
+  const [linkError, setLinkError] = useState(false)
 
   useEffect(() => {
-    // Supabase sets the session from the URL hash automatically
     const supabase = createClient()
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+    let mounted = true
+
+    // Listener sincrónico (race-safe): el evento de recovery puede dispararse durante el init
+    // del cliente; suscribirse aquí (no dentro de un .then) garantiza no perderlo.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return
+      if (
+        event === 'PASSWORD_RECOVERY' ||
+        ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session)
+      ) {
         setReady(true)
-      } else {
-        // Listen for auth state change (token from URL)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-          if (event === 'PASSWORD_RECOVERY') {
-            setReady(true)
-          }
-        })
-        return () => subscription.unsubscribe()
       }
     })
+
+    ;(async () => {
+      // ¿Sesión ya activa?
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) { if (mounted) setReady(true); return }
+
+      // Tokens en el hash (#access_token=): el cliente es flowType:'pkce' (hardcoded en
+      // @supabase/ssr) y NO consume el hash, así que lo procesamos a mano. setSession establece
+      // la sesión de recovery que updateUser() necesita.
+      const hp = new URLSearchParams(window.location.hash.substring(1))
+      const access_token = hp.get('access_token')
+      const refresh_token = hp.get('refresh_token')
+      if (access_token && refresh_token) {
+        const { error: sErr } = await supabase.auth.setSession({ access_token, refresh_token })
+        if (!mounted) return
+        if (sErr) {
+          setLinkError(true)
+        } else {
+          // Limpiar el token de la barra de direcciones por seguridad.
+          window.history.replaceState(null, '', window.location.pathname)
+          setReady(true)
+        }
+        return
+      }
+
+      // Fallback PKCE (?code=) por si resetPasswordForEmail usa ese flujo en el futuro.
+      const code = new URLSearchParams(window.location.search).get('code')
+      if (code) {
+        const { error: cErr } = await supabase.auth.exchangeCodeForSession(code)
+        if (!mounted) return
+        if (cErr) setLinkError(true)
+        else setReady(true)
+        return
+      }
+
+      // Sin token ni sesión → enlace ausente/inválido.
+      if (mounted) setLinkError(true)
+    })()
+
+    return () => { mounted = false; subscription.unsubscribe() }
   }, [])
 
   const handleSubmit = async (e: FormEvent) => {
@@ -65,8 +105,12 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-sm text-neutral-500 mb-4">Verificando enlace...</p>
-          <p className="text-xs text-neutral-400">Si no funciona, solicita un nuevo enlace desde el login.</p>
+          <p className="text-sm text-neutral-500 mb-4">
+            {linkError ? 'El enlace ha caducado o no es válido.' : 'Verificando enlace...'}
+          </p>
+          <p className="text-xs text-neutral-400">
+            {linkError ? 'Solicita uno nuevo desde el login.' : 'Si no funciona, solicita un nuevo enlace desde el login.'}
+          </p>
           <a href="/admin/login" className="text-xs text-primary hover:underline mt-4 inline-block">
             Ir al login
           </a>
