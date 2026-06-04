@@ -74,8 +74,8 @@ export default function ResetPasswordPage() {
     e.preventDefault()
     setError('')
 
-    if (password.length < 12) {
-      setError('La contraseña debe tener al menos 12 caracteres.')
+    if (password.length < 9) {
+      setError('La contraseña debe tener al menos 9 caracteres.')
       return
     }
 
@@ -137,10 +137,10 @@ export default function ResetPasswordPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={12}
+              minLength={9}
               autoComplete="new-password"
               className="w-full bg-neutral-50 border border-neutral-200 text-neutral-900 focus:ring-1 focus:ring-primary p-4 text-sm"
-              placeholder="Mínimo 12 caracteres"
+              placeholder="Mínimo 9 caracteres"
             />
           </div>
           <div>
