@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import AdminSidebar from './AdminSidebar'
 import NotificationBell from './NotificationBell'
 import UploadQueueFloater from './UploadQueueFloater'
@@ -11,6 +11,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const router = useRouter()
+  const pathname = usePathname()
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleRefresh = () => {
@@ -40,6 +41,12 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   }, [])
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev)
+
+  // Login y reset-password van SIEMPRE sin chrome del panel (aunque exista sesión de
+  // recovery aal1, que el layout server cuenta como autenticada → mostraba el sidebar
+  // en la página de reset y desviaba al usuario a un challenge MFA en mitad del flujo).
+  const noChrome = pathname === '/admin/login' || pathname === '/admin/reset-password'
+  if (noChrome) return <>{children}</>
 
   return (
     <UploadQueueProvider>

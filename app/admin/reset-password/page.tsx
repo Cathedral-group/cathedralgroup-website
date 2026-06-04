@@ -74,8 +74,8 @@ export default function ResetPasswordPage() {
     e.preventDefault()
     setError('')
 
-    if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.')
+    if (password.length < 12) {
+      setError('La contraseña debe tener al menos 12 caracteres.')
       return
     }
 
@@ -89,7 +89,7 @@ export default function ResetPasswordPage() {
     const { error: updateError } = await supabase.auth.updateUser({ password })
 
     if (updateError) {
-      setError('Error al actualizar la contraseña. Solicita un nuevo enlace.')
+      setError(`No se pudo actualizar la contraseña: ${updateError.message}. Si el enlace caducó, solicita uno nuevo.`)
       setLoading(false)
       return
     }
@@ -137,10 +137,10 @@ export default function ResetPasswordPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={8}
+              minLength={12}
               autoComplete="new-password"
               className="w-full bg-neutral-50 border border-neutral-200 text-neutral-900 focus:ring-1 focus:ring-primary p-4 text-sm"
-              placeholder="Mínimo 8 caracteres"
+              placeholder="Mínimo 12 caracteres"
             />
           </div>
           <div>
