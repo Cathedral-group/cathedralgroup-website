@@ -476,8 +476,12 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
     const ef = editForm as Record<string, unknown>
     const payload: Record<string, unknown> = {}
     const FIELDS = ['code', 'name', 'client_id', 'type', 'status', 'address', 'description',
-      'budget_estimated', 'sale_price', 'start_date', 'end_date_planned', 'end_date_real',
-      'notes', 'drive_folder_url']
+      'budget_estimated', 'budget_approved', 'sale_price', 'start_date', 'end_date_planned', 'end_date_real',
+      'notes', 'drive_folder_url',
+      'zona', 'metros_cuadrados', 'tipo_inmueble', 'numero_habitaciones', 'numero_banos',
+      'referencia_catastral', 'responsable_obra', 'arquitecto_externo', 'aparejador_externo',
+      'nivel_calidad', 'precio_compra', 'fecha_compra', 'fecha_venta_real',
+      'presupuesto_inicial', 'presupuesto_revisado', 'comercial_responsable', 'fuente_origen']
     for (const f of FIELDS) payload[f] = ef[f] ?? null
     try {
       const res = await fetch('/api/db/projects', {
@@ -1592,7 +1596,45 @@ export default function ProjectsView({ projects: initialProjects, clients, finan
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Presupuesto estimado" name="budget_estimated" type="number" />
+                    <Field label="Presupuesto aprobado" name="budget_approved" type="number" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Presupuesto inicial" name="presupuesto_inicial" type="number" />
+                    <Field label="Presupuesto revisado" name="presupuesto_revisado" type="number" />
+                  </div>
+
+                  {/* Compra / venta del inmueble */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Field label="Precio de compra" name="precio_compra" type="number" />
                     <Field label="Precio de venta" name="sale_price" type="number" />
+                    <Field label="Fecha de compra" name="fecha_compra" type="date" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Field label="Fecha de venta real" name="fecha_venta_real" type="date" />
+                    <Field label="Zona" name="zona" />
+                    <Field label="Referencia catastral" name="referencia_catastral" />
+                  </div>
+
+                  {/* Datos del inmueble */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Field label="Metros cuadrados" name="metros_cuadrados" type="number" />
+                    <Field label="Habitaciones" name="numero_habitaciones" type="number" />
+                    <Field label="Baños" name="numero_banos" type="number" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Tipo de inmueble" name="tipo_inmueble" />
+                    <Field label="Nivel de calidad" name="nivel_calidad" />
+                  </div>
+
+                  {/* Responsables */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Responsable de obra" name="responsable_obra" />
+                    <Field label="Comercial responsable" name="comercial_responsable" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Field label="Arquitecto externo" name="arquitecto_externo" />
+                    <Field label="Aparejador externo" name="aparejador_externo" />
+                    <Field label="Fuente / origen" name="fuente_origen" />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

@@ -74,6 +74,7 @@ const EDITABLE_FIELDS = [
   'purchase_price','purchase_date','purchase_notary_cost','purchase_registry_cost','purchase_gestoria_cost',
   'itp_rate','itp_amount',
   'reserva_amount','reserva_date','arras_amount','arras_date','arras_contract_url',
+  'reform_budget_estimated','reform_start_date','reform_end_date',
   'sale_price','sale_date','sale_notary_cost','sale_registry_cost','sale_gestoria_cost',
   'agent_commission_pct','agent_commission_amount','plusvalia_amount','is_tax_amount',
 ]
@@ -120,7 +121,7 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
       const numFields = [
         'purchase_price','purchase_notary_cost','purchase_registry_cost','purchase_gestoria_cost',
         'itp_rate','itp_amount','surface_m2',
-        'reserva_amount','arras_amount',
+        'reserva_amount','arras_amount','reform_budget_estimated',
         'sale_price','sale_notary_cost','sale_registry_cost','sale_gestoria_cost',
         'agent_commission_pct','agent_commission_amount','plusvalia_amount','is_tax_amount'
       ]
@@ -210,6 +211,22 @@ export default function TabCompraVenta({ op, onUpdate }: Props) {
         <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm">
           <strong>Total coste de compra:</strong>
           <span className="ml-2 font-mono font-bold">{eur(totalCompra)}</span>
+        </div>
+      </div>
+
+      {/* Reforma */}
+      <div className="bg-white rounded-xl border p-5">
+        <h3 className="font-bold text-neutral-800 mb-4">Reforma</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <NumInput label="Presupuesto reforma" field="reform_budget_estimated" form={form} setForm={set} suffix="€" />
+          <div>
+            <label className="block text-xs text-neutral-500 mb-1">Inicio reforma</label>
+            <input type="date" value={form.reform_start_date ?? ''} onChange={e => set(p => ({ ...p, reform_start_date: e.target.value }))} className="w-full border rounded px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-neutral-500 mb-1">Fin reforma</label>
+            <input type="date" value={form.reform_end_date ?? ''} onChange={e => set(p => ({ ...p, reform_end_date: e.target.value }))} className="w-full border rounded px-3 py-2 text-sm" />
+          </div>
         </div>
       </div>
 
