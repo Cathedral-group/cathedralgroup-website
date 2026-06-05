@@ -65,6 +65,23 @@ interface Invoice {
   plazo_pago_dias?: number | null
   validez_hasta?: string | null
   periodo_facturacion?: string | null
+  // Desglose IVA por tipo + extracción fiscal (auditoría campos 06/06)
+  base_imponible_21?: number | null
+  cuota_iva_21?: number | null
+  base_imponible_10?: number | null
+  cuota_iva_10?: number | null
+  base_imponible_4?: number | null
+  cuota_iva_4?: number | null
+  base_imponible_0_exenta?: number | null
+  detalles_iva?: { tipo?: number | null; base?: number | null; cuota?: number | null }[] | null
+  amount_paid?: number | null
+  subcategoria_gasto?: string | null
+  es_extranjera?: boolean | null
+  pais_origen?: string | null
+  moneda_original?: string | null
+  tipo_cambio?: number | null
+  numero_certificacion?: number | null
+  porcentaje_certificado?: number | null
   // Idioma + resumen IA (B1 sesión 27)
   idioma?: string | null
   resumen_ia?: string | null
@@ -138,6 +155,21 @@ const DEFAULTS: Invoice = {
   plazo_pago_dias: null,
   validez_hasta: null,
   periodo_facturacion: null,
+  base_imponible_21: null,
+  cuota_iva_21: null,
+  base_imponible_10: null,
+  cuota_iva_10: null,
+  base_imponible_4: null,
+  cuota_iva_4: null,
+  base_imponible_0_exenta: null,
+  amount_paid: null,
+  subcategoria_gasto: null,
+  es_extranjera: null,
+  pais_origen: null,
+  moneda_original: null,
+  tipo_cambio: null,
+  numero_certificacion: null,
+  porcentaje_certificado: null,
   idioma: null,
   resumen_ia: null,
 }
@@ -546,6 +578,32 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
               disabled
             />
           </div>
+          {/* Desglose IVA por tipo (extracción) — visible si hay datos por tramo */}
+          {(form.base_imponible_21 != null || form.base_imponible_10 != null ||
+            form.base_imponible_4 != null || form.base_imponible_0_exenta != null) && (
+            <div className="border border-neutral-100 rounded p-3 mb-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-3">
+                Desglose IVA por tipo
+              </p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <MoneyInput label="Base 21%" value={form.base_imponible_21 ?? null} onChange={(v) => set('base_imponible_21', v)} />
+                <MoneyInput label="Cuota 21%" value={form.cuota_iva_21 ?? null} onChange={(v) => set('cuota_iva_21', v)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <MoneyInput label="Base 10%" value={form.base_imponible_10 ?? null} onChange={(v) => set('base_imponible_10', v)} />
+                <MoneyInput label="Cuota 10%" value={form.cuota_iva_10 ?? null} onChange={(v) => set('cuota_iva_10', v)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <MoneyInput label="Base 4%" value={form.base_imponible_4 ?? null} onChange={(v) => set('base_imponible_4', v)} />
+                <MoneyInput label="Cuota 4%" value={form.cuota_iva_4 ?? null} onChange={(v) => set('cuota_iva_4', v)} />
+              </div>
+              <MoneyInput label="Base 0% / exenta" value={form.base_imponible_0_exenta ?? null} onChange={(v) => set('base_imponible_0_exenta', v)} />
+            </div>
+          )}
+          {/* Importe pagado (pagos parciales) */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <MoneyInput label="Importe pagado" value={form.amount_paid ?? null} onChange={(v) => set('amount_paid', v)} />
+          </div>
           <div className="bg-neutral-50 p-3 rounded text-right">
             <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mr-3">Total</span>
             <span className="text-lg font-bold">
@@ -711,6 +769,18 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
                 <option value="subcontratas">Subcontratas</option>
                 <option value="alquiler">Alquiler</option>
                 <option value="servicios">Servicios</option>
+                <option value="comunidad_propietarios">Comunidad de propietarios</option>
+                <option value="suministros">Suministros (luz/agua/gas/internet)</option>
+                <option value="seguros">Seguros</option>
+                <option value="financiero">Financiero (intereses/comisiones)</option>
+                <option value="tributos_locales">Tributos locales (IBI/IAE)</option>
+                <option value="notaria_registro">Notaría / Registro</option>
+                <option value="mobiliario_decoracion">Mobiliario / Decoración</option>
+                <option value="marketing_publicidad">Marketing / Publicidad</option>
+                <option value="desplazamientos_dietas">Desplazamientos / Dietas</option>
+                <option value="software_oficina">Software / Oficina</option>
+                <option value="gestoria_asesoria">Gestoría / Asesoría</option>
+                <option value="comisiones_intermediacion">Comisiones / Intermediación</option>
                 <option value="otros">Otros</option>
               </select>
             </div>
@@ -769,6 +839,67 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
               )}
             </div>
           )}
+          {/* Subcategoría de gasto (extracción) */}
+          <div className="mb-3">
+            <label className={labelCls}>Subcategoría de gasto</label>
+            <input
+              type="text"
+              value={form.subcategoria_gasto ?? ''}
+              onChange={(e) => set('subcategoria_gasto', e.target.value || null)}
+              className={inputCls}
+              placeholder="Detalle bajo la categoría (opcional)"
+            />
+          </div>
+          {/* Certificación de obra */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className={labelCls}>Nº certificación</label>
+              <input
+                type="number"
+                value={form.numero_certificacion ?? ''}
+                onChange={(e) => set('numero_certificacion', e.target.value ? Number(e.target.value) : null)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>% certificado</label>
+              <input
+                type="number"
+                step="0.01"
+                value={form.porcentaje_certificado ?? ''}
+                onChange={(e) => set('porcentaje_certificado', e.target.value ? Number(e.target.value) : null)}
+                className={inputCls}
+              />
+            </div>
+          </div>
+          {/* Factura extranjera / moneda */}
+          <div className="mb-3">
+            <label className="flex items-center gap-3 cursor-pointer p-3">
+              <input
+                type="checkbox"
+                checked={!!form.es_extranjera}
+                onChange={(e) => set('es_extranjera', e.target.checked)}
+                className="rounded border-neutral-300 text-primary focus:ring-primary"
+              />
+              <span className="text-xs font-medium uppercase tracking-wide">Factura extranjera</span>
+            </label>
+            {form.es_extranjera && (
+              <div className="grid grid-cols-3 gap-3 mt-2">
+                <div>
+                  <label className={labelCls}>País origen</label>
+                  <input type="text" value={form.pais_origen ?? ''} onChange={(e) => set('pais_origen', e.target.value || null)} className={inputCls} placeholder="FR, DE..." />
+                </div>
+                <div>
+                  <label className={labelCls}>Moneda</label>
+                  <input type="text" value={form.moneda_original ?? ''} onChange={(e) => set('moneda_original', e.target.value || null)} className={inputCls} placeholder="EUR, USD..." />
+                </div>
+                <div>
+                  <label className={labelCls}>Tipo cambio</label>
+                  <input type="number" step="0.0001" value={form.tipo_cambio ?? ''} onChange={(e) => set('tipo_cambio', e.target.value ? Number(e.target.value) : null)} className={inputCls} />
+                </div>
+              </div>
+            )}
+          </div>
           {form.es_rectificativa && (
             <div className="space-y-3 col-span-2">
               <div>
