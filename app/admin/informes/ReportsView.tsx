@@ -2,6 +2,10 @@
 
 import { useState, useMemo } from 'react'
 import TabPanel from '@/components/admin/TabPanel'
+import DashboardCharts from '../DashboardCharts'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
+} from 'recharts'
 
 // Only these doc_types represent real monetary transactions
 const FINANCIAL_DOC_TYPES = new Set([
@@ -25,6 +29,8 @@ interface Invoice {
   payment_date: string | null
   payment_status: string | null
   created_at: string | null
+  project_id: string | null
+  proyecto_code: string | null
 }
 
 interface VatQuarterly {
@@ -45,6 +51,7 @@ const TABS = [
   { key: 'cashflow', label: 'Flujo de Caja' },
   { key: 'iva', label: 'IVA' },
   { key: 'estructura', label: 'Estructura' },
+  { key: 'graficas', label: 'Gráficas' },
 ]
 
 function formatEUR(value: number | null | undefined): string {
@@ -494,6 +501,175 @@ function EstructuraTab({ invoices, year, quarter, month }: { invoices: Invoice[]
   )
 }
 
+// ─── Gráficas Tab (visión de empresa de un vistazo) ───
+const MONTHS_ES_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+function GraficasTab({
+  invoices, vatQuarterly, year, quarter, month,
+}: {
+  invoices: Invoice[]; vatQuarterly: VatQuarterly[]; year: number; quarter: number | null; month: number | null
+}) {
+  // Solo documentos financieros del periodo seleccionado
+  const periodInvoices = useMemo(
+    () => filterByPeriod(invoices, year, quarter, month).filter((inv) => !inv.doc_type || FINANCIAL_DOC_TYPES.has(inv.doc_type)),
+    [invoices, year, quarter, month]
+  )
+
+  // monthlyData (ingresos/gastos/margen por mes del periodo) — misma forma que getStats
+  const monthlyData = useMemo(() => {
+    let startM: number, endM: number
+    if (month) { startM = month; endM = month }
+    else if (quarter) { startM = (quarter - 1) * 3 + 1; endM = quarter * 3 }
+    else { startM = 1; endM = 12 }
+
+    const map: Record<string, { ingresos: number; gastos: number }> = {}
+    for (let m = startM; m <= endM; m++) map[`${year}-${String(m).padStart(2, '0')}`] = { ingresos: 0, gastos: 0 }
+
+    for (const inv of periodInvoices) {
+      const dateStr = inv.issue_date || inv.created_at
+      if (!dateStr) continue
+      const key = dateStr.slice(0, 7)
+      if (!map[key]) continue
+      const amount = getNetAmount(inv)
+      if (inv.direction === 'emitida') map[key].ingresos += amount
+      else map[key].gastos += amount
+    }
+    return Object.entries(map).map(([key, vals]) => {
+      const m = parseInt(key.slice(5, 7), 10)
+      const margen = vals.ingresos > 0 ? ((vals.ingresos - vals.gastos) / vals.ingresos) * 100 : 0
+      return { month: MONTHS_ES_SHORT[m - 1], ingresos: Math.round(vals.ingresos), gastos: Math.round(vals.gastos), margen: Math.round(margen * 10) / 10 }
+    })
+  }, [periodInvoices, year, quarter, month])
+
+  // invoiceStatus (donut pagada/pendiente/vencida)
+  const invoiceStatus = useMemo(() => {
+    const now = new Date(); now.setHours(0, 0, 0, 0)
+    const counts = { pagada: 0, pendiente: 0, vencida: 0 }
+    for (const inv of periodInvoices) {
+      if (inv.payment_status === 'pagada' || inv.payment_status === 'cobrada') counts.pagada++
+      else if (inv.due_date && new Date(inv.due_date + 'T00:00:00') < now) counts.vencida++
+      else counts.pendiente++
+    }
+    return [
+      { name: 'Pagada', value: counts.pagada, color: '#22c55e' },
+      { name: 'Pendiente', value: counts.pendiente, color: '#f59e0b' },
+      { name: 'Vencida', value: counts.vencida, color: '#ef4444' },
+    ].filter((s) => s.value > 0)
+  }, [periodInvoices])
+
+  // projectProfitability (agrupado por proyecto_code; el resto va a "Sin proyecto")
+  const { projectProfitability, sinProyectoIngresos, sinProyectoGastos } = useMemo(() => {
+    const map: Record<string, { name: string; ingresos: number; gastos: number }> = {}
+    let sinIng = 0, sinGas = 0
+    for (const inv of periodInvoices) {
+      const amt = getNetAmount(inv)
+      const code = inv.proyecto_code?.trim()
+      if (code) {
+        const k = code.toLowerCase()
+        if (!map[k]) map[k] = { name: code, ingresos: 0, gastos: 0 }
+        if (inv.direction === 'emitida') map[k].ingresos += amt
+        else map[k].gastos += amt
+      } else {
+        if (inv.direction === 'emitida') sinIng += amt
+        else sinGas += amt
+      }
+    }
+    const list = Object.values(map)
+      .map((p) => ({ name: p.name, ingresos: Math.round(p.ingresos), gastos: Math.round(p.gastos), margen: Math.round(p.ingresos - p.gastos) }))
+      .filter((p) => p.ingresos > 0 || p.gastos > 0)
+      .sort((a, b) => (b.ingresos + b.gastos) - (a.ingresos + a.gastos))
+    return { projectProfitability: list, sinProyectoIngresos: Math.round(sinIng), sinProyectoGastos: Math.round(sinGas) }
+  }, [periodInvoices])
+
+  // estructuraData (costes fijos por línea, año completo seleccionado — consistente con getStats)
+  const estructuraData = useMemo(() => {
+    const yearInvoices = invoices.filter((inv) => {
+      const d = inv.issue_date || inv.created_at
+      return d != null && d.slice(0, 4) === String(year)
+        && inv.direction === 'recibida' && inv.es_gasto_general === true && inv.linea_estructura != null
+    })
+    const map: Record<string, number> = {}
+    for (const inv of yearInvoices) map[inv.linea_estructura!] = (map[inv.linea_estructura!] || 0) + getNetAmount(inv)
+    return Object.entries(map)
+      .map(([key, value]) => ({ name: LINEA_ESTRUCTURA_LABELS[key] ?? key, value: Math.round(value) }))
+      .sort((a, b) => b.value - a.value)
+  }, [invoices, year])
+
+  // IVA por trimestre (repercutido / soportado / a ingresar) del año seleccionado
+  const ivaData = useMemo(() => {
+    const byQ: Record<number, VatQuarterly> = {}
+    for (const v of vatQuarterly) if (v.year === year) byQ[v.quarter] = v
+    return [1, 2, 3, 4]
+      .filter((q) => byQ[q])
+      .map((q) => ({
+        trimestre: `Q${q}`,
+        repercutido: Math.round(Number(byQ[q].vat_repercutido) || 0),
+        soportado: Math.round(Number(byQ[q].vat_soportado) || 0),
+        aIngresar: Math.round(Number(byQ[q].cuota_a_ingresar) || 0),
+      }))
+  }, [vatQuarterly, year])
+
+  return (
+    <div className="space-y-8">
+      {/* ── FINANZAS + PROYECTOS + ESTRUCTURA (reutiliza DashboardCharts) ── */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-3">Finanzas, proyectos y estructura</p>
+        <DashboardCharts
+          variant="full"
+          showLeads={false}
+          monthlyData={monthlyData}
+          invoiceStatus={invoiceStatus}
+          leadSources={[]}
+          projectProfitability={projectProfitability}
+          sinProyectoIngresos={sinProyectoIngresos}
+          sinProyectoGastos={sinProyectoGastos}
+          estructuraData={estructuraData}
+          estructuraYear={year}
+        />
+      </div>
+
+      {/* ── FISCAL: IVA por trimestre ── */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-3">Fiscal</p>
+        <div className="bg-white p-6 border border-neutral-100">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-4">
+            IVA por trimestre — {year}
+          </h3>
+          {ivaData.length === 0 ? (
+            <div className="h-[240px] flex items-center justify-center text-neutral-300 text-sm">
+              Sin datos de IVA para {year}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={ivaData} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="trimestre" tick={{ fontSize: 11, fill: '#999' }} />
+                <YAxis tick={{ fontSize: 10, fill: '#999' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k€`} />
+                <Tooltip
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  formatter={(value: any) => formatEUR(Number(value))}
+                  contentStyle={{ fontSize: 12, border: '1px solid #e5e5e5' }}
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Bar dataKey="repercutido" name="IVA repercutido" fill="#B4A898" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="soportado" name="IVA soportado" fill="#5A5550" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="aIngresar" name="A ingresar / (devolver)" radius={[2, 2, 0, 0]}>
+                  {ivaData.map((row, i) => (
+                    <Cell key={i} fill={row.aIngresar >= 0 ? '#ef4444' : '#22c55e'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          <p className="mt-3 text-[11px] text-neutral-400">
+            Barra roja = a ingresar a Hacienda; verde = a compensar/devolver. El IVA es trimestral, por eso esta gráfica no varía con el filtro de mes.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ───
 export default function ReportsView({ invoices, vatQuarterly }: ReportsViewProps) {
   const [activeTab, setActiveTab] = useState('pnl')
@@ -513,6 +689,7 @@ export default function ReportsView({ invoices, vatQuarterly }: ReportsViewProps
         {activeTab === 'cashflow' && <CashFlowTab invoices={invoices} year={year} quarter={quarter} month={month} />}
         {activeTab === 'iva' && <IvaTab vatQuarterly={vatQuarterly} year={year} />}
         {activeTab === 'estructura' && <EstructuraTab invoices={invoices} year={year} quarter={quarter} month={month} />}
+        {activeTab === 'graficas' && <GraficasTab invoices={invoices} vatQuarterly={vatQuarterly} year={year} quarter={quarter} month={month} />}
       </TabPanel>
     </div>
   )

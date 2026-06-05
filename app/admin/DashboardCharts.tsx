@@ -47,6 +47,7 @@ interface Props {
   estructuraData: EstructuraData[]
   estructuraYear: number
   variant?: 'full' | 'inicio'
+  showLeads?: boolean
 }
 
 const COLORS = ['#B4A898', '#5A5550', '#9A8D7C', '#D9D0C7', '#7A6F64', '#E8E6E3']
@@ -94,7 +95,7 @@ function CashFlowTooltip({ active, payload, label }: CashFlowTooltipProps) {
   )
 }
 
-export default function DashboardCharts({ monthlyData, invoiceStatus, leadSources, projectProfitability, sinProyectoIngresos, sinProyectoGastos, estructuraData, estructuraYear, variant = 'full' }: Props) {
+export default function DashboardCharts({ monthlyData, invoiceStatus, leadSources, projectProfitability, sinProyectoIngresos, sinProyectoGastos, estructuraData, estructuraYear, variant = 'full', showLeads = true }: Props) {
   const totalInvoices = invoiceStatus.reduce((sum, s) => sum + s.value, 0)
 
   // Compute cumulative cash flow from monthly invoice data
@@ -332,6 +333,7 @@ export default function DashboardCharts({ monthlyData, invoiceStatus, leadSource
         </div>
 
         {/* Origen Leads */}
+        {showLeads && (
         <div className="bg-white p-6 border border-neutral-100">
           <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-4">
             Origen Leads
@@ -361,6 +363,7 @@ export default function DashboardCharts({ monthlyData, invoiceStatus, leadSource
             </ResponsiveContainer>
           )}
         </div>
+        )}
       </div>
 
       {/* ── 2-column: Rentabilidad por Proyecto + Gastos de Estructura ── */}

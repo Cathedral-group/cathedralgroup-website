@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import PeriodSelector from '@/components/admin/PeriodSelector'
-import FiscalCalendarCompact from '@/components/admin/FiscalCalendarCompact'
 import DashboardCharts from './DashboardCharts'
 import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 import { CATHEDRAL_INVESTMENT_SL_ID } from '@/lib/company-context'
@@ -450,9 +449,6 @@ export default async function AdminDashboard({
           <span className="text-base font-bold text-neutral-900">{stats.leadsAbiertos}</span>
         </Link>
       </div>
-
-      {/* ── Calendario fiscal AEAT (303/111/115/200) — se mantiene ── */}
-      <FiscalCalendarCompact />
 
       {/* ── Alertas: documentos por vencer / vencidos (se mantiene) ── */}
       {(stats.docsExpired.length > 0 || stats.docsExpiringSoon.length > 0) && (() => {
