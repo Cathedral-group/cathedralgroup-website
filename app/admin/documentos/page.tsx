@@ -29,7 +29,13 @@ export default async function DocumentosPage({
   // Sesión 21/05 fix Bug 1: aceptar query param `tipo` para filtrar SSR
   // (sidebar nuevo envía `?tipo=factura` para drill-down por doc_type)
   const params = await searchParams
-  const tipoFilter = typeof params.tipo === 'string' ? params.tipo : null
+  // El sidebar manda ?tipo=X (singular); el hub-cliente canonicaliza la URL a
+  // ?types=X (plural, CSV). Leemos ambos para el filtro SSR + el título. Si
+  // ?types trae varios (CSV con coma), no es un único tipo → título genérico.
+  const typesParam = typeof params.types === 'string' ? params.types : null
+  const tipoFilter = (typeof params.tipo === 'string' && params.tipo)
+    ? params.tipo
+    : (typesParam && !typesParam.includes(',') ? typesParam : null)
   // ─── Auth check (sesión + allow-list + AAL2) ─────────────────────────────
   const authClient = await createServerSupabaseClient()
   const { data: userData, error: userErr } = await authClient.auth.getUser()
