@@ -206,13 +206,26 @@ export default async function DocumentosPage({
     },
   }
 
+  // Título según el filtro ?tipo (si el hub se abre filtrado por un doc_type,
+  // el H1 muestra ese tipo en vez del genérico "Documentos").
+  const DOC_TYPE_LABELS: Record<string, string> = {
+    factura: 'Facturas', proforma: 'Proformas', rectificativa: 'Rectificativas', abono: 'Abonos',
+    ticket: 'Tickets', presupuesto: 'Presupuestos', albaran: 'Albaranes', contrato: 'Contratos',
+    escritura: 'Escrituras', licencia: 'Licencias', certificado: 'Certificados',
+    certificacion: 'Certificaciones de obra', nota_simple: 'Notas simples', seguro: 'Seguros',
+    modelo_fiscal: 'Modelos fiscales', justificante_pago: 'Justificantes de pago',
+    informe: 'Informes', nomina: 'Nóminas', otro: 'Otros', no_legible: 'No legibles',
+  }
+  const pageTitle = tipoFilter ? (DOC_TYPE_LABELS[tipoFilter] ?? tipoFilter) : 'Documentos'
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-medium uppercase tracking-wide">Documentos</h1>
+        <h1 className="text-xl font-medium uppercase tracking-wide">{pageTitle}</h1>
         <p className="mt-1 text-sm text-neutral-500">
-          Hub global de todos los documentos del grupo: facturas, nóminas, contratos, escrituras,
-          licencias, seguros, modelos fiscales, justificantes y más.
+          {tipoFilter
+            ? `${pageTitle} — vista filtrada del hub de documentos del grupo.`
+            : 'Hub global de todos los documentos del grupo: facturas, nóminas, contratos, escrituras, licencias, seguros, modelos fiscales, justificantes y más.'}
         </p>
       </div>
 
