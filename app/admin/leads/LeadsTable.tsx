@@ -14,8 +14,8 @@ interface Lead {
   lead_status?: string
   lead_score?: number
   lead_summary?: string
-  budget_estimate?: string
-  assigned_to?: string
+  budget_estimate?: number | null
+  assigned_to?: string | null
   notes?: string
   origen?: string
   source_page?: string
@@ -623,6 +623,35 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                 {selectedLead.source_page && (
                   <p className="text-[10px] text-neutral-400 mt-1">Página: {selectedLead.source_page}</p>
                 )}
+              </div>
+
+              {/* Editable presupuesto estimado + asignado */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Presupuesto estimado (€)</p>
+                <input
+                  type="number"
+                  defaultValue={selectedLead.budget_estimate ?? ''}
+                  onBlur={async (e) => {
+                    const val = e.target.value ? Number(e.target.value) : null
+                    await fetch('/api/db/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: selectedLead.id, budget_estimate: val }) })
+                    setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, budget_estimate: val } : l))
+                    setSelectedLead({ ...selectedLead, budget_estimate: val })
+                  }}
+                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+                />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Asignado a</p>
+                <input
+                  defaultValue={selectedLead.assigned_to ?? ''}
+                  onBlur={async (e) => {
+                    const val = e.target.value || null
+                    await fetch('/api/db/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: selectedLead.id, assigned_to: val }) })
+                    setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, assigned_to: val } : l))
+                    setSelectedLead({ ...selectedLead, assigned_to: val })
+                  }}
+                  className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
+                />
               </div>
 
               {/* Editable notes */}

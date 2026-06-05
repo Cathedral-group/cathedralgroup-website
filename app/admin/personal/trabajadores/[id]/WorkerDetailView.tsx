@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 /* ───────── Types ───────── */
@@ -19,6 +20,9 @@ interface Employee {
   empresa_actual_cif: string | null
   categoria_profesional: string | null
   grupo_cotizacion: number | null
+  epigrafe_at_ep: string | null
+  codigo_contrato_sepe: string | null
+  ccc_asignado: string | null
   centro_trabajo: string | null
   departamento: string | null
   tipo_contrato: string | null
@@ -29,14 +33,28 @@ interface Employee {
   fecha_antiguedad: string | null
   fecha_baja: string | null
   notes: string | null
+  convenio_colectivo_codigo_boe: string | null
   convenio_colectivo_nombre: string | null
   nivel_salarial_convenio: string | null
   apto_vigilancia_salud_fecha: string | null
   apto_vigilancia_salud_proxima: string | null
   formacion_prl_fecha: string | null
   formacion_prl_horas: number | null
+  formacion_prl_archivo_url: string | null
   fecha_firma_modelo_145: string | null
   clausula_informativa_firmada_fecha: string | null
+  // Modelo 145 — situación familiar y deducciones IRPF
+  situacion_familiar: number | null
+  nif_conyuge: string | null
+  conyuge_rentas_superiores_1500: boolean | null
+  discapacidad_grado: number | null
+  discapacidad_movilidad_reducida: boolean | null
+  movilidad_geografica: boolean | null
+  prolongacion_actividad: boolean | null
+  prestamo_vivienda_anterior_2013: boolean | null
+  pension_compensatoria_conyuge: number | null
+  anualidades_alimentos_hijos: number | null
+  residencia_ceuta_melilla: boolean | null
 }
 
 interface ProjectRef {
@@ -256,7 +274,7 @@ type TabKey = 'datos' | 'partes' | 'banco' | 'ausencias' | 'tickets' | 'gastos' 
 /* ───────── Component ───────── */
 
 export default function WorkerDetailView({
-  employee,
+  employee: employeeProp,
   timeRecords,
   overtimeBalance,
   redemptions,
@@ -270,6 +288,7 @@ export default function WorkerDetailView({
   hasta,
 }: Props) {
   const [tab, setTab] = useState<TabKey>('datos')
+  const [employee, setEmployee] = useState<Employee>(employeeProp)
 
   const enBaja = !!(employee.fecha_baja && employee.fecha_baja <= new Date().toISOString().slice(0, 10))
 
@@ -362,7 +381,7 @@ export default function WorkerDetailView({
 
       {/* Tab contents */}
       <div className="bg-white rounded-lg border border-stone-200 p-5">
-        {tab === 'datos' && <TabDatos employee={employee} />}
+        {tab === 'datos' && <TabDatos employee={employee} onSaved={setEmployee} />}
 
         {tab === 'partes' && (
           <TabPartes records={timeRecords} desde={desde} hasta={hasta} />
@@ -401,68 +420,321 @@ function Field({ label, value, mono = false }: { label: string; value: React.Rea
   )
 }
 
-function TabDatos({ employee }: { employee: Employee }) {
+/* Campos editables de la tabla `employees` (coincide con el modal de creación
+   para que crear/editar sean simétricos). El `type` controla input + coerción. */
+type FieldType = 'text' | 'number' | 'int' | 'date' | 'select' | 'select-int' | 'checkbox' | 'textarea'
+
+interface EditFieldDef {
+  name: keyof Employee
+  label: string
+  type?: FieldType
+  mono?: boolean
+  options?: string[]
+  placeholder?: string
+}
+
+interface EditSection {
+  title: string
+  fields: EditFieldDef[]
+}
+
+const EMPLOYEE_SECTIONS: EditSection[] = [
+  {
+    title: 'Personal',
+    fields: [
+      { name: 'nombre', label: 'Nombre' },
+      { name: 'nif', label: 'NIF', mono: true },
+      { name: 'email', label: 'Email' },
+      { name: 'telefono', label: 'Teléfono' },
+      { name: 'direccion', label: 'Dirección' },
+      { name: 'num_afiliacion_ss', label: 'Núm. Seguridad Social', mono: true, placeholder: '32-10249132-85' },
+    ],
+  },
+  {
+    title: 'Laboral',
+    fields: [
+      { name: 'empresa_actual_nombre', label: 'Empresa actual' },
+      { name: 'empresa_actual_cif', label: 'CIF empresa', mono: true },
+      { name: 'categoria_profesional', label: 'Categoría profesional', placeholder: 'NIVEL VIII' },
+      { name: 'grupo_cotizacion', label: 'Grupo cotización', type: 'int' },
+      { name: 'epigrafe_at_ep', label: 'Epígrafe AT/EP' },
+      { name: 'codigo_contrato_sepe', label: 'Código contrato SEPE', placeholder: '100, 200, 401...' },
+      { name: 'ccc_asignado', label: 'Cuenta cotización (CCC)' },
+      { name: 'centro_trabajo', label: 'Centro trabajo', placeholder: 'PS Castellana 40' },
+      { name: 'departamento', label: 'Departamento' },
+      { name: 'tipo_contrato', label: 'Tipo contrato', type: 'select', options: ['indefinido', 'temporal', 'obra', 'practicas', 'formacion', 'relevo', 'fijo_discontinuo'] },
+      { name: 'jornada', label: 'Jornada', type: 'select', options: ['completa', 'parcial'] },
+      { name: 'horas_semanales', label: 'Horas semanales', type: 'number' },
+      { name: 'jornada_porcentaje', label: '% Jornada', type: 'number' },
+      { name: 'fecha_alta', label: 'Fecha alta', type: 'date' },
+      { name: 'fecha_antiguedad', label: 'Fecha antigüedad', type: 'date' },
+      { name: 'fecha_baja', label: 'Fecha baja', type: 'date' },
+    ],
+  },
+  {
+    title: 'Pago',
+    fields: [
+      { name: 'iban', label: 'IBAN', mono: true },
+      { name: 'banco', label: 'Banco' },
+    ],
+  },
+  {
+    title: 'Convenio y cumplimiento',
+    fields: [
+      { name: 'convenio_colectivo_codigo_boe', label: 'Convenio — Código BOE' },
+      { name: 'convenio_colectivo_nombre', label: 'Convenio colectivo' },
+      { name: 'nivel_salarial_convenio', label: 'Nivel salarial convenio' },
+      { name: 'fecha_firma_modelo_145', label: 'Modelo 145 firmado', type: 'date' },
+      { name: 'clausula_informativa_firmada_fecha', label: 'Cláusula informativa firmada', type: 'date' },
+      { name: 'apto_vigilancia_salud_fecha', label: 'Apto vigilancia salud', type: 'date' },
+      { name: 'apto_vigilancia_salud_proxima', label: 'Próxima revisión salud', type: 'date' },
+      { name: 'formacion_prl_fecha', label: 'Formación PRL', type: 'date' },
+      { name: 'formacion_prl_horas', label: 'Horas formación PRL', type: 'number' },
+      { name: 'formacion_prl_archivo_url', label: 'Formación PRL — URL certificado', mono: true },
+    ],
+  },
+  {
+    title: 'Modelo 145 (situación familiar / IRPF)',
+    fields: [
+      { name: 'situacion_familiar', label: 'Situación familiar (1=soltero, 2=casado cónyuge sin rentas, 3=otros)', type: 'select-int', options: ['1', '2', '3'] },
+      { name: 'nif_conyuge', label: 'NIF cónyuge', mono: true },
+      { name: 'conyuge_rentas_superiores_1500', label: 'Cónyuge rentas > 1.500€', type: 'checkbox' },
+      { name: 'discapacidad_grado', label: 'Discapacidad grado', type: 'select-int', options: ['0', '33', '65'] },
+      { name: 'discapacidad_movilidad_reducida', label: 'Discapacidad con movilidad reducida', type: 'checkbox' },
+      { name: 'movilidad_geografica', label: 'Movilidad geográfica', type: 'checkbox' },
+      { name: 'prolongacion_actividad', label: 'Prolongación actividad (>65)', type: 'checkbox' },
+      { name: 'prestamo_vivienda_anterior_2013', label: 'Préstamo vivienda anterior 2013', type: 'checkbox' },
+      { name: 'pension_compensatoria_conyuge', label: 'Pensión compensatoria cónyuge (€)', type: 'number' },
+      { name: 'anualidades_alimentos_hijos', label: 'Anualidades alimentos hijos (€)', type: 'number' },
+      { name: 'residencia_ceuta_melilla', label: 'Residencia Ceuta/Melilla', type: 'checkbox' },
+    ],
+  },
+  {
+    title: 'Notas',
+    fields: [{ name: 'notes', label: 'Notas', type: 'textarea' }],
+  },
+]
+
+/* Valor mostrado en modo lectura, formateado según el tipo de campo. */
+function displayValue(emp: Employee, f: EditFieldDef): React.ReactNode {
+  const raw = emp[f.name]
+  if (f.type === 'date') return fmtDate(raw as string | null)
+  if (f.type === 'checkbox') return raw ? 'Sí' : 'No'
+  if (f.name === 'nombre') return (emp.nombre ?? '').trim()
+  return raw as React.ReactNode
+}
+
+const inputCls = 'w-full rounded bg-neutral-50 border-0 px-3 py-2 text-sm text-stone-900 focus:ring-1 focus:ring-primary'
+
+function EditField({
+  def, value, onChange,
+}: {
+  def: EditFieldDef
+  value: string | boolean
+  onChange: (v: string | boolean) => void
+}) {
+  const label = (
+    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{def.label}</div>
+  )
+  if (def.type === 'checkbox') {
+    return (
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={!!value}
+          onChange={(e) => onChange(e.target.checked)}
+          className="h-4 w-4 rounded border-neutral-300 text-primary focus:ring-1 focus:ring-primary"
+        />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{def.label}</span>
+      </label>
+    )
+  }
+  return (
+    <div>
+      {label}
+      <div className="mt-0.5">
+        {def.type === 'textarea' ? (
+          <textarea
+            value={(value as string) ?? ''}
+            onChange={(e) => onChange(e.target.value)}
+            rows={3}
+            className={inputCls}
+          />
+        ) : def.type === 'select' || def.type === 'select-int' ? (
+          <select
+            value={(value as string) ?? ''}
+            onChange={(e) => onChange(e.target.value)}
+            className={`${inputCls} bg-neutral-50`}
+          >
+            <option value="">— Seleccionar —</option>
+            {def.options?.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <input
+            type={def.type === 'date' ? 'date' : def.type === 'number' || def.type === 'int' ? 'number' : 'text'}
+            step={def.type === 'number' ? 'any' : def.type === 'int' ? '1' : undefined}
+            placeholder={def.placeholder}
+            value={(value as string) ?? ''}
+            onChange={(e) => onChange(e.target.value)}
+            className={`${inputCls} ${def.mono ? 'font-mono text-xs' : ''}`}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* Convierte el valor de empleado en valor de formulario (string|boolean). */
+function toFormValue(emp: Employee, f: EditFieldDef): string | boolean {
+  const raw = emp[f.name]
+  if (f.type === 'checkbox') return !!raw
+  if (raw == null) return ''
+  if (f.type === 'date') return String(raw).slice(0, 10) // YYYY-MM-DD para <input type=date>
+  return String(raw)
+}
+
+/* Construye el payload coercionado para PATCH a partir del estado del formulario. */
+function buildUpdates(form: Record<string, string | boolean>): Record<string, unknown> {
+  const updates: Record<string, unknown> = {}
+  for (const section of EMPLOYEE_SECTIONS) {
+    for (const f of section.fields) {
+      const v = form[f.name as string]
+      if (f.type === 'checkbox') {
+        updates[f.name as string] = !!v
+        continue
+      }
+      const s = typeof v === 'string' ? v.trim() : ''
+      if (s === '') {
+        updates[f.name as string] = null
+        continue
+      }
+      if (f.type === 'number') {
+        const n = Number(s)
+        updates[f.name as string] = Number.isFinite(n) ? n : null
+      } else if (f.type === 'int' || f.type === 'select-int') {
+        const n = parseInt(s, 10)
+        updates[f.name as string] = Number.isFinite(n) ? n : null
+      } else {
+        updates[f.name as string] = s
+      }
+    }
+  }
+  return updates
+}
+
+function TabDatos({ employee, onSaved }: { employee: Employee; onSaved: (e: Employee) => void }) {
+  const router = useRouter()
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [form, setForm] = useState<Record<string, string | boolean>>({})
+
+  function startEdit() {
+    const seed: Record<string, string | boolean> = {}
+    for (const section of EMPLOYEE_SECTIONS) {
+      for (const f of section.fields) seed[f.name as string] = toFormValue(employee, f)
+    }
+    setForm(seed)
+    setError(null)
+    setEditing(true)
+  }
+
+  async function save() {
+    setSaving(true)
+    setError(null)
+    try {
+      const updates = buildUpdates(form)
+      const res = await fetch('/api/db/employees', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: employee.id, ...updates }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Error ${res.status}`)
+      }
+      onSaved({ ...employee, ...(updates as Partial<Employee>) })
+      setEditing(false)
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <section>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500 mb-3">Personal</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Field label="Nombre" value={(employee.nombre ?? '').trim()} />
-          <Field label="NIF" value={employee.nif} mono />
-          <Field label="Email" value={employee.email} />
-          <Field label="Teléfono" value={employee.telefono} />
-          <Field label="Dirección" value={employee.direccion} />
-          <Field label="Núm. Seguridad Social" value={employee.num_afiliacion_ss} mono />
-        </div>
-      </section>
+      <div className="flex items-center justify-end gap-2">
+        {editing ? (
+          <>
+            <button
+              onClick={() => { setEditing(false); setError(null) }}
+              disabled={saving}
+              className="rounded px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-stone-500 hover:text-stone-800 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="rounded bg-stone-900 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-stone-800 disabled:opacity-50"
+            >
+              {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={startEdit}
+            className="rounded border border-stone-300 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-stone-700 hover:bg-stone-50"
+          >
+            Editar
+          </button>
+        )}
+      </div>
 
-      <section>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500 mb-3">Laboral</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Field label="Empresa actual" value={employee.empresa_actual_nombre} />
-          <Field label="CIF empresa" value={employee.empresa_actual_cif} mono />
-          <Field label="Categoría profesional" value={employee.categoria_profesional} />
-          <Field label="Grupo cotización" value={employee.grupo_cotizacion} />
-          <Field label="Centro trabajo" value={employee.centro_trabajo} />
-          <Field label="Departamento" value={employee.departamento} />
-          <Field label="Tipo contrato" value={employee.tipo_contrato} />
-          <Field label="Jornada" value={employee.jornada} />
-          <Field label="Horas semanales" value={employee.horas_semanales} />
-          <Field label="% Jornada" value={employee.jornada_porcentaje} />
-          <Field label="Fecha alta" value={fmtDate(employee.fecha_alta)} />
-          <Field label="Fecha antigüedad" value={fmtDate(employee.fecha_antiguedad)} />
-          {employee.fecha_baja && <Field label="Fecha baja" value={fmtDate(employee.fecha_baja)} />}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500 mb-3">Pago</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Field label="IBAN" value={employee.iban} mono />
-          <Field label="Banco" value={employee.banco} />
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500 mb-3">Convenio y cumplimiento</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Field label="Convenio colectivo" value={employee.convenio_colectivo_nombre} />
-          <Field label="Nivel salarial convenio" value={employee.nivel_salarial_convenio} />
-          <Field label="Modelo 145 firmado" value={fmtDate(employee.fecha_firma_modelo_145)} />
-          <Field label="Cláusula informativa firmada" value={fmtDate(employee.clausula_informativa_firmada_fecha)} />
-          <Field label="Apto vigilancia salud" value={fmtDate(employee.apto_vigilancia_salud_fecha)} />
-          <Field label="Próxima revisión salud" value={fmtDate(employee.apto_vigilancia_salud_proxima)} />
-          <Field label="Formación PRL" value={fmtDate(employee.formacion_prl_fecha)} />
-          <Field label="Horas formación PRL" value={employee.formacion_prl_horas} />
-        </div>
-      </section>
-
-      {employee.notes && (
-        <section>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500 mb-2">Notas</h3>
-          <p className="text-sm text-stone-700 whitespace-pre-wrap">{employee.notes}</p>
-        </section>
+      {error && (
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>
       )}
+
+      {EMPLOYEE_SECTIONS.map((section) => {
+        // En lectura ocultamos Notas si está vacío y "fecha baja" si no hay baja.
+        if (!editing && section.title === 'Notas' && !employee.notes) return null
+        return (
+          <section key={section.title}>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500 mb-3">{section.title}</h3>
+            {section.title === 'Notas' && !editing ? (
+              <p className="text-sm text-stone-700 whitespace-pre-wrap">{employee.notes}</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {section.fields.map((f) => {
+                  if (!editing && f.name === 'fecha_baja' && !employee.fecha_baja) return null
+                  if (!editing) {
+                    return (
+                      <Field
+                        key={f.name as string}
+                        label={f.label}
+                        value={displayValue(employee, f)}
+                        mono={f.mono}
+                      />
+                    )
+                  }
+                  const colSpan = f.type === 'textarea' ? 'sm:col-span-2 lg:col-span-3' : ''
+                  return (
+                    <div key={f.name as string} className={colSpan}>
+                      <EditField
+                        def={f}
+                        value={form[f.name as string] ?? (f.type === 'checkbox' ? false : '')}
+                        onChange={(v) => setForm((p) => ({ ...p, [f.name as string]: v }))}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )
+      })}
     </div>
   )
 }

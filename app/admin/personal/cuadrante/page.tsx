@@ -78,13 +78,20 @@ export default async function CuadrantePage({
   const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
-  const [employeesRes, projectsRes, assignmentsRes, holidaysRes, jornadasRes] = await Promise.all([
+  const [employeesRes, resourcesRes, projectsRes, assignmentsRes, holidaysRes, jornadasRes] = await Promise.all([
     supabase
       .from('employees')
       .select('id, nombre, nif, fecha_baja')
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
       .order('nombre'),
+    supabase
+      .from('resources')
+      .select('id, type, display_name, trade, lent_by, employee_id, active')
+      .eq('company_id', activeCompanyId)
+      .is('deleted_at', null)
+      .eq('active', true)
+      .order('display_name'),
     supabase
       .from('projects')
       .select('id, code, name, status')
@@ -94,7 +101,7 @@ export default async function CuadrantePage({
     supabase
       .from('worker_assignments')
       .select(
-        `id, fecha, employee_id, project_id, jornada_esperada_horas, notas,
+        `id, fecha, employee_id, resource_id, project_id, jornada_esperada_horas, notas,
          project:project_id (id, code, name)`,
       )
       .eq('company_id', activeCompanyId)
@@ -132,10 +139,14 @@ export default async function CuadrantePage({
   const projectsActivos = (projectsRes.data ?? []).filter(
     (p) => !HISTORICO.has((p.status ?? '').toLowerCase()),
   )
+  // Recursos externos (subcontratas / "Trabajador N" / prestados): filas extra del cuadrante.
+  // Los recursos type='empleado' duplicarían las filas de empleados, así que se excluyen.
+  const externalResources = (resourcesRes.data ?? []).filter((r) => r.type === 'externo')
 
   return (
     <CuadranteView
       employees={employeesActivos}
+      resources={externalResources}
       projects={projectsActivos}
       assignments={assignmentsRes.data ?? []}
       days={days}

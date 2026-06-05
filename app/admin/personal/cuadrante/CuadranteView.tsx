@@ -9,6 +9,16 @@ interface Employee {
   nif: string | null
 }
 
+interface Resource {
+  id: string
+  type: string
+  display_name: string
+  trade: string | null
+  lent_by: string | null
+  employee_id: string | null
+  active: boolean
+}
+
 interface Project {
   id: string
   code: string
@@ -19,7 +29,8 @@ interface Project {
 interface Assignment {
   id: string
   fecha: string
-  employee_id: string
+  employee_id: string | null
+  resource_id: string | null
   project_id: string | null
   jornada_esperada_horas: number | null
   notas: string | null
@@ -39,6 +50,7 @@ interface JornadaDia {
 
 interface Props {
   employees: Employee[]
+  resources: Resource[]
   projects: Project[]
   assignments: Assignment[]
   days: string[]
@@ -47,6 +59,11 @@ interface Props {
   jornadas: JornadaDia[]
   vista: 'semana' | 'mes'
 }
+
+// Identifica una fila del cuadrante: empleado o recurso externo.
+type RowRef =
+  | { kind: 'employee'; id: string }
+  | { kind: 'resource'; id: string }
 
 const DOW_LABEL = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
@@ -88,6 +105,7 @@ function isToday(iso: string): boolean {
 
 export default function CuadranteView({
   employees,
+  resources,
   projects,
   assignments: initialAssignments,
   days,
@@ -97,9 +115,10 @@ export default function CuadranteView({
   vista,
 }: Props) {
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments)
-  const [editing, setEditing] = useState<{ employeeId: string; fecha: string } | null>(null)
+  const [editing, setEditing] = useState<{ row: RowRef; fecha: string } | null>(null)
   const [editProjectId, setEditProjectId] = useState<string>('')
   const [editJornada, setEditJornada] = useState<number>(9)
+  const [editNotas, setEditNotas] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -108,21 +127,38 @@ export default function CuadranteView({
   const jornadaByDate = new Map<string, number>()
   for (const j of jornadas) jornadaByDate.set(j.fecha, j.horas)
 
-  function findAssignment(employeeId: string, fecha: string): Assignment | null {
-    return assignments.find((a) => a.employee_id === employeeId && a.fecha === fecha) ?? null
+  function rowMatches(a: Assignment, row: RowRef): boolean {
+    return row.kind === 'employee'
+      ? a.employee_id === row.id
+      : a.resource_id === row.id
   }
 
-  function startEdit(employeeId: string, fecha: string) {
-    const existing = findAssignment(employeeId, fecha)
+  function isEditingCell(row: RowRef, fecha: string): boolean {
+    return (
+      editing != null &&
+      editing.fecha === fecha &&
+      editing.row.kind === row.kind &&
+      editing.row.id === row.id
+    )
+  }
+
+  function findAssignment(row: RowRef, fecha: string): Assignment | null {
+    return assignments.find((a) => a.fecha === fecha && rowMatches(a, row)) ?? null
+  }
+
+  function startEdit(row: RowRef, fecha: string) {
+    const existing = findAssignment(row, fecha)
     const jornadaEsperada = jornadaByDate.get(fecha) ?? 9
-    setEditing({ employeeId, fecha })
+    setEditing({ row, fecha })
     setEditProjectId(existing?.project_id ?? '')
     setEditJornada(Number(existing?.jornada_esperada_horas ?? jornadaEsperada))
+    setEditNotas(existing?.notas ?? '')
     setError(null)
   }
 
   async function saveEdit() {
     if (!editing) return
+    const { row, fecha } = editing
     setSaving(true)
     setError(null)
     try {
@@ -130,10 +166,13 @@ export default function CuadranteView({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          employee_id: editing.employeeId,
-          fecha: editing.fecha,
+          ...(row.kind === 'employee'
+            ? { employee_id: row.id }
+            : { resource_id: row.id }),
+          fecha,
           project_id: editProjectId || null,
           jornada_esperada_horas: editJornada,
+          notas: editNotas.trim() || null,
         }),
       })
       const json = await res.json()
@@ -144,18 +183,19 @@ export default function CuadranteView({
         const proj = projects.find((p) => p.id === editProjectId)
         const newAssignment: Assignment = {
           id: json.row?.id ?? `temp-${Date.now()}`,
-          fecha: editing.fecha,
-          employee_id: editing.employeeId,
+          fecha,
+          employee_id: row.kind === 'employee' ? row.id : null,
+          resource_id: row.kind === 'resource' ? row.id : null,
           project_id: editProjectId || null,
           jornada_esperada_horas: editJornada,
-          notas: null,
+          notas: editNotas.trim() || null,
           project: proj
             ? { id: proj.id, code: proj.code, name: proj.name ?? null }
             : null,
         }
         setAssignments((prev) => {
           const filtered = prev.filter(
-            (a) => !(a.employee_id === editing.employeeId && a.fecha === editing.fecha),
+            (a) => !(a.fecha === fecha && rowMatches(a, row)),
           )
           return [...filtered, newAssignment]
         })
@@ -168,8 +208,8 @@ export default function CuadranteView({
     }
   }
 
-  async function clearAssignment(employeeId: string, fecha: string) {
-    const existing = findAssignment(employeeId, fecha)
+  async function clearAssignment(row: RowRef, fecha: string) {
+    const existing = findAssignment(row, fecha)
     if (!existing) return
     setSaving(true)
     setError(null)
@@ -190,6 +230,115 @@ export default function CuadranteView({
     } finally {
       setSaving(false)
     }
+  }
+
+  // Celda de un día para una fila (empleado o recurso externo).
+  function renderDayCell(row: RowRef, d: string) {
+    const a = findAssignment(row, d)
+    const proj = singleProj(a?.project)
+    const isEditing = isEditingCell(row, d)
+    const isHoliday = holidayByDate.has(d)
+    return (
+      <td
+        key={d}
+        className={`px-2 py-2 align-top ${isToday(d) ? 'bg-amber-50/30' : ''} ${
+          isHoliday ? 'bg-rose-50/40' : ''
+        }`}
+      >
+        {isHoliday ? (
+          <div className="text-center text-[10px] text-rose-700 italic">No laborable</div>
+        ) : isEditing ? (
+          <div className="space-y-1">
+            <select
+              value={editProjectId}
+              onChange={(ev) => setEditProjectId(ev.target.value)}
+              className="w-full rounded border border-stone-300 px-1.5 py-1 text-xs"
+            >
+              <option value="">— Sin proyecto</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              step="0.5"
+              min="0"
+              max="24"
+              value={editJornada}
+              onChange={(ev) => setEditJornada(parseFloat(ev.target.value) || 0)}
+              placeholder="h"
+              className="w-full rounded border border-stone-300 px-1.5 py-1 text-xs"
+            />
+            <input
+              type="text"
+              value={editNotas}
+              onChange={(ev) => setEditNotas(ev.target.value)}
+              placeholder="Notas"
+              className="w-full rounded border border-stone-300 px-1.5 py-1 text-xs"
+            />
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={saving}
+                className="flex-1 rounded bg-stone-900 px-1.5 py-1 text-xs text-white hover:bg-stone-800 disabled:opacity-50"
+              >
+                ✓
+              </button>
+              {a && (
+                <button
+                  type="button"
+                  onClick={() => clearAssignment(row, d)}
+                  disabled={saving}
+                  className="rounded border border-red-300 px-1.5 py-1 text-xs text-red-700 hover:bg-red-50"
+                >
+                  🗑
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="rounded border border-stone-300 px-1.5 py-1 text-xs hover:bg-stone-100"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => startEdit(row, d)}
+            className={`block w-full rounded p-2 text-left text-xs transition hover:bg-stone-100 ${
+              a && proj
+                ? 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                : a
+                  ? 'bg-stone-50 text-stone-700'
+                  : 'text-stone-400'
+            }`}
+          >
+            {proj ? (
+              <>
+                <div className="font-medium">{proj.code}</div>
+                {a?.jornada_esperada_horas && (
+                  <div className="text-[10px]">{Number(a.jornada_esperada_horas)}h</div>
+                )}
+              </>
+            ) : a ? (
+              <span className="italic">sin proyecto</span>
+            ) : (
+              <span className="italic">+ asignar</span>
+            )}
+            {a?.notas && (
+              <div className="mt-0.5 truncate text-[10px] text-stone-500" title={a.notas}>
+                {a.notas}
+              </div>
+            )}
+          </button>
+        )}
+      </td>
+    )
   }
 
   return (
@@ -294,7 +443,7 @@ export default function CuadranteView({
           </div>
         )}
 
-        {employees.length === 0 ? (
+        {employees.length === 0 && resources.length === 0 ? (
           <div className="rounded border border-dashed border-stone-300 p-8 text-center text-sm text-stone-500">
             No hay trabajadores activos en la empresa.
           </div>
@@ -344,7 +493,7 @@ export default function CuadranteView({
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {employees.map((e) => (
-                  <tr key={e.id}>
+                  <tr key={`emp-${e.id}`}>
                     <td className="sticky left-0 bg-white px-4 py-2.5 align-top">
                       <div className="font-medium text-stone-900">
                         {(e.nombre ?? '').trim() || '—'}
@@ -353,106 +502,36 @@ export default function CuadranteView({
                         <div className="font-mono text-[11px] text-stone-500">{e.nif}</div>
                       )}
                     </td>
-                    {days.map((d) => {
-                      const a = findAssignment(e.id, d)
-                      const proj = singleProj(a?.project)
-                      const isEditing = editing?.employeeId === e.id && editing.fecha === d
-                      const isHoliday = holidayByDate.has(d)
-                      const horas = jornadaByDate.get(d) ?? 0
-                      return (
-                        <td
-                          key={d}
-                          className={`px-2 py-2 align-top ${isToday(d) ? 'bg-amber-50/30' : ''} ${
-                            isHoliday ? 'bg-rose-50/40' : ''
-                          }`}
-                        >
-                          {isHoliday ? (
-                            <div className="text-center text-[10px] text-rose-700 italic">
-                              No laborable
-                            </div>
-                          ) : isEditing ? (
-                            <div className="space-y-1">
-                              <select
-                                value={editProjectId}
-                                onChange={(ev) => setEditProjectId(ev.target.value)}
-                                className="w-full rounded border border-stone-300 px-1.5 py-1 text-xs"
-                              >
-                                <option value="">— Sin proyecto</option>
-                                {projects.map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.code}
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                max="24"
-                                value={editJornada}
-                                onChange={(ev) => setEditJornada(parseFloat(ev.target.value) || 0)}
-                                placeholder="h"
-                                className="w-full rounded border border-stone-300 px-1.5 py-1 text-xs"
-                              />
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={saveEdit}
-                                  disabled={saving}
-                                  className="flex-1 rounded bg-stone-900 px-1.5 py-1 text-xs text-white hover:bg-stone-800 disabled:opacity-50"
-                                >
-                                  ✓
-                                </button>
-                                {a && (
-                                  <button
-                                    type="button"
-                                    onClick={() => clearAssignment(e.id, d)}
-                                    disabled={saving}
-                                    className="rounded border border-red-300 px-1.5 py-1 text-xs text-red-700 hover:bg-red-50"
-                                  >
-                                    🗑
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => setEditing(null)}
-                                  className="rounded border border-stone-300 px-1.5 py-1 text-xs hover:bg-stone-100"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => startEdit(e.id, d)}
-                              className={`block w-full rounded p-2 text-left text-xs transition hover:bg-stone-100 ${
-                                a && proj
-                                  ? 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
-                                  : a
-                                    ? 'bg-stone-50 text-stone-700'
-                                    : 'text-stone-400'
-                              }`}
-                            >
-                              {proj ? (
-                                <>
-                                  <div className="font-medium">{proj.code}</div>
-                                  {a?.jornada_esperada_horas && (
-                                    <div className="text-[10px]">
-                                      {Number(a.jornada_esperada_horas)}h
-                                    </div>
-                                  )}
-                                </>
-                              ) : a ? (
-                                <span className="italic">sin proyecto</span>
-                              ) : (
-                                <span className="italic">+ asignar</span>
-                              )}
-                            </button>
-                          )}
-                        </td>
-                      )
-                    })}
+                    {days.map((d) => renderDayCell({ kind: 'employee', id: e.id }, d))}
+                  </tr>
+                ))}
+
+                {resources.length > 0 && (
+                  <tr className="bg-stone-50">
+                    <td
+                      colSpan={days.length + 1}
+                      className="sticky left-0 bg-stone-50 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500"
+                    >
+                      Externos / subcontratas
+                    </td>
+                  </tr>
+                )}
+                {resources.map((r) => (
+                  <tr key={`res-${r.id}`}>
+                    <td className="sticky left-0 bg-white px-4 py-2.5 align-top">
+                      <div className="font-medium text-stone-900">
+                        {(r.display_name ?? '').trim() || '—'}
+                      </div>
+                      {r.trade && (
+                        <div className="text-[11px] text-stone-500">{r.trade}</div>
+                      )}
+                      {r.lent_by && (
+                        <div className="text-[11px] italic text-stone-400">
+                          prestado por {r.lent_by}
+                        </div>
+                      )}
+                    </td>
+                    {days.map((d) => renderDayCell({ kind: 'resource', id: r.id }, d))}
                   </tr>
                 ))}
               </tbody>

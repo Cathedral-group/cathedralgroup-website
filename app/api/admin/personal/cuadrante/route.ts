@@ -5,8 +5,9 @@
  *        Lista asignaciones trabajador→proyecto por día de la empresa activa.
  *
  * POST   /api/admin/personal/cuadrante
- *        Body: { employee_id, fecha, project_id?, jornada_esperada_horas?, notas? }
- *        UPSERT por (employee_id, fecha). Crea o actualiza la asignación del día.
+ *        Body: { employee_id | resource_id, fecha, project_id?, jornada_esperada_horas?, notas? }
+ *        UPSERT por (employee_id, fecha) o (resource_id, fecha). Crea o actualiza
+ *        la asignación del día de un empleado O de un recurso externo.
  *
  * DELETE /api/admin/personal/cuadrante?id=...
  *        Soft-delete asignación.
@@ -63,8 +64,9 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('worker_assignments')
     .select(
-      `id, fecha, project_id, employee_id, jornada_esperada_horas, notas, created_at,
+      `id, fecha, project_id, employee_id, resource_id, jornada_esperada_horas, notas, created_at,
        employee:employee_id (id, nombre, nif),
+       resource:resource_id (id, display_name, trade, lent_by),
        project:project_id (id, code, name)`,
     )
     .eq('company_id', resolved.activeCompanyId)
@@ -88,6 +90,7 @@ export async function POST(request: NextRequest) {
 
   let body: {
     employee_id?: string
+    resource_id?: string
     fecha?: string
     project_id?: string | null
     jornada_esperada_horas?: number
@@ -98,20 +101,41 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Body JSON inválido' }, { status: 400 })
   }
-  if (!body.employee_id) return NextResponse.json({ error: 'employee_id requerido' }, { status: 400 })
+  // La asignación es de un empleado O de un recurso externo (no ambos).
+  if (!body.employee_id && !body.resource_id) {
+    return NextResponse.json({ error: 'employee_id o resource_id requerido' }, { status: 400 })
+  }
+  if (body.employee_id && body.resource_id) {
+    return NextResponse.json(
+      { error: 'Indica employee_id o resource_id, no ambos' },
+      { status: 400 },
+    )
+  }
   if (!body.fecha) return NextResponse.json({ error: 'fecha requerida' }, { status: 400 })
 
   const supabase = createAdminSupabaseClient()
+  const isResource = Boolean(body.resource_id)
 
-  // Verificar empleado pertenece a la company
-  const { data: emp } = await supabase
-    .from('employees')
-    .select('id')
-    .eq('id', body.employee_id)
-    .eq('company_id', resolved.activeCompanyId)
-    .is('deleted_at', null)
-    .maybeSingle()
-  if (!emp) return NextResponse.json({ error: 'Empleado no válido' }, { status: 400 })
+  // Verificar empleado / recurso pertenece a la company
+  if (isResource) {
+    const { data: resource } = await supabase
+      .from('resources')
+      .select('id')
+      .eq('id', body.resource_id as string)
+      .eq('company_id', resolved.activeCompanyId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (!resource) return NextResponse.json({ error: 'Recurso no válido' }, { status: 400 })
+  } else {
+    const { data: emp } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('id', body.employee_id as string)
+      .eq('company_id', resolved.activeCompanyId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (!emp) return NextResponse.json({ error: 'Empleado no válido' }, { status: 400 })
+  }
 
   // Verificar proyecto si se da
   if (body.project_id) {
@@ -125,14 +149,16 @@ export async function POST(request: NextRequest) {
     if (!proj) return NextResponse.json({ error: 'Proyecto no válido' }, { status: 400 })
   }
 
-  // UPSERT por (employee_id, fecha)
-  const { data: existing } = await supabase
+  // UPSERT por (employee_id, fecha) o (resource_id, fecha)
+  const existingQuery = supabase
     .from('worker_assignments')
     .select('id')
-    .eq('employee_id', body.employee_id)
     .eq('fecha', body.fecha)
     .is('deleted_at', null)
-    .maybeSingle()
+  const { data: existing } = await (isResource
+    ? existingQuery.eq('resource_id', body.resource_id as string)
+    : existingQuery.eq('employee_id', body.employee_id as string)
+  ).maybeSingle()
 
   if (existing) {
     const { data, error } = await supabase
@@ -154,7 +180,8 @@ export async function POST(request: NextRequest) {
     .from('worker_assignments')
     .insert({
       company_id: resolved.activeCompanyId,
-      employee_id: body.employee_id,
+      employee_id: isResource ? null : body.employee_id,
+      resource_id: isResource ? body.resource_id : null,
       project_id: body.project_id ?? null,
       fecha: body.fecha,
       jornada_esperada_horas: body.jornada_esperada_horas ?? 8,

@@ -1535,6 +1535,7 @@ function EmployeeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         { name: 'formacion_prl_horas', label: 'Formación PRL — horas', type: 'number' },
         { name: 'formacion_prl_archivo_url', label: 'Formación PRL — URL certificado (Drive)' },
         { name: 'clausula_informativa_firmada_fecha', label: 'Cláusula GDPR — fecha firma', type: 'date' },
+        { name: 'notes', label: 'Notas', type: 'textarea' },
       ]}
     />
   )
