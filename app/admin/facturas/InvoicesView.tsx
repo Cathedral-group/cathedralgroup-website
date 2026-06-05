@@ -224,6 +224,18 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
     if (newDir !== dirFilter) setDirFilter(newDir as 'todas' | 'emitida' | 'recibida')
     if (newAlerta !== reviewFilter) setReviewFilter(newAlerta as 'todos' | 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta')
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Deep-link: /admin/facturas?id=<uuid> abre la ficha completa de esa factura
+  // (lo usan el hub de Documentos, el detalle [tipo]/[id] y los proyectos). Sin
+  // esto el id se ignora y aterrizas en la lista sin ver el desglose.
+  useEffect(() => {
+    const id = searchParams?.get('id')
+    if (!id) return
+    const target = data.find((inv) => inv.id === id)
+    if (target) {
+      setEditingInvoice(target)
+      setFormOpen(true)
+    }
+  }, [searchParams, data]) // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState('')
   const [reprocessingId, setReprocessingId] = useState<string | null>(null)
   // Modo de agrupación visual (sin romper la tabla, solo ordena + inserta separadores)
