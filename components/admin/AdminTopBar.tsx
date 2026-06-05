@@ -20,7 +20,13 @@ import { useAdminBadgeCounts } from '@/lib/use-admin-badge-counts'
 import { useUploadQueueCounts } from '@/lib/upload-queue-context'
 import { ZONES, SISTEMA_ITEMS, isZoneActive, type ZoneKey } from './admin-nav'
 
-export default function AdminTopBar() {
+export default function AdminTopBar({
+  railCollapsed = false,
+  onToggleRail,
+}: {
+  railCollapsed?: boolean
+  onToggleRail?: () => void
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const counts = useAdminBadgeCounts()
@@ -90,6 +96,24 @@ export default function AdminTopBar() {
           Panel
         </span>
       </Link>
+
+      {/* Plegar / desplegar el rail contextual */}
+      <button
+        type="button"
+        onClick={onToggleRail}
+        aria-label={railCollapsed ? 'Mostrar menú lateral' : 'Ocultar menú lateral'}
+        aria-pressed={railCollapsed}
+        title={railCollapsed ? 'Mostrar menú lateral' : 'Ocultar menú lateral'}
+        className="flex items-center justify-center w-9 self-center ml-2 mr-1 rounded-md text-neutral-400 hover:text-neutral-800 hover:bg-neutral-100 transition-colors shrink-0"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          {railCollapsed ? (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+          )}
+        </svg>
+      </button>
 
       {/* Zonas (nivel 1) */}
       <nav className="flex items-stretch gap-0.5 px-2 overflow-x-auto">

@@ -13,9 +13,29 @@ import { ZONES, SISTEMA_ITEMS } from './admin-nav'
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  // Rail contextual plegable (solo desktop). Default expandido para evitar
+  // hydration mismatch; el valor real de localStorage se lee en useEffect.
+  const [railCollapsed, setRailCollapsed] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Leer preferencia persistida del rail tras montar (no en render → sin mismatch).
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('admin:railCollapsed') === '1') setRailCollapsed(true)
+    } catch {
+      // localStorage no disponible (SSR/modo privado) → se queda expandido
+    }
+  }, [])
+
+  const toggleRail = () => {
+    setRailCollapsed((prev) => {
+      const next = !prev
+      try { localStorage.setItem('admin:railCollapsed', next ? '1' : '0') } catch { /* noop */ }
+      return next
+    })
+  }
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -57,10 +77,10 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   return (
     <UploadQueueProvider>
       {/* Barra superior global (nivel 1 — desktop) */}
-      <AdminTopBar />
+      <AdminTopBar railCollapsed={railCollapsed} onToggleRail={toggleRail} />
 
       {/* Rail contextual de la zona activa (nivel 2 — desktop) */}
-      <AdminSidebar />
+      <AdminSidebar collapsed={railCollapsed} />
 
       {/* Barra superior móvil con hamburguesa */}
       <div className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between h-14 px-4 bg-white border-b border-neutral-200 md:hidden">
@@ -173,7 +193,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
       )}
 
       {/* Contenido principal — offset: barra superior (14) + rail (56) en desktop */}
-      <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-[4.5rem] md:ml-56">
+      <main className={`min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-[4.5rem] transition-[margin] duration-200 ${railCollapsed ? 'md:ml-0' : 'md:ml-56'}`}>
         {children}
       </main>
 

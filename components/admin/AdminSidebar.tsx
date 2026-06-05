@@ -69,7 +69,7 @@ function registryDocLeaves(
   return [...featured, ...rest]
 }
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ collapsed = false }: { collapsed?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const [refreshing, setRefreshing] = useState(false)
@@ -191,7 +191,10 @@ export default function AdminSidebar() {
   }, [activeZone, docExtras, upload.total])
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-14 h-[calc(100dvh-3.5rem)] w-56 bg-white border-r border-neutral-100 flex-col z-30">
+    <aside
+      aria-hidden={collapsed}
+      className={`hidden md:flex fixed left-0 top-14 h-[calc(100dvh-3.5rem)] w-56 bg-white border-r border-neutral-100 flex-col z-30 transition-transform duration-200 ${collapsed ? '-translate-x-full' : 'translate-x-0'}`}
+    >
       {/* Empresa activa */}
       <ActiveCompanyBadge />
 
