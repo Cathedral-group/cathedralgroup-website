@@ -2,8 +2,6 @@ import { createServerSupabaseClient, createAdminSupabaseClient, fetchAllRows } f
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
-import CashFlowBar from '@/components/admin/CashFlowBar'
-import QuickAddButton from '@/components/admin/QuickAddButton'
 import PeriodSelector from '@/components/admin/PeriodSelector'
 import FiscalCalendarCompact from '@/components/admin/FiscalCalendarCompact'
 import DashboardCharts from './DashboardCharts'
@@ -11,7 +9,7 @@ import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 import { CATHEDRAL_INVESTMENT_SL_ID } from '@/lib/company-context'
 
 function formatEUR(value: number | null | undefined): string {
-  if (value == null || isNaN(value)) return '0,00 \u20ac'
+  if (value == null || isNaN(value)) return '0,00 €'
   return new Intl.NumberFormat('es-ES', {
     style: 'currency',
     currency: 'EUR',
@@ -20,7 +18,7 @@ function formatEUR(value: number | null | undefined): string {
 }
 
 function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '\u2014'
+  if (!dateStr) return '—'
   const d = dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00'
   return new Date(d).toLocaleDateString('es-ES', {
     day: '2-digit',
@@ -129,6 +127,10 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     projectInvoices,
     { data: projectsList },
     { data: estructuraInvoices },
+    projectsActiveCount,
+    operacionesActiveCount,
+    quotesPendingRes,
+    leadsOpenCount,
   ] = await Promise.all([
     supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('company_id',companyId).eq('direction','emitida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('invoices').select('amount_base,vat_amount,amount_total').eq('company_id',companyId).eq('direction','recibida').in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
@@ -161,6 +163,15 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('projects').select('id,code,name').eq('company_id',companyId).is('deleted_at',null),
     // Gastos de estructura — siempre año completo para visión anual
     supabase.from('invoices').select('linea_estructura,amount_base,vat_amount,amount_total').eq('company_id',companyId).eq('direction','recibida').eq('es_gasto_general',true).not('linea_estructura','is',null).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',`${year}-01-01`).lte('issue_date',`${year}-12-31`),
+    // ── NEGOCIO chips (snapshot "ahora", independiente del periodo) ──
+    // Proyectos activos: excluye históricos (cancelado/finalizado/completado)
+    supabase.from('projects').select('id', { count: 'exact', head: true }).eq('company_id', companyId).is('deleted_at', null).not('status', 'in', '(cancelado,finalizado,completado)'),
+    // Operaciones (flipping) en curso: no vendida / no cancelada
+    supabase.from('flipping_operations').select('id', { count: 'exact', head: true }).eq('company_id', companyId).is('deleted_at', null).in('status', ['prospecto', 'comprada', 'en_reforma', 'en_venta']),
+    // Presupuestos pendientes (enviados, sin respuesta) — traemos filas para sumar el importe
+    supabase.from('quotes').select('total').eq('company_id', companyId).is('deleted_at', null).eq('status', 'enviado'),
+    // Leads abiertos: no rechazado / no completado (NULL = nuevo = abierto, PostgREST mantiene NULL en NOT IN)
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('company_id', companyId).is('deleted_at', null).not('lead_status', 'in', '(rechazado,completado)'),
   ])
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -179,6 +190,14 @@ async function getStats(year: number, quarter: number | null, month: number | nu
   const countPendientePago = pendientesPago?.length || 0
   const cashFlow30Income = (cashFlowInvoices || []).filter((i: {direction:string}) => i.direction==='emitida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
   const cashFlow30Expenses = (cashFlowInvoices || []).filter((i: {direction:string}) => i.direction==='recibida').reduce((s:number,i:{amount_total:number|null}) => s+(Number(i.amount_total)||0), 0)
+
+  // ── NEGOCIO chips: snapshot "ahora" (independiente del selector de periodo) ──
+  const proyectosActivos = projectsActiveCount.count ?? 0
+  const operacionesEnCurso = operacionesActiveCount.count ?? 0
+  const presupuestosPendientes = quotesPendingRes.data?.length ?? 0
+  const presupuestosPendientesImporte = (quotesPendingRes.data || [])
+    .reduce((s: number, q: { total: number | null }) => s + (Number(q.total) || 0), 0)
+  const leadsAbiertos = leadsOpenCount.count ?? 0
 
   // Chart: monthly breakdown (use net base amounts, consistent with P&L)
   const monthlyMap = buildMonthlyMap(year, quarter, month, all, periodInvoices || [])
@@ -280,6 +299,8 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     totalPendientePago, countPendientePago,
     vat: vatData, vatQuarter,
     cashFlow30Income, cashFlow30Expenses,
+    proyectosActivos, operacionesEnCurso,
+    presupuestosPendientes, presupuestosPendientesImporte, leadsAbiertos,
     recentLeads: recentLeads || [],
     monthlyData, invoiceStatus, leadSources,
     projectProfitability, sinProyectoIngresos: Math.round(sinProyectoIngresos), sinProyectoGastos: Math.round(sinProyectoGastos),
@@ -325,47 +346,10 @@ export default async function AdminDashboard({
     ? ((stats.margenBruto / stats.facturacionTotal) * 100).toFixed(1)
     : null
 
-  const kpis = [
-    {
-      label: 'Facturación total',
-      value: formatEUR(stats.facturacionTotal),
-      sub: 'Ingresos netos (sin IVA)',
-      color: 'text-neutral-900',
-      href: '/admin/facturas',
-    },
-    {
-      label: 'Gastos totales',
-      value: formatEUR(stats.gastosTotal),
-      sub: 'Costes netos (sin IVA)',
-      color: 'text-neutral-900',
-      href: '/admin/facturas',
-    },
-    {
-      label: 'Margen bruto',
-      value: formatEUR(stats.margenBruto),
-      sub: margenPct ? `${margenPct}% sobre facturación` : 'Sin ingresos en el periodo',
-      color: stats.margenBruto >= 0 ? 'text-green-600' : 'text-red-600',
-      href: '/admin/informes',
-    },
-    {
-      label: 'Por cobrar',
-      value: formatEUR(stats.totalPendienteCobro),
-      sub: `${stats.countPendienteCobro} ${stats.countPendienteCobro === 1 ? 'factura pendiente' : 'facturas pendientes'}`,
-      color: stats.totalPendienteCobro > 0 ? 'text-amber-600' : 'text-green-600',
-      href: '/admin/facturas',
-    },
-    {
-      label: 'Por pagar',
-      value: formatEUR(stats.totalPendientePago),
-      sub: `${stats.countPendientePago} ${stats.countPendientePago === 1 ? 'factura por pagar' : 'facturas por pagar'}`,
-      color: stats.totalPendientePago > 0 ? 'text-amber-600' : 'text-green-600',
-      href: '/admin/facturas',
-    },
-  ]
-
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-8 gap-4">
+      {/* ── Título + selector de periodo ── */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-6 gap-4">
         <div>
           <h1 className="text-xl font-medium uppercase tracking-wide">Panel</h1>
           <p className="text-xs text-neutral-400 uppercase tracking-widest mt-1">
@@ -376,23 +360,102 @@ export default async function AdminDashboard({
           <Suspense fallback={null}>
             <PeriodSelector year={year} quarter={quarter} month={month} all={all} />
           </Suspense>
-          <QuickAddButton />
         </div>
       </div>
 
-      {/* Feedback David sesión 21/05 noche:
-            - EnablePushButton movido a versión mini en NotificationBell (esquina sup-derecha)
-            - SystemHealthCompact movido a /admin/sistema
-            - Bloque "Pendientes de tu atención" movido a /admin/sistema
-            Dashboard queda limpio: Calendario fiscal + alertas docs + charts.
-      */}
+      {/* ── Accesos rápidos (fila compacta, arriba del todo) ── */}
+      <div className="flex flex-wrap gap-2 mb-8">
+        <Link
+          href="/admin/upload"
+          className="inline-flex items-center gap-2 border px-4 py-2 text-xs font-bold uppercase tracking-widest text-white transition-opacity hover:opacity-90"
+          style={{ backgroundColor: '#5A5550', borderColor: '#5A5550' }}
+        >
+          <span className="text-sm leading-none">+</span> Subir documento
+        </Link>
+        <Link
+          href="/admin/facturas"
+          className="inline-flex items-center gap-2 border px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors hover:bg-neutral-50"
+          style={{ borderColor: '#5A5550', color: '#5A5550' }}
+        >
+          <span className="text-sm leading-none">+</span> Nueva factura
+        </Link>
+        <Link
+          href="/admin/presupuestos"
+          className="inline-flex items-center gap-2 border px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors hover:bg-neutral-50"
+          style={{ borderColor: '#5A5550', color: '#5A5550' }}
+        >
+          <span className="text-sm leading-none">+</span> Nuevo presupuesto
+        </Link>
+      </div>
 
-      {/* Calendario fiscal AEAT — modelos pendientes / vencidos (filas finas) */}
+      {/* ── DINERO — 6 KPIs ── */}
+      <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">Dinero</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-8">
+        <Link href="/admin/facturas" className="bg-white border border-neutral-100 rounded p-4 block hover:border-primary transition-colors">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Ingresos</p>
+          <p className="text-lg font-bold text-neutral-900 mt-1">{formatEUR(stats.facturacionTotal)}</p>
+          <p className="text-[10px] text-neutral-400 mt-0.5">Facturación neta (sin IVA)</p>
+        </Link>
+        <Link href="/admin/facturas" className="bg-white border border-neutral-100 rounded p-4 block hover:border-primary transition-colors">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Gastos</p>
+          <p className="text-lg font-bold text-neutral-900 mt-1">{formatEUR(stats.gastosTotal)}</p>
+          <p className="text-[10px] text-neutral-400 mt-0.5">Costes netos (sin IVA)</p>
+        </Link>
+        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded p-4 block hover:border-primary transition-colors">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Resultado</p>
+          <p className={`text-lg font-bold mt-1 ${stats.margenBruto >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatEUR(stats.margenBruto)}</p>
+          <p className="text-[10px] text-neutral-400 mt-0.5">{margenPct ? `Margen ${margenPct}%` : 'Sin ingresos en el periodo'}</p>
+        </Link>
+        <Link href="/admin/facturas?direccion=emitida" className="bg-white border border-neutral-100 rounded p-4 block hover:border-primary transition-colors">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Por cobrar</p>
+          <p className={`text-lg font-bold mt-1 ${stats.totalPendienteCobro > 0 ? 'text-amber-600' : 'text-green-600'}`}>{formatEUR(stats.totalPendienteCobro)}</p>
+          <p className="text-[10px] text-neutral-400 mt-0.5">{stats.countPendienteCobro} {stats.countPendienteCobro === 1 ? 'factura' : 'facturas'}</p>
+        </Link>
+        <Link href="/admin/facturas?direccion=recibida" className="bg-white border border-neutral-100 rounded p-4 block hover:border-primary transition-colors">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Por pagar</p>
+          <p className={`text-lg font-bold mt-1 ${stats.totalPendientePago > 0 ? 'text-amber-600' : 'text-green-600'}`}>{formatEUR(stats.totalPendientePago)}</p>
+          <p className="text-[10px] text-neutral-400 mt-0.5">{stats.countPendientePago} {stats.countPendientePago === 1 ? 'factura' : 'facturas'}</p>
+        </Link>
+        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded p-4 block hover:border-primary transition-colors">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">IVA Q{stats.vatQuarter}</p>
+          <p className={`text-lg font-bold mt-1 ${(stats.vat?.cuota_a_ingresar ?? 0) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+            {stats.vat ? formatEUR(stats.vat.cuota_a_ingresar) : '—'}
+          </p>
+          <p className="text-[10px] text-neutral-400 mt-0.5">{stats.vat ? 'A ingresar' : 'Sin datos'}</p>
+        </Link>
+      </div>
+
+      {/* ── NEGOCIO — 4 chips ── */}
+      <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-2">Negocio</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        <Link href="/admin/proyectos" className="bg-white border border-neutral-100 rounded px-4 py-3 flex items-baseline justify-between hover:border-primary transition-colors">
+          <span className="text-xs text-neutral-500">Proyectos activos</span>
+          <span className="text-base font-bold text-neutral-900">{stats.proyectosActivos}</span>
+        </Link>
+        <Link href="/admin/operaciones" className="bg-white border border-neutral-100 rounded px-4 py-3 flex items-baseline justify-between hover:border-primary transition-colors">
+          <span className="text-xs text-neutral-500">Operaciones en curso</span>
+          <span className="text-base font-bold text-neutral-900">{stats.operacionesEnCurso}</span>
+        </Link>
+        <Link href="/admin/presupuestos" className="bg-white border border-neutral-100 rounded px-4 py-3 flex items-baseline justify-between hover:border-primary transition-colors">
+          <span className="text-xs text-neutral-500">
+            Presupuestos pendientes
+            {stats.presupuestosPendientes > 0 && (
+              <span className="block text-[10px] text-neutral-400">{formatEUR(stats.presupuestosPendientesImporte)}</span>
+            )}
+          </span>
+          <span className="text-base font-bold text-neutral-900">{stats.presupuestosPendientes}</span>
+        </Link>
+        <Link href="/admin/leads" className="bg-white border border-neutral-100 rounded px-4 py-3 flex items-baseline justify-between hover:border-primary transition-colors">
+          <span className="text-xs text-neutral-500">Leads abiertos</span>
+          <span className="text-base font-bold text-neutral-900">{stats.leadsAbiertos}</span>
+        </Link>
+      </div>
+
+      {/* ── Calendario fiscal AEAT (303/111/115/200) — se mantiene ── */}
       <FiscalCalendarCompact />
 
-      {/* ── Alertas: documentos por vencer / vencidos ── */}
+      {/* ── Alertas: documentos por vencer / vencidos (se mantiene) ── */}
       {(stats.docsExpired.length > 0 || stats.docsExpiringSoon.length > 0) && (() => {
-        // doc_category 'legal' maps to 3 different routes depending on doc_type
         const docHref = (doc: { doc_category: string | null; doc_type: string }) => {
           if (doc.doc_category === 'legal') {
             const t = doc.doc_type
@@ -457,12 +520,14 @@ export default async function AdminDashboard({
         )
       })()}
 
-      {/* Pendientes de tu atención + sistema notifications — movido a /admin/sistema
-            feedback David sesión 21/05 noche. Dashboard queda limpio. */}
-
-
-      {/* ── Charts ── */}
+      {/* ── 2 gráficas clave + enlace a informes ── */}
+      <div className="flex items-center justify-end mb-2">
+        <Link href="/admin/informes" className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest hover:text-neutral-600 transition-colors">
+          Ver todos los informes →
+        </Link>
+      </div>
       <DashboardCharts
+        variant="inicio"
         monthlyData={stats.monthlyData}
         invoiceStatus={stats.invoiceStatus}
         leadSources={stats.leadSources}
@@ -473,73 +538,7 @@ export default async function AdminDashboard({
         estructuraYear={stats.estructuraYear}
       />
 
-      {/* ── Two-column: IVA + Flujo de Caja ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-        {/* IVA Trimestral */}
-        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
-          <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-              IVA &mdash; Q{stats.vatQuarter} {year}
-            </h2>
-            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
-          </div>
-          <div className="p-5">
-            {stats.vat ? (
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-lg font-bold text-neutral-900">
-                    {formatEUR(stats.vat.vat_repercutido)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
-                    Repercutido
-                  </p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-neutral-900">
-                    {formatEUR(stats.vat.vat_soportado)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
-                    Soportado
-                  </p>
-                </div>
-                <div>
-                  <p
-                    className={`text-lg font-bold ${
-                      (stats.vat.cuota_a_ingresar ?? 0) >= 0
-                        ? 'text-red-600'
-                        : 'text-green-600'
-                    }`}
-                  >
-                    {formatEUR(stats.vat.cuota_a_ingresar)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-widest text-neutral-400 mt-1">
-                    Cuota a ingresar
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-neutral-400 text-center py-4">
-                Sin datos de IVA para este trimestre
-              </p>
-            )}
-          </div>
-        </Link>
-
-        {/* Flujo de Caja - próximos 30 días */}
-        <Link href="/admin/informes" className="bg-white border border-neutral-100 rounded block hover:border-primary transition-colors">
-          <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-              Flujo de Caja &mdash; próximos 30 días
-            </h2>
-            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Ver informes →</span>
-          </div>
-          <div className="p-5">
-            <CashFlowBar income={stats.cashFlow30Income} expenses={stats.cashFlow30Expenses} />
-          </div>
-        </Link>
-      </div>
-
-      {/* ── Leads recientes ── */}
+      {/* ── Leads recientes (se mantiene) ── */}
       <div className="bg-white border border-neutral-100 rounded">
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500">
@@ -586,16 +585,16 @@ export default async function AdminDashboard({
                       className={i % 2 === 1 ? 'bg-neutral-50' : ''}
                     >
                       <td className="px-5 py-3 font-medium">
-                        {lead.nombre || '\u2014'}
+                        {lead.nombre || '—'}
                       </td>
                       <td className="px-5 py-3 text-neutral-500">
-                        {lead.email || '\u2014'}
+                        {lead.email || '—'}
                       </td>
                       <td className="px-5 py-3 text-neutral-600">
-                        {lead.tipo_proyecto || '\u2014'}
+                        {lead.tipo_proyecto || '—'}
                       </td>
                       <td className="px-5 py-3 text-neutral-600">
-                        {lead.zona || '\u2014'}
+                        {lead.zona || '—'}
                       </td>
                       <td className="px-5 py-3 text-right text-neutral-400">
                         {formatDate(lead.created_at)}

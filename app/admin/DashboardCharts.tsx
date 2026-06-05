@@ -46,6 +46,7 @@ interface Props {
   sinProyectoGastos: number
   estructuraData: EstructuraData[]
   estructuraYear: number
+  variant?: 'full' | 'inicio'
 }
 
 const COLORS = ['#B4A898', '#5A5550', '#9A8D7C', '#D9D0C7', '#7A6F64', '#E8E6E3']
@@ -93,7 +94,7 @@ function CashFlowTooltip({ active, payload, label }: CashFlowTooltipProps) {
   )
 }
 
-export default function DashboardCharts({ monthlyData, invoiceStatus, leadSources, projectProfitability, sinProyectoIngresos, sinProyectoGastos, estructuraData, estructuraYear }: Props) {
+export default function DashboardCharts({ monthlyData, invoiceStatus, leadSources, projectProfitability, sinProyectoIngresos, sinProyectoGastos, estructuraData, estructuraYear, variant = 'full' }: Props) {
   const totalInvoices = invoiceStatus.reduce((sum, s) => sum + s.value, 0)
 
   // Compute cumulative cash flow from monthly invoice data
@@ -108,6 +109,67 @@ export default function DashboardCharts({ monthlyData, invoiceStatus, leadSource
   const mejorMes = cashFlowData.length > 0 ? Math.max(...cashFlowData.map(r => r.neto)) : 0
   const peorMes = cashFlowData.length > 0 ? Math.min(...cashFlowData.map(r => r.neto)) : 0
   const mesesPositivos = cashFlowData.filter(r => r.neto > 0).length
+
+  // ── Variante "inicio": solo las 2 gráficas clave en fila de 2 columnas ──
+  if (variant === 'inicio') {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Cash Flow General — 12 meses */}
+        <div className="bg-white border border-neutral-100 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+              Cash Flow General — últimos 12 meses
+            </h3>
+            <span className={`text-xs font-bold px-2 py-1 rounded ${currentAcum >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              {currentAcum >= 0 ? '▲' : '▼'} {formatEURFull(currentAcum)} acumulado
+            </span>
+          </div>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={cashFlowData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+              <defs>
+                <linearGradient id="gradCashFlowInicio" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.12} />
+                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#999' }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={formatEUR} tick={{ fontSize: 10, fill: '#999' }} axisLine={false} tickLine={false} width={48} />
+              <Tooltip content={<CashFlowTooltip />} />
+              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1.5} />
+              <Bar dataKey="neto" name="Neto mes" maxBarSize={28} radius={[2, 2, 0, 0]}>
+                {cashFlowData.map((row, i) => (
+                  <Cell key={i} fill={row.neto >= 0 ? '#10B981' : '#EF4444'} fillOpacity={0.7} />
+                ))}
+              </Bar>
+              <Area type="monotone" dataKey="acumulado" name="Acumulado" stroke="#3B82F6" strokeWidth={2.5} fill="url(#gradCashFlowInicio)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: '#3B82F6' }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Ingresos vs Gastos — 12 meses */}
+        <div className="bg-white p-6 border border-neutral-100">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-4">
+            Ingresos vs Gastos (12 meses)
+          </h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={monthlyData} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#999' }} />
+              <YAxis tick={{ fontSize: 10, fill: '#999' }} tickFormatter={formatEUR} />
+              <Tooltip
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={(value: any) => formatEURFull(Number(value))}
+                contentStyle={{ fontSize: 12, border: '1px solid #e5e5e5' }}
+              />
+              <Bar dataKey="ingresos" name="Ingresos" fill="#B4A898" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="gastos" name="Gastos" fill="#5A5550" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 mb-8">
