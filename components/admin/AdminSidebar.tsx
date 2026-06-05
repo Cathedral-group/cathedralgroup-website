@@ -21,6 +21,25 @@ import { useUploadQueueCounts } from '@/lib/upload-queue-context'
 import { useAdminBadgeCounts } from '@/lib/use-admin-badge-counts'
 import { getActiveZone, isSistemaRoute, type NavLeaf, type Zone } from './admin-nav'
 
+/** code → hogar canónico (vista más rica + correcta). Fallback = hub ?tipo=. */
+const DOC_TYPE_HOME: Record<string, string> = {
+  // vistas tipadas canónicas (tabla canónica con datos reales)
+  albaran:           '/admin/documentos/tipados/albaranes',
+  contrato:          '/admin/documentos/tipados/contratos',
+  nota_simple:       '/admin/documentos/tipados/notas-simples',
+  seguro:            '/admin/documentos/tipados/seguros',
+  certificacion:     '/admin/documentos/tipados/certificaciones-obra',
+  informe:           '/admin/documentos/tipados/informes',
+  justificante_pago: '/admin/documentos/tipados/justificantes-pago',
+  modelo_fiscal:     '/admin/documentos/tipados/modelos-fiscales',
+  // sin vista tipada todavía → hub filtrado (los datos canónicos se ven vía matview)
+  escritura:         '/admin/documentos?tipo=escritura',
+  licencia:          '/admin/documentos?tipo=licencia',
+  certificado:       '/admin/documentos?tipo=certificado',
+  otro:              '/admin/documentos?tipo=otro',
+  no_legible:        '/admin/documentos?tipo=no_legible',
+}
+
 /** Doc-types del registry como hojas extra de la zona Documentos. */
 function registryDocLeaves(
   docTypes: Array<{ code: string; display_name: string; display_name_plural: string | null; display_order: number; enabled: boolean }> | null,
@@ -31,20 +50,21 @@ function registryDocLeaves(
     { label: 'Presupuestos', href: '/admin/presupuestos' },
   ]
   if (!docTypes || docTypes.length === 0) {
-    // Fallback consistente con el flujo (hub global con ?tipo=)
+    // Fallback consistente con el flujo
     return [
       ...featured,
-      { label: 'Contratos', href: '/admin/documentos?tipo=contrato' },
+      { label: 'Contratos', href: '/admin/documentos/tipados/contratos' },
       { label: 'Escrituras', href: '/admin/documentos?tipo=escritura' },
     ]
   }
-  // Resto de doc_types desde registry (orden = display_order), excluyendo
-  // factura/presupuesto que ya van como "Más usados" con ruta dedicada.
+  // Facturas/ticket/rectificativa/proforma → Facturas (featured). Presupuesto → featured.
+  // Nómina → Equipo (/admin/personal), no va como hoja de Documentos.
+  const HIDE = new Set(['factura', 'ticket', 'rectificativa', 'proforma', 'presupuesto', 'nomina'])
   const rest: NavLeaf[] = docTypes
-    .filter((dt) => dt.enabled && dt.code !== 'factura' && dt.code !== 'presupuesto')
+    .filter((dt) => dt.enabled && !HIDE.has(dt.code))
     .map((dt) => ({
       label: dt.display_name_plural || dt.display_name,
-      href: `/admin/documentos?tipo=${dt.code}`,
+      href: DOC_TYPE_HOME[dt.code] ?? `/admin/documentos?tipo=${dt.code}`,
     }))
   return [...featured, ...rest]
 }

@@ -120,6 +120,22 @@ export default async function DocumentoDetailPage({ params }: Props) {
     notFound()
   }
 
+  // Consolidación Fase 4: tipos con hogar dedicado más rico → redirigir (evita el stub).
+  const RICH_HOME: Record<string, (rid: string) => string> = {
+    invoices:             (rid) => `/admin/facturas?id=${rid}`,
+    justificantes_pago:   (rid) => `/admin/facturas?id=${rid}`,
+    payrolls:             ()    => `/admin/personal`,
+    presupuestos:         ()    => `/admin/presupuestos`,
+    albaranes:            ()    => `/admin/documentos/tipados/albaranes`,
+    contratos:            ()    => `/admin/documentos/tipados/contratos`,
+    notas_simples:        ()    => `/admin/documentos/tipados/notas-simples`,
+    seguros:              ()    => `/admin/documentos/tipados/seguros`,
+    certificaciones_obra: ()    => `/admin/documentos/tipados/certificaciones-obra`,
+    informes:             ()    => `/admin/documentos/tipados/informes`,
+    modelos_fiscales:     ()    => `/admin/documentos/tipados/modelos-fiscales`,
+  }
+  if (RICH_HOME[tipo]) redirect(RICH_HOME[tipo](id))
+
   const activeCompanyId = await getActiveCompanyForPage()
   const supabase = createAdminSupabaseClient()
 
@@ -227,22 +243,6 @@ export default async function DocumentoDetailPage({ params }: Props) {
           >
             ← Volver al hub
           </Link>
-          <button
-            type="button"
-            disabled
-            title="Próximamente"
-            className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-neutral-400"
-          >
-            Re-clasificar
-          </button>
-          <button
-            type="button"
-            disabled
-            title="Próximamente"
-            className="rounded border border-red-300 bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-red-500"
-          >
-            {isDeleted ? 'Restaurar' : 'Borrar (papelera)'}
-          </button>
         </div>
       </div>
 
