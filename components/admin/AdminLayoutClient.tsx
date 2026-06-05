@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import AdminSidebar from './AdminSidebar'
+import AdminTopBar from './AdminTopBar'
 import NotificationBell from './NotificationBell'
 import UploadQueueFloater from './UploadQueueFloater'
 import { UploadQueueProvider } from '@/lib/upload-queue-context'
+import { ZONES, SISTEMA_ITEMS } from './admin-nav'
 
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -42,6 +45,9 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev)
 
+  // Cerrar el drawer móvil al navegar
+  useEffect(() => { setSidebarOpen(false) }, [pathname])
+
   // Login y reset-password van SIEMPRE sin chrome del panel (aunque exista sesión de
   // recovery aal1, que el layout server cuenta como autenticada → mostraba el sidebar
   // en la página de reset y desviaba al usuario a un challenge MFA en mitad del flujo).
@@ -50,9 +56,13 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
 
   return (
     <UploadQueueProvider>
-      <AdminSidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
+      {/* Barra superior global (nivel 1 — desktop) */}
+      <AdminTopBar />
 
-      {/* Mobile top bar with hamburger */}
+      {/* Rail contextual de la zona activa (nivel 2 — desktop) */}
+      <AdminSidebar />
+
+      {/* Barra superior móvil con hamburguesa */}
       <div className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between h-14 px-4 bg-white border-b border-neutral-200 md:hidden">
         <div className="flex items-center gap-3">
           <button
@@ -76,18 +86,94 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
             {refreshing ? '↻' : '↻ Refrescar'}
           </button>
           <a href="/admin" className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline">
-            Dashboard
+            Inicio
           </a>
         </div>
       </div>
 
-      {/* Floating notification bell para desktop (la barra mobile arriba lo lleva en línea) */}
-      <div className="hidden md:block fixed top-4 right-4 z-30">
-        <NotificationBell />
-      </div>
+      {/* Drawer móvil — TODAS las zonas como cabeceras NO colapsables + sub-items */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/40" onClick={toggleSidebar} />
+          <div className="absolute left-0 top-0 h-full w-72 max-w-[85vw] bg-white border-r border-neutral-200 flex flex-col">
+            <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
+              <Link href="/admin" onClick={toggleSidebar} className="group">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Cathedral Group</p>
+                <p className="text-sm font-semibold mt-0.5 text-neutral-800">Panel Admin</p>
+              </Link>
+              <button
+                onClick={toggleSidebar}
+                aria-label="Cerrar menú"
+                className="p-1 rounded hover:bg-neutral-100 text-neutral-400 hover:text-neutral-800 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
 
-      {/* Main content */}
-      <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-8 md:ml-56">
+            <nav className="flex-1 overflow-y-auto py-2">
+              {ZONES.map((zone) => (
+                <div key={zone.key} className="mb-1">
+                  <p className="px-5 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-400 select-none">
+                    {zone.label}
+                  </p>
+                  {zone.items.map((it) =>
+                    it.disabled ? (
+                      <div
+                        key={it.href + it.label}
+                        className="flex items-center gap-2 px-5 py-2.5 text-sm text-neutral-300 cursor-not-allowed select-none"
+                      >
+                        <span className="flex-1">{it.label}</span>
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">
+                          Próximamente
+                        </span>
+                      </div>
+                    ) : (
+                      <Link
+                        key={it.href + it.label}
+                        href={it.href}
+                        onClick={toggleSidebar}
+                        className={`flex items-center gap-2 px-5 py-2.5 text-sm transition-colors ${
+                          pathname === it.href.split('?')[0]
+                            ? 'bg-primary/8 text-primary font-semibold'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'
+                        }`}
+                      >
+                        {it.label}
+                      </Link>
+                    ),
+                  )}
+                </div>
+              ))}
+
+              {/* Sistema (no es zona) */}
+              <div className="mb-1 border-t border-neutral-100 mt-2 pt-1">
+                <p className="px-5 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-400 select-none">
+                  Sistema
+                </p>
+                {SISTEMA_ITEMS.map((it) => (
+                  <Link
+                    key={it.href}
+                    href={it.href}
+                    onClick={toggleSidebar}
+                    className={`flex items-center gap-2 px-5 py-2.5 text-sm transition-colors ${
+                      pathname === it.href.split('?')[0]
+                        ? 'bg-primary/8 text-primary font-semibold'
+                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'
+                    }`}
+                  >
+                    {it.label}
+                  </Link>
+                ))}
+              </div>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* Contenido principal — offset: barra superior (14) + rail (56) en desktop */}
+      <main className="min-h-dvh bg-neutral-50 p-4 pt-18 md:p-8 md:pt-[4.5rem] md:ml-56">
         {children}
       </main>
 

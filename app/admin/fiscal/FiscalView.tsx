@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import FiscalCalendarCompact from '@/components/admin/FiscalCalendarCompact'
 
 type Filing = {
   id: string
@@ -208,6 +209,11 @@ export default function FiscalView({
           value={String(stats.overdue)}
           color={stats.overdue > 0 ? 'text-red-700 font-bold' : ''}
         />
+      </div>
+
+      {/* Calendario fiscal AEAT — top-5 con acción "marcar presentado" */}
+      <div className="mb-6">
+        <FiscalCalendarCompact />
       </div>
 
       {/* Generador de borradores */}

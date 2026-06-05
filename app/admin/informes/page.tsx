@@ -19,6 +19,8 @@ interface Invoice {
   payment_date: string | null
   payment_status: string | null
   created_at: string | null
+  project_id: string | null
+  proyecto_code: string | null
 }
 
 interface VatQuarterly {
@@ -43,7 +45,7 @@ export default async function InformesPage() {
     fetchAllRows<Invoice>((sb) =>
       sb
         .from('invoices')
-        .select('id, number, direction, doc_type, amount_base, amount_total, vat_amount, categoria_gasto, es_gasto_general, linea_estructura, issue_date, due_date, payment_date, payment_status, created_at')
+        .select('id, number, direction, doc_type, amount_base, amount_total, vat_amount, categoria_gasto, es_gasto_general, linea_estructura, issue_date, due_date, payment_date, payment_status, created_at, project_id, proyecto_code')
         .eq('company_id', activeCompanyId)
         .is('deleted_at', null)
         .order('issue_date', { ascending: false })

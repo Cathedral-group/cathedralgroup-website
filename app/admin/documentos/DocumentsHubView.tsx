@@ -665,12 +665,12 @@ export default function DocumentsHubView({
   const sourceTableRoute = (r: DocumentRow): string => {
     const m: Record<string, string> = {
       invoices: `/admin/facturas?id=${r.source_id}`,
-      payrolls: `/admin/personal/nominas?id=${r.source_id}`,
-      contratos: `/admin/documentos/contratos?id=${r.source_id}`,
-      escrituras: `/admin/documentos/escrituras?id=${r.source_id}`,
-      seguros: `/admin/documentos/seguros?id=${r.source_id}`,
-      licencias: `/admin/documentos/licencias?id=${r.source_id}`,
-      modelos_fiscales: `/admin/fiscal?id=${r.source_id}`,
+      payrolls: `/admin/personal`,
+      contratos: `/admin/documentos/tipados/contratos`,
+      escrituras: `/admin/documentos?tipo=escritura`,
+      seguros: `/admin/documentos/tipados/seguros`,
+      licencias: `/admin/documentos?tipo=licencia`,
+      modelos_fiscales: `/admin/documentos/tipados/modelos-fiscales`,
       justificantes_pago: `/admin/facturas?id=${r.source_id}`,
     }
     return m[r.source_table] ?? `/admin/documentos/${r.source_table}/${r.source_id}`

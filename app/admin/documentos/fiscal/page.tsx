@@ -1,32 +1,8 @@
-import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import DocumentsView from '../DocumentsView'
-import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 
-export default async function FiscalPage() {
-  const authClient = await createServerSupabaseClient()
-  const { data, error } = await authClient.auth.getUser()
-  if (error || !data?.user) redirect('/admin/login')
-
-  const activeCompanyId = await getActiveCompanyForPage()
-  const supabase = createAdminSupabaseClient()
-
-  const [docsRes, projectsRes] = await Promise.all([
-    supabase
-      .from('documents')
-      .select('*')
-      .eq('doc_category', 'fiscal')
-      .eq('company_id', activeCompanyId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('projects')
-      .select('id, code, name')
-      .eq('company_id', activeCompanyId)
-      .is('deleted_at', null)
-      .order('code'),
-  ])
-
-  const projects = (projectsRes.data ?? []).map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))
-  return <DocumentsView category="fiscal" initialData={docsRes.data ?? []} projects={projects} />
+// Consolidación Fase 4: los modelos fiscales (documento) viven en su vista tipada;
+// el hub filtra por modelo_fiscal. (Ojo: /admin/fiscal es el calendario AEAT, otra cosa.)
+// La página vieja leía `documents` doc_category='fiscal' (vacío).
+export default function DocsFiscalRedirect() {
+  redirect('/admin/documentos?tipo=modelo_fiscal')
 }
