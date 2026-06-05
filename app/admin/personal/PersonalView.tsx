@@ -11,6 +11,7 @@ import {
 import VerificationBadge from '@/components/admin/VerificationBadge'
 import type { VerificationSummary } from '@/lib/verifier/batch'
 import PersonalKpiBanner, { type DashboardKpis } from './PersonalKpiBanner'
+import PayrollDetail from './PayrollDetail'
 
 const MES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -76,6 +77,8 @@ export default function PersonalView({ data }: { data: DataBundle }) {
   }, [seccionFromUrl]) // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<null | 'employee' | 'contract' | 'time' | 'vacation' | 'permit' | 'it' | 'tax' | 'ss' | 'prl' | 'finiquito' | 'agreement' | 'payment' | 'modelo145'>(null)
+  // Nómina seleccionada para el drawer de detalle (solo lectura)
+  const [selectedPayroll, setSelectedPayroll] = useState<AnyRow | null>(null)
 
   const yearsAvailable = useMemo(() => {
     const ys = new Set<number>()
@@ -137,7 +140,7 @@ export default function PersonalView({ data }: { data: DataBundle }) {
 
       {section === 'resumen'      && <SectionResumen data={data} yearFilter={yearFilter} />}
       {section === 'trabajadores' && <SectionTrabajadores data={data} search={search} yearFilter={yearFilter} onCreate={setModal} />}
-      {section === 'nominas'      && <SectionNominas data={data} search={search} yearFilter={yearFilter} onCreate={setModal} />}
+      {section === 'nominas'      && <SectionNominas data={data} search={search} yearFilter={yearFilter} onCreate={setModal} onSelectPayroll={setSelectedPayroll} />}
       {section === 'tiempo'       && <SectionTiempo data={data} search={search} onCreate={setModal} />}
       {section === 'cumplimiento' && <SectionCumplimiento data={data} yearFilter={yearFilter} onCreate={setModal} />}
       {section === 'prl'          && <SectionPRL data={data} search={search} onCreate={setModal} />}
@@ -290,6 +293,9 @@ export default function PersonalView({ data }: { data: DataBundle }) {
         { name: 'modelo_145_pdf_url', label: 'URL PDF firmado (Drive)' },
         { name: 'notes', label: 'Notas', type: 'textarea' },
       ]} onClose={() => setModal(null)} onSaved={() => { setModal(null); router.refresh() }} />}
+
+      {/* DRAWER detalle de nómina (solo lectura) */}
+      {selectedPayroll && <PayrollDetail payroll={selectedPayroll} onClose={() => setSelectedPayroll(null)} />}
     </div>
   )
 }
@@ -511,7 +517,7 @@ type GroupMode = 'mes' | 'trimestre' | 'trabajador' | 'lista'
 type Payroll = AnyRow
 type Summary = AnyRow
 
-function SectionNominas({ data, search, yearFilter, onCreate }: { data: DataBundle; search: string; yearFilter: number | 'todos'; onCreate: (m: ModalKey) => void }) {
+function SectionNominas({ data, search, yearFilter, onCreate, onSelectPayroll }: { data: DataBundle; search: string; yearFilter: number | 'todos'; onCreate: (m: ModalKey) => void; onSelectPayroll: (p: Payroll) => void }) {
   const [tab, setTab] = useState<'nominas' | 'pagos' | 'resumenes'>('nominas')
   const [groupMode, setGroupMode] = useState<GroupMode>('mes')
 
@@ -628,13 +634,13 @@ function SectionNominas({ data, search, yearFilter, onCreate }: { data: DataBund
               columns={[]}
             />
           ) : groupMode === 'mes' ? (
-            <ViewPorMes payrolls={filteredPayrolls} verifications={data.payrollVerifications} />
+            <ViewPorMes payrolls={filteredPayrolls} verifications={data.payrollVerifications} onSelectPayroll={onSelectPayroll} />
           ) : groupMode === 'trimestre' ? (
-            <ViewPorTrimestre payrolls={filteredPayrolls} cuadre111={cuadre111} verifications={data.payrollVerifications} />
+            <ViewPorTrimestre payrolls={filteredPayrolls} cuadre111={cuadre111} verifications={data.payrollVerifications} onSelectPayroll={onSelectPayroll} />
           ) : groupMode === 'trabajador' ? (
-            <ViewPorTrabajador payrolls={filteredPayrolls} verifications={data.payrollVerifications} />
+            <ViewPorTrabajador payrolls={filteredPayrolls} verifications={data.payrollVerifications} onSelectPayroll={onSelectPayroll} />
           ) : (
-            <ViewLista payrolls={filteredPayrolls} verifications={data.payrollVerifications} />
+            <ViewLista payrolls={filteredPayrolls} verifications={data.payrollVerifications} onSelectPayroll={onSelectPayroll} />
           )}
         </>
       )}
@@ -728,9 +734,9 @@ function GroupCard({ title, subtitle, totals, children, defaultExpanded = true }
   )
 }
 
-function PayrollMiniRow({ p, verification }: { p: Payroll; verification?: VerificationSummary }) {
+function PayrollMiniRow({ p, verification, onSelect }: { p: Payroll; verification?: VerificationSummary; onSelect?: (p: Payroll) => void }) {
   return (
-    <tr className="hover:bg-neutral-50">
+    <tr className="hover:bg-neutral-50 cursor-pointer" onClick={() => onSelect?.(p)} title="Ver detalle de la nómina">
       <td className="px-2 py-1.5 text-xs">
         <strong>{p.trabajador_nombre}</strong>
         {p.trabajador_categoria && <span className="text-neutral-400 ml-2">{p.trabajador_categoria}</span>}
@@ -747,13 +753,13 @@ function PayrollMiniRow({ p, verification }: { p: Payroll; verification?: Verifi
         <Badge value={p.payment_status} />
       </td>
       <td className="px-2 py-1.5 text-xs">
-        {p.drive_url ? <a href={p.drive_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">↗ PDF</a> : '—'}
+        {p.drive_url ? <a href={p.drive_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-600 underline">↗ PDF</a> : '—'}
       </td>
     </tr>
   )
 }
 
-function MiniTable({ payrolls, verifications }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary> }) {
+function MiniTable({ payrolls, verifications, onSelectPayroll }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary>; onSelectPayroll?: (p: Payroll) => void }) {
   return (
     <table className="w-full text-xs">
       <thead>
@@ -770,14 +776,14 @@ function MiniTable({ payrolls, verifications }: { payrolls: Payroll[]; verificat
         </tr>
       </thead>
       <tbody className="divide-y divide-neutral-50">
-        {payrolls.map(p => <PayrollMiniRow key={p.id} p={p} verification={verifications?.[String(p.id)]} />)}
+        {payrolls.map(p => <PayrollMiniRow key={p.id} p={p} verification={verifications?.[String(p.id)]} onSelect={onSelectPayroll} />)}
       </tbody>
     </table>
   )
 }
 
 // VISTA POR MES (default — caso de uso "pago mensual")
-function ViewPorMes({ payrolls, verifications }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary> }) {
+function ViewPorMes({ payrolls, verifications, onSelectPayroll }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary>; onSelectPayroll?: (p: Payroll) => void }) {
   const grouped = useMemo(() => {
     const groups: Record<string, { mes: number; anio: number; payrolls: Payroll[] }> = {}
     for (const p of payrolls) {
@@ -799,7 +805,7 @@ function ViewPorMes({ payrolls, verifications }: { payrolls: Payroll[]; verifica
         }
         return (
           <GroupCard key={key} title={`${MES_NOMBRE[g.mes]} ${g.anio}`} totals={totals} defaultExpanded>
-            <MiniTable payrolls={g.payrolls.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} verifications={verifications} />
+            <MiniTable payrolls={g.payrolls.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} verifications={verifications} onSelectPayroll={onSelectPayroll} />
           </GroupCard>
         )
       })}
@@ -808,7 +814,7 @@ function ViewPorMes({ payrolls, verifications }: { payrolls: Payroll[]; verifica
 }
 
 // VISTA POR TRIMESTRE (caso de uso "Modelo 111")
-function ViewPorTrimestre({ payrolls, cuadre111, verifications }: { payrolls: Payroll[]; cuadre111: Record<string, { irpf_payrolls: number; irpf_modelo: number | null; coincide: boolean | null }>; verifications?: Record<string, VerificationSummary> }) {
+function ViewPorTrimestre({ payrolls, cuadre111, verifications, onSelectPayroll }: { payrolls: Payroll[]; cuadre111: Record<string, { irpf_payrolls: number; irpf_modelo: number | null; coincide: boolean | null }>; verifications?: Record<string, VerificationSummary>; onSelectPayroll?: (p: Payroll) => void }) {
   const grouped = useMemo(() => {
     const groups: Record<string, { q: number; anio: number; payrolls: Payroll[] }> = {}
     for (const p of payrolls) {
@@ -860,7 +866,7 @@ function ViewPorTrimestre({ payrolls, cuadre111, verifications }: { payrolls: Pa
               return Object.entries(byMonth).sort(([a],[b]) => parseInt(a) - parseInt(b)).map(([mes, ps]) => (
                 <div key={mes} className="mb-3">
                   <p className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold mb-1.5">{MES_NOMBRE[parseInt(mes)]}</p>
-                  <MiniTable payrolls={ps.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} verifications={verifications} />
+                  <MiniTable payrolls={ps.sort((a,b) => a.trabajador_nombre.localeCompare(b.trabajador_nombre))} verifications={verifications} onSelectPayroll={onSelectPayroll} />
                 </div>
               ))
             })()}
@@ -872,7 +878,7 @@ function ViewPorTrimestre({ payrolls, cuadre111, verifications }: { payrolls: Pa
 }
 
 // VISTA POR TRABAJADOR (caso de uso "Modelo 190 anual / certificado retenciones")
-function ViewPorTrabajador({ payrolls, verifications: _verifications }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary> }) {
+function ViewPorTrabajador({ payrolls, verifications: _verifications, onSelectPayroll }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary>; onSelectPayroll?: (p: Payroll) => void }) {
   const grouped = useMemo(() => {
     const groups: Record<string, { nombre: string; nif: string; categoria: string | null; payrolls: Payroll[] }> = {}
     for (const p of payrolls) {
@@ -915,7 +921,7 @@ function ViewPorTrabajador({ payrolls, verifications: _verifications }: { payrol
               </thead>
               <tbody className="divide-y divide-neutral-50">
                 {g.payrolls.sort((a,b) => `${b.periodo_anio}-${b.periodo_mes}`.localeCompare(`${a.periodo_anio}-${a.periodo_mes}`)).map(p => (
-                  <tr key={p.id} className="hover:bg-neutral-50">
+                  <tr key={p.id} className="hover:bg-neutral-50 cursor-pointer" onClick={() => onSelectPayroll?.(p)} title="Ver detalle de la nómina">
                     <td className="px-2 py-1.5 text-xs">
                       <strong>{MES_NOMBRE[p.periodo_mes]} {p.periodo_anio}</strong>
                     </td>
@@ -925,7 +931,7 @@ function ViewPorTrabajador({ payrolls, verifications: _verifications }: { payrol
                     <td className="px-2 py-1.5 text-xs text-right tabular-nums font-bold text-green-700">{formatEur(p.liquido_a_percibir)}</td>
                     <td className="px-2 py-1.5 text-xs text-right tabular-nums">{formatEur(p.coste_total_empresa)}</td>
                     <td className="px-2 py-1.5 text-xs"><Badge value={p.payment_status} /></td>
-                    <td className="px-2 py-1.5 text-xs">{p.drive_url ? <a href={p.drive_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">↗</a> : '—'}</td>
+                    <td className="px-2 py-1.5 text-xs">{p.drive_url ? <a href={p.drive_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-600 underline">↗</a> : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -938,11 +944,12 @@ function ViewPorTrabajador({ payrolls, verifications: _verifications }: { payrol
 }
 
 // VISTA LISTA (plana — útil para búsqueda y export)
-function ViewLista({ payrolls, verifications }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary> }) {
+function ViewLista({ payrolls, verifications, onSelectPayroll }: { payrolls: Payroll[]; verifications?: Record<string, VerificationSummary>; onSelectPayroll?: (p: Payroll) => void }) {
   return (
     <SimpleTable
       rows={payrolls.sort((a,b) => `${b.periodo_anio}-${String(b.periodo_mes).padStart(2,'0')}-${a.trabajador_nombre}`.localeCompare(`${a.periodo_anio}-${String(a.periodo_mes).padStart(2,'0')}-${b.trabajador_nombre}`))}
       empty="Sin nóminas"
+      onRowClick={onSelectPayroll}
       columns={[
         { key: 'periodo', label: 'Período', render: (r) => `${MES_NOMBRE[r.periodo_mes]} ${r.periodo_anio}` },
         { key: 'trabajador_nombre', label: 'Trabajador', render: (r) => <strong>{r.trabajador_nombre}</strong> },
@@ -953,7 +960,7 @@ function ViewLista({ payrolls, verifications }: { payrolls: Payroll[]; verificat
         { key: 'coste_total_empresa', label: 'Coste empresa', render: (r) => formatEur(r.coste_total_empresa) },
         { key: 'verificacion', label: 'Verif', render: (r) => <VerificationBadge summary={verifications?.[String(r.id)]} showLabel size="sm" /> },
         { key: 'payment_status', label: 'Pago', render: (r) => <Badge value={r.payment_status} /> },
-        { key: 'drive_url', label: 'PDF', render: (r) => r.drive_url ? <a href={r.drive_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs">↗</a> : '—' },
+        { key: 'drive_url', label: 'PDF', render: (r) => r.drive_url ? <a href={r.drive_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-600 underline text-xs">↗</a> : '—' },
       ]}
     />
   )
@@ -1255,7 +1262,7 @@ function SubTabs({ value, onChange, options }: { value: string; onChange: (v: ne
 
 type Col = { key: string; label: string; render?: (r: AnyRow) => React.ReactNode }
 
-function SimpleTable({ rows, columns, empty }: { rows: AnyRow[]; columns: Col[]; empty: string }) {
+function SimpleTable({ rows, columns, empty, onRowClick }: { rows: AnyRow[]; columns: Col[]; empty: string; onRowClick?: (r: AnyRow) => void }) {
   if (rows.length === 0) {
     return (
       <div className="bg-white border border-dashed border-neutral-200 rounded p-8 text-center">
@@ -1273,7 +1280,12 @@ function SimpleTable({ rows, columns, empty }: { rows: AnyRow[]; columns: Col[];
         </thead>
         <tbody className="divide-y divide-neutral-50">
           {rows.map((r, i) => (
-            <tr key={r.id || i} className="hover:bg-neutral-50">
+            <tr
+              key={r.id || i}
+              className={`hover:bg-neutral-50 ${onRowClick ? 'cursor-pointer' : ''}`}
+              onClick={onRowClick ? () => onRowClick(r) : undefined}
+              title={onRowClick ? 'Ver detalle' : undefined}
+            >
               {columns.map(c => (
                 <td key={c.key} className="px-3 py-2.5 align-top">
                   {c.render ? c.render(r) : (r[c.key] ?? '—')}
