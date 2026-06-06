@@ -274,23 +274,26 @@ export default async function DocumentoDetailPage({ params }: Props) {
                 className="mx-auto max-h-[70vh] w-auto max-w-full p-2"
               />
             ) : (
-              <object
-                data={docUrl}
-                type="application/pdf"
-                className="h-[70vh] w-full"
-              >
-                <p className="p-4 text-sm text-neutral-600">
-                  Vista previa no disponible aquí.{' '}
+              <div>
+                {/* iframe es más fiable que <object> para incrustar PDF en Chrome
+                    (same-origin + CSP frame-src 'self' + bytes inline del endpoint). */}
+                <iframe
+                  src={docUrl}
+                  title={String(rec.original_filename || 'documento')}
+                  className="h-[70vh] w-full border-0"
+                />
+                <div className="border-t border-neutral-200 px-4 py-2 text-xs text-neutral-500">
+                  ¿No se ve el documento?{' '}
                   <a
                     href={docUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 underline"
                   >
-                    Abrir documento ↗
+                    Abrir en pestaña nueva ↗
                   </a>
-                </p>
-              </object>
+                </div>
+              </div>
             )
           ) : (
             <div className="p-6 text-sm text-neutral-500">Sin documento adjunto.</div>
