@@ -122,7 +122,7 @@ export async function GET(
     } else {
       registryQuery = registryQuery.eq('project_id', projectId)
     }
-    const { data: registryRows, error: registryError } = await registryQuery.order('fecha', {
+    const { data: registryRows, error: registryError } = await registryQuery.order('fecha_relevante', {
       ascending: false,
       nullsFirst: false,
     })
@@ -131,28 +131,37 @@ export async function GET(
       const items: RegistryItem[] = registryRows.map((r: Record<string, unknown>) => {
         const sourceTable = (r.source_table as RegistryItem['source_table']) ?? 'documents'
         const fromProperty = propertyId && r.property_id === propertyId && r.project_id !== projectId
+        // El matview documents_registry usa nombres propios (source_id,
+        // importe_principal, contraparte_*, fecha_relevante) y NO expone
+        // number/direction/payment_status/doc_category/needs_review/titulo/concept → null.
+        const sid = String(r.source_id)
         return {
-          id: String(r.id),
+          id: sid,
           source_table: sourceTable,
           doc_type: (r.doc_type as string) ?? null,
-          doc_category: (r.doc_category as string) ?? null,
-          number: (r.number as string) ?? null,
-          titulo: (r.titulo as string) ?? null,
-          empresa: (r.empresa as string) ?? null,
-          supplier_nif: (r.supplier_nif as string) ?? null,
-          concept: (r.concept as string) ?? null,
-          importe: r.importe == null ? null : Number(r.importe),
-          fecha: (r.fecha as string) ?? null,
+          doc_category: null,
+          number: null,
+          titulo: null,
+          empresa: (r.contraparte_principal as string) ?? null,
+          supplier_nif: (r.contraparte_nif as string) ?? null,
+          concept: null,
+          importe: r.importe_principal == null ? null : Number(r.importe_principal),
+          fecha: (r.fecha_relevante as string) ?? null,
           fecha_vencimiento: (r.fecha_vencimiento as string) ?? null,
-          direction: (r.direction as string) ?? null,
-          payment_status: (r.payment_status as string) ?? null,
+          direction: null,
+          payment_status: null,
           review_status: (r.review_status as string) ?? null,
-          needs_review: (r.needs_review as boolean) ?? null,
+          needs_review: null,
           ai_confidence: r.ai_confidence == null ? null : Number(r.ai_confidence),
-          drive_url: (r.drive_url as string) ?? null,
+          // El matview expone el puntero de archivo en `drive_url`, pero para los
+          // doc-types no factura/nómina ahí va el storage_path (ruta relativa) → SIEMPRE
+          // servir por el endpoint (Storage firmado o redirect Drive). null si no hay archivo.
+          drive_url: r.drive_url
+            ? `/api/admin/documentos/file?table=${encodeURIComponent(sourceTable)}&id=${encodeURIComponent(sid)}`
+            : null,
           original_filename: (r.original_filename as string) ?? null,
           origin: fromProperty ? 'property' : 'project',
-          edit_path: editPathFor(sourceTable, String(r.id)),
+          edit_path: editPathFor(sourceTable, sid),
         }
       })
       return NextResponse.json({ items, source: 'documents_registry' })
