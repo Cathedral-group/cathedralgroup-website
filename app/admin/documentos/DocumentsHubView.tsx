@@ -56,9 +56,13 @@ export interface DocumentRow {
   drive_url: string | null
 }
 
-// Enlace al documento: Drive si existe, si no el archivo en Supabase Storage.
-function docHref(r: { drive_url: string | null; source_table: string; source_id: string }): string {
-  return r.drive_url || `/api/admin/documentos/file?table=${encodeURIComponent(r.source_table)}&id=${r.source_id}`
+// Enlace al documento: SIEMPRE vía el endpoint, que sirve el archivo desde Supabase
+// Storage (URL firmada) o redirige a Google Drive según la fila CANÓNICA. NO usar
+// `r.drive_url` del matview documents_registry: para los doc-types que NO son
+// factura/nómina esa columna contiene en realidad el storage_path (ruta relativa) →
+// usarla como href la resolvía relativa al panel → 404 (bug "Ver en Drive" escrituras).
+function docHref(r: { source_table: string; source_id: string }): string {
+  return `/api/admin/documentos/file?table=${encodeURIComponent(r.source_table)}&id=${encodeURIComponent(r.source_id)}`
 }
 
 export interface SavedView {
@@ -1241,7 +1245,7 @@ function DocumentsTable({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[12px] text-neutral-400 hover:text-neutral-700"
-                      title={r.drive_url ? 'Ver en Drive' : 'Ver documento'}
+                      title="Ver documento"
                     >
                       ↗
                     </a>
@@ -1377,7 +1381,7 @@ function DocumentsTable({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[12px] text-neutral-400 hover:text-neutral-700"
-                    title={r.drive_url ? 'Ver en Drive' : 'Ver documento'}
+                    title="Ver documento"
                   >
                     ↗
                   </a>
@@ -1491,7 +1495,7 @@ function DocumentDrawer({
               <span className="text-xs">↗</span>
             </a>
             <p className="text-[10px] text-neutral-400 mt-2">
-              {doc.drive_url ? 'Google Drive — se abre en nueva pestaña.' : 'Archivo en Supabase Storage — enlace temporal firmado.'}
+              Se abre en una pestaña nueva.
             </p>
           </div>
 
