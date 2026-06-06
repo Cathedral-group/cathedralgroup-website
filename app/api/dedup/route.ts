@@ -272,6 +272,59 @@ export async function POST(request: Request) {
     const matched = results.find((r) => r.row !== null)
     const elapsedMs = Date.now() - startedAt
 
+    // Tier-2: file_hash en TODAS las demás tablas de documentos vía la vista
+    // documents_registry (incluye papelera: NO filtra deleted_at). Cubre los 13+
+    // tipos que no son invoices/quotes (contratos, escrituras, nóminas, notas
+    // simples, seguros…). Sin esto, un documento NO-factura reenviado se
+    // re-importaba. Solo file_hash (la vista no expone email_message_id).
+    // Sin ORDER BY: un file_hash es ~único → el planner usa los índices file_hash.
+    if (!matched && body.file_hash) {
+      const { data: regRows, error: regErr } = await supabase
+        .from('documents_registry')
+        .select(
+          'source_table, source_id, created_at, deleted_at, review_status, ai_confidence'
+        )
+        .eq('file_hash', body.file_hash)
+        .neq('source_table', 'invoices') // invoices ya cubierto por tier-1
+        .limit(1)
+
+      if (regErr) {
+        console.error('[dedup v3] registry tier-2 lookup error:', regErr.message)
+      } else if (regRows && regRows.length > 0) {
+        const r = regRows[0] as {
+          source_table: string
+          source_id: string
+          created_at: string
+          deleted_at: string | null
+          review_status: string | null
+          ai_confidence: number | null
+        }
+        const wasDeleted = Boolean(r.deleted_at)
+        console.log(
+          `[dedup v3] method=file_hash match=${r.source_table}(registry) ` +
+            `id=${r.source_id.slice(0, 8)} deleted=${wasDeleted} t=${elapsedMs}ms`
+        )
+        return Response.json({
+          is_duplicate: true, // otros tipos de doc no se reprocesan vía gate
+          existing_id: r.source_id,
+          table: r.source_table,
+          created_at: r.created_at,
+          duplicate_reason: `file_hash ya procesado en ${r.source_table} (${r.source_id})${wasDeleted ? ` — soft-deleted ${r.deleted_at}` : ''}`,
+          linked_doc_id: r.source_id,
+          was_deleted: wasDeleted,
+          dedup_method: 'file_hash',
+          reprocess_existing: false,
+          existing_updated_at: null,
+          existing_review_status: r.review_status,
+          existing_ai_confidence: r.ai_confidence,
+          existing_reprocess_attempts: null,
+          skip_reason:
+            'match en otra tabla de documentos (registry) — no reproceso',
+          source: 'cathedral-dedup-v3',
+        })
+      }
+    }
+
     if (!matched) {
       console.log(
         `[dedup v3] method=${dedupMethod} match=none smart=${smartDedupActive} t=${elapsedMs}ms`
