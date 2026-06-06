@@ -123,7 +123,9 @@ export default async function DocumentoDetailPage({ params }: Props) {
   // Consolidación Fase 4: tipos con hogar dedicado más rico → redirigir (evita el stub).
   const RICH_HOME: Record<string, (rid: string) => string> = {
     invoices:             (rid) => `/admin/facturas?id=${rid}`,
-    justificantes_pago:   (rid) => `/admin/facturas?id=${rid}`,
+    // justificantes_pago NO redirige a Facturas: un justificante NO es una factura
+    // (su id no existe en invoices → la pág de Facturas ignoraba el ?id y mostraba
+    // la lista completa). Cae al stub de esta ficha, que muestra el documento real.
     payrolls:             ()    => `/admin/personal`,
     presupuestos:         ()    => `/admin/presupuestos`,
     albaranes:            ()    => `/admin/documentos/tipados/albaranes`,
