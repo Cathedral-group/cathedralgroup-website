@@ -301,38 +301,6 @@ export async function POST(request: Request) {
     }
 
     const wasDeleted = Boolean(row.deleted_at)
-
-    // Un match SOFT-DELETED (en papelera) NO debe bloquear el procesado: el documento
-    // fue retirado, así que un re-envío del MISMO archivo debe entrar como NUEVO.
-    // Imprescindible para: (1) limpiar el panel (papelera) y re-probar con los mismos
-    // archivos de test, (2) el re-import masivo tras un borrado. Sin esto, el dedup por
-    // file_hash bloqueaba cualquier re-envío de un archivo ya procesado-y-borrado.
-    // (Validado: el nodo n8n "Es Duplicado?" ramifica por linked_doc_id; con null va a
-    //  la rama "crear NUEVO" → procesa como nuevo. Ningún nodo aguas abajo se rompe.)
-    if (wasDeleted) {
-      console.log(
-        `[dedup v3] method=${dedupMethod} match=${table} id=${row.id.slice(0, 8)} ` +
-          `was_deleted=true -> re-import permitido (no bloquea) t=${Date.now() - startedAt}ms`
-      )
-      return Response.json({
-        is_duplicate: false,
-        existing_id: null,
-        table: null,
-        created_at: null,
-        duplicate_reason: null,
-        linked_doc_id: null,
-        was_deleted: true,
-        dedup_method: dedupMethod,
-        reprocess_existing: false,
-        existing_updated_at: null,
-        existing_review_status: null,
-        existing_ai_confidence: null,
-        existing_reprocess_attempts: null,
-        skip_reason: 'match soft-deleted -> re-import permitido como nuevo',
-        source: 'cathedral-dedup-v3',
-      })
-    }
-
     const docLabel = row.number ?? row.id
     const duplicateReason = wasDeleted
       ? `${dedupMethod} ya procesado en ${table} (${docLabel}) — soft-deleted ${row.deleted_at}`
