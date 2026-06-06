@@ -118,6 +118,7 @@ export function batchVerifyInvoices(
         tipo_iva: row.vat_pct ?? null,
         cuota_iva: row.vat_amount ?? null,
         total: row.amount_total ?? null,
+        irpf_importe: row.irpf_amount ?? null,
         fecha_emision: row.issue_date ?? null,
         fecha_vencimiento: row.due_date ?? null,
       }

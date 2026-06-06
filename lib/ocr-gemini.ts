@@ -33,6 +33,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai'
+import { toNumber } from '@/lib/verifier/invoice-math'
 
 export interface ExtractedReceiptData {
   proveedor_nombre?: string | null
@@ -184,12 +185,10 @@ export async function extractReceiptData(
       }
     }
 
-    // Sanitizar números
-    const num = (v: unknown): number | null => {
-      if (v === null || v === undefined || v === '') return null
-      const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'))
-      return Number.isFinite(n) ? n : null
-    }
+    // Sanitizar números: parser robusto compartido (maneja "1.234,56" ES y
+    // "1,234.56" EN). El antiguo replace(',','.') rompía el separador de miles →
+    // importes 1000× mal (p.ej. "1.234,56" → 1.234).
+    const num = toNumber
 
     return {
       proveedor_nombre: (parsed.proveedor_nombre as string) ?? null,

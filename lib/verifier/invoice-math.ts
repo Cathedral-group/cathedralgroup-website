@@ -14,7 +14,9 @@ import type { FieldValidation, InvoiceFields } from './types'
 const TIPOS_IVA_VALIDOS = [0, 4, 10, 21]
 const TOLERANCE_EUR = 0.02
 
-/** Coerciona valor a number tolerando "1.234,56" (formato español). */
+/** Coerciona valor a number tolerando "1.234,56" (formato español) y "1,234.56" (EN).
+ *  Exportado (ver `export { toNumber }` abajo) para reuso en OCR providers / payroll-math
+ *  — NO duplicar parsers frágiles. */
 function toNumber(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null
   if (typeof v === 'number') return Number.isFinite(v) ? v : null
@@ -71,6 +73,7 @@ export function validateInvoiceTotal(
   base: unknown,
   cuotaIVA: unknown,
   total: unknown,
+  irpfImporte?: unknown,
 ): FieldValidation {
   const b = toNumber(base)
   const i = toNumber(cuotaIVA)
@@ -91,7 +94,12 @@ export function validateInvoiceTotal(
     }
   }
 
-  const expectedTotal = b + i
+  // Si la factura lleva IRPF/retención, el total = base + IVA − IRPF (profesionales,
+  // alquileres, subcontratas). ADITIVO: solo se resta si viene y es > 0 — sin IRPF el
+  // comportamiento es IDÉNTICO al anterior (el pipeline n8n hoy no envía IRPF → null).
+  const irpf = toNumber(irpfImporte)
+  const irpfAdj = irpf != null && irpf > 0 ? irpf : 0
+  const expectedTotal = b + i - irpfAdj
   const diff = Math.abs(expectedTotal - t)
   const valid = diff <= TOLERANCE_EUR
 
@@ -102,9 +110,9 @@ export function validateInvoiceTotal(
     severity: valid ? undefined : 'error',
     reason: valid
       ? undefined
-      : `Total no cuadra: base (${b.toFixed(2)}) + IVA (${i.toFixed(2)}) = ${expectedTotal.toFixed(
-          2,
-        )}€, leído ${t.toFixed(2)}€ (dif ${diff.toFixed(2)}€)`,
+      : `Total no cuadra: base (${b.toFixed(2)}) + IVA (${i.toFixed(2)})${
+          irpfAdj > 0 ? ` − IRPF (${irpfAdj.toFixed(2)})` : ''
+        } = ${expectedTotal.toFixed(2)}€, leído ${t.toFixed(2)}€ (dif ${diff.toFixed(2)}€)`,
     expected: Number(expectedTotal.toFixed(2)),
     confidence: 1,
   }
@@ -159,7 +167,7 @@ export function validateInvoiceMath(fields: InvoiceFields): FieldValidation[] {
 
   validations.push(validateTipoIVA(fields.tipo_iva))
   validations.push(validateCuotaIVA(fields.base_imponible, fields.tipo_iva, fields.cuota_iva))
-  validations.push(validateInvoiceTotal(fields.base_imponible, fields.cuota_iva, fields.total))
+  validations.push(validateInvoiceTotal(fields.base_imponible, fields.cuota_iva, fields.total, fields.irpf_importe))
 
   return validations
 }
