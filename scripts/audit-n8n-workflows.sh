@@ -260,16 +260,43 @@ for f in "$WORK_DIR"/*.json; do
   ' "$f" 2>/dev/null >> "$HITS_FILE" || true
 done
 
+# --- Allowlist: baseline de hits ACEPTADOS ---------------------------------
+# Hits conocidos/aceptados se listan en scripts/audit-n8n-allowlist.txt
+# (1 clave por linea: detector|workflow_id|node_name|field_path; '#' = comentario).
+# Solo los hits NUEVOS (no en la allowlist) cuentan para el exit code: el cron
+# diario deja de fallar/emailar por deuda tecnica ya aceptada, pero SIGUE
+# alertando de cualquier patron nuevo (incluidos secretos hardcodeados).
+ALLOWLIST_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/audit-n8n-allowlist.txt"
+ALLOWLISTED_COUNT=0
+if [ -f "$ALLOWLIST_FILE" ]; then
+  grep -vE '^[[:space:]]*(#|$)' "$ALLOWLIST_FILE" | sed -E 's/[[:space:]]+$//' | tr -d '\r' > "$WORK_DIR/allow.txt" || true
+  NEW_HITS_FILE="$WORK_DIR/new_hits.jsonl"
+  > "$NEW_HITS_FILE"
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    KEY=$(printf '%s' "$line" | jq -r '"\(.detector)|\(.workflow_id)|\(.node_name)|\(.field_path)"' 2>/dev/null) \
+      || { printf '%s\n' "$line" >> "$NEW_HITS_FILE"; continue; }
+    [ -z "$KEY" ] && { printf '%s\n' "$line" >> "$NEW_HITS_FILE"; continue; }
+    if grep -Fxq -- "$KEY" "$WORK_DIR/allow.txt"; then
+      ALLOWLISTED_COUNT=$((ALLOWLISTED_COUNT+1))
+    else
+      printf '%s\n' "$line" >> "$NEW_HITS_FILE"
+    fi
+  done < "$HITS_FILE"
+  HITS_FILE="$NEW_HITS_FILE"
+fi
+
 # --- Reporte --------------------------------------------------------------
 HITS_COUNT=$(wc -l < "$HITS_FILE" | tr -d ' ')
 
 if [ "$JSON_OUTPUT" -eq 1 ]; then
-  jq -s '{ total: length, hits: . }' "$HITS_FILE"
+  jq -s --argjson allow "$ALLOWLISTED_COUNT" '{ total: length, allowlisted: $allow, hits: . }' "$HITS_FILE"
   [ "$HITS_COUNT" -gt 0 ] && exit 1 || exit 0
 fi
 
 echo ""
 echo "── Resultado ──"
+[ "${ALLOWLISTED_COUNT:-0}" -gt 0 ] && echo "ℹ️  $ALLOWLISTED_COUNT hit(s) conocido(s) ignorado(s) por allowlist (scripts/audit-n8n-allowlist.txt)"
 if [ "$HITS_COUNT" -eq 0 ]; then
   echo "✅ Sistema limpio: 0 hits en $WORKFLOW_COUNT workflows"
   echo "   Detectores ejecutados: expression_without_equals, neverError_true_in_http, hardcoded_secret"
