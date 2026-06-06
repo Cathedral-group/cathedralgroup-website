@@ -389,6 +389,18 @@ export default function DocumentsHubView({
     }
   }, [searchInput])
 
+  /* Re-sincronizar filtros cuando la URL cambia por navegación client-side (p.ej.
+     click en una hoja del sidebar `/admin/documentos?tipo=escritura` estando YA en
+     el hub). Sin esto el componente NO remonta → el filtro de la URL se ignora →
+     se ven TODOS los documentos (bug reportado escrituras/licencias/certificados/…).
+     Guardado por comparación canónica (filtersToUrl) para NO entrar en bucle con el
+     effect de abajo que sincroniza filtros→URL. */
+  useEffect(() => {
+    const urlFilters = filtersFromUrl(new URLSearchParams(searchParams?.toString() ?? ''))
+    setFilters((prev) => (filtersToUrl(prev) === filtersToUrl(urlFilters) ? prev : urlFilters))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
   /* Sync URL when filters change */
   useEffect(() => {
     const qs = filtersToUrl(filters)
