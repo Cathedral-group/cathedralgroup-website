@@ -8,8 +8,9 @@
  *      Esta parte SIEMPRE se ejecuta (no requiere API key externa).
  *
  *   2) Email a todos los admins de ADMIN_ALLOWED_EMAILS (vía Resend SDK)
- *      → solo si `RESEND_API_KEY` está configurada en Vercel env.
- *      Si no lo está, se omite silenciosamente (no rompe la solicitud del trabajador).
+ *      → DESACTIVADO por defecto (David, 06/06/2026: no quiere correos de avisos
+ *        del sistema; solo panel). Requiere `RESEND_API_KEY` Y
+ *        `ADMIN_NOTIFY_EMAIL_ENABLED=true` en Vercel env. Sin el flag, se omite.
  *
  * Diseño:
  *   - Idempotente: `dedupKey` evita duplicados. Re-llamadas para el mismo evento
@@ -114,12 +115,12 @@ function buildHtmlEmail(input: AdminNotifyInput, link: string): string {
  */
 export async function notifyAdmins(input: AdminNotifyInput): Promise<{
   banner: 'ok' | 'failed'
-  email: 'sent' | 'skipped_no_key' | 'failed'
+  email: 'sent' | 'skipped_no_key' | 'skipped_disabled' | 'failed'
   push: { sent: number; failed: number; removed: number; skipped?: string }
   emailErrors?: string[]
 }> {
   let bannerStatus: 'ok' | 'failed' = 'ok'
-  let emailStatus: 'sent' | 'skipped_no_key' | 'failed' = 'skipped_no_key'
+  let emailStatus: 'sent' | 'skipped_no_key' | 'skipped_disabled' | 'failed' = 'skipped_no_key'
   const emailErrors: string[] = []
   let pushStats: { sent: number; failed: number; removed: number; skipped?: string } = {
     sent: 0, failed: 0, removed: 0, skipped: 'not_run',
@@ -149,9 +150,15 @@ export async function notifyAdmins(input: AdminNotifyInput): Promise<{
     console.warn('[admin-notify] banner upsert threw:', e)
   }
 
-  // 2) Email vía Resend (opcional)
+  // 2) Email vía Resend — DESACTIVADO por defecto (solo panel).
+  // David (06/06/2026) no quiere correos de avisos del sistema. El banner de
+  // panel (paso 1) y el push (paso 3) siguen activos. Reactivar: poner
+  // ADMIN_NOTIFY_EMAIL_ENABLED=true en Vercel env.
   const apiKey = process.env.RESEND_API_KEY
-  if (apiKey) {
+  const emailEnabled = process.env.ADMIN_NOTIFY_EMAIL_ENABLED === 'true'
+  if (!emailEnabled) {
+    emailStatus = 'skipped_disabled'
+  } else if (apiKey) {
     try {
       const resend = new Resend(apiKey)
       const link = absoluteUrl(input.actionUrl)
