@@ -27,7 +27,12 @@ const CSP_HEADER = [
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  "object-src 'none'",
+  // 'self' (no 'none'): permite incrustar NUESTROS PROPIOS PDFs/imágenes same-origin
+  // en <object>/<embed> — vista previa de documentos admin servida por
+  // /api/admin/documentos/file?inline=1 (mismo origen). Solo 'self' → no abre
+  // superficie a contenido <object> de terceros. Sin esto, el navegador bloquea
+  // la vista previa incrustada aunque el archivo se sirva desde el propio dominio.
+  "object-src 'self'",
 ].join('; ')
 
 const nextConfig: NextConfig = {

@@ -74,6 +74,9 @@ export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id') ?? ''
   if (!ALLOWED_TABLES.has(table)) return NextResponse.json({ error: 'Tabla no permitida' }, { status: 400 })
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'id inválido' }, { status: 400 })
+  // ?inline=1 → servir los BYTES same-origin (para incrustar en <object>/<iframe>).
+  // Sin el param (default) → comportamiento clásico: redirect a signed URL / Drive.
+  const wantInline = request.nextUrl.searchParams.get('inline') === '1'
 
   const supabase = createAdminSupabaseClient()
   const parts = ['storage_path']
@@ -88,6 +91,29 @@ export async function GET(request: NextRequest) {
   // 1) Preferir archivo en Supabase Storage (subida admin / adjuntos).
   if (row?.storage_path) {
     const bucket = row.storage_bucket || 'admin-uploads'
+    // Modo inline: descargar los bytes server-side y servirlos DESDE NUESTRO ORIGEN
+    // (Content-Disposition: inline) para que <object>/<iframe> puedan incrustarlos.
+    // El redirect a la signed URL (cross-origin) lo bloquea el navegador al incrustar.
+    if (wantInline) {
+      const { data: blob, error: dlErr } = await supabase.storage.from(bucket).download(row.storage_path)
+      if (dlErr || !blob) return new NextResponse('No se pudo abrir el archivo', { status: 404 })
+      const ext = (row.storage_path.split('.').pop() || '').toLowerCase()
+      const ct = ext === 'pdf' ? 'application/pdf'
+        : ext === 'png' ? 'image/png'
+        : (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg'
+        : ext === 'webp' ? 'image/webp'
+        : (ext === 'heic' || ext === 'heif') ? 'image/heic'
+        : (blob.type || 'application/octet-stream')
+      return new NextResponse(blob, {
+        status: 200,
+        headers: {
+          'Content-Type': ct,
+          'Content-Disposition': 'inline',
+          'Cache-Control': 'private, max-age=300',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
+    }
     const { data: signed, error: signErr } = await supabase.storage.from(bucket).createSignedUrl(row.storage_path, 3600)
     if (signErr || !signed?.signedUrl) return new NextResponse('No se pudo abrir el archivo', { status: 404 })
     return NextResponse.redirect(signed.signedUrl)
