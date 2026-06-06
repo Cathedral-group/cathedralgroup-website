@@ -153,8 +153,17 @@ export default async function DocumentoDetailPage({ params }: Props) {
     notFound()
   }
 
-  const docUrl = pickDocumentUrl(row as Record<string, unknown>)
   const rec = row as Record<string, unknown>
+  // Servir el archivo por el endpoint firmado (/api/admin/documentos/file) cuando
+  // vive en Storage (storage_path) o Google Drive (drive_url): genera una signed URL
+  // de Storage o redirige a Drive (hosts Google permitidos). Antes se usaba la ruta
+  // cruda de pickDocumentUrl → un storage_path NO es una URL fetchable directa →
+  // "No se puede previsualizar el PDF". Si solo hay una URL http(s) directa
+  // (pdf_url/file_url/…), se usa tal cual.
+  const directUrl = pickDocumentUrl(rec)
+  const docUrl = (rec.storage_path || rec.drive_url)
+    ? `/api/admin/documentos/file?table=${encodeURIComponent(tipo)}&id=${encodeURIComponent(id)}`
+    : directUrl
   const isDeleted = rec.deleted_at != null
 
   // Campos destacados (si existen en la fila)
