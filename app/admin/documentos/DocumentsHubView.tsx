@@ -575,7 +575,7 @@ export default function DocumentsHubView({
   const clearSelection = () => setSelectedIds(new Set())
 
   /* ─── Bulk actions (stub endpoint /api/documentos/bulk) ─── */
-  const handleBulkAction = async (action: 'reclassify' | 'set-party' | 'confirm' | 'trash') => {
+  const handleBulkAction = async (action: 'reclassify' | 'set-party' | 'confirm' | 'trash' | 'restore') => {
     if (selectedIds.size === 0) return
     const ids = Array.from(selectedIds)
     let body: Record<string, unknown> = { ids, action }
@@ -592,6 +592,8 @@ export default function DocumentsHubView({
       if (!window.confirm(`¿Confirmar ${ids.length} documento(s) como revisado(s)?`)) return
     } else if (action === 'trash') {
       if (!window.confirm(`¿Mover ${ids.length} documento(s) a la papelera?`)) return
+    } else if (action === 'restore') {
+      if (!window.confirm(`¿Restaurar ${ids.length} documento(s) de la papelera?`)) return
     }
 
     try {
@@ -609,6 +611,39 @@ export default function DocumentsHubView({
       setFilters((f) => ({ ...f }))
     } catch (err) {
       alert('Error en acción masiva: ' + (err instanceof Error ? err.message : 'desconocido'))
+    }
+  }
+
+  /* ─── Borrado permanente (solo papelera) — reusa endpoint probado /api/db/papelera ─── */
+  const handleBulkPurge = async () => {
+    if (selectedIds.size === 0) return
+    const items = Array.from(selectedIds).map((k) => {
+      const i = k.indexOf(':')
+      return { table: k.slice(0, i), id: k.slice(i + 1) }
+    })
+    if (
+      !window.confirm(
+        `¿Eliminar PERMANENTEMENTE ${items.length} documento(s)? Esta acción NO se puede deshacer.`
+      )
+    )
+      return
+    try {
+      const res = await fetch('/api/db/papelera', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-Active-Company-Id': companyId },
+        body: JSON.stringify({ items }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || `Error ${res.status}`)
+      }
+      clearSelection()
+      setFilters((f) => ({ ...f }))
+    } catch (err) {
+      alert(
+        'Error al eliminar permanentemente: ' +
+          (err instanceof Error ? err.message : 'desconocido')
+      )
     }
   }
 
@@ -1027,30 +1062,49 @@ export default function DocumentsHubView({
           <span className="text-[10px] font-bold uppercase tracking-widest mr-2">
             {selectedIds.size} seleccionado{selectedIds.size === 1 ? '' : 's'}
           </span>
-          <button
-            onClick={() => handleBulkAction('reclassify')}
-            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800"
-          >
-            Reclasificar
-          </button>
-          <button
-            onClick={() => handleBulkAction('set-party')}
-            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800"
-          >
-            Contraparte
-          </button>
-          <button
-            onClick={() => handleBulkAction('confirm')}
-            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800 text-green-300"
-          >
-            Confirmar
-          </button>
-          <button
-            onClick={() => handleBulkAction('trash')}
-            className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800 text-red-300"
-          >
-            Papelera
-          </button>
+          {filters.mostrarBorrados ? (
+            <>
+              <button
+                onClick={() => handleBulkAction('restore')}
+                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800 text-blue-300"
+              >
+                Restaurar
+              </button>
+              <button
+                onClick={handleBulkPurge}
+                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800 text-red-400"
+              >
+                Eliminar permanentemente
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => handleBulkAction('reclassify')}
+                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800"
+              >
+                Reclasificar
+              </button>
+              <button
+                onClick={() => handleBulkAction('set-party')}
+                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800"
+              >
+                Contraparte
+              </button>
+              <button
+                onClick={() => handleBulkAction('confirm')}
+                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800 text-green-300"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => handleBulkAction('trash')}
+                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:bg-neutral-800 text-red-300"
+              >
+                Papelera
+              </button>
+            </>
+          )}
           <button
             onClick={clearSelection}
             className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 ml-2 border-l border-neutral-700"
