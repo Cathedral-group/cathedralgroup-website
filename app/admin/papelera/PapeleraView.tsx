@@ -4,7 +4,9 @@ import { useState, useMemo } from 'react'
 
 interface TrashedItem {
   id: string
-  _table: 'leads' | 'clients' | 'suppliers' | 'projects' | 'invoices' | 'quotes' | 'documents'
+  // Tablas fijas + cualquier tabla tipada del registry (escrituras, contratos, …).
+  // El endpoint /api/db/papelera valida _table contra SOFT_DELETE_TABLES.
+  _table: 'leads' | 'clients' | 'suppliers' | 'projects' | 'invoices' | 'quotes' | 'documents' | (string & {})
   _type: string
   _label: string
   deleted_at: string

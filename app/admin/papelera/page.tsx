@@ -18,7 +18,8 @@ export default async function PapeleraPage() {
     supabase.from('projects').select('id, code, name, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('invoices').select('id, number, concept, direction, amount_total, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
     supabase.from('quotes').select('id, number, total, status, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    supabase.from('documents').select('id, titulo, doc_type, doc_category, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    // documents_registry incluye borrados; quotes/invoices ya se listan arriba desde sus tablas → excluirlos aquí
+    supabase.from('documents_registry').select('source_id, source_table, doc_type, contraparte_principal, original_filename, fecha_relevante, created_at, deleted_at').eq('company_id', activeCompanyId).not('deleted_at', 'is', null).not('source_table', 'in', '(invoices,quotes)').order('deleted_at', { ascending: false }),
   ])
 
   const items = [
@@ -28,7 +29,8 @@ export default async function PapeleraPage() {
     ...(projectsRes.data || []).map(r => ({ ...r, _table: 'projects' as const, _type: 'Proyecto', _label: r.code ? `${r.code} - ${r.name}` : r.name || 'Sin nombre' })),
     ...(invoicesRes.data || []).map(r => ({ ...r, _table: 'invoices' as const, _type: 'Factura', _label: r.number || r.concept || 'Sin numero' })),
     ...(quotesRes.data || []).map(r => ({ ...r, _table: 'quotes' as const, _type: 'Presupuesto', _label: r.number || 'Sin numero' })),
-    ...(documentsRes.data || []).map(r => ({ ...r, _table: 'documents' as const, _type: 'Documento', _label: r.titulo || r.doc_type || 'Sin título' })),
+    // documents_registry: id/_table apuntan a la tabla tipada real (source_*) → /api/db/papelera restaura/borra en esa tabla
+    ...(documentsRes.data || []).map(r => ({ ...r, id: r.source_id, _table: r.source_table, _type: 'Documento', _label: r.contraparte_principal || r.original_filename || r.doc_type || 'Sin título' })),
   ]
 
   return (

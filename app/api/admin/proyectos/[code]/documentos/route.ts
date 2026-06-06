@@ -172,7 +172,9 @@ export async function GET(
 
   /* ─────────── Fallback: union manual invoices + quotes + documents ─────────── */
 
-  const [invoicesRes, quotesRes, documentsByProjectRes, documentsByPropertyRes] = await Promise.all([
+  // Fallback solo invoices + quotes. La tabla legacy `documents` está vacía/en
+  // retirada — la rama primaria (documents_registry) ya cubre todos los doc-types.
+  const [invoicesRes, quotesRes] = await Promise.all([
     fetchAllRows((sb) =>
       sb
         .from('invoices')
@@ -191,26 +193,6 @@ export async function GET(
         .eq('project_id', projectId)
         .is('deleted_at', null),
     ),
-    fetchAllRows((sb) =>
-      sb
-        .from('documents')
-        .select(
-          'id, titulo, doc_type, doc_category, fecha_documento, fecha_vencimiento, importe, ai_confidence, needs_review, drive_url, original_filename, resumen_ia',
-        )
-        .eq('project_id', projectId)
-        .is('deleted_at', null),
-    ),
-    propertyId
-      ? fetchAllRows((sb) =>
-          sb
-            .from('documents')
-            .select(
-              'id, titulo, doc_type, doc_category, fecha_documento, fecha_vencimiento, importe, ai_confidence, needs_review, drive_url, original_filename, resumen_ia',
-            )
-            .eq('property_id', propertyId)
-            .is('deleted_at', null),
-        )
-      : Promise.resolve([] as Record<string, unknown>[]),
   ])
 
   const items: RegistryItem[] = []
@@ -264,58 +246,6 @@ export async function GET(
       original_filename: (q.original_filename as string) ?? null,
       origin: 'project',
       edit_path: `/admin/presupuestos?id=${q.id}`,
-    })
-  }
-
-  for (const d of documentsByProjectRes as Record<string, unknown>[]) {
-    items.push({
-      id: String(d.id),
-      source_table: 'documents',
-      doc_type: (d.doc_type as string) ?? null,
-      doc_category: (d.doc_category as string) ?? null,
-      number: null,
-      titulo: (d.titulo as string) ?? null,
-      empresa: null,
-      supplier_nif: null,
-      concept: (d.resumen_ia as string) ?? null,
-      importe: d.importe == null ? null : Number(d.importe),
-      fecha: (d.fecha_documento as string) ?? null,
-      fecha_vencimiento: (d.fecha_vencimiento as string) ?? null,
-      direction: null,
-      payment_status: null,
-      review_status: null,
-      needs_review: (d.needs_review as boolean) ?? null,
-      ai_confidence: d.ai_confidence == null ? null : Number(d.ai_confidence),
-      drive_url: (d.drive_url as string) ?? null,
-      original_filename: (d.original_filename as string) ?? null,
-      origin: 'project',
-      edit_path: `/admin/revision?cat=documentos_pendientes&id=${d.id}`,
-    })
-  }
-
-  for (const d of documentsByPropertyRes as Record<string, unknown>[]) {
-    items.push({
-      id: String(d.id),
-      source_table: 'documents',
-      doc_type: (d.doc_type as string) ?? null,
-      doc_category: (d.doc_category as string) ?? null,
-      number: null,
-      titulo: (d.titulo as string) ?? null,
-      empresa: null,
-      supplier_nif: null,
-      concept: (d.resumen_ia as string) ?? null,
-      importe: d.importe == null ? null : Number(d.importe),
-      fecha: (d.fecha_documento as string) ?? null,
-      fecha_vencimiento: (d.fecha_vencimiento as string) ?? null,
-      direction: null,
-      payment_status: null,
-      review_status: null,
-      needs_review: (d.needs_review as boolean) ?? null,
-      ai_confidence: d.ai_confidence == null ? null : Number(d.ai_confidence),
-      drive_url: (d.drive_url as string) ?? null,
-      original_filename: (d.original_filename as string) ?? null,
-      origin: 'property',
-      edit_path: `/admin/revision?cat=documentos_pendientes&id=${d.id}`,
     })
   }
 

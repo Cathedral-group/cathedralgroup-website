@@ -42,18 +42,18 @@ export async function GET() {
   ] = await Promise.all([
     supabase.from('invoices').select('id', { count: 'exact', head: true }).is('deleted_at', null).gte('created_at', dayAgo),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).is('deleted_at', null).gte('created_at', dayAgo),
-    supabase.from('documents').select('id', { count: 'exact', head: true }).is('deleted_at', null).gte('created_at', dayAgo),
+    supabase.from('documents_registry').select('source_id', { count: 'exact', head: true }).is('deleted_at', null).not('source_table', 'in', '(invoices,quotes)').gte('created_at', dayAgo),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).is('deleted_at', null).gte('created_at', weekAgo),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).is('deleted_at', null).gte('created_at', weekAgo),
-    supabase.from('documents').select('id', { count: 'exact', head: true }).is('deleted_at', null).gte('created_at', weekAgo),
+    supabase.from('documents_registry').select('source_id', { count: 'exact', head: true }).is('deleted_at', null).not('source_table', 'in', '(invoices,quotes)').gte('created_at', weekAgo),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).is('deleted_at', null),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).is('deleted_at', null),
-    supabase.from('documents').select('id', { count: 'exact', head: true }).is('deleted_at', null),
+    supabase.from('documents_registry').select('source_id', { count: 'exact', head: true }).is('deleted_at', null).not('source_table', 'in', '(invoices,quotes)'),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('review_status', 'error'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('review_status', 'error'),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).is('deleted_at', null).not('drive_url', 'is', null),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).is('deleted_at', null).not('drive_url', 'is', null),
-    supabase.from('documents').select('id', { count: 'exact', head: true }).is('deleted_at', null).not('drive_url', 'is', null),
+    supabase.from('documents_registry').select('source_id', { count: 'exact', head: true }).is('deleted_at', null).not('source_table', 'in', '(invoices,quotes)').or('drive_url.not.is.null,storage_path.not.is.null'),
   ])
 
   // Última fila insertada (señal workflow vivo). Solo invoices + quotes ya que

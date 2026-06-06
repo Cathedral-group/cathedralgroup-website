@@ -83,7 +83,9 @@ const BodySchema = z
 
 type DedupBody = z.infer<typeof BodySchema>
 
-const DEDUP_TABLES = ['invoices', 'quotes', 'documents'] as const
+// Nota: la tabla legacy `documents` está vacía/en retirada → fuera del dedup
+// (no-op seguro: n8n llama este endpoint, ya no hay filas que cazar ahí).
+const DEDUP_TABLES = ['invoices', 'quotes'] as const
 type DedupTable = (typeof DEDUP_TABLES)[number]
 
 // Industry standard: Mindee 0.7-0.8, Rossum 0.975. Cathedral usa 0.75 (compromise PYME).
@@ -112,11 +114,9 @@ async function lookupInTable(
   table: DedupTable,
   body: DedupBody
 ): Promise<MatchRow | null> {
-  // SELECT condicional: documents no tiene review/confidence/manually_edited columns
+  // invoices/quotes tienen los campos de review/confidence/manually_edited.
   const cols =
-    table === 'documents'
-      ? 'id, created_at, deleted_at'
-      : 'id, number, created_at, deleted_at, updated_at, review_status, reviewed_at, reviewed_by, ai_confidence, manually_edited, reprocess_attempts'
+    'id, number, created_at, deleted_at, updated_at, review_status, reviewed_at, reviewed_by, ai_confidence, manually_edited, reprocess_attempts'
 
   let query = supabase.from(table).select(cols).limit(1)
 
@@ -179,9 +179,7 @@ function evaluateGate(
   table: DedupTable,
   row: MatchRow
 ): { reprocess: boolean; skipReason: string | null } {
-  if (table === 'documents') {
-    return { reprocess: false, skipReason: 'table=documents (sin review fields)' }
-  }
+  void table
   if (row.manually_edited === true) {
     return { reprocess: false, skipReason: 'manually_edited=true (humano editó)' }
   }

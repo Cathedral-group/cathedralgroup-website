@@ -63,16 +63,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ found: true, table: 'quotes', id: quoteRow.id })
   }
 
-  const { data: docRow } = await supabase
-    .from('documents')
+  // La tabla legacy `documents` está vacía/en retirada y las tablas tipadas no
+  // tienen email_message_id. La única otra tabla con email_message_id es payrolls.
+  const { data: payrollRow } = await supabase
+    .from('payrolls')
     .select('id')
     .eq('email_message_id', messageId)
     .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
 
-  if (docRow) {
-    return NextResponse.json({ found: true, table: 'documents', id: docRow.id })
+  if (payrollRow) {
+    return NextResponse.json({ found: true, table: 'payrolls', id: payrollRow.id })
   }
 
   return NextResponse.json({ found: false, table: null, id: null })

@@ -141,9 +141,9 @@ async function getStats(year: number, quarter: number | null, month: number | nu
     supabase.from('invoices').select('amount_base,vat_amount,amount_total,direction,issue_date,payment_status,due_date').eq('company_id',companyId).in('doc_type',FINANCIAL_DOC_TYPES).is('deleted_at',null).gte('issue_date',start).lte('issue_date',end),
     supabase.from('leads').select('origen').eq('company_id',companyId).is('deleted_at',null).gte('created_at',start).lte('created_at',end+'T23:59:59'),
     // Documentos que vencen en los próximos 15 días (siempre, independiente del periodo)
-    supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').eq('company_id',companyId).is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:true}),
-    // Documentos ya vencidos (vencimiento pasado, no cancelados)
-    supabase.from('documents').select('id,titulo,doc_category,doc_type,fecha_vencimiento,estado').eq('company_id',companyId).is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('estado','in','(cancelado,caducado)').order('fecha_vencimiento',{ascending:false}).limit(10),
+    supabase.from('documents_registry').select('source_id,source_table,doc_type,fecha_vencimiento,contraparte_principal,original_filename').eq('company_id',companyId).is('deleted_at',null).not('fecha_vencimiento','is',null).gte('fecha_vencimiento',todayStr).lte('fecha_vencimiento',in15Str).not('review_status','in','(rechazado,error)').order('fecha_vencimiento',{ascending:true}),
+    // Documentos ya vencidos (vencimiento pasado, no rechazados/error)
+    supabase.from('documents_registry').select('source_id,source_table,doc_type,fecha_vencimiento,contraparte_principal,original_filename').eq('company_id',companyId).is('deleted_at',null).not('fecha_vencimiento','is',null).lt('fecha_vencimiento',todayStr).not('review_status','in','(rechazado,error)').order('fecha_vencimiento',{ascending:false}).limit(10),
     // ─── Personal: pendientes accionables ───
     supabase.from('worker_absences').select('id,tipo,fecha_inicio,fecha_fin,solicitado_at,employee_id').eq('company_id',companyId).eq('status','pending').is('deleted_at',null).order('solicitado_at',{ascending:true}).limit(10),
     supabase.from('worker_attachments').select('id,tipo,created_at,employee_id').eq('company_id',companyId).in('status',['uploaded','processing','extracted']).is('deleted_at',null).order('created_at',{ascending:false}).limit(10),
@@ -452,44 +452,22 @@ export default async function AdminDashboard({
 
       {/* ── Alertas: documentos por vencer / vencidos (se mantiene) ── */}
       {(stats.docsExpired.length > 0 || stats.docsExpiringSoon.length > 0) && (() => {
-        const docHref = (doc: { doc_category: string | null; doc_type: string }) => {
-          if (doc.doc_category === 'legal') {
-            const t = doc.doc_type
-            if (t.startsWith('contrato')) return '/admin/documentos/contratos'
-            if (t.startsWith('licencia')) return '/admin/documentos/licencias'
-            return '/admin/documentos/escrituras'
-          }
-          const map: Record<string, string> = {
-            seguros: '/admin/documentos/seguros',
-            fiscal: '/admin/documentos/fiscal',
-            laboral: '/admin/documentos/laboral',
-            flota: '/admin/documentos/flota',
-            corporativo: '/admin/documentos/corporativo',
-          }
-          return map[doc.doc_category ?? ''] ?? '/admin/documentos/escrituras'
-        }
-        const docLabel = (doc: { doc_category: string | null; doc_type: string }) => {
-          if (doc.doc_category === 'legal') {
-            const t = doc.doc_type
-            if (t.startsWith('contrato')) return 'contratos'
-            if (t.startsWith('licencia')) return 'licencias'
-            return 'escrituras'
-          }
-          return doc.doc_category ?? ''
-        }
-        type DocAlert = { id: string; titulo: string | null; doc_category: string | null; doc_type: string; fecha_vencimiento: string; estado: string | null }
+        // documents_registry: la ficha canónica auto-rutea al hogar del tipo
+        const docHref = (doc: DocAlert) => `/admin/documentos/${doc.source_table}/${doc.source_id}`
+        const docTitle = (doc: DocAlert) => doc.contraparte_principal || doc.original_filename || doc.doc_type
+        type DocAlert = { source_id: string; source_table: string; doc_type: string; fecha_vencimiento: string; contraparte_principal: string | null; original_filename: string | null }
         return (
           <div className="mb-8 space-y-2">
             {stats.docsExpired.map((doc: DocAlert) => {
               const days = Math.abs(Math.ceil((new Date(doc.fecha_vencimiento + 'T00:00:00').getTime() - Date.now()) / 86400000))
               return (
-                <Link key={doc.id} href={docHref(doc)} className="flex items-center gap-3 bg-red-50 border border-red-200 rounded px-4 py-3 hover:bg-red-100 transition-colors group">
+                <Link key={doc.source_id} href={docHref(doc)} className="flex items-center gap-3 bg-red-50 border border-red-200 rounded px-4 py-3 hover:bg-red-100 transition-colors group">
                   <span className="text-red-500 flex-none">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-red-800">{doc.titulo || doc.doc_type}</span>
-                    <span className="text-xs text-red-500 ml-2 uppercase tracking-wider">{docLabel(doc)}</span>
+                    <span className="text-sm font-medium text-red-800">{docTitle(doc)}</span>
+                    <span className="text-xs text-red-500 ml-2 uppercase tracking-wider">{doc.doc_type}</span>
                   </div>
                   <span className="text-xs font-bold text-red-700 whitespace-nowrap">Venció hace {days}d</span>
                   <span className="text-red-400 text-xs group-hover:text-red-600">→</span>
@@ -499,13 +477,13 @@ export default async function AdminDashboard({
             {stats.docsExpiringSoon.map((doc: DocAlert) => {
               const days = Math.ceil((new Date(doc.fecha_vencimiento + 'T00:00:00').getTime() - Date.now()) / 86400000)
               return (
-                <Link key={doc.id} href={docHref(doc)} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded px-4 py-3 hover:bg-amber-100 transition-colors group">
+                <Link key={doc.source_id} href={docHref(doc)} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded px-4 py-3 hover:bg-amber-100 transition-colors group">
                   <span className="text-amber-500 flex-none">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-amber-900">{doc.titulo || doc.doc_type}</span>
-                    <span className="text-xs text-amber-600 ml-2 uppercase tracking-wider">{docLabel(doc)}</span>
+                    <span className="text-sm font-medium text-amber-900">{docTitle(doc)}</span>
+                    <span className="text-xs text-amber-600 ml-2 uppercase tracking-wider">{doc.doc_type}</span>
                   </div>
                   <span className="text-xs font-bold text-amber-700 whitespace-nowrap">Vence en {days}d — {new Date(doc.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
                   <span className="text-amber-400 text-xs group-hover:text-amber-600">→</span>
