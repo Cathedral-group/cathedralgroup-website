@@ -22,12 +22,22 @@ export default async function RevisionPage() {
         .or('needs_review.eq.true,doc_type.eq.otro,review_status.eq.pendiente,review_status.eq.revisado,review_status.eq.error,ai_confidence.lt.0.7')
         .order('created_at', { ascending: false })
     ),
+    // Documentos NO-factura pendientes de revisar. Antes leía la tabla `documents`
+    // (legacy, VACÍA) → siempre 0. Ahora desde el matview `documents_registry`, que
+    // unifica TODAS las tablas tipadas (escrituras, notas simples, certificados,
+    // contratos, licencias, seguros, presupuestos, albaranes, informes, modelos
+    // fiscales, justificantes, otros…). Se excluye la familia-factura (ya está en
+    // `pending`/invoices) y nóminas (se revisan en Personal). source_id→id para
+    // enlazar a la superficie de revisión canónica /admin/documentos/{source_table}/{id}.
+    // OJO: el matview lo refresca pg_cron (jobid 11) cada 5 min → un doc recién
+    // subido puede tardar hasta ~5 min en aparecer aquí.
     supabase
-      .from('documents')
-      .select('*')
+      .from('documents_registry')
+      .select('id:source_id, source_table, doc_type, ai_confidence, review_status, created_at, original_filename, contraparte_principal, drive_url, fecha_relevante')
       .eq('company_id', activeCompanyId)
       .is('deleted_at', null)
-      .or('needs_review.eq.true,doc_type.eq.otro,source.eq.email_automatico,source.eq.drive_retroactivo')
+      .eq('review_status', 'pendiente')
+      .not('doc_type', 'in', '(factura,rectificativa,abono,proforma,ticket,nomina)')
       .order('created_at', { ascending: false }),
     supabase
       .from('quotes')

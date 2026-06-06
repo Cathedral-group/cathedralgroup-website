@@ -630,16 +630,15 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
   }
 
   const openDoc = (doc: PendingDocument) => {
-    setSelectedDoc(doc)
-    setEditDoc({
-      titulo: doc.titulo,
-      doc_type: doc.doc_type,
-      doc_category: doc.doc_category,
-      fecha_documento: (doc.fecha_documento as string | null | undefined) ?? null,
-      proyecto_code: (doc.proyecto_code as string | null | undefined) ?? null,
-      project_id: (doc.project_id as string | null | undefined) ?? null,
-      notes: (doc.notes as string | null | undefined) ?? null,
-    })
+    // Diseño A (06/06/2026): los documentos tipados no-factura se revisan en su
+    // superficie canónica /admin/documentos/{source_table}/{id} (auto-rutea al
+    // hogar rico del tipo: tipados/*, facturas, personal…). El antiguo drawer
+    // in-place escribía a la tabla `documents` (legacy/vacía) → roto para estos
+    // docs. La fila ahora navega allí. (El drawer de abajo queda inerte para docs.)
+    const table = String(doc.source_table ?? '')
+    const id = String(doc.id ?? '')
+    if (!table || !id) return
+    window.location.href = `/admin/documentos/${table}/${id}`
   }
 
   const saveDoc = async (status: 'confirmado' | 'rechazado') => {
@@ -829,7 +828,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
       {category === 'documentos_pendientes' && (
         <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden">
           <div className="px-4 py-3 bg-violet-50 border-b border-violet-100 text-xs text-violet-700">
-            <strong>Documentos pendientes de revisión:</strong> filas de la tabla <code>documents</code> (escrituras, contratos, licencias, seguros, fiscal, laboral, flota, corporativo) detectadas por IA pero sin clasificar/titular. Click en una fila para ver datos extraídos.
+            <strong>Documentos pendientes de revisión:</strong> documentos que NO son factura (escrituras, notas simples, certificados, contratos, licencias, seguros, presupuestos, justificantes, otros…) detectados por IA y pendientes. Click en una fila para revisarlo en su ficha. <span className="text-violet-500">(la lista se actualiza cada ~5 min)</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -848,7 +847,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                   <tr key={doc.id} onClick={() => openDoc(doc)}
                     className="border-b cursor-pointer hover:bg-neutral-50">
                     <td className="p-3">
-                      <div className="text-sm font-medium text-neutral-800">{doc.titulo || `(sin título)`}</div>
+                      <div className="text-sm font-medium text-neutral-800">{doc.titulo || (doc.original_filename as string) || (doc.contraparte_principal as string) || `(sin título)`}</div>
                       <div className="text-[11px] text-neutral-400 mt-0.5">
                         <span className="inline-block px-2 py-0.5 rounded bg-neutral-100 text-neutral-600 font-bold uppercase">{doc.doc_type}</span>
                       </div>
@@ -864,14 +863,9 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                     <td className="p-3 text-center"><ProviderBadge provider={doc.ai_provider} /></td>
                     <td className="p-3 text-xs">{formatDate(doc.created_at)}</td>
                     <td className="p-3 text-right">
-                      {(doc.drive_url as string | undefined) && (
-                        <a href={doc.drive_url as string} target="_blank" rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="text-xs text-blue-600 hover:underline mr-2">Drive ↗</a>
-                      )}
                       <button onClick={e => { e.stopPropagation(); openDoc(doc) }}
                         className="text-xs bg-violet-600 text-white px-2.5 py-1 rounded hover:bg-violet-700">
-                        Revisar
+                        Revisar →
                       </button>
                     </td>
                   </tr>
