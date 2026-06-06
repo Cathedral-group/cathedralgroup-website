@@ -1,0 +1,28 @@
+-- Auditoría 06/06/2026 (verificación post-fixes) — regresión de seguridad detectada
+--
+-- La migración 20260605230000 (añadir company_id a vat_quarterly) hizo
+-- DROP VIEW + CREATE VIEW, lo que RESETEÓ la opción security_invoker al default
+-- (false = SECURITY DEFINER), deshaciendo sin querer el fix de
+-- 20260430010000_security_advisors_fixes.sql.
+--
+-- Impacto: get_advisors devolvía ERROR `security_definer_view` para vat_quarterly,
+-- y es una FUGA real: la vista corre como su owner (postgres = BYPASSRLS) y `anon`
+-- tiene GRANT SELECT → una llamada a /rest/v1/vat_quarterly con la anon key pública
+-- (que va embebida en el frontend) devolvería el IVA trimestral de TODAS las
+-- empresas a cualquiera, saltándose la RLS de invoices.
+--
+-- Fix: restaurar security_invoker = true (igual que la vista hermana
+-- project_financials, que NO se regresó). Con security_invoker=true, una consulta
+-- anon ejecuta con privilegios de anon y respeta la RLS de invoices, cuya única
+-- policy es `service_role_all_invoices USING (true)` para el rol service_role
+-- → anon obtiene 0 filas. El dashboard NO se ve afectado: lo leen
+-- app/admin/page.tsx y app/admin/informes/page.tsx vía createAdminSupabaseClient()
+-- = service_role (que pasa la policy y ve todo). Consumidores verificados (grep):
+-- solo esas dos páginas, ambas server-side service_role; ningún consumidor anon
+-- ni authenticated.
+--
+-- ⚠️ REGLA FUTURA: cualquier DROP VIEW / CREATE VIEW de vat_quarterly (o de
+-- project_financials) DEBE re-aplicar `SET (security_invoker = true)` en el mismo
+-- archivo, o esta regresión vuelve.
+
+ALTER VIEW public.vat_quarterly SET (security_invoker = true);
