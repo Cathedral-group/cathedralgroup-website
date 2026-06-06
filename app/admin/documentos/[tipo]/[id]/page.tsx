@@ -162,8 +162,12 @@ export default async function DocumentoDetailPage({ params }: Props) {
   // (pdf_url/file_url/…), se usa tal cual.
   const directUrl = pickDocumentUrl(rec)
   const docUrl = (rec.storage_path || rec.drive_url)
-    ? `/api/admin/documentos/file?table=${encodeURIComponent(tipo)}&id=${encodeURIComponent(id)}`
+    ? `/api/admin/documentos/file?table=${encodeURIComponent(tipo)}&id=${encodeURIComponent(id)}&inline=1`
     : directUrl
+  // Imágenes se incrustan con <img>; PDFs con <object type=application/pdf>.
+  // (Detectamos por la extensión del nombre original.)
+  const fileExt = String(rec.original_filename || '').split('.').pop()?.toLowerCase() || ''
+  const isImagePreview = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(fileExt)
   const isDeleted = rec.deleted_at != null
 
   // Campos destacados (si existen en la fila)
@@ -262,23 +266,32 @@ export default async function DocumentoDetailPage({ params }: Props) {
             Vista previa
           </div>
           {docUrl ? (
-            <object
-              data={docUrl}
-              type="application/pdf"
-              className="h-[70vh] w-full"
-            >
-              <p className="p-4 text-sm text-neutral-600">
-                No se puede previsualizar el PDF.{' '}
-                <a
-                  href={docUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline"
-                >
-                  Abrir documento
-                </a>
-              </p>
-            </object>
+            isImagePreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={docUrl}
+                alt={String(rec.original_filename || 'documento')}
+                className="mx-auto max-h-[70vh] w-auto max-w-full p-2"
+              />
+            ) : (
+              <object
+                data={docUrl}
+                type="application/pdf"
+                className="h-[70vh] w-full"
+              >
+                <p className="p-4 text-sm text-neutral-600">
+                  Vista previa no disponible aquí.{' '}
+                  <a
+                    href={docUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline"
+                  >
+                    Abrir documento ↗
+                  </a>
+                </p>
+              </object>
+            )
           ) : (
             <div className="p-6 text-sm text-neutral-500">Sin documento adjunto.</div>
           )}
