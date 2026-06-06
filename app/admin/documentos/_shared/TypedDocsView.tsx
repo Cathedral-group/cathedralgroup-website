@@ -725,12 +725,15 @@ export default function TypedDocsView({ config, initialData }: Props) {
                     {col.label}
                   </th>
                 ))}
+                <th className="px-3 py-3 text-right text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                  Documento
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={visibleColumns.length + 1} className="px-6 py-8 text-center text-sm text-neutral-400">
+                  <td colSpan={visibleColumns.length + 2} className="px-6 py-8 text-center text-sm text-neutral-400">
                     {config.emptyMessage ?? 'Sin registros'}
                   </td>
                 </tr>
@@ -760,6 +763,20 @@ export default function TypedDocsView({ config, initialData }: Props) {
                           {renderCell(col, row)}
                         </td>
                       ))}
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {(row.storage_path || row.drive_url) ? (
+                          <a
+                            href={`/api/admin/documentos/file?table=${encodeURIComponent(config.table)}&id=${encodeURIComponent(id)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            Ver ↗
+                          </a>
+                        ) : (
+                          <span className="text-xs text-neutral-300">—</span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })
