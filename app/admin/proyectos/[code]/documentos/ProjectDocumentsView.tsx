@@ -392,7 +392,7 @@ export default function ProjectDocumentsView({ project, invoices, quotes, docume
                     <td className="p-3 text-xs text-neutral-500">{formatDate(qt.valid_until)}</td>
                     <td className="p-3 text-right whitespace-nowrap">
                       {qt.drive_url && <a href={qt.drive_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mr-2">Drive ↗</a>}
-                      <Link href={`/admin/presupuestos?id=${qt.id}`} className="text-xs bg-neutral-100 hover:bg-neutral-200 px-2.5 py-1 rounded">Editar</Link>
+                      <Link href={`/admin/presupuestos?abrir=${qt.id}`} className="text-xs bg-neutral-100 hover:bg-neutral-200 px-2.5 py-1 rounded">Editar</Link>
                     </td>
                   </tr>
                 ))}

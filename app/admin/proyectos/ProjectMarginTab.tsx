@@ -362,13 +362,13 @@ export default function ProjectMarginTab({ projectId, projectCode }: Props) {
       {/* ─── Botón: ver gastos directos detalle ─── */}
       <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-neutral-100">
         <a
-          href={`/admin/documentos?project_id=${encodeURIComponent(projectId)}&cost_scope=proyecto_directo`}
+          href={`/admin/documentos?project=${encodeURIComponent(projectId)}`}
           className="inline-block text-[10px] font-bold uppercase tracking-widest text-primary hover:text-primary/80"
         >
           Ver gastos directos detalle →
         </a>
         <a
-          href={`/admin/documentos?project_id=${encodeURIComponent(projectId)}&cost_scope=proyecto_indirecto`}
+          href={`/admin/documentos?project=${encodeURIComponent(projectId)}`}
           className="inline-block text-[10px] font-bold uppercase tracking-widest text-primary hover:text-primary/80"
         >
           Ver gastos indirectos detalle →

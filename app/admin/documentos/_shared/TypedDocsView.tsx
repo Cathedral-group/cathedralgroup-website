@@ -23,7 +23,8 @@
  *   fondo    #D9D0C7
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { TypedDocsConfig, ColumnDef, KpiDef } from './TypedDocsConfig'
 import { BADGE_COLORS_ESTADO, BADGE_COLORS_REVIEW } from './TypedDocsConfig'
 
@@ -449,6 +450,7 @@ interface Props {
 const PAGE_SIZE = 50
 
 export default function TypedDocsView({ config, initialData }: Props) {
+  const searchParams = useSearchParams()
   const [data, setData] = useState<Row[]>(initialData)
   const [search, setSearch] = useState('')
   const [filterState, setFilterState] = useState<FilterState>({})
@@ -456,6 +458,10 @@ export default function TypedDocsView({ config, initialData }: Props) {
   const [isNewOpen, setIsNewOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
+  // Deep-link `?id=<source_id>`: resaltar/scrollear (y abrir) esa fila al montar.
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  const deepLinkHandled = useRef(false)
 
   const visibleColumns = useMemo(() => config.columns.filter((c) => !c.hideInList), [config.columns])
 
@@ -470,6 +476,31 @@ export default function TypedDocsView({ config, initialData }: Props) {
   const pageEnd = pageStart + PAGE_SIZE
   const paged = filtered.slice(pageStart, pageEnd)
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+
+  // ─── Deep-link `?id=` → ir a la página de la fila, resaltarla y abrir detalle ─
+  useEffect(() => {
+    if (deepLinkHandled.current) return
+    const wantedId = searchParams?.get('id')
+    if (!wantedId) return
+    const idx = filtered.findIndex((r) => String(r.id ?? '') === wantedId)
+    if (idx < 0) return
+    deepLinkHandled.current = true
+    const targetPage = Math.floor(idx / PAGE_SIZE) + 1
+    setPage(targetPage)
+    setHighlightId(wantedId)
+    const target = filtered[idx]
+    if (target) setSelected(target)
+    // Esperar al render de la página correcta para hacer scroll.
+    const t = setTimeout(() => {
+      rowRefs.current[wantedId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 150)
+    // Quitar el resalte tras unos segundos.
+    const t2 = setTimeout(() => setHighlightId(null), 3500)
+    return () => {
+      clearTimeout(t)
+      clearTimeout(t2)
+    }
+  }, [searchParams, filtered])
 
   // ─── KPI compute ──────────────────────────────────────────────────────────
   const kpiResults = useMemo(() => {
@@ -741,12 +772,20 @@ export default function TypedDocsView({ config, initialData }: Props) {
                 paged.map((row) => {
                   const id = String(row.id ?? '')
                   const checked = bulkSelected.has(id)
+                  const isHighlighted = highlightId != null && id === highlightId
                   return (
                     <tr
                       key={id || Math.random()}
+                      ref={(el) => {
+                        if (id) rowRefs.current[id] = el
+                      }}
                       onClick={() => setSelected(row)}
                       className={`cursor-pointer hover:bg-neutral-50 transition-colors ${
-                        checked ? 'bg-amber-50/30' : ''
+                        isHighlighted
+                          ? 'bg-amber-100 ring-2 ring-inset ring-amber-400'
+                          : checked
+                          ? 'bg-amber-50/30'
+                          : ''
                       }`}
                     >
                       <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>

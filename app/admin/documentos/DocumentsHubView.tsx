@@ -677,17 +677,19 @@ export default function DocumentsHubView({
     return c
   }, [filters])
 
-  /* Mapa source_table → ruta canónica de edición */
+  /* Mapa source_table → ruta canónica de edición.
+     Las páginas tipadas reciben `?id=` para resaltar/abrir la fila concreta
+     (TypedDocsView lo lee). escrituras/licencias NO tienen vista tipada y el hub
+     filtrado por `?tipo=` no abre un doc concreto → caen al fallback (la ficha
+     canónica /admin/documentos/<table>/<id>, que muestra justo ese documento).
+     justificantes_pago tampoco va a Facturas (su id no existe en invoices) → fallback. */
   const sourceTableRoute = (r: DocumentRow): string => {
     const m: Record<string, string> = {
       invoices: `/admin/facturas?id=${r.source_id}`,
       payrolls: `/admin/personal`,
-      contratos: `/admin/documentos/tipados/contratos`,
-      escrituras: `/admin/documentos?tipo=escritura`,
-      seguros: `/admin/documentos/tipados/seguros`,
-      licencias: `/admin/documentos?tipo=licencia`,
-      modelos_fiscales: `/admin/documentos/tipados/modelos-fiscales`,
-      justificantes_pago: `/admin/facturas?id=${r.source_id}`,
+      contratos: `/admin/documentos/tipados/contratos?id=${r.source_id}`,
+      seguros: `/admin/documentos/tipados/seguros?id=${r.source_id}`,
+      modelos_fiscales: `/admin/documentos/tipados/modelos-fiscales?id=${r.source_id}`,
     }
     return m[r.source_table] ?? `/admin/documentos/${r.source_table}/${r.source_id}`
   }

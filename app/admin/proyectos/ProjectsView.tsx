@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import TabPanel from '@/components/admin/TabPanel'
 import ProgressBar from '@/components/admin/ProgressBar'
 import LinkedSelect from '@/components/admin/LinkedSelect'
@@ -227,10 +228,23 @@ function KpiCard({ label, value, hint }: { label: string; value: string; hint?: 
 }
 
 export default function ProjectsView({ projects: initialProjects, clients, financials, invoices: initialInvoices, phases: initialPhases, locations: initialLocations, employees }: Props) {
+  const searchParams = useSearchParams()
+  const deepLinkHandled = useRef(false)
   const [projects, setProjects] = useState(initialProjects)
   const [allPhases, setAllPhases] = useState(initialPhases)
   const [allLocations, setAllLocations] = useState(initialLocations)
   const [selected, setSelected] = useState<Project | null>(null)
+
+  // Deep-link ?id → abrir ese proyecto al montar (p.ej. desde Clientes → ver proyecto).
+  useEffect(() => {
+    if (deepLinkHandled.current) return
+    const wanted = searchParams?.get('id')
+    if (!wanted) return
+    const p = projects.find((pr) => pr.id === wanted)
+    if (!p) return
+    deepLinkHandled.current = true
+    setSelected(p)
+  }, [searchParams, projects])
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(new Set())

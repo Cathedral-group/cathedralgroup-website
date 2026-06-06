@@ -128,13 +128,13 @@ export default async function DocumentoDetailPage({ params }: Props) {
     // la lista completa). Cae al stub de esta ficha, que muestra el documento real.
     payrolls:             ()    => `/admin/personal`,
     presupuestos:         ()    => `/admin/presupuestos`,
-    albaranes:            ()    => `/admin/documentos/tipados/albaranes`,
-    contratos:            ()    => `/admin/documentos/tipados/contratos`,
-    notas_simples:        ()    => `/admin/documentos/tipados/notas-simples`,
-    seguros:              ()    => `/admin/documentos/tipados/seguros`,
-    certificaciones_obra: ()    => `/admin/documentos/tipados/certificaciones-obra`,
-    informes:             ()    => `/admin/documentos/tipados/informes`,
-    modelos_fiscales:     ()    => `/admin/documentos/tipados/modelos-fiscales`,
+    albaranes:            (rid) => `/admin/documentos/tipados/albaranes?id=${rid}`,
+    contratos:            (rid) => `/admin/documentos/tipados/contratos?id=${rid}`,
+    notas_simples:        (rid) => `/admin/documentos/tipados/notas-simples?id=${rid}`,
+    seguros:              (rid) => `/admin/documentos/tipados/seguros?id=${rid}`,
+    certificaciones_obra: (rid) => `/admin/documentos/tipados/certificaciones-obra?id=${rid}`,
+    informes:             (rid) => `/admin/documentos/tipados/informes?id=${rid}`,
+    modelos_fiscales:     (rid) => `/admin/documentos/tipados/modelos-fiscales?id=${rid}`,
   }
   if (RICH_HOME[tipo]) redirect(RICH_HOME[tipo](id))
 

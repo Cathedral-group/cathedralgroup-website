@@ -343,8 +343,8 @@ export default function ForensicView({ rows: initialRows }: Props) {
                       Ver Drive →
                     </a>
                   )}
-                  <a href={`/admin/revision?id=${selected.invoice_id}`} className="text-blue-600 hover:underline">
-                    Ir a revisión →
+                  <a href={`/admin/facturas?id=${selected.invoice_id}`} className="text-blue-600 hover:underline">
+                    Ver factura →
                   </a>
                 </div>
               </div>
