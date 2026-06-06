@@ -1,0 +1,24 @@
+# Allowlist (baseline) de audit-n8n-workflows.sh
+# ---------------------------------------------------------------------------
+# Hits ACEPTADOS que NO deben hacer fallar el job de GitHub Actions.
+# Formato por linea:  detector|workflow_id|node_name|field_path
+#   - '#' inicia comentario; las lineas en blanco se ignoran.
+#   - node_name puede llevar espacios, nunca '|'.
+# Solo los hits NUEVOS (no listados aqui) hacen fallar el cron y disparan email.
+# => Se sigue alertando de cualquier patron nuevo, INCLUIDOS secretos hardcodeados.
+# Revisar esta lista cuando se cambien los workflows n8n (anadir/quitar segun toque).
+#
+# --- neverError DELIBERADO en el pipeline (decision de arquitectura) --------
+# El pipeline usa neverError para NO detenerse por el error de un item suelto;
+# los errores se enrutan/loguean aparte. Ver feedback_n8n_arquitectura.md.
+neverError_in_critical_context|OcYrtR9pM6jIa7NK|Supabase INSERT|parameters.options.response.response.neverError
+neverError_in_critical_context|OcYrtR9pM6jIa7NK|Supabase PATCH Smart Dedup|parameters.options.response.response.neverError
+#
+# --- Clasificador (auto): workflow ARCHIVADO 04/06/2026 ---------------------
+# No se ejecuta (predecesor del Workflow Definitivo); su neverError es irrelevante.
+neverError_in_critical_context|FwpGF7L2GbFB84kL|Supabase INSERT|parameters.options.response.response.neverError
+#
+# --- Atajo "Archivar factura en proyecto": GETs idempotentes ----------------
+# El flujo aguas abajo maneja el caso 0-items; verificado E2E 03-04/06/2026.
+http_get_without_alwaysOutputData|ApAC8W5GMFzr8fIp|Get Invoice|alwaysOutputData
+http_get_without_alwaysOutputData|ApAC8W5GMFzr8fIp|Get Facturas Folder|alwaysOutputData
