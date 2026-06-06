@@ -1454,7 +1454,7 @@ function DrawerDay({
                   ))}
                 </ul>
                 <Link
-                  href={`/admin/proyectos/${ref?.project_code ?? ''}`}
+                  href={ref?.project_code ? `/admin/proyectos/${ref.project_code}/documentos` : '/admin/proyectos'}
                   className="mt-1 inline-block text-[10px] text-blue-600 hover:underline"
                 >
                   Abrir proyecto →

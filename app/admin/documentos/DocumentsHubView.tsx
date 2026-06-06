@@ -1062,6 +1062,7 @@ export default function DocumentsHubView({
       {activeDoc && (
         <DocumentDrawer
           doc={activeDoc}
+          companyId={companyId}
           projectCode={activeDoc.project_id ? (projectCodeById.get(activeDoc.project_id) ?? null) : null}
           onClose={() => setActiveDocKey(null)}
           editRoute={sourceTableRoute(activeDoc)}
@@ -1417,12 +1418,14 @@ function DocumentsTable({
 
 function DocumentDrawer({
   doc,
+  companyId,
   projectCode,
   onClose,
   editRoute,
   onChanged,
 }: {
   doc: DocumentRow
+  companyId: string
   projectCode: string | null
   onClose: () => void
   editRoute: string
@@ -1434,14 +1437,20 @@ function DocumentDrawer({
   const patchStatus = async (status: 'confirmado' | 'rechazado') => {
     setBusy(true)
     try {
-      const res = await fetch(`/api/documentos/${doc.source_table}/${doc.source_id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ review_status: status }),
+      // Usa el endpoint bulk existente (auth + IDOR + audit centralizados). El antiguo
+      // PATCH /api/documentos/{table}/{id} NO existe → daba 404 SIEMPRE.
+      const action = status === 'confirmado' ? 'confirm' : 'reject'
+      const res = await fetch('/api/documentos/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Active-Company-Id': companyId },
+        body: JSON.stringify({ action, items: [{ source_table: doc.source_table, source_id: doc.source_id }] }),
       })
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        throw new Error(j.error || `Error ${res.status}`)
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.error || `Error ${res.status}`)
+      // Respuesta por-item: si el documento falló (p.ej. un tipo cuyo CHECK aún no
+      // admite confirmado/rechazado), avisar claro en vez de fingir éxito.
+      if ((j.total_failed ?? 0) > 0) {
+        throw new Error(j.results?.[0]?.error || 'No se pudo aplicar a este documento')
       }
       onChanged()
       onClose()

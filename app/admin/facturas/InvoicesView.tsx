@@ -217,12 +217,16 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
   const [dirFilter, setDirFilter] = useState<'todas' | 'emitida' | 'recibida'>(dirFromUrl as 'todas' | 'emitida' | 'recibida')
   const [statusFilter, setStatusFilter] = useState<'todas' | 'pendiente' | 'pagada' | 'vencida'>('todas')
   const [reviewFilter, setReviewFilter] = useState<'todos' | 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta'>(alertaFromUrl as 'todos' | 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta')
+  // Deep-link desde un proyecto: /admin/facturas?proyecto_code=<code> filtra a ese proyecto.
+  const [proyectoCodeFilter, setProyectoCodeFilter] = useState<string | null>(searchParams?.get('proyecto_code') ?? null)
   // Sync con URL cuando cambia desde sidebar
   useEffect(() => {
     const newDir = (searchParams?.get('direccion') as 'emitida' | 'recibida' | null) ?? 'todas'
     const newAlerta = (searchParams?.get('alerta') as 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta' | null) ?? 'todos'
     if (newDir !== dirFilter) setDirFilter(newDir as 'todas' | 'emitida' | 'recibida')
     if (newAlerta !== reviewFilter) setReviewFilter(newAlerta as 'todos' | 'errores' | 'manuscritos' | 'mala_calidad' | 'datos_dudosos' | 'fecha_alerta' | 'importe_alerta')
+    const newProy = searchParams?.get('proyecto_code') ?? null
+    if (newProy !== proyectoCodeFilter) setProyectoCodeFilter(newProy)
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
   // Deep-link: /admin/facturas?id=<uuid> abre la ficha completa de esa factura
   // (lo usan el hub de Documentos, el detalle [tipo]/[id] y los proyectos). Sin
@@ -305,6 +309,15 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
           if (inv.payment_status !== statusFilter) return false
         }
       }
+      if (proyectoCodeFilter) {
+        // Coincide por proyecto_code exacto O por la etiqueta del proyecto asignado
+        // (project_id → "CODE - Nombre"), para no dejar fuera facturas asignadas solo
+        // por project_id (sin proyecto_code escrito).
+        const label = inv.project_id ? projectMap[inv.project_id] : null
+        const matches = inv.proyecto_code === proyectoCodeFilter ||
+          (label != null && label.startsWith(proyectoCodeFilter + ' - '))
+        if (!matches) return false
+      }
       if (search) {
         const q = search.toLowerCase()
         const haystack = `${inv.number} ${inv.concept} ${inv.empresa ?? ''} ${inv.supplier_nif ?? ''} ${inv.proyecto_code ?? ''} ${inv.project_id ? (projectMap[inv.project_id] ?? '') : ''}`.toLowerCase()
@@ -352,7 +365,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
     })
 
     return list
-  }, [data, dirFilter, statusFilter, reviewFilter, search, sortField, sortDir, projectMap, allTypes])
+  }, [data, dirFilter, statusFilter, reviewFilter, proyectoCodeFilter, search, sortField, sortDir, projectMap, allTypes])
 
   // Filas agrupadas: array de items mixto [groupHeader | invoice].
   // Se inserta un header cada vez que el grupo cambia. Mantiene el orden interno
@@ -782,6 +795,22 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
           className="bg-neutral-50 border-0 focus:ring-1 focus:ring-primary px-4 py-2 text-sm flex-1 min-w-[200px] max-w-md"
         />
       </div>
+
+      {/* Chip de filtro por proyecto (deep-link desde la ficha de proyecto) */}
+      {proyectoCodeFilter && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="inline-flex items-center gap-2 bg-primary/10 text-primary text-xs font-semibold px-3 py-1.5 rounded-full">
+            Proyecto: {proyectoCodeFilter}
+            <button
+              onClick={() => { setProyectoCodeFilter(null); router.replace('/admin/facturas', { scroll: false }) }}
+              className="text-primary/70 hover:text-primary leading-none"
+              aria-label="Quitar filtro de proyecto"
+            >
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Selector de modo de agrupación */}
       <div className="flex items-center gap-2 mb-4 p-2 bg-neutral-50 rounded">
