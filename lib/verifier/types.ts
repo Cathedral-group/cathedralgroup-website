@@ -89,6 +89,7 @@ export interface InvoiceFields {
   tipo_iva?: number | null         // 4, 10, 21
   cuota_iva?: number | null
   total?: number | null
+  irpf_importe?: number | null     // IRPF/retención (invoices.irpf_amount); total = base + IVA − IRPF
   iban?: string | null
   [k: string]: unknown
 }

@@ -9,6 +9,7 @@
  */
 
 import type { ExtractedReceiptData } from '@/lib/ocr-gemini'
+import { toNumber } from '@/lib/verifier/invoice-math'
 
 const MODEL = 'pixtral-large-latest'
 const ENDPOINT_DIRECT = 'https://api.mistral.ai/v1/chat/completions'
@@ -123,11 +124,9 @@ export async function extractWithMistral(
       return { confidence: 0, warnings: ['No se pudo parsear Mistral'], raw_model_response: text }
     }
 
-    const num = (v: unknown): number | null => {
-      if (v === null || v === undefined || v === '') return null
-      const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'))
-      return Number.isFinite(n) ? n : null
-    }
+    // Parser robusto compartido ("1.234,56" ES / "1,234.56" EN). El replace(',','.')
+    // antiguo rompía el separador de miles → importes 1000× mal.
+    const num = toNumber
 
     return {
       proveedor_nombre: (parsed.proveedor_nombre as string) ?? null,
