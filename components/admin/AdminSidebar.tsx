@@ -154,6 +154,9 @@ export default function AdminSidebar({ collapsed = false }: { collapsed?: boolea
     }
     const active = isLeafActive(item.href)
     const badge = getBadge(item.badgeKey)
+    // "Subir documento" se resalta (es la zona de subida): texto más oscuro +
+    // negrita + un "+" en color de marca, para que destaque sobre el resto.
+    const isUpload = item.href === '/admin/upload'
     return (
       <Link
         key={key}
@@ -161,10 +164,15 @@ export default function AdminSidebar({ collapsed = false }: { collapsed?: boolea
         className={`flex items-center gap-2 px-5 py-2.5 text-sm transition-colors border-b border-neutral-100 ${
           active
             ? 'bg-primary/8 text-primary font-semibold border-r-2 border-primary'
-            : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
+            : isUpload
+              ? 'text-neutral-900 font-semibold hover:bg-primary/5'
+              : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
         }`}
       >
-        <span className="flex-1">{item.label}</span>
+        <span className="flex-1">
+          {isUpload && <span className="mr-1.5 font-bold text-primary">+</span>}
+          {item.label}
+        </span>
         {badge && (
           <span className={`${badge.color} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none tabular-nums`}>
             {badge.count > 99 ? '99+' : badge.count}
