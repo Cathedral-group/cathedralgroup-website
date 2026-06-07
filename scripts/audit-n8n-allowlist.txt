@@ -22,3 +22,40 @@ neverError_in_critical_context|FwpGF7L2GbFB84kL|Supabase INSERT|parameters.optio
 # El flujo aguas abajo maneja el caso 0-items; verificado E2E 03-04/06/2026.
 http_get_without_alwaysOutputData|ApAC8W5GMFzr8fIp|Get Invoice|alwaysOutputData
 http_get_without_alwaysOutputData|ApAC8W5GMFzr8fIp|Get Facturas Folder|alwaysOutputData
+#
+# --- Detectores anti-cruce (sesion 07-08/06/2026): baseline aceptado --------
+# Deuda conocida que NO debe hacer fallar el cron. Documentada en
+# memory/vigilante_casos.md. Revisar/arreglar en vivo cuando toque (no urgente).
+#  - Marcar Review Forensic usa `${}` en jsonBody: funciona hoy (Tournament lo
+#    evalua) pero es la familia latente; pasar a concatenacion cuando se toque.
+#  - Upload file inputDataFieldName=attachment_0: "Restaurar Binary Pre-Upload"
+#    renombra el binario a attachment_0 antes; funciona en N=1.
+#  - $('Decidir Tabla Destino') en Preparar Supabase: ref a nodo renombrado pero
+#    dentro de try/catch con comentario "puede no existir" -> no-op benigno.
+template_literal_in_expression|OcYrtR9pM6jIa7NK|Marcar Review Forensic|parameters.jsonBody
+hardcoded_attachment_index|OcYrtR9pM6jIa7NK|Upload file|parameters.inputDataFieldName
+node_ref_not_found|OcYrtR9pM6jIa7NK|Decidir Tabla Destino|node_reference
+#
+# --- Auditor cobertura email (QQqYq5cJE1c1zm7F): $node[] DEPRECADO -----------
+# Funciona para LECTURA en n8n 2.x (el workflow corre OK a diario). Migrar a
+# $('Normalizar Lista') cuando se toque ese workflow. No urgente.
+deprecated_node_access|QQqYq5cJE1c1zm7F|Gmail Get - administracion|parameters.messageId
+deprecated_node_access|QQqYq5cJE1c1zm7F|Gmail Get - cathedralhouseinvestment|parameters.messageId
+deprecated_node_access|QQqYq5cJE1c1zm7F|Gmail Get - cathedralhouseinvest|parameters.messageId
+deprecated_node_access|QQqYq5cJE1c1zm7F|Gmail Get - d.vieco|parameters.messageId
+deprecated_node_access|QQqYq5cJE1c1zm7F|Gmail Get - info|parameters.messageId
+deprecated_node_access|QQqYq5cJE1c1zm7F|Gmail Get - j.rivera|parameters.messageId
+deprecated_node_access|QQqYq5cJE1c1zm7F|Gmail Get - jm.lozano|parameters.messageId
+deprecated_node_access|QQqYq5cJE1c1zm7F|Switch por Cuenta|parameters.rules.values.0.conditions.conditions.0.leftValue
+deprecated_node_access|QQqYq5cJE1c1zm7F|Switch por Cuenta|parameters.rules.values.1.conditions.conditions.0.leftValue
+deprecated_node_access|QQqYq5cJE1c1zm7F|Switch por Cuenta|parameters.rules.values.2.conditions.conditions.0.leftValue
+deprecated_node_access|QQqYq5cJE1c1zm7F|Switch por Cuenta|parameters.rules.values.3.conditions.conditions.0.leftValue
+deprecated_node_access|QQqYq5cJE1c1zm7F|Switch por Cuenta|parameters.rules.values.4.conditions.conditions.0.leftValue
+deprecated_node_access|QQqYq5cJE1c1zm7F|Switch por Cuenta|parameters.rules.values.5.conditions.conditions.0.leftValue
+deprecated_node_access|QQqYq5cJE1c1zm7F|Switch por Cuenta|parameters.rules.values.6.conditions.conditions.0.leftValue
+#
+# --- Clasificador (auto) FwpGF7L2GbFB84kL: workflow ARCHIVADO (no corre) -----
+# Predecesor del Workflow Definitivo; estos hits son irrelevantes (dead code).
+fixed_index_binary_buffer|FwpGF7L2GbFB84kL|Normalizar Adjunto|parameters.jsCode
+return_array_each_item|FwpGF7L2GbFB84kL|Parsear GPT-4o Visión|parameters.jsCode
+template_literal_in_expression|FwpGF7L2GbFB84kL|Marcar Review Forensic|parameters.jsonBody

@@ -239,7 +239,7 @@ for f in "$WORK_DIR"/*.json; do
       "Bearer eyJ[A-Za-z0-9_.-]{50,}"
     ];
     .name as $wf_name |
-    .nodes[] as $n |
+    .nodes[] | . as $n |
     [paths(strings)] as $paths |
     $paths[] as $p |
     ($n | getpath($p)) as $v |
@@ -258,6 +258,100 @@ for f in "$WORK_DIR"/*.json; do
       value_preview: ($v | .[0:60] + "...")
     }
   ' "$f" 2>/dev/null >> "$HITS_FILE" || true
+done
+
+# ============================================================================
+# Detectores ANTI-CRUCE / anti-recaida (sesion 07-08/06/2026)
+# ----------------------------------------------------------------------------
+# Sembrados desde 132 casos historicos (memoria) + auditoria en vivo + research
+# experto (docs n8n, codigo fuente n8n extension-expression.ts, foros). Cada uno
+# nacio de un bug REAL en produccion. Cuaderno completo: memory/vigilante_casos.md
+#   Para anadir una regla nueva: copiar un bloque, cambiar el patron `test(...)`
+#   y el nombre `detector`, anadir su caso aqui, y baseline en la allowlist.
+#
+#   all_index_in_expression  (CRITICO) - `.all()[idx]` en campo ={{}} rompe el
+#     preprocesador de expresiones de n8n (ExpressionExtensionError "invalid
+#     syntax"). Caso: cruce factura<->archivo Drive, reaparecio 6x en 4 semanas.
+#   template_literal_in_expression (high) - `${...}` en ={{}}, misma familia.
+#     Caso: Marcar Review Forensic (06/06).
+#   incomplete_optional_chain (high) - `?.campo[` optional-chain seguido de
+#     indice NO protegido -> TypeError. Caso: Parsear Gemini Fallback (09/05).
+#   deprecated_node_access (high) - `$node[...]` sintaxis n8n 1.x rota en 2.x.
+#     Caso: Backup Webhook Response OK (30/04).
+#   hardcoded_attachment_index (medium) - valor de config `attachment_N` fijo,
+#     rompe en multi-adjunto. Caso: Upload file (04/06).
+#   return_array_each_item (CRITICO) - Code runOnceForEachItem con `return [`
+#     debe devolver UN objeto, no array. Caso: Parsear GPT-4o Vision (26/05).
+#   fixed_index_binary_buffer (high) - getBinaryDataBuffer(0,..) indice fijo en
+#     vez de $itemIndex -> falla en multi-adjunto. Caso: Convertir a Vision (14/05).
+#   node_ref_not_found (high) - `$('X')` debe resolver a un nodo existente.
+#     Caso: Preparar Supabase referia 'Decidir Tabla Destino' renombrado (21/05).
+# ============================================================================
+
+# Leaf-walker: recorre cada string de cada nodo (incluye jsCode para las reglas
+# que aplican a codigo). Usa la forma `.nodes[] | . as $n` para que `.` sea el
+# nodo (NO el documento) al calcular paths(strings) — bug sutil que tenia roto
+# al detector hardcoded_secret. Emite un array de matches y lo explota.
+for f in "$WORK_DIR"/*.json; do
+  [ "$(basename "$f")" = "list.json" ] || [ "$(basename "$f")" = "hits.jsonl" ] || \
+  jq -c --arg wf_id "$(basename "$f" .json)" '
+    .name as $wf_name |
+    .nodes[] | . as $n |
+    [paths(strings)] as $paths |
+    $paths[] as $p |
+    ($n | getpath($p)) as $v |
+    select($v | type == "string") |
+    ($p[-1]) as $seg |
+    ($v | startswith("=")) as $isexpr |
+    [
+      (if $isexpr and $seg!="jsCode" and $seg!="functionCode" and ($v|test("\\.all\\(\\)[[:space:]]*\\[")) then {detector:"all_index_in_expression",severity:"critical"} else empty end),
+      (if $isexpr and $seg!="jsCode" and $seg!="functionCode" and ($v|test("\\$\\{")) then {detector:"template_literal_in_expression",severity:"high"} else empty end),
+      (if ($v|test("\\?\\.[A-Za-z_][A-Za-z0-9_]*\\[")) then {detector:"incomplete_optional_chain",severity:"high"} else empty end),
+      (if ($v|test("\\$node\\[")) then {detector:"deprecated_node_access",severity:"high"} else empty end),
+      (if $seg!="jsCode" and $seg!="functionCode" and ($v|test("^attachment_[0-9]+$")) then {detector:"hardcoded_attachment_index",severity:"medium"} else empty end)
+    ][] |
+    . + {
+      workflow_id:$wf_id, workflow_name:$wf_name, node_name:$n.name,
+      node_type:($n.type|sub("n8n-nodes-base.";"")),
+      field_path:($p|join(".")), value_preview:($v|.[0:200])
+    }
+  ' "$f" 2>/dev/null >> "$HITS_FILE" || true
+done
+
+# Detectores sobre el cuerpo de Code nodes (jsCode/functionCode)
+for f in "$WORK_DIR"/*.json; do
+  [ "$(basename "$f")" = "list.json" ] || [ "$(basename "$f")" = "hits.jsonl" ] || \
+  jq -c --arg wf_id "$(basename "$f" .json)" '
+    .name as $wf_name |
+    .nodes[] | select(.type | test("(code|function)$")) | . as $n |
+    ($n.parameters.jsCode // $n.parameters.functionCode // "") as $code |
+    [
+      (if ($n.parameters.mode // "")=="runOnceForEachItem" and ($code|test("return[[:space:]]*\\[")) then {detector:"return_array_each_item",severity:"critical"} else empty end),
+      (if ($code|test("getBinaryDataBuffer\\([[:space:]]*0[^0-9]")) then {detector:"fixed_index_binary_buffer",severity:"high"} else empty end)
+    ][] |
+    . + {
+      workflow_id:$wf_id, workflow_name:$wf_name, node_name:$n.name,
+      node_type:($n.type|sub("n8n-nodes-base.";"")),
+      field_path:"parameters.jsCode", value_preview:"(ver jsCode del nodo)"
+    }
+  ' "$f" 2>/dev/null >> "$HITS_FILE" || true
+done
+
+# node_ref_not_found: toda referencia $('X')/$("X") debe existir como nodo del wf
+for f in "$WORK_DIR"/*.json; do
+  bn="$(basename "$f")"
+  [ "$bn" = "list.json" ] && continue
+  [ "$bn" = "hits.jsonl" ] && continue
+  wfid="$(basename "$f" .json)"
+  wfname="$(jq -r '.name // ""' "$f" 2>/dev/null || echo "")"
+  jq -r '.nodes[].name' "$f" 2>/dev/null | sort -u > "$WORK_DIR/_names.txt" || true
+  { grep -oE "\\\$\\('[^']+'\\)" "$f" 2>/dev/null || true; grep -oE "\\\$\\(\"[^\"]+\"\\)" "$f" 2>/dev/null || true; } \
+    | sed -E "s/^\\\$\\(['\"]//; s/['\"]\\)\$//" | sort -u > "$WORK_DIR/_refs.txt" || true
+  while IFS= read -r ref; do
+    [ -z "$ref" ] && continue
+    jq -nc --arg wf "$wfid" --arg wfn "$wfname" --arg ref "$ref" \
+      '{detector:"node_ref_not_found",severity:"high",workflow_id:$wf,workflow_name:$wfn,node_name:$ref,node_type:"ref",field_path:"node_reference",value_preview:("ref:"+$ref)}' >> "$HITS_FILE"
+  done < <(comm -23 "$WORK_DIR/_refs.txt" "$WORK_DIR/_names.txt" 2>/dev/null || true)
 done
 
 # --- Allowlist: baseline de hits ACEPTADOS ---------------------------------
@@ -299,7 +393,11 @@ echo "── Resultado ──"
 [ "${ALLOWLISTED_COUNT:-0}" -gt 0 ] && echo "ℹ️  $ALLOWLISTED_COUNT hit(s) conocido(s) ignorado(s) por allowlist (scripts/audit-n8n-allowlist.txt)"
 if [ "$HITS_COUNT" -eq 0 ]; then
   echo "✅ Sistema limpio: 0 hits en $WORKFLOW_COUNT workflows"
-  echo "   Detectores ejecutados: expression_without_equals, neverError_true_in_http, hardcoded_secret"
+  echo "   Detectores: expression_without_equals, neverError_in_critical_context,"
+  echo "   http_get_without_alwaysOutputData, predefinedCredentialType_without_nodeCredentialType,"
+  echo "   hardcoded_secret, all_index_in_expression, template_literal_in_expression,"
+  echo "   incomplete_optional_chain, deprecated_node_access, hardcoded_attachment_index,"
+  echo "   return_array_each_item, fixed_index_binary_buffer, node_ref_not_found"
   exit 0
 fi
 
