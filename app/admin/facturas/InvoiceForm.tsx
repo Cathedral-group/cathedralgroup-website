@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import MoneyInput from '@/components/admin/MoneyInput'
 import LinkedSelect from '@/components/admin/LinkedSelect'
 import SendDocumentModal from '@/components/admin/SendDocumentModal'
+import EmailConversationPanel from '@/app/admin/documentos/_shared/EmailConversationPanel'
 
 interface Invoice {
   id?: string
@@ -441,6 +442,13 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
                 </a>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Email / conversación de origen */}
+        {isEdit && invoice?.id && (
+          <div className="mb-6">
+            <EmailConversationPanel table="invoices" id={invoice.id} />
           </div>
         )}
 

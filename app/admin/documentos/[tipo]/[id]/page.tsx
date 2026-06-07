@@ -1,4 +1,5 @@
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server'
+import EmailConversationPanel from '@/app/admin/documentos/_shared/EmailConversationPanel'
 import { redirect, notFound } from 'next/navigation'
 import { getActiveCompanyForPage } from '@/lib/company-aware-server'
 import { isAdminEmail } from '@/lib/auth-allowlist'
@@ -259,6 +260,10 @@ export default async function DocumentoDetailPage({ params }: Props) {
             ← Volver al hub
           </Link>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <EmailConversationPanel table={tipo} id={id} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
