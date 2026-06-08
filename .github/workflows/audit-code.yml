@@ -1,0 +1,94 @@
+name: Audit code
+
+# Por que este workflow existe
+#   Ejecuta scripts/audit-code.sh (el "vigilante de codigo") como gate de CI.
+#   A diferencia de audit-n8n-workflows.yml (que vigila los workflows en vivo),
+#   este es 100% ESTATICO: solo lee ficheros del repo con ripgrep. Caza, ANTES
+#   de que lleguen a produccion, los anti-patrones que ya nos han mordido:
+#     - SQL: GRANT EXECUTE a anon, ALTER DEFAULT PRIVILEGES a anon, SECURITY
+#       DEFINER sin search_path, DROP/CREATE de vistas sensibles sin
+#       security_invoker=true, RLS USING(true) a anon, CREATE TABLE sin RLS,
+#       secretos hardcodeados.
+#     - TS: parseo europeo de numeros roto, inserts fire-and-forget, fetch a
+#       APIs externas sin timeout, Permissions-Policy que rompe el navegador,
+#       enlaces a rutas /admin|/portal inexistentes (404).
+#
+#   Si el script detecta hits NUEVOS (no baselined) -> el job falla -> GitHub
+#   notifica por email a los committers (segun sus notification settings).
+#   Los hits conocidos viven en scripts/audit-code-allowlist.txt y NO fallan.
+#
+# Cuando se ejecuta
+#   - push a main (cuando cambian migraciones / app / lib / components / config
+#     / el propio script o allowlist o este yml)
+#   - pull_request (mismo filtro de paths)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+      - 'app/**'
+      - 'lib/**'
+      - 'components/**'
+      - 'next.config.*'
+      - 'scripts/audit-code.sh'
+      - 'scripts/audit-code-allowlist.txt'
+      - '.github/workflows/audit-code.yml'
+
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'app/**'
+      - 'lib/**'
+      - 'components/**'
+      - 'next.config.*'
+      - 'scripts/audit-code.sh'
+      - 'scripts/audit-code-allowlist.txt'
+      - '.github/workflows/audit-code.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+          rg --version | head -1
+
+      - name: Run code audit
+        run: |
+          set -uo pipefail
+          chmod +x scripts/audit-code.sh
+
+          # Texto legible para los logs
+          ./scripts/audit-code.sh || EXIT=$?
+          EXIT=${EXIT:-0}
+
+          echo ""
+          echo "── JSON output (para artifact) ──"
+          ./scripts/audit-code.sh --json > /tmp/audit-code-result.json || true
+          cat /tmp/audit-code-result.json | jq '.'
+
+          if [ "$EXIT" -ne 0 ]; then
+            echo "::error::Auditoria de codigo encontro hits nuevos — revisar log"
+            exit "$EXIT"
+          fi
+
+      - name: Upload audit result as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-code-result-${{ github.run_id }}
+          path: /tmp/audit-code-result.json
+          retention-days: 30
+          if-no-files-found: ignore

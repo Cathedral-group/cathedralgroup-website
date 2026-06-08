@@ -1,0 +1,73 @@
+# Allowlist (baseline) de audit-code.sh  —  el "vigilante de codigo" del repo
+# ---------------------------------------------------------------------------
+# Hits ACEPTADOS que NO deben hacer fallar el job de GitHub Actions.
+# Formato por linea:  detector|fichero_relativo|linea
+#   - '#' inicia comentario; las lineas en blanco se ignoran.
+#   - Para detectores a nivel FICHERO el 3er campo es el literal  FILE.
+#   - Las rutas son relativas a la raiz del repo (app/..., supabase/...).
+# Solo los hits NUEVOS (no listados aqui) hacen fallar el CI.
+# => Se sigue alertando de cualquier patron nuevo, INCLUIDOS secretos.
+# Revisar esta lista al tocar las migraciones / el codigo (anadir o quitar).
+#
+# ===========================================================================
+# SQL — fugas de seguridad CONOCIDAS (deuda; ver MEMORY.md). Algunas tienen fix
+# en migraciones posteriores (REVOKE), pero el patron sigue en el fichero
+# historico y es deuda aceptada hasta consolidar las migraciones.
+# ---------------------------------------------------------------------------
+# RPCs forenses con GRANT EXECUTE ... TO anon (handoff 06/06): revocadas en vivo
+# en una migracion posterior; el fichero original conserva el GRANT. No urgente.
+sql_grant_execute_anon|supabase/migrations/20260509220000_forensic_rea_validations.sql|127
+sql_grant_execute_anon|supabase/migrations/20260509220000_forensic_rea_validations.sql|148
+sql_grant_execute_anon|supabase/migrations/20260509220000_forensic_rea_validations.sql|178
+sql_grant_execute_anon|supabase/migrations/20260509220000_forensic_rea_validations.sql|199
+sql_grant_execute_anon|supabase/migrations/20260509220000_forensic_rea_validations.sql|227
+sql_grant_execute_anon|supabase/migrations/20260509220000_forensic_rea_validations.sql|258
+sql_grant_execute_anon|supabase/migrations/20260514000000_supabase_explicit_grants_oct30_2026.sql|55
+#
+# ALTER DEFAULT PRIVILEGES ... TO anon (mismo fichero de grants explicitos).
+sql_alter_default_privileges_anon|supabase/migrations/20260514000000_supabase_explicit_grants_oct30_2026.sql|48
+sql_alter_default_privileges_anon|supabase/migrations/20260514000000_supabase_explicit_grants_oct30_2026.sql|51
+sql_alter_default_privileges_anon|supabase/migrations/20260514000000_supabase_explicit_grants_oct30_2026.sql|54
+#
+# SECURITY DEFINER sin SET search_path (4 ficheros). Funciones forenses; pinear
+# search_path cuando se toquen (deuda de get_advisors, no critica).
+sql_secdef_no_search_path|supabase/migrations/20260509220000_forensic_rea_validations.sql|FILE
+sql_secdef_no_search_path|supabase/migrations/20260509235100_fix_email_whitelist_ambiguity.sql|FILE
+sql_secdef_no_search_path|supabase/migrations/20260510005100_fix_project_overrun_ambiguity.sql|FILE
+sql_secdef_no_search_path|supabase/migrations/20260518000000_agent_tables_stack.sql|FILE
+#
+# vat_quarterly add company_id: DROP/CREATE sin security_invoker=true. Ya
+# corregido por migracion posterior (20260606050000 re-pone security_invoker);
+# el fichero historico conserva el patron. Mantener vigilancia sobre estas dos
+# vistas (vat_quarterly / project_financials) en cambios futuros.
+sql_view_dropcreate_no_invoker|supabase/migrations/20260605230000_vat_quarterly_add_company_id.sql|FILE
+#
+# Politicas RLS USING(true) a anon/authenticated/public (2). Tablas de catalogo
+# de lectura publica deliberada (registry SSOT, convenio construccion Madrid).
+sql_rls_policy_true_anon|supabase/migrations/20260521180000_ssot_registry_tables.sql|61
+sql_rls_policy_true_anon|supabase/migrations/20260522000000_convenio_construccion_madrid_2026.sql|59
+#
+# CREATE TABLE public.* sin ENABLE ROW LEVEL SECURITY (6 ficheros). Tablas de
+# infra/observabilidad accedidas solo por service_role; activar RLS al tocarlas.
+sql_create_table_no_rls|supabase/migrations/20260428230000_backfill_arquitectural.sql|FILE
+sql_create_table_no_rls|supabase/migrations/20260510003000_eval_metrics_framework.sql|FILE
+sql_create_table_no_rls|supabase/migrations/20260510004000_webhook_idempotency.sql|FILE
+sql_create_table_no_rls|supabase/migrations/20260510010000_system_notifications.sql|FILE
+sql_create_table_no_rls|supabase/migrations/20260510020000_ai_usage_tracking.sql|FILE
+sql_create_table_no_rls|supabase/migrations/20260510030000_fiscal_calendar.sql|FILE
+#
+# ===========================================================================
+# TS — deuda conocida. parseo europeo en editores/vistas (usan inputs ya
+# normalizados o son campos de UI controlada); migrar a toNumber al tocar.
+# ---------------------------------------------------------------------------
+ts_european_number_parse|app/admin/presupuestos/QuoteEditor.tsx|980
+ts_european_number_parse|app/admin/presupuestos/QuoteEditor.tsx|1387
+ts_european_number_parse|app/admin/revision/RevisionView.tsx|233
+ts_european_number_parse|app/admin/proyectos/[code]/gantt/GanttProjectView.tsx|289
+#
+# Inserts fire-and-forget (void supabase.from(...).insert/update). Escrituras de
+# log/telemetria deliberadamente no bloqueantes; envolver en .catch al tocar.
+ts_fire_and_forget_insert|app/api/forensic/[id]/route.ts|76
+ts_fire_and_forget_insert|app/api/invoices/reprocess/route.ts|84
+ts_fire_and_forget_insert|app/api/invoices/reprocess/route.ts|174
+ts_fire_and_forget_insert|app/api/admin/rotate-portal-token/route.ts|75
