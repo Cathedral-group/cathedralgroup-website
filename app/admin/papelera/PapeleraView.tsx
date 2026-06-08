@@ -121,17 +121,31 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
     setRestoring(null)
   }
 
-  const handleClearAll = async () => {
-    if (!confirm(`¿Eliminar permanentemente ${filtered.length} elemento${filtered.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return
+  // Borrado PERMANENTE en bloque. `scope` decide el conjunto:
+  //   - 'all'      → vacía la papelera ENTERA (todos los `items`, sin importar el filtro)
+  //   - 'filtered' → solo el tipo filtrado actual (`filtered`)
+  // El endpoint /api/db/papelera ya exige deleted_at IS NOT NULL + empresa, así que
+  // NUNCA puede tocar filas activas. Esta acción NO se puede deshacer.
+  const clearItems = async (scope: 'all' | 'filtered') => {
+    const target = scope === 'all' ? items : filtered
+    if (target.length === 0) return
+    const tipoLabel = scope === 'filtered' && typeFilter ? ` de tipo «${typeFilter}»` : ''
+    if (
+      !confirm(
+        `ELIMINAR PERMANENTEMENTE ${target.length} elemento${target.length !== 1 ? 's' : ''}${tipoLabel} de la papelera.\n\n` +
+          `Esta acción es IRREVERSIBLE: no se podrán restaurar.\n\n¿Continuar?`,
+      )
+    )
+      return
     setClearingAll(true)
     try {
       const res = await fetch('/api/db/papelera', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: filtered.map(i => ({ id: i.id, table: i._table })) }),
+        body: JSON.stringify({ items: target.map(i => ({ id: i.id, table: i._table })) }),
       })
       if (res.ok) {
-        const deletedIds = new Set(filtered.map(i => i.id))
+        const deletedIds = new Set(target.map(i => i.id))
         setItems(prev => prev.filter(i => !deletedIds.has(i.id)))
       } else {
         alert('Error al eliminar. Inténtalo de nuevo.')
@@ -209,14 +223,25 @@ export default function PapeleraView({ items: initialItems }: { items: TrashedIt
         )}
       </div>
 
-      {filtered.length > 0 && viewMode === 'lista' && (
-        <div className="flex justify-end mb-4">
+      {items.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-2 mb-4">
+          {/* Opcional: vaciar solo el tipo filtrado (solo aplica en vista lista con chip activo) */}
+          {typeFilter && filtered.length > 0 && filtered.length < items.length && (
+            <button
+              onClick={() => clearItems('filtered')}
+              disabled={clearingAll}
+              className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors disabled:opacity-50"
+            >
+              {clearingAll ? 'Eliminando...' : `Vaciar solo «${typeFilter}» (${filtered.length})`}
+            </button>
+          )}
+          {/* Acción principal: vacía la papelera ENTERA, sin importar filtros */}
           <button
-            onClick={handleClearAll}
+            onClick={() => clearItems('all')}
             disabled={clearingAll}
-            className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors disabled:opacity-50"
+            className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
           >
-            {clearingAll ? 'Eliminando...' : `Vaciar todo (${filtered.length})`}
+            {clearingAll ? 'Eliminando...' : `Vaciar papelera completa (${items.length})`}
           </button>
         </div>
       )}

@@ -112,6 +112,7 @@ export default async function RevisionPage() {
       projects={projects}
       suppliers={suppliers}
       userEmail={data.user.email ?? 'admin'}
+      activeCompanyId={activeCompanyId}
     />
   )
 }

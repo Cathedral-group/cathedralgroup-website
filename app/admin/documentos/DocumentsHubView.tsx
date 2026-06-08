@@ -1003,25 +1003,40 @@ export default function DocumentsHubView({
             </div>
           </div>
 
-          {/* Papelera */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={filters.mostrarBorrados}
-              onChange={(e) => setF('mostrarBorrados', e.target.checked)}
-              className="accent-primary"
-            />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
-              Mostrar borrados (papelera)
-            </span>
-          </label>
         </aside>
 
         {/* ──────────── MAIN ──────────── */}
         <section className="space-y-4">
           {/* Búsqueda sola (quick filter chips arriba quitados por feedback David
               sesión 21/05: duplicaban filtros del sidebar izquierda) */}
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end">
+            {/* Toggle Activos | Papelera — antes era un checkbox diminuto en el sidebar */}
+            <div className="inline-flex border border-neutral-200 overflow-hidden mr-auto sm:mr-0">
+              <button
+                type="button"
+                onClick={() => setF('mostrarBorrados', false)}
+                aria-pressed={!filters.mostrarBorrados}
+                className={`text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors ${
+                  !filters.mostrarBorrados
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-white text-neutral-500 hover:bg-neutral-50'
+                }`}
+              >
+                Ver activos
+              </button>
+              <button
+                type="button"
+                onClick={() => setF('mostrarBorrados', true)}
+                aria-pressed={filters.mostrarBorrados}
+                className={`text-xs font-bold uppercase tracking-widest px-3 py-2 border-l border-neutral-200 transition-colors ${
+                  filters.mostrarBorrados
+                    ? 'bg-red-600 text-white'
+                    : 'bg-white text-neutral-500 hover:bg-neutral-50'
+                }`}
+              >
+                Papelera
+              </button>
+            </div>
             <input
               type="search"
               value={searchInput}

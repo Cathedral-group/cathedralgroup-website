@@ -1023,7 +1023,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteConfirm(inv) }}
                           className="text-neutral-300 hover:text-red-500 transition-colors"
-                          title="Eliminar factura"
+                          title="Mover a papelera"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1114,9 +1114,9 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md p-6 shadow-xl">
-            <h2 className="text-sm font-bold uppercase tracking-widest mb-4">Eliminar factura</h2>
+            <h2 className="text-sm font-bold uppercase tracking-widest mb-4">Mover a la papelera</h2>
             <p className="text-sm text-neutral-600 mb-2">
-              ¿Eliminar esta factura? Esta acción no se puede deshacer.
+              Se moverá a la Papelera; podrás restaurarla.
             </p>
             <div className="bg-neutral-50 rounded p-3 mb-6 text-sm space-y-1">
               <div className="font-medium truncate">{deleteConfirm.concept || '--'}</div>
@@ -1139,7 +1139,7 @@ export default function InvoicesView({ initialData, projects, suppliers, pageTit
                 disabled={deleting}
                 className="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
               >
-                {deleting ? 'Eliminando...' : 'Eliminar'}
+                {deleting ? 'Moviendo...' : 'Mover a papelera'}
               </button>
             </div>
           </div>

@@ -552,11 +552,48 @@ export default function TypedDocsView({ config, initialData }: Props) {
       setBulkSelected(new Set(paged.map((r) => String(r.id ?? ''))))
     }
   }
-  const handleBulkAction = (action: 'delete' | 'export') => {
-    // Stub — UI completa pendiente
-    // eslint-disable-next-line no-console
-    console.log('[TypedDocsView] bulk action:', action, Array.from(bulkSelected))
-    alert(`Pendiente: ${action} sobre ${bulkSelected.size} registros`)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const handleBulkAction = async (action: 'delete' | 'export') => {
+    if (action === 'export') {
+      // Stub — exportación pendiente
+      alert(`Pendiente: export sobre ${bulkSelected.size} registros`)
+      return
+    }
+    // action === 'delete' → mover a la papelera (soft-delete vía /api/db/<table>,
+    // mismo endpoint que el borrado por fila del drawer). Reversible desde Papelera.
+    const ids = Array.from(bulkSelected)
+    if (ids.length === 0) return
+    if (!confirm(`¿Mover ${ids.length} registro${ids.length !== 1 ? 's' : ''} a la papelera? Podrás restaurarlos desde Papelera.`)) return
+    setBulkBusy(true)
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/db/${config.table}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+          }).then((res) => {
+            if (!res.ok) throw new Error(`Error ${res.status}`)
+            return id
+          }),
+        ),
+      )
+      const okIds = new Set(
+        results.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map((r) => r.value),
+      )
+      const failed = results.length - okIds.size
+      if (okIds.size > 0) {
+        setData((prev) => prev.filter((r) => !okIds.has(String(r.id ?? ''))))
+        setBulkSelected((prev) => new Set(Array.from(prev).filter((id) => !okIds.has(id))))
+      }
+      if (failed > 0) {
+        alert(`${failed} de ${ids.length} no se pudieron mover a la papelera. Inténtalo de nuevo.`)
+      }
+    } catch (err) {
+      alert('Error al mover a la papelera: ' + (err instanceof Error ? err.message : 'desconocido'))
+    } finally {
+      setBulkBusy(false)
+    }
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -605,15 +642,17 @@ export default function TypedDocsView({ config, initialData }: Props) {
             <span className="text-xs text-amber-700 font-medium">{bulkSelected.size} seleccionados</span>
             <button
               onClick={() => handleBulkAction('export')}
-              className="text-[10px] font-bold uppercase tracking-widest text-neutral-700 hover:text-primary"
+              disabled={bulkBusy}
+              className="text-[10px] font-bold uppercase tracking-widest text-neutral-700 hover:text-primary disabled:opacity-50"
             >
               Exportar
             </button>
             <button
               onClick={() => handleBulkAction('delete')}
-              className="text-[10px] font-bold uppercase tracking-widest text-red-600 hover:text-red-800"
+              disabled={bulkBusy}
+              className="text-[10px] font-bold uppercase tracking-widest text-red-600 hover:text-red-800 disabled:opacity-50"
             >
-              Borrar
+              {bulkBusy ? 'Moviendo...' : 'Mover a papelera'}
             </button>
             <button
               onClick={() => setBulkSelected(new Set())}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type MouseEvent } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 interface AiData {
@@ -169,6 +169,7 @@ interface RevisionViewProps {
   projects: { value: string; label: string; code?: string }[]
   suppliers: { value: string; label: string }[]
   userEmail?: string
+  activeCompanyId?: string
 }
 
 // Sincronizado con CHECK constraint invoices.doc_type (cathedral-all.md)
@@ -357,6 +358,26 @@ function ForensicBadge({ data }: { data: ForensicData | undefined | null }) {
   )
 }
 
+// Botón "mover a papelera" — icono papelera consistente con las filas de la vista.
+function TrashButton({ onClick, busy }: { onClick: (e: MouseEvent) => void; busy: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      title="Mover a papelera"
+      className="text-neutral-300 hover:text-red-500 transition-colors disabled:opacity-50"
+    >
+      {busy ? (
+        <span className="text-xs">…</span>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
 const DOC_CATEGORY_PATH: Record<string, string> = {
   legal: 'escrituras',
   seguros: 'seguros',
@@ -366,7 +387,7 @@ const DOC_CATEGORY_PATH: Record<string, string> = {
   corporativo: 'corporativo',
 }
 
-export default function RevisionView({ initialData, pendingDocuments = [], pendingQuotes = [], initialOrphans = [], forensicByInvoice = {}, projects, suppliers, userEmail = 'admin' }: RevisionViewProps) {
+export default function RevisionView({ initialData, pendingDocuments = [], pendingQuotes = [], initialOrphans = [], forensicByInvoice = {}, projects, suppliers, userEmail = 'admin', activeCompanyId = '' }: RevisionViewProps) {
   const [items, setItems] = useState<ReviewItem[]>(initialData)
   const [docs, setDocs] = useState<PendingDocument[]>(pendingDocuments)
   const [quotes, setQuotes] = useState<PendingQuote[]>(pendingQuotes)
@@ -559,6 +580,88 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
       alert(`Error: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setQuickConfirming(null)
+    }
+  }
+
+  // ── Mover a papelera (soft-delete) ────────────────────────────────────────
+  // Reusa los endpoints auth-guarded ya probados:
+  //   - facturas/presupuestos → DELETE /api/db/{invoices|quotes} (∈ SOFT_DELETE_TABLES)
+  //   - documentos tipados     → POST /api/documentos/bulk {action:'trash'} (+ company header)
+  // NO se borra de verdad: se podrá restaurar desde la Papelera.
+  const TRASH_CONFIRM = '¿Mover a la papelera? Podrás restaurarlo desde Papelera.'
+  const [trashing, setTrashing] = useState<string | null>(null)
+
+  const trashInvoice = async (item: ReviewItem) => {
+    if (trashing) return
+    if (!confirm(TRASH_CONFIRM)) return
+    setTrashing(item.id)
+    try {
+      const res = await fetch('/api/db/invoices', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id }),
+      })
+      if (res.ok) {
+        setItems(prev => prev.filter(i => i.id !== item.id))
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(`Error: ${err.error ?? res.statusText}`)
+      }
+    } catch (e) {
+      alert(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTrashing(null)
+    }
+  }
+
+  const trashQuote = async (q: PendingQuote) => {
+    if (trashing) return
+    if (!confirm(TRASH_CONFIRM)) return
+    setTrashing(q.id)
+    try {
+      const res = await fetch('/api/db/quotes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: q.id }),
+      })
+      if (res.ok) {
+        setQuotes(prev => prev.filter(x => x.id !== q.id))
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(`Error: ${err.error ?? res.statusText}`)
+      }
+    } catch (e) {
+      alert(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTrashing(null)
+    }
+  }
+
+  const trashDoc = async (doc: PendingDocument) => {
+    if (trashing) return
+    const sourceTable = String((doc as { source_table?: string }).source_table ?? '')
+    if (!sourceTable) {
+      alert('No se puede mover: documento sin tabla de origen.')
+      return
+    }
+    if (!confirm(TRASH_CONFIRM)) return
+    setTrashing(doc.id)
+    try {
+      const res = await fetch('/api/documentos/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Active-Company-Id': activeCompanyId },
+        body: JSON.stringify({ action: 'trash', items: [{ source_table: sourceTable, source_id: doc.id }] }),
+      })
+      if (res.ok) {
+        setDocs(prev => prev.filter(d => d.id !== doc.id))
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(`Error: ${err.error ?? res.statusText}`)
+      }
+    } catch (e) {
+      alert(`Error: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTrashing(null)
     }
   }
 
@@ -863,10 +966,13 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                     <td className="p-3 text-center"><ProviderBadge provider={doc.ai_provider} /></td>
                     <td className="p-3 text-xs">{formatDate(doc.created_at)}</td>
                     <td className="p-3 text-right">
-                      <button onClick={e => { e.stopPropagation(); openDoc(doc) }}
-                        className="text-xs bg-violet-600 text-white px-2.5 py-1 rounded hover:bg-violet-700">
-                        Revisar →
-                      </button>
+                      <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                        <button onClick={e => { e.stopPropagation(); openDoc(doc) }}
+                          className="text-xs bg-violet-600 text-white px-2.5 py-1 rounded hover:bg-violet-700">
+                          Revisar →
+                        </button>
+                        <TrashButton busy={trashing === doc.id} onClick={e => { e.stopPropagation(); trashDoc(doc) }} />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -925,15 +1031,18 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                     <td className="p-3 text-center"><ReviewBadge status={q.review_status} /></td>
                     <td className="p-3 text-xs">{formatDate(q.issue_date)}</td>
                     <td className="p-3 text-right">
-                      {q.drive_url && (
-                        <a href={q.drive_url} target="_blank" rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="text-xs text-blue-600 hover:underline mr-2">Drive ↗</a>
-                      )}
-                      <button onClick={e => { e.stopPropagation(); openQuote(q) }}
-                        className="text-xs bg-cyan-600 text-white px-2.5 py-1 rounded hover:bg-cyan-700">
-                        Revisar
-                      </button>
+                      <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                        {q.drive_url && (
+                          <a href={q.drive_url} target="_blank" rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="text-xs text-blue-600 hover:underline">Drive ↗</a>
+                        )}
+                        <button onClick={e => { e.stopPropagation(); openQuote(q) }}
+                          className="text-xs bg-cyan-600 text-white px-2.5 py-1 rounded hover:bg-cyan-700">
+                          Revisar
+                        </button>
+                        <TrashButton busy={trashing === q.id} onClick={e => { e.stopPropagation(); trashQuote(q) }} />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1086,6 +1195,7 @@ export default function RevisionView({ initialData, pendingDocuments = [], pendi
                           {quickConfirming === item.id ? '…' : '✓'}
                         </button>
                       )}
+                      <TrashButton busy={trashing === item.id} onClick={(e) => { e.stopPropagation(); trashInvoice(item) }} />
                     </div>
                   </td>
                   <td className="p-3">
