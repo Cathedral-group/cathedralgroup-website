@@ -420,9 +420,11 @@ export default function DocumentsHubView({
     return JSON.stringify(filters) === JSON.stringify(DEFAULT_FILTERS) && !searchParams?.toString()
   }, [filters, searchParams])
 
+  const [reloadNonce, setReloadNonce] = useState(0)
+
   /* ─── Fetch al cambiar filtros ─── */
   useEffect(() => {
-    if (isInitialFilters) return  // ya hidratado server-side
+    if (isInitialFilters && reloadNonce === 0) return  // 1a carga: datos server-side; un refetch forzado (nonce>0) SÍ recarga
     let cancelled = false
     const fetchPage = async () => {
       try {
@@ -450,7 +452,7 @@ export default function DocumentsHubView({
     return () => {
       cancelled = true
     }
-  }, [filters, companyId, isInitialFilters])
+  }, [filters, companyId, isInitialFilters, reloadNonce])
 
   const handleLoadMore = async () => {
     if (loadingMore || !hasMore) return
@@ -607,8 +609,7 @@ export default function DocumentsHubView({
         throw new Error(j.error || `Error ${res.status}`)
       }
       clearSelection()
-      // Forzar refetch
-      setFilters((f) => ({ ...f }))
+      setReloadNonce((n) => n + 1) // fuerza refetch real (también en la vista inicial sin filtros)
     } catch (err) {
       alert('Error en acción masiva: ' + (err instanceof Error ? err.message : 'desconocido'))
     }
@@ -638,7 +639,7 @@ export default function DocumentsHubView({
         throw new Error(j.error || `Error ${res.status}`)
       }
       clearSelection()
-      setFilters((f) => ({ ...f }))
+      setReloadNonce((n) => n + 1)
     } catch (err) {
       alert(
         'Error al eliminar permanentemente: ' +
