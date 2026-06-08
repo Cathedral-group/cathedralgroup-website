@@ -62,7 +62,7 @@ sql_create_table_no_rls|supabase/migrations/20260510030000_fiscal_calendar.sql|F
 # ---------------------------------------------------------------------------
 ts_european_number_parse|app/admin/presupuestos/QuoteEditor.tsx|980
 ts_european_number_parse|app/admin/presupuestos/QuoteEditor.tsx|1387
-ts_european_number_parse|app/admin/revision/RevisionView.tsx|233
+ts_european_number_parse|app/admin/revision/RevisionView.tsx|234
 ts_european_number_parse|app/admin/proyectos/[code]/gantt/GanttProjectView.tsx|289
 #
 # Inserts fire-and-forget (void supabase.from(...).insert/update). Escrituras de

@@ -165,6 +165,7 @@ export async function GET(req: NextRequest) {
       : null
   const search = sp.get('search')?.trim() || null
   const includeDeleted = sp.get('include_deleted') === 'true'
+  const onlyDeleted = sp.get('only_deleted') === 'true'
   const cursor = sp.get('cursor')
   const limit = clampInt(sp.get('limit'), DEFAULT_LIMIT, 1, MAX_LIMIT)
   const sortRaw = sp.get('sort') ?? 'fecha_relevante'
@@ -188,7 +189,8 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function applyFilters(q: any): any {
     q = q.eq('company_id', companyId)
-    if (!includeDeleted) q = q.is('deleted_at', null)
+    if (onlyDeleted) q = q.not('deleted_at', 'is', null)
+    else if (!includeDeleted) q = q.is('deleted_at', null)
     if (docTypes && docTypes.length > 0) q = q.in('doc_type', docTypes)
     if (projectId) {
       q = q.eq('project_id', projectId)

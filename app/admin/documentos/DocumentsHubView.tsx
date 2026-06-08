@@ -336,7 +336,7 @@ function filtersToApi(f: Filters, cursor: string | null): string {
   if (f.vencimientoDias) p.set('vencimiento_dias', String(f.vencimientoDias))
   if (f.q) p.set('search', f.q)
   if (f.contraparte && !f.q) p.set('search', f.contraparte)
-  if (f.mostrarBorrados) p.set('include_deleted', 'true')
+  if (f.mostrarBorrados) p.set('only_deleted', 'true')
   if (cursor) p.set('cursor', cursor)
   return p.toString()
 }
