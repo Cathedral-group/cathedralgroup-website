@@ -517,7 +517,7 @@ export default function InvoiceForm({ invoice, projects, suppliers, allInvoices 
             <label className={labelCls}>Empresa emisora</label>
             <input
               type="text"
-              value={form.empresa ?? ''}
+              value={form.empresa ?? (suppliers.find((s) => s.value === form.supplier_nif)?.label.split(' - ').slice(1).join(' - ') || '')}
               onChange={(e) => set('empresa', e.target.value || null)}
               className={inputCls}
               placeholder="Ej: Leroy Merlin, Bauhaus..."
