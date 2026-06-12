@@ -48,7 +48,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const contentHtml = safeSource
     .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium mt-8 mb-3">$1</h3>')
     .replace(/^## (.*$)/gm, '<h2 class="text-xl font-medium mt-10 mb-4">$1</h2>')
-    .replace(/^\*\*(.*?)\*\*/gm, '<strong>$1</strong>')
+    // Enlaces [texto](url) — solo rutas internas o https, nunca javascript: u otros esquemas
+    .replace(/\[([^\]]+)\]\((\/[^)\s]*|https?:\/\/[^)\s]+)\)/g, '<a href="$2" class="text-primary underline underline-offset-4 hover:no-underline">$1</a>')
+    // Negritas **texto** en cualquier punto de la línea (antes solo al inicio)
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
     .replace(/^- (.*$)/gm, '<li class="ml-4 text-neutral-700">• $1</li>')
     .replace(/^\| (.*$)/gm, '<div class="text-sm text-neutral-600 border-b border-neutral-100 py-1">$1</div>')
     .replace(/\n\n/g, '</p><p class="text-neutral-700 leading-relaxed mb-4">')
