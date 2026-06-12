@@ -12,7 +12,7 @@ export default function Hero() {
         <div
           className="w-full bg-center bg-cover"
           style={{
-            backgroundImage: "url('/img/hero_final.jpg')",
+            backgroundImage: "url('/img/division-spaces.jpg')",
             height: '120%',
           }}
         />
