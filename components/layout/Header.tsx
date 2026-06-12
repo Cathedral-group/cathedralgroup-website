@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { key: 'projects', href: '/proyectos' },
   { key: 'services', href: '/servicios' },
   { key: 'zones', href: '/zonas' },
+  { key: 'blog', href: '/blog' },
   { key: 'about', href: '/nosotros' },
   { key: 'contact', href: '/contacto' },
   { key: 'budget', href: '/presupuesto' },
