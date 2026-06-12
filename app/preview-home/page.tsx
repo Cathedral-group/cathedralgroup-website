@@ -16,22 +16,22 @@ const DIVISIONS = [
     key: 'capital',
     name: 'Capital',
     desc: 'Inversión estratégica y consultoría inmobiliaria.',
-    href: '#',
-    active: false,
+    href: '/capital',
+    active: true,
   },
   {
     key: 'properties',
     name: 'Properties',
     desc: 'Comercialización selecta de activos residenciales.',
-    href: '#',
-    active: false,
+    href: '/properties',
+    active: true,
   },
   {
     key: 'developments',
     name: 'Developments',
     desc: 'Promoción y desarrollo de proyectos arquitectónicos singulares.',
-    href: '#',
-    active: false,
+    href: '/developments',
+    active: true,
   },
 ]
 
@@ -39,7 +39,7 @@ export default function PreviewHomePage() {
   return (
     <main className="bg-white">
       {/* Hero con brand film */}
-      <section className="relative w-full min-h-[88vh] flex items-center justify-center overflow-hidden bg-white">
+      <section className="relative w-full h-[90vh] flex items-center justify-center overflow-hidden bg-white">
         <HeroVideo />
       </section>
 
