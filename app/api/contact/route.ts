@@ -154,7 +154,9 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
         apikey: anonKey,
         Authorization: `Bearer ${anonKey}`,
-        Prefer: 'return=representation',
+        // return=minimal obligatorio: anon NO tiene policy SELECT en leads (deliberado),
+        // y return=representation ejecuta RETURNING que exige pasar policies SELECT → 42501.
+        Prefer: 'return=minimal',
       },
       body: JSON.stringify([
         {
