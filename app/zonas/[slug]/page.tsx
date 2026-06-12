@@ -12,12 +12,12 @@ const relatedServices: { href: string; labelEs: string; labelEn: string }[] = [
 
 const zoneRelatedPosts: Record<string, { href: string; labelEs: string; labelEn: string }[]> = {
   'reformas-salamanca': [
-    { href: '/blog/reformas-lujo-salamanca-madrid', labelEs: 'Reformas de lujo en Salamanca', labelEn: 'Luxury renovations in Salamanca' },
+    { href: '/blog/reformas-lujo-salamanca-madrid', labelEs: 'Reformas de alto standing en Salamanca', labelEn: 'Luxury renovations in Salamanca' },
     { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
     { href: '/blog/tendencias-interiorismo-2026', labelEs: 'Tendencias en interiorismo 2026', labelEn: 'Interior design trends 2026' },
   ],
   'reformas-chamberi': [
-    { href: '/blog/reformas-lujo-chamberi-madrid', labelEs: 'Reformas de lujo en Chamberí', labelEn: 'Luxury renovations in Chamberí' },
+    { href: '/blog/reformas-lujo-chamberi-madrid', labelEs: 'Reformas de alto standing en Chamberí', labelEn: 'Luxury renovations in Chamberí' },
     { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
   ],
   'reformas-chamartin': [
@@ -45,7 +45,7 @@ const zoneRelatedPosts: Record<string, { href: string; labelEs: string; labelEn:
     { href: '/blog/reforma-integral-vs-parcial', labelEs: 'Reforma integral vs parcial', labelEn: 'Full vs partial renovation' },
   ],
   'reformas-la-moraleja': [
-    { href: '/blog/reformas-lujo-salamanca-madrid', labelEs: 'Reformas de lujo: referencia Salamanca', labelEn: 'Luxury renovations: Salamanca reference' },
+    { href: '/blog/reformas-lujo-salamanca-madrid', labelEs: 'Reformas de alto standing: referencia Salamanca', labelEn: 'Luxury renovations: Salamanca reference' },
     { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
     { href: '/blog/tendencias-interiorismo-2026', labelEs: 'Tendencias en interiorismo 2026', labelEn: 'Interior design trends 2026' },
   ],
@@ -108,7 +108,7 @@ export default async function ZonePage({ params }: { params: Promise<{ slug: str
               <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">
                 {locale === 'en' ? 'Specialty' : 'Especialidad'}
               </p>
-              <p className="text-sm">{locale === 'en' ? 'Luxury renovations' : 'Reformas de lujo'}</p>
+              <p className="text-sm">{locale === 'en' ? 'Luxury renovations' : 'Reformas de alto standing'}</p>
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">

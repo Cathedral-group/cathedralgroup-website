@@ -60,8 +60,8 @@ sql_create_table_no_rls|supabase/migrations/20260510030000_fiscal_calendar.sql|F
 # TS — deuda conocida. parseo europeo en editores/vistas (usan inputs ya
 # normalizados o son campos de UI controlada); migrar a toNumber al tocar.
 # ---------------------------------------------------------------------------
-ts_european_number_parse|app/admin/presupuestos/QuoteEditor.tsx|980
-ts_european_number_parse|app/admin/presupuestos/QuoteEditor.tsx|1387
+ts_european_number_parse|app/admin/presupuestos/QuoteEditor.tsx|982
+ts_european_number_parse|app/admin/presupuestos/QuoteEditor.tsx|1389
 ts_european_number_parse|app/admin/revision/RevisionView.tsx|234
 ts_european_number_parse|app/admin/proyectos/[code]/gantt/GanttProjectView.tsx|289
 #

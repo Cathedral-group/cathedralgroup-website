@@ -21,7 +21,7 @@ const relatedContent: Record<string, { posts: { href: string; labelEs: string; l
   'interiorismo-madrid': {
     posts: [
       { href: '/blog/tendencias-interiorismo-2026', labelEs: 'Tendencias en interiorismo 2026', labelEn: 'Interior design trends 2026' },
-      { href: '/blog/reformas-lujo-salamanca-madrid', labelEs: 'Reformas de lujo en Salamanca', labelEn: 'Luxury renovations in Salamanca' },
+      { href: '/blog/reformas-lujo-salamanca-madrid', labelEs: 'Reformas de alto standing en Salamanca', labelEn: 'Luxury renovations in Salamanca' },
     ],
     zones: [
       { href: '/zonas/reformas-salamanca', labelEs: 'Interiorismo en Salamanca', labelEn: 'Interior design in Salamanca' },

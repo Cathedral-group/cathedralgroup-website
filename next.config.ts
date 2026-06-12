@@ -14,7 +14,9 @@ import type { NextConfig } from 'next'
 // Si añades nuevos servicios externos, actualiza la directiva relevante.
 const CSP_HEADER = [
   "default-src 'self'",
-  "img-src 'self' data: blob: https://cpqsnajuypgjjapvbqsr.supabase.co",
+  // *.google-analytics.com / *.googletagmanager.com: pixel de fallback GA4
+  // (guía oficial: developers.google.com/tag-platform/security/guides/csp)
+  "img-src 'self' data: blob: https://cpqsnajuypgjjapvbqsr.supabase.co https://*.google-analytics.com https://*.googletagmanager.com",
   // 'unsafe-inline' es necesario por Next.js (hidrataciones inline). Sin nonces dinámicos.
   // 'unsafe-eval' eliminado 8/05/2026 (re-eliminado 18/05/2026 tras pivotar A — quitando
   // scanner opencv.js que lo requería). Next.js 15 no lo necesita en prod.
@@ -22,8 +24,12 @@ const CSP_HEADER = [
   "script-src-elem 'self' 'unsafe-inline' https://challenges.cloudflare.com https://va.vercel-scripts.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
-  "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com",
-  "frame-src 'self' https://challenges.cloudflare.com",
+  // GA4 envía hits a endpoints regionales (region1.google-analytics.com en la UE) y a
+  // *.analytics.google.com — sin estos orígenes la CSP bloquea TODA la analítica
+  // (guía oficial: developers.google.com/tag-platform/security/guides/csp#google_analytics_4).
+  "connect-src 'self' https://cpqsnajuypgjjapvbqsr.supabase.co https://challenges.cloudflare.com https://vitals.vercel-insights.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://www.google.com",
+  // www.google.com: iframe del mapa de Google Maps embed de la homepage.
+  "frame-src 'self' https://challenges.cloudflare.com https://www.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

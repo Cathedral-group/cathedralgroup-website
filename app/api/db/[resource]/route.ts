@@ -190,7 +190,7 @@ function buildPdfHeader(division: string | null): string {
         <img src="https://cathedralgroup.es/img/logo.png" alt="Cathedral Group" class="logo" />
         <div class="company-name">Cathedral Group</div>
         ${divisionLine}
-        <div class="company-tagline">Reformas y promociones de lujo · Madrid</div>
+        <div class="company-tagline">Reformas y promociones de alto standing · Madrid</div>
         <div class="company-detail">Cathedral Group SL · CIF B19761915 · cathedralgroup.es</div>
       </div>
       <div class="doc-slot"><!-- doc block injected per PDF type --></div>
@@ -603,7 +603,7 @@ async function buildQuotePdf(id: string): Promise<NextResponse> {
   }
 
   const division = divisionFor(projectType)
-  const qualityLabels: Record<string, string> = { estandar: 'Estándar', premium: 'Premium', lujo: 'Lujo' }
+  const qualityLabels: Record<string, string> = { estandar: 'Estándar', premium: 'Premium', lujo: 'Alto Standing' }
   const items: { description: string; quantity: number; unit: string; unit_price: number; vat_pct: number; total: number; chapter_code?: string; chapter_name?: string; notes?: string }[] = Array.isArray(quote.items) ? quote.items : []
 
   // QR code for client portal
