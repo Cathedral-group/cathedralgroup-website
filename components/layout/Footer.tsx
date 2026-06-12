@@ -86,8 +86,8 @@ export default function Footer() {
           <p>&copy; {new Date().getFullYear()} Cathedral House Investment S.L. — {t('rights')}</p>
           <div className="flex gap-6">
             <a href="/legal" className="hover:text-primary premium-transition">{t('legal')}</a>
-            <a href="/legal" className="hover:text-primary premium-transition">{t('privacy')}</a>
-            <a href="/legal" className="hover:text-primary premium-transition">{t('cookies')}</a>
+            <a href="/legal#privacidad" className="hover:text-primary premium-transition">{t('privacy')}</a>
+            <a href="/legal#cookies" className="hover:text-primary premium-transition">{t('cookies')}</a>
           </div>
         </div>
       </div>
