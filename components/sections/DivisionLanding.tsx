@@ -69,7 +69,7 @@ export default function DivisionLanding({ division }: { division: Division }) {
       {/* Volver a divisiones */}
       <section className="py-12 bg-white text-center">
         <Link
-          href="/preview-home"
+          href="/"
           className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 hover:text-primary transition-colors"
         >
           ← Ver todas las divisiones

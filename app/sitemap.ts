@@ -11,7 +11,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // OJO: NO añadir rutas /en/* — el idioma EN funciona por cookie sobre las
   // mismas URLs (no existen rutas /en), anunciarlas generaba 35 URLs 404.
   const staticPages = [
-    '', '/nosotros', '/contacto', '/proyectos', '/servicios', '/zonas', '/blog', '/legal', '/presupuesto',
+    '', '/spaces', '/capital', '/properties', '/developments',
+    '/nosotros', '/contacto', '/proyectos', '/servicios', '/zonas', '/blog', '/legal', '/presupuesto',
   ]
 
   const staticEntries = staticPages.map((page) => (

@@ -2,9 +2,9 @@
 
 import { useEffect, useRef } from 'react'
 
-// Hero del brand film: se reproduce UNA vez (sin bucle) y se queda en el último
-// frame. Cuando el hero sale de la vista y vuelve a entrar (scroll arriba), se
-// reinicia y reproduce de nuevo.
+// Hero del brand film de la home: se reproduce UNA vez (sin bucle) y se queda
+// en el último frame (logo + CATHEDRAL GROUP). Cuando el hero sale de la vista
+// y vuelve a entrar (scroll arriba), se reinicia y reproduce de nuevo. Sin audio.
 export default function HeroVideo() {
   const ref = useRef<HTMLVideoElement>(null)
 
@@ -15,7 +15,6 @@ export default function HeroVideo() {
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          // Entra en vista → reinicia desde el principio y reproduce
           v.currentTime = 0
           v.play().catch(() => {})
         } else {

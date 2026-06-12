@@ -33,10 +33,10 @@ export default function Footer() {
               {t('divisions')}
             </h5>
             <ul className="space-y-3 text-xs text-neutral-500">
-              <li><a href="#" className="hover:text-primary transition-colors">Cathedral Spaces</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Cathedral Capital</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Cathedral Properties</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Cathedral Developments</a></li>
+              <li><a href="/spaces" className="hover:text-primary transition-colors">Cathedral Spaces</a></li>
+              <li><a href="/capital" className="hover:text-primary transition-colors">Cathedral Capital</a></li>
+              <li><a href="/properties" className="hover:text-primary transition-colors">Cathedral Properties</a></li>
+              <li><a href="/developments" className="hover:text-primary transition-colors">Cathedral Developments</a></li>
             </ul>
           </div>
 
