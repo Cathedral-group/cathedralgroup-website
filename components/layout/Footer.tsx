@@ -7,12 +7,15 @@ export default function Footer() {
   const t = useT('footer')
 
   return (
-    <footer className="bg-white border-t border-neutral-100 py-16">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="grid md:grid-cols-4 gap-12 mb-10">
-          {/* Column 1: Logo & Description */}
+    <footer className="bg-white">
+      {/* Línea divisoria de lado a lado */}
+      <hr className="border-t border-neutral-100" />
+
+      <div className="max-w-7xl mx-auto px-6 py-16">
+        <div className="grid md:grid-cols-4 gap-12 mb-10 text-center">
+          {/* Columna 1: Logo & Descripción */}
           <div>
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center justify-center gap-2 mb-6">
               <Image
                 src="/img/logo.png"
                 alt="Cathedral Group"
@@ -27,7 +30,7 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Column 2: Divisions */}
+          {/* Columna 2: Divisiones */}
           <div>
             <h5 className="text-xs font-bold uppercase tracking-widest mb-6">
               {t('divisions')}
@@ -40,7 +43,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Column 3: Contact */}
+          {/* Columna 3: Contacto */}
           <div>
             <h5 className="text-xs font-bold uppercase tracking-widest mb-6">
               {t('contact')}
@@ -53,12 +56,12 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Column 4: Social */}
+          {/* Columna 4: Síguenos */}
           <div>
             <h5 className="text-xs font-bold uppercase tracking-widest mb-6">
               {t('follow')}
             </h5>
-            <div className="flex gap-4">
+            <div className="flex justify-center gap-4">
               <a
                 href="#"
                 className="w-10 h-10 border border-neutral-200 flex items-center justify-center hover:bg-primary hover:text-white transition-colors premium-transition"
@@ -73,9 +76,13 @@ export default function Footer() {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Bottom Bar */}
-        <div className="pt-8 border-t border-neutral-100 flex flex-col md:flex-row justify-between gap-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+      {/* Línea divisoria de lado a lado antes del pie */}
+      <hr className="border-t border-neutral-100" />
+
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="flex flex-col md:flex-row md:justify-between items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
           <p>&copy; {new Date().getFullYear()} Cathedral House Investment S.L. — {t('rights')}</p>
           <div className="flex gap-6">
             <a href="/legal" className="hover:text-primary premium-transition">{t('legal')}</a>
