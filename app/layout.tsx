@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     siteName: 'Cathedral Group',
     title: 'Cathedral Group | Arquitectura y Diseño de Alto Standing en Madrid',
     description: 'Estudio de arquitectura, diseño y reformas en Madrid especializado en proyectos residenciales de alto standing.',
-    images: [{ url: '/img/hero_final.jpg', width: 2048, height: 1365, alt: 'Cathedral Group' }],
+    images: [{ url: '/img/proj-atico.jpg', width: 2048, height: 1365, alt: 'Cathedral Group' }],
   },
   icons: {
     icon: [

@@ -5,13 +5,13 @@ import SectionLabel from '@/components/ui/SectionLabel'
 
 const PROJECTS = [
   {
-    image: '/img/project1.jpg',
+    image: '/img/proj-atico.jpg',
     location: 'Salamanca, Madrid',
     name: 'Ático Velázquez',
     alt: 'Luxury penthouse renovation in Barrio de Salamanca Madrid',
   },
   {
-    image: '/img/project2b.jpg',
+    image: '/img/proj-villa.jpg',
     location: 'Pozuelo de Alarcón',
     name: 'Residencia La Finca',
     alt: 'Minimalist modern villa architecture in Pozuelo de Alarcon',

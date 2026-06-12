@@ -16,7 +16,7 @@ export default function NosotrosPage() {
       <section className="relative h-[50vh] flex items-end overflow-hidden">
         <div
           className="absolute inset-0 bg-center bg-cover"
-          style={{ backgroundImage: "url('/img/about_upscaled.jpg')" }}
+          style={{ backgroundImage: "url('/img/nosotros-estudio.jpg')" }}
         />
         <div className="absolute inset-0 bg-black/30" />
         <div className="relative z-10 max-w-7xl mx-auto px-6 pb-12 w-full">

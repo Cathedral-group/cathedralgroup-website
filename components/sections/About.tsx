@@ -57,7 +57,7 @@ export default function About() {
       <div className="w-full h-80 md:h-[500px] bg-neutral-100 overflow-hidden">
         <div
           className="w-full h-full bg-center bg-cover"
-          style={{ backgroundImage: "url('/img/about_upscaled.jpg')" }}
+          style={{ backgroundImage: "url('/img/nosotros-estudio.jpg')" }}
           role="img"
           aria-label="Interior of an elegant architectural studio in Madrid"
           data-animate="fade-up"

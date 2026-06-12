@@ -8,10 +8,10 @@ export const metadata = {
 }
 
 const PROJECTS = [
-  { image: '/img/project1.jpg', name: 'Ático Velázquez', zone: 'Salamanca', type: 'Reforma integral' },
-  { image: '/img/project2b.jpg', name: 'Residencia La Finca', zone: 'Pozuelo', type: 'Obra nueva' },
-  { image: '/img/hero_final.jpg', name: 'Apartamento Castellana', zone: 'Chamberí', type: 'Interiorismo' },
-  { image: '/img/about_upscaled.jpg', name: 'Loft Malasaña', zone: 'Centro', type: 'Cambio de uso' },
+  { image: '/img/proj-atico.jpg', name: 'Ático Velázquez', zone: 'Salamanca', type: 'Reforma integral' },
+  { image: '/img/proj-villa.jpg', name: 'Residencia La Finca', zone: 'Pozuelo', type: 'Obra nueva' },
+  { image: '/img/proj-castellana.jpg', name: 'Apartamento Castellana', zone: 'Chamberí', type: 'Interiorismo' },
+  { image: '/img/proj-loft.jpg', name: 'Loft Malasaña', zone: 'Centro', type: 'Cambio de uso' },
 ]
 
 export default function ProyectosPage() {
