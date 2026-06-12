@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import HeroVideo from './HeroVideo'
 
 // Página de previsualización (noindex, sin enlazar) de la futura home paraguas.
 // Hero con el brand film + selector de las 4 divisiones. No toca la home real.
@@ -39,15 +40,7 @@ export default function PreviewHomePage() {
     <main className="bg-white">
       {/* Hero con brand film */}
       <section className="relative w-full min-h-[88vh] flex items-center justify-center overflow-hidden bg-white">
-        <video
-          className="absolute inset-0 w-full h-full object-cover"
-          autoPlay
-          muted
-          playsInline
-          poster="/video/hero-poster.jpg"
-        >
-          <source src="/video/hero-cathedral.mp4" type="video/mp4" />
-        </video>
+        <HeroVideo />
       </section>
 
       {/* Selector de divisiones */}
