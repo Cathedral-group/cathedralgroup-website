@@ -1,36 +1,15 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-
-// Hero del brand film de la home: se reproduce UNA vez (sin bucle) y se queda
-// en el último frame (logo + CATHEDRAL GROUP). Cuando el hero sale de la vista
-// y vuelve a entrar (scroll arriba), se reinicia y reproduce de nuevo. Sin audio.
+// Hero del brand film de la home: se reproduce UNA vez al cargar la página
+// (autoplay, sin bucle, sin audio) y se queda FIJO en el último frame
+// (escena velada + CATHEDRAL GROUP). Solo vuelve a reproducirse al recargar
+// la página o al navegar fuera y volver a la home (el componente se remonta).
+// Es above-the-fold y a pantalla completa → no necesita IntersectionObserver.
 export default function HeroVideo() {
-  const ref = useRef<HTMLVideoElement>(null)
-
-  useEffect(() => {
-    const v = ref.current
-    if (!v) return
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          v.currentTime = 0
-          v.play().catch(() => {})
-        } else {
-          v.pause()
-        }
-      },
-      { threshold: 0.35 }
-    )
-    io.observe(v)
-    return () => io.disconnect()
-  }, [])
-
   return (
     <video
-      ref={ref}
       className="absolute inset-0 w-full h-full object-cover"
+      autoPlay
       muted
       playsInline
       preload="auto"
