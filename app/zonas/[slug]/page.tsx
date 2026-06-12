@@ -62,8 +62,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const name = locale === 'en' ? zone.nameEn : zone.nameEs
   return {
-    title: `Reformas en ${name} | Cathedral Group`,
+    // Sin sufijo "| Cathedral Group": lo añade el title.template del root layout
+    title: locale === 'en' ? `Renovations in ${name}` : `Reformas en ${name}`,
     description: locale === 'en' ? zone.descriptionEn : zone.descriptionEs,
+    alternates: { canonical: `/zonas/${slug}` },
   }
 }
 

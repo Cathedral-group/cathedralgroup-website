@@ -3,8 +3,10 @@ import { getAllPosts, getAllCategories } from '@/lib/blog'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 export const metadata = {
-  title: 'Blog | Cathedral Group',
+  // Sin sufijo "| Cathedral Group": lo añade el title.template del root layout
+  title: 'Blog',
   description: 'Guías, tendencias y consejos sobre reformas, interiorismo y arquitectura de lujo en Madrid.',
+  alternates: { canonical: '/blog' },
 }
 
 export default function BlogPage() {

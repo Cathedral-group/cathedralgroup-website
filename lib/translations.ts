@@ -117,6 +117,14 @@ const es = {
     ctaSubtitle: 'Nuestro equipo elaborará una propuesta personalizada sin compromiso.',
     ctaButton: 'Solicitar Presupuesto Detallado',
     disclaimer: 'Precios orientativos. El presupuesto final depende del proyecto específico, el estado actual del inmueble y los materiales seleccionados.',
+    leadSubtitle: 'Déjenos sus datos y un especialista le preparará una propuesta personalizada sin compromiso.',
+    leadName: 'Nombre',
+    leadEmail: 'Email',
+    leadPhone: 'Teléfono (opcional)',
+    leadSending: 'Enviando…',
+    leadError: 'No se pudo enviar la solicitud. Inténtelo de nuevo en unos minutos o escríbanos desde la página de contacto.',
+    leadSuccessTitle: 'Solicitud recibida',
+    leadSuccessText: 'Gracias por su interés. Nuestro equipo se pondrá en contacto a la mayor brevedad con su propuesta personalizada.',
   },
 }
 
@@ -239,6 +247,14 @@ const en = {
     ctaSubtitle: 'Our team will prepare a personalised proposal at no obligation.',
     ctaButton: 'Request Detailed Quote',
     disclaimer: 'Indicative prices. The final budget depends on the specific project, the current state of the property and the materials selected.',
+    leadSubtitle: 'Leave us your details and a specialist will prepare a personalised proposal at no obligation.',
+    leadName: 'Name',
+    leadEmail: 'Email',
+    leadPhone: 'Phone (optional)',
+    leadSending: 'Sending…',
+    leadError: 'Your request could not be sent. Please try again in a few minutes or contact us via the contact page.',
+    leadSuccessTitle: 'Request received',
+    leadSuccessText: 'Thank you for your interest. Our team will get back to you shortly with your personalised proposal.',
   },
 }
 

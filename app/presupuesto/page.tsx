@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import Link from 'next/link'
 import { useT } from '@/lib/translations'
 
 /* ── Schema.org WebApplication (injected once) ── */
@@ -71,6 +70,143 @@ const EXTRAS = [
 /* ── Helpers ── */
 function formatPrice(n: number) {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+}
+
+/* ── Captura de lead en el resultado ──
+   Componente a nivel de módulo (NO anidado en PresupuestoPage): los componentes
+   anidados se recrean en cada render del padre y React los desmonta/remonta,
+   perdiendo el foco del input en cada pulsación. */
+function CalculatorLeadForm({
+  tipoProyecto,
+  zona,
+  sqm,
+  rango,
+  detalle,
+}: {
+  tipoProyecto: string
+  zona: string
+  sqm: number
+  rango: string
+  detalle: string
+}) {
+  const t = useT('calculator')
+  const [nombre, setNombre] = useState('')
+  const [email, setEmail] = useState('')
+  const [telefono, setTelefono] = useState('')
+  const [empresaWeb, setEmpresaWeb] = useState('')
+  const [status, setStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (status === 'sending') return
+    setStatus('sending')
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
+          email,
+          telefono: telefono.replace(/\s/g, ''),
+          tipo_proyecto: tipoProyecto,
+          zona,
+          metros_cuadrados: sqm,
+          presupuesto_rango: rango,
+          mensaje: detalle,
+          empresa_web: empresaWeb,
+          source_page: '/presupuesto',
+        }),
+      })
+      setStatus(res.ok ? 'ok' : 'error')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  if (status === 'ok') {
+    return (
+      <div className="border border-primary/30 bg-[#F5F0EB] p-8 text-center">
+        <div className="w-12 h-12 mx-auto mb-4 border-2 border-primary flex items-center justify-center">
+          <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-light uppercase tracking-wide text-neutral-800 mb-2">
+          {t('leadSuccessTitle')}
+        </h3>
+        <p className="text-sm text-neutral-600">{t('leadSuccessText')}</p>
+      </div>
+    )
+  }
+
+  const inputClass =
+    'w-full bg-white border border-neutral-300 focus:border-primary focus:ring-1 focus:ring-primary p-3.5 text-sm text-neutral-900 placeholder:text-neutral-400'
+
+  return (
+    <div className="border border-primary/30 bg-[#F5F0EB] p-8">
+      <div className="text-center mb-6">
+        <h3 className="text-lg font-light uppercase tracking-wide text-neutral-800 mb-2">
+          {t('ctaTitle')}
+        </h3>
+        <p className="text-sm text-neutral-600">{t('leadSubtitle')}</p>
+      </div>
+      <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-3">
+        <input
+          type="text"
+          required
+          minLength={2}
+          maxLength={100}
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder={t('leadName')}
+          className={inputClass}
+          autoComplete="name"
+        />
+        <input
+          type="email"
+          required
+          maxLength={200}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={t('leadEmail')}
+          className={inputClass}
+          autoComplete="email"
+        />
+        <input
+          type="tel"
+          maxLength={20}
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+          placeholder={t('leadPhone')}
+          className={inputClass}
+          autoComplete="tel"
+        />
+        {/* Honeypot anti-spam: oculto para humanos, los bots lo rellenan */}
+        <input
+          type="text"
+          name="empresa_web"
+          value={empresaWeb}
+          onChange={(e) => setEmpresaWeb(e.target.value)}
+          className="hidden"
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+        />
+        {status === 'error' && (
+          <p className="text-xs text-red-600 text-center" role="alert">
+            {t('leadError')}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={status === 'sending'}
+          className="w-full px-10 py-3.5 border border-neutral-800 text-neutral-800 text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] transition-all duration-500 disabled:opacity-50 disabled:cursor-wait"
+        >
+          {status === 'sending' ? t('leadSending') : t('ctaButton')}
+        </button>
+      </form>
+    </div>
+  )
 }
 
 /* ── Component ── */
@@ -448,19 +584,24 @@ export default function PresupuestoPage() {
           {t('disclaimer')}
         </p>
 
-        {/* CTA */}
-        <div className="border border-primary/30 bg-[#F5F0EB] p-8 text-center">
-          <h3 className="text-lg font-light uppercase tracking-wide text-neutral-800 mb-2">
-            {t('ctaTitle')}
-          </h3>
-          <p className="text-sm text-neutral-600 mb-6">{t('ctaSubtitle')}</p>
-          <Link
-            href="/contacto"
-            className="inline-block px-10 py-3.5 border border-neutral-800 text-neutral-800 text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] transition-all duration-500"
-          >
-            {t('ctaButton')}
-          </Link>
-        </div>
+        {/* Captura de lead con el contexto de la estimación */}
+        <CalculatorLeadForm
+          tipoProyecto={projectType ? t(projectType) : ''}
+          zona={zone !== null ? t(ZONES[zone].key) : ''}
+          sqm={sqm}
+          rango={`${formatPrice(r.totalMin)} - ${formatPrice(r.totalMax)}`}
+          detalle={[
+            'Lead calculadora de presupuesto',
+            projectType ? t(projectType) : null,
+            zone !== null ? t(ZONES[zone].key) : null,
+            `${sqm} m²`,
+            finishLevel !== null ? t(FINISH_LEVELS[finishLevel].key) : null,
+            extras.size > 0 ? `Extras: ${[...extras].map((k) => t(k)).join(', ')}` : null,
+            `Estimación: ${formatPrice(r.totalMin)} - ${formatPrice(r.totalMax)}`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        />
 
         {/* Reset button */}
         <div className="text-center mt-8">
@@ -504,8 +645,11 @@ export default function PresupuestoPage() {
           {!showResult && <ProgressBar />}
 
           <div className="min-h-[400px]">
+            {/* ResultView() como llamada (no <ResultView />): al ser función anidada,
+                montarla como componente la remontaría en cada render del padre y
+                CalculatorLeadForm perdería estado/foco. Como llamada es JSX inline. */}
             {showResult ? (
-              <ResultView />
+              ResultView()
             ) : (
               <>
                 {step === 1 && <Step1 />}

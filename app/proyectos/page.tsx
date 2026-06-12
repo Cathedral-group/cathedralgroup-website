@@ -1,6 +1,12 @@
 import { useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
+export const metadata = {
+  title: 'Proyectos: Portfolio de Reformas e Interiorismo en Madrid',
+  description: 'Selección de reformas integrales, interiorismo y obra nueva de lujo realizados en los mejores barrios de Madrid.',
+  alternates: { canonical: '/proyectos' },
+}
+
 const PROJECTS = [
   { image: '/img/project1.jpg', name: 'Ático Velázquez', zone: 'Salamanca', type: 'Reforma integral' },
   { image: '/img/project2b.jpg', name: 'Residencia La Finca', zone: 'Pozuelo', type: 'Obra nueva' },

@@ -1,6 +1,12 @@
 import { useT } from '@/lib/translations'
 import SmartForm from '@/components/forms/SmartForm'
 
+export const metadata = {
+  title: 'Contacto',
+  description: 'Cuéntenos su proyecto de reforma, interiorismo u obra nueva en Madrid. Respuesta en menos de 24 horas laborables.',
+  alternates: { canonical: '/contacto' },
+}
+
 export default function ContactoPage() {
   const t = useT('form')
 

@@ -3,6 +3,12 @@ import Link from 'next/link'
 import { zones } from '@/content/zones'
 import SectionLabel from '@/components/ui/SectionLabel'
 
+export const metadata = {
+  title: 'Zonas: Reformas de Lujo por Barrios de Madrid',
+  description: 'Reformas y proyectos de interiorismo de lujo en Salamanca, Chamberí, Chamartín, Retiro, Pozuelo, Las Rozas, Majadahonda, Aravaca y La Moraleja.',
+  alternates: { canonical: '/zonas' },
+}
+
 export default function ZonasHubPage() {
   const t = useT('zones')
 

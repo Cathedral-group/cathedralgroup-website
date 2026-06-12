@@ -1,3 +1,9 @@
+export const metadata = {
+  title: 'Aviso Legal',
+  description: 'Aviso legal, política de privacidad y condiciones de uso del sitio web de Cathedral Group.',
+  alternates: { canonical: '/legal' },
+}
+
 export default function LegalPage() {
   return (
     <section className="py-16 bg-white">

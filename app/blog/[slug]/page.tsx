@@ -13,8 +13,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!post) return {}
 
   return {
-    title: `${locale === 'en' ? post.titleEn : post.title} | Cathedral Group`,
+    // Sin sufijo "| Cathedral Group": lo añade el title.template del root layout
+    title: locale === 'en' ? post.titleEn : post.title,
     description: locale === 'en' ? post.descriptionEn : post.description,
+    alternates: { canonical: `/blog/${slug}` },
     openGraph: {
       title: locale === 'en' ? post.titleEn : post.title,
       description: locale === 'en' ? post.descriptionEn : post.description,

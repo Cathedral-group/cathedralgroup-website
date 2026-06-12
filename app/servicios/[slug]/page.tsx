@@ -86,8 +86,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const title = locale === 'en' ? service.titleEn : service.titleEs
   return {
-    title: `${title} | Cathedral Group`,
+    // Sin sufijo "| Cathedral Group": lo añade el title.template del root layout
+    title,
     description: locale === 'en' ? service.descriptionEn : service.descriptionEs,
+    alternates: { canonical: `/servicios/${slug}` },
   }
 }
 
