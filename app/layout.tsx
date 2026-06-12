@@ -47,6 +47,7 @@ export const metadata: Metadata = {
 }
 
 import LayoutSwitch from '@/components/layout/LayoutSwitch'
+import CookieBanner from '@/components/layout/CookieBanner'
 
 export default function RootLayout({
   children,
@@ -55,13 +56,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className={manrope.variable}>
+      {/* Consent Mode v2: el default 'denied' DEBE ejecutarse antes de que cargue
+          gtag.js (orden vital según docs Google) → bloque separado beforeInteractive.
+          GA no mide ni pone cookies hasta que CookieBanner llame a consent update. */}
+      <Script id="ga4-consent-default" strategy="beforeInteractive">
+        {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});`}
+      </Script>
       <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
       <Script id="ga4-init" strategy="afterInteractive">
-        {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`}
+        {`gtag('js',new Date());gtag('config','${GA_ID}');`}
       </Script>
       <body className="font-display text-neutral-900 antialiased">
         <LayoutSwitch>{children}</LayoutSwitch>
         <LocaleInit />
+        <CookieBanner />
       </body>
     </html>
   )
