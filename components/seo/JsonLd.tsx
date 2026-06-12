@@ -86,7 +86,7 @@ export const ORGANIZATION_SCHEMA = {
   name: 'Cathedral Group',
   url: 'https://cathedralgroup.es',
   logo: 'https://cathedralgroup.es/img/logo.png',
-  description: 'Estudio de arquitectura, diseño y reformas de lujo en Madrid.',
+  description: 'Estudio de arquitectura, diseño y reformas de alto standing en Madrid.',
   address: {
     '@type': 'PostalAddress',
     streetAddress: 'Paseo de la Castellana 40, 8º',

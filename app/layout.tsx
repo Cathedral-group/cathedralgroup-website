@@ -20,18 +20,18 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   metadataBase: new URL('https://cathedralgroup.es'),
   title: {
-    default: 'Cathedral Group | Arquitectura y Diseño de Lujo en Madrid',
+    default: 'Cathedral Group | Arquitectura y Diseño de Alto Standing en Madrid',
     template: '%s | Cathedral Group',
   },
   description: 'Estudio de arquitectura, diseño y reformas en Madrid especializado en proyectos residenciales de alto standing.',
-  keywords: ['reformas Madrid', 'arquitectura lujo', 'interiorismo Madrid', 'reforma integral', 'cambio de uso', 'obra nueva Madrid'],
+  keywords: ['reformas Madrid', 'arquitectura alto standing', 'interiorismo Madrid', 'reforma integral', 'cambio de uso', 'obra nueva Madrid'],
   authors: [{ name: 'Cathedral Group' }],
   openGraph: {
     type: 'website',
     locale: 'es_ES',
     url: 'https://cathedralgroup.es',
     siteName: 'Cathedral Group',
-    title: 'Cathedral Group | Arquitectura y Diseño de Lujo en Madrid',
+    title: 'Cathedral Group | Arquitectura y Diseño de Alto Standing en Madrid',
     description: 'Estudio de arquitectura, diseño y reformas en Madrid especializado en proyectos residenciales de alto standing.',
     images: [{ url: '/img/hero_final.jpg', width: 2048, height: 1365, alt: 'Cathedral Group' }],
   },

@@ -260,8 +260,10 @@ export default function QuoteEditor({
     { level: 'basico',    coefficient: 1.20, label: 'Básico'    },
     { level: 'estandar',  coefficient: 1.25, label: 'Estándar'  },
     { level: 'premium',   coefficient: 1.30, label: 'Premium'   },
-    { level: 'lujo',      coefficient: 1.40, label: 'Lujo'      },
-    { level: 'alto_lujo', coefficient: 1.50, label: 'Alto Lujo' },
+    // Etiquetas comerciales sin "lujo" (decisión David 12/06); los values
+    // 'lujo'/'alto_lujo' NO se tocan — son los que valida/guarda la BD.
+    { level: 'lujo',      coefficient: 1.40, label: 'Alto Standing' },
+    { level: 'alto_lujo', coefficient: 1.50, label: 'Excepcional'   },
   ])
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
   const [openCatalogForRow, setOpenCatalogForRow] = useState<number | null>(null)

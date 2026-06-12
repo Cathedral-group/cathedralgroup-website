@@ -4,8 +4,8 @@ import { zones } from '@/content/zones'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 export const metadata = {
-  title: 'Zonas: Reformas de Lujo por Barrios de Madrid',
-  description: 'Reformas y proyectos de interiorismo de lujo en Salamanca, Chamberí, Chamartín, Retiro, Pozuelo, Las Rozas, Majadahonda, Aravaca y La Moraleja.',
+  title: 'Zonas: Reformas de Alto Standing por Barrios de Madrid',
+  description: 'Reformas y proyectos de interiorismo de alto standing en Salamanca, Chamberí, Chamartín, Retiro, Pozuelo, Las Rozas, Majadahonda, Aravaca y La Moraleja.',
   alternates: { canonical: '/zonas' },
 }
 

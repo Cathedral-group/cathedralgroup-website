@@ -28,6 +28,21 @@ interface Lead {
 
 const STATUSES = ['nuevo', 'contactado', 'presupuestado', 'aceptado', 'rechazado', 'completado']
 
+// Socios para asignación de leads (panel interno; la web pública nunca muestra nombres)
+const SOCIOS = [
+  { value: 'd.vieco@cathedralgroup.es', label: 'David Vieco' },
+  { value: 'jm.lozano@cathedralgroup.es', label: 'JM Lozano' },
+  { value: 'j.rivera@cathedralgroup.es', label: 'Julián Rivera' },
+]
+
+// Los leads del formulario web guardan origen='cathedralgroup.es' (valor que
+// exige la policy RLS de INSERT anon) — etiqueta legible para el panel:
+const ORIGEN_LABELS: Record<string, string> = {
+  'cathedralgroup.es': 'Web (cathedralgroup.es)',
+  'cathedralhouse.es': 'Web (cathedralhouse.es)',
+  'cathedralgroup-website.vercel.app': 'Web (preview Vercel)',
+}
+
 const ORIGENES = [
   'Web (cathedralgroup.es)',
   'WhatsApp',
@@ -618,6 +633,14 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                   className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm disabled:opacity-50"
                 >
                   <option value="">Sin origen</option>
+                  {/* El valor actual del lead puede no estar en ORIGENES (p.ej. el
+                      'cathedralgroup.es' que escribe el formulario web): inyectarlo
+                      para que el select no aparezca vacío */}
+                  {selectedLead.origen && !ORIGENES.includes(selectedLead.origen) && (
+                    <option value={selectedLead.origen}>
+                      {ORIGEN_LABELS[selectedLead.origen] ?? selectedLead.origen}
+                    </option>
+                  )}
                   {ORIGENES.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
                 {selectedLead.source_page && (
@@ -630,6 +653,7 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                 <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Presupuesto estimado (€)</p>
                 <input
                   type="number"
+                  placeholder={selectedLead.presupuesto_rango ? `Rango indicado en la web: ${selectedLead.presupuesto_rango}` : 'Importe en €'}
                   defaultValue={selectedLead.budget_estimate ?? ''}
                   onBlur={async (e) => {
                     const val = e.target.value ? Number(e.target.value) : null
@@ -641,17 +665,29 @@ export default function LeadsTable({ leads: initialLeads }: { leads: Lead[] }) {
                 />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Asignado a</p>
-                <input
-                  defaultValue={selectedLead.assigned_to ?? ''}
-                  onBlur={async (e) => {
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Asignado a (socio responsable)</p>
+                <select
+                  value={selectedLead.assigned_to ?? ''}
+                  onChange={async (e) => {
                     const val = e.target.value || null
-                    await fetch('/api/db/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: selectedLead.id, assigned_to: val }) })
+                    const res = await fetch('/api/db/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: selectedLead.id, assigned_to: val }) })
+                    if (!res.ok) {
+                      const errBody = await res.json().catch(() => ({}))
+                      alert('Error al asignar: ' + (errBody.error || `Error ${res.status}`))
+                      return
+                    }
                     setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, assigned_to: val } : l))
                     setSelectedLead({ ...selectedLead, assigned_to: val })
                   }}
                   className="w-full bg-neutral-50 border-0 focus:ring-1 focus:ring-primary p-2 text-sm"
-                />
+                >
+                  <option value="">Sin asignar</option>
+                  {/* Valores antiguos escritos a mano que no sean un socio: mantenerlos visibles */}
+                  {selectedLead.assigned_to && !SOCIOS.some(s => s.value === selectedLead.assigned_to) && (
+                    <option value={selectedLead.assigned_to}>{selectedLead.assigned_to}</option>
+                  )}
+                  {SOCIOS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
               </div>
 
               {/* Editable notes */}

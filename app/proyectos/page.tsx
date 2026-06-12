@@ -3,7 +3,7 @@ import SectionLabel from '@/components/ui/SectionLabel'
 
 export const metadata = {
   title: 'Proyectos: Portfolio de Reformas e Interiorismo en Madrid',
-  description: 'Selección de reformas integrales, interiorismo y obra nueva de lujo realizados en los mejores barrios de Madrid.',
+  description: 'Selección de reformas integrales, interiorismo y obra nueva de alto standing realizados en los mejores barrios de Madrid.',
   alternates: { canonical: '/proyectos' },
 }
 

@@ -2,7 +2,7 @@ import { useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 export const metadata = {
-  title: 'Nosotros: Estudio de Arquitectura y Reformas de Lujo',
+  title: 'Nosotros: Estudio de Arquitectura y Reformas de Alto Standing',
   description: 'Estudio madrileño especializado en proyectos residenciales de alto standing: reformas integrales, interiorismo, obra nueva y promoción.',
   alternates: { canonical: '/nosotros' },
 }

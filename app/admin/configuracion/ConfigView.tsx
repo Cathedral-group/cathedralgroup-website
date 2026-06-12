@@ -104,7 +104,7 @@ function CoeficientesTab({ initial }: { initial: QualityCoefficient[] }) {
         <div className="space-y-2 text-sm text-neutral-600">
           <p><strong>Estándar ×1.0</strong> — Materiales de alta calidad, ejecución profesional. Precio base del catálogo. Equivale a ~650-800 €/m² en reforma completa.</p>
           <p><strong>Premium ×2.0</strong> — Materiales de selección, acabados cuidados, plazos más amplios. ~1.000-1.300 €/m².</p>
-          <p><strong>Lujo ×3.0</strong> — Primera selección de materiales, técnicas artesanales, control de calidad exhaustivo. ~1.500-2.000 €/m².</p>
+          <p><strong>Alto Standing ×3.0</strong> — Primera selección de materiales, técnicas artesanales, control de calidad exhaustivo. ~1.500-2.000 €/m².</p>
         </div>
         <p className="text-[10px] text-neutral-400 mt-3">Los coeficientes se aplican principalmente a mano de obra especializada y tiempo de ejecución.</p>
       </section>

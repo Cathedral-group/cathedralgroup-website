@@ -5,7 +5,7 @@ import SectionLabel from '@/components/ui/SectionLabel'
 export const metadata = {
   // Sin sufijo "| Cathedral Group": lo añade el title.template del root layout
   title: 'Blog',
-  description: 'Guías, tendencias y consejos sobre reformas, interiorismo y arquitectura de lujo en Madrid.',
+  description: 'Guías, tendencias y consejos sobre reformas, interiorismo y arquitectura de alto standing en Madrid.',
   alternates: { canonical: '/blog' },
 }
 
@@ -23,7 +23,7 @@ export default function BlogPage() {
             Guías y Tendencias
           </h1>
           <p className="text-neutral-600 max-w-2xl">
-            Artículos sobre reformas, interiorismo, normativa y tendencias en arquitectura de lujo en Madrid.
+            Artículos sobre reformas, interiorismo, normativa y tendencias en arquitectura de alto standing en Madrid.
           </p>
 
           {/* Category filters */}

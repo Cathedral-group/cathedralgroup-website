@@ -16,7 +16,7 @@ export const serviceFaqs: Record<string, FAQ[]> = {
     {
       question: '¿Cuánto tiempo dura una reforma integral?',
       questionEn: 'How long does a full renovation take?',
-      answer: 'Una reforma integral en Madrid dura entre 3 y 6 meses, dependiendo de la superficie y complejidad del proyecto. Los proyectos de lujo con materiales importados pueden extenderse hasta 8 meses.',
+      answer: 'Una reforma integral en Madrid dura entre 3 y 6 meses, dependiendo de la superficie y complejidad del proyecto. Los proyectos de alto standing con materiales importados pueden extenderse hasta 8 meses.',
       answerEn: 'A full renovation in Madrid takes between 3 and 6 months, depending on the surface area and project complexity. Luxury projects with imported materials can extend up to 8 months.',
     },
     {
@@ -64,7 +64,7 @@ export const serviceFaqs: Record<string, FAQ[]> = {
     {
       question: '¿Cuánto cobra un estudio de arquitectura en Madrid?',
       questionEn: 'How much does an architecture firm charge in Madrid?',
-      answer: 'Los honorarios de un estudio de arquitectura en Madrid oscilan entre el 8% y el 15% del presupuesto de ejecución material. Para proyectos residenciales de lujo, los honorarios suelen situarse en el 10-12%.',
+      answer: 'Los honorarios de un estudio de arquitectura en Madrid oscilan entre el 8% y el 15% del presupuesto de ejecución material. Para proyectos residenciales de alto standing, los honorarios suelen situarse en el 10-12%.',
       answerEn: 'Architecture firm fees in Madrid range between 8% and 15% of the material execution budget. For luxury residential projects, fees are usually around 10-12%.',
     },
   ],

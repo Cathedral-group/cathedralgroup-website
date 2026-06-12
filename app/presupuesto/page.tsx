@@ -12,7 +12,7 @@ const WEB_APP_SCHEMA = {
   applicationCategory: 'FinanceApplication',
   operatingSystem: 'Any',
   description:
-    'Calculadora interactiva para estimar el presupuesto de una reforma de lujo en Madrid.',
+    'Calculadora interactiva para estimar el presupuesto de una reforma de alto standing en Madrid.',
   provider: {
     '@type': 'HomeAndConstructionBusiness',
     name: 'Cathedral Group',
@@ -213,11 +213,8 @@ function CalculatorLeadForm({
 export default function PresupuestoPage() {
   const t = useT('calculator')
 
-  /* Add class to body so WhatsApp button moves up */
-  useEffect(() => {
-    document.body.classList.add('has-sticky-nav')
-    return () => document.body.classList.remove('has-sticky-nav')
-  }, [])
+  /* Los botones de navegación van en flujo bajo cada paso (no barra fija),
+     así que el botón de WhatsApp ya no necesita desplazarse */
 
   /* state */
   const [step, setStep] = useState(1)
@@ -334,7 +331,7 @@ export default function PresupuestoPage() {
   )
 
   const NavButtons = () => (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-neutral-200 px-6 py-4 flex items-center justify-between">
+    <div className="mt-10 pt-6 border-t border-neutral-200 flex items-center justify-between">
       <button
         onClick={goPrev}
         className={`px-6 py-3 text-xs font-bold uppercase tracking-[0.15em] bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-100 transition-all duration-300 ${
