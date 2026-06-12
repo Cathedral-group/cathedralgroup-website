@@ -15,7 +15,7 @@ export const services: Service[] = [
     titleEn: 'Complete Renovations in Madrid',
     descriptionEs: 'Transformamos viviendas en espacios de alto standing con reformas integrales de alto standing. Diseño, proyecto y ejecución llave en mano en las mejores zonas de Madrid.',
     descriptionEn: 'We transform homes into luxury spaces with high-end comprehensive renovations. Design, project and turnkey execution in the best areas of Madrid.',
-    heroImage: '/img/project1.jpg',
+    heroImage: '/img/serv-reformas-integrales.jpg',
     projectType: 'reforma',
   },
   {
@@ -24,7 +24,7 @@ export const services: Service[] = [
     titleEn: 'Interior Design in Madrid',
     descriptionEs: 'Creamos interiores que combinan funcionalidad y estética, con materiales nobles y un diseño que refleja la personalidad de cada cliente.',
     descriptionEn: 'We create interiors that combine functionality and aesthetics, with noble materials and a design that reflects each client\'s personality.',
-    heroImage: '/img/about_upscaled.jpg',
+    heroImage: '/img/serv-interiorismo.jpg',
     projectType: 'interiorismo',
   },
   {
@@ -33,7 +33,7 @@ export const services: Service[] = [
     titleEn: 'Architecture in Madrid',
     descriptionEs: 'Proyectos arquitectónicos residenciales y comerciales con una visión contemporánea que respeta la herencia constructiva madrileña.',
     descriptionEn: 'Residential and commercial architectural projects with a contemporary vision that respects Madrid\'s construction heritage.',
-    heroImage: '/img/hero_final.jpg',
+    heroImage: '/img/serv-arquitectura.jpg',
     projectType: 'otro',
   },
   {
@@ -42,7 +42,7 @@ export const services: Service[] = [
     titleEn: 'Commercial to Residential Conversion in Madrid',
     descriptionEs: 'Convertimos locales comerciales en viviendas de alto standing, gestionando toda la tramitación urbanística y el diseño integral del espacio.',
     descriptionEn: 'We convert commercial premises into luxury homes, managing all urban planning procedures and the comprehensive space design.',
-    heroImage: '/img/project2b.jpg',
+    heroImage: '/img/serv-cambio-uso.jpg',
     projectType: 'cambio-uso',
   },
   {
@@ -51,7 +51,7 @@ export const services: Service[] = [
     titleEn: 'New Construction in Madrid',
     descriptionEs: 'Diseño y construcción de viviendas de nueva planta con los más altos estándares de calidad, eficiencia energética y diseño arquitectónico.',
     descriptionEn: 'Design and construction of new homes with the highest standards of quality, energy efficiency and architectural design.',
-    heroImage: '/img/hero_final.jpg',
+    heroImage: '/img/serv-obra-nueva.jpg',
     projectType: 'obra-nueva',
   },
   {
@@ -60,7 +60,7 @@ export const services: Service[] = [
     titleEn: 'Real Estate Development in Madrid',
     descriptionEs: 'Desarrollo integral de promociones residenciales exclusivas, desde la adquisición del suelo hasta la comercialización final.',
     descriptionEn: 'Comprehensive development of exclusive residential projects, from land acquisition to final commercialization.',
-    heroImage: '/img/project2b.jpg',
+    heroImage: '/img/serv-promocion.jpg',
     projectType: 'promocion',
   },
 ]
