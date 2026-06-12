@@ -125,7 +125,7 @@ function CalculatorLeadForm({
 
   if (status === 'ok') {
     return (
-      <div className="border border-primary/30 bg-[#F5F0EB] p-8 text-center">
+      <div className="border border-primary/30 bg-white p-8 text-center">
         <div className="w-12 h-12 mx-auto mb-4 border-2 border-primary flex items-center justify-center">
           <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -143,7 +143,7 @@ function CalculatorLeadForm({
     'w-full bg-white border border-neutral-300 focus:border-primary focus:ring-1 focus:ring-primary p-3.5 text-sm text-neutral-900 placeholder:text-neutral-400'
 
   return (
-    <div className="border border-primary/30 bg-[#F5F0EB] p-8">
+    <div className="border border-primary/30 bg-white p-8">
       <div className="text-center mb-6">
         <h3 className="text-lg font-light uppercase tracking-wide text-neutral-800 mb-2">
           {t('ctaTitle')}
@@ -512,7 +512,7 @@ export default function PresupuestoPage() {
                 <p className="text-xs text-neutral-400 mt-0.5">{t(ex.descKey)}</p>
               </div>
               <div
-                className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 flex-shrink-0 ml-4 ${
+                className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 shrink-0 ml-4 ${
                   selected ? 'border-primary bg-primary' : 'border-neutral-300'
                 }`}
               >
@@ -621,8 +621,8 @@ export default function PresupuestoPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(WEB_APP_SCHEMA) }}
       />
 
-      {/* Hero */}
-      <section className="pt-32 pb-16 bg-white">
+      {/* Hero — blanco y centrado (como la intro de las divisiones) */}
+      <section className="pt-32 pb-12 bg-white">
         <div className="max-w-3xl mx-auto px-6 text-center" data-animate="fade-up">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-4">
             Cathedral Group
@@ -636,9 +636,11 @@ export default function PresupuestoPage() {
         </div>
       </section>
 
-      {/* Calculator */}
-      <section className="pb-32 md:pb-24 bg-white">
-        <div className="max-w-2xl mx-auto px-6">
+      {/* Calculadora — banda beige a todo el ancho, centrada (mismo criterio que
+          el contacto de las divisiones). Las tarjetas blancas del wizard
+          contrastan sobre el beige y la sección llena la pantalla. */}
+      <section className="pt-12 pb-24 bg-[#F5F0EB]">
+        <div className="max-w-3xl mx-auto px-6">
           {!showResult && <ProgressBar />}
 
           <div className="min-h-[400px]">

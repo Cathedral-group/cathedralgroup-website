@@ -7,18 +7,22 @@ export default function ContactForm() {
   const t = useT('form')
 
   return (
-    <section className="py-16 bg-white" id="contacto">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="max-w-3xl mx-auto text-center mb-6" data-animate="fade-up">
-          <h3 className="text-2xl font-medium uppercase tracking-wide mb-4">
+    // Banda beige a todo el ancho (mismo criterio que el contacto de las
+    // divisiones): la sección llena la pantalla y el formulario queda centrado
+    // dentro, en columna. Sin columnas laterales, textos centrados.
+    <section className="py-20 bg-[#F5F0EB]" id="contacto">
+      <div className="max-w-3xl mx-auto px-6">
+        <div className="text-center mb-10" data-animate="fade-up">
+          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary mb-4">
+            Cathedral Spaces
+          </p>
+          <h3 className="text-2xl md:text-3xl font-light uppercase tracking-wide text-neutral-800 mb-3">
             {t('title')}
           </h3>
-          <p className="text-neutral-600">{t('subtitle')}</p>
+          <p className="text-sm text-neutral-600 max-w-xl mx-auto">{t('subtitle')}</p>
         </div>
 
-        <div className="max-w-2xl mx-auto">
-          <SmartForm source="homepage" />
-        </div>
+        <SmartForm source="homepage" />
       </div>
     </section>
   )
