@@ -2,7 +2,7 @@ const es = {
   nav: {
     projects: 'Proyectos', services: 'Servicios', zones: 'Zonas',
     about: 'Nosotros', contact: 'Contacto', blog: 'Blog', consult: 'Consultar',
-    budget: 'Presupuesto',
+    budget: 'Presupuesto', divisions: 'Divisiones',
   },
   hero: {
     title: 'Cathedral Spaces:', subtitle: 'Arquitectura y diseño de alto nivel', cta: 'Explorar Proyectos',
@@ -132,7 +132,7 @@ const en = {
   nav: {
     projects: 'Projects', services: 'Services', zones: 'Areas',
     about: 'About', contact: 'Contact', blog: 'Blog', consult: 'Enquire',
-    budget: 'Budget',
+    budget: 'Budget', divisions: 'Divisions',
   },
   hero: {
     title: 'Cathedral Spaces:', subtitle: 'Architecture and design of the highest level', cta: 'Explore Projects',

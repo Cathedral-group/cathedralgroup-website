@@ -31,7 +31,7 @@ export default function Divisions() {
           <Link
             key={key}
             href={href}
-            className="bg-white p-8 group hover:bg-[#5A5550] transition-all duration-700 premium-transition flex flex-col border border-neutral-100 md:border-0"
+            className="bg-white p-8 group hover:bg-[#5A5550] transition-all duration-700 premium-transition flex flex-col border border-neutral-200 hover:border-transparent"
           >
             <h4 className="text-base font-medium uppercase tracking-widest mb-4 group-hover:text-white transition-colors">
               {t(key)}

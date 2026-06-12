@@ -5,14 +5,20 @@ import Image from 'next/image'
 import { useT, getLocale, setLocale, type Locale } from '@/lib/translations'
 import Link from 'next/link'
 
+// Divisiones (desplegable). Spaces = la división de reformas y diseño.
+const DIVISIONS = [
+  { name: 'Spaces', href: '/spaces' },
+  { name: 'Capital', href: '/capital' },
+  { name: 'Properties', href: '/properties' },
+  { name: 'Developments', href: '/developments' },
+]
+
+// Resto del menú (rutas globales). Servicios y Zonas viven dentro de Spaces.
 const NAV_ITEMS = [
   { key: 'projects', href: '/proyectos' },
-  { key: 'services', href: '/servicios' },
-  { key: 'zones', href: '/zonas' },
   { key: 'blog', href: '/blog' },
   { key: 'about', href: '/nosotros' },
   { key: 'contact', href: '/contacto' },
-  { key: 'budget', href: '/presupuesto' },
 ]
 
 export default function Header() {
@@ -62,25 +68,49 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">
-          {NAV_ITEMS.map(({ key, href }) =>
-            href.startsWith('/') ? (
-              <Link
-                key={key}
-                href={href}
-                className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-700 hover:text-primary transition-colors"
-              >
-                {t(key)}
-              </Link>
-            ) : (
-              <a
-                key={key}
-                href={href}
-                className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-700 hover:text-primary transition-colors"
-              >
-                {t(key)}
-              </a>
-            )
-          )}
+          {/* Divisiones — desplegable */}
+          <div className="relative group">
+            <span
+              className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-700 group-hover:text-primary transition-colors cursor-default inline-flex items-center gap-1"
+              aria-haspopup="true"
+            >
+              {t('divisions')}
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </span>
+            <div className="absolute left-1/2 -translate-x-1/2 top-full pt-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible focus-within:opacity-100 focus-within:visible transition-all duration-200 z-10">
+              <div className="bg-white border border-neutral-100 shadow-sm py-2 min-w-[180px]">
+                {DIVISIONS.map((d) => (
+                  <Link
+                    key={d.href}
+                    href={d.href}
+                    className="block px-5 py-2.5 text-xs font-bold uppercase tracking-[0.15em] text-neutral-700 hover:bg-neutral-50 hover:text-primary transition-colors whitespace-nowrap"
+                  >
+                    {d.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {NAV_ITEMS.map(({ key, href }) => (
+            <Link
+              key={key}
+              href={href}
+              className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-700 hover:text-primary transition-colors"
+            >
+              {t(key)}
+            </Link>
+          ))}
+
+          {/* Presupuesto — botón destacado */}
+          <Link
+            href="/presupuesto"
+            className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-800 border border-neutral-800 px-5 py-2.5 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] transition-all duration-300"
+          >
+            {t('budget')}
+          </Link>
         </nav>
 
         {/* Right: Language + Mobile Menu */}
@@ -110,8 +140,25 @@ export default function Header() {
       {/* Mobile Menu */}
       {menuOpen && (
         <nav className="md:hidden bg-white border-t border-neutral-100 px-6 py-6 space-y-4">
-          {NAV_ITEMS.map(({ key, href }) =>
-            href.startsWith('/') ? (
+          {/* Divisiones */}
+          <div className="space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+              {t('divisions')}
+            </p>
+            {DIVISIONS.map((d) => (
+              <Link
+                key={d.href}
+                href={d.href}
+                onClick={() => setMenuOpen(false)}
+                className="block pl-3 text-sm font-bold uppercase tracking-widest text-neutral-700 hover:text-primary transition-colors"
+              >
+                {d.name}
+              </Link>
+            ))}
+          </div>
+
+          <div className="pt-2 border-t border-neutral-100 space-y-4">
+            {NAV_ITEMS.map(({ key, href }) => (
               <Link
                 key={key}
                 href={href}
@@ -120,17 +167,15 @@ export default function Header() {
               >
                 {t(key)}
               </Link>
-            ) : (
-              <a
-                key={key}
-                href={href}
-                onClick={() => setMenuOpen(false)}
-                className="block text-sm font-bold uppercase tracking-widest text-neutral-700 hover:text-primary transition-colors"
-              >
-                {t(key)}
-              </a>
-            )
-          )}
+            ))}
+            <Link
+              href="/presupuesto"
+              onClick={() => setMenuOpen(false)}
+              className="block text-sm font-bold uppercase tracking-widest text-primary transition-colors"
+            >
+              {t('budget')}
+            </Link>
+          </div>
         </nav>
       )}
     </header>
