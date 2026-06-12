@@ -158,26 +158,28 @@ export default function SmartForm({
   const labelClass = 'text-xs font-bold uppercase tracking-widest text-neutral-500 block mb-2'
 
   return (
-    <div className={compact ? '' : 'max-w-3xl mx-auto'}>
-      {/* Progress dots */}
-      <div className="flex justify-center gap-3 mb-8">
+    <div>
+      {/* Progress: puntos + líneas conectoras que se estiran a ancho completo
+          (flex-1), de modo que la barra ocupa todo el ancho de su columna */}
+      <div className="flex items-center mb-5">
         {Array.from({ length: totalSteps }, (_, i) => (
-          <div key={i} className="flex items-center gap-2">
+          <div key={i} className={`flex items-center ${i < totalSteps - 1 ? 'flex-1' : ''}`}>
             <button
+              type="button"
               onClick={() => setStep(i + 1)}
-              className={`w-2.5 h-2.5 transition-all duration-300 ${
+              className={`w-2.5 h-2.5 shrink-0 transition-all duration-300 ${
                 i + 1 <= step ? 'bg-primary' : 'bg-neutral-300'
               }`}
             />
             {i < totalSteps - 1 && (
-              <div className={`w-8 h-px ${i + 1 < step ? 'bg-primary' : 'bg-neutral-300'}`} />
+              <div className={`h-px flex-1 mx-2 ${i + 1 < step ? 'bg-primary' : 'bg-neutral-300'}`} />
             )}
           </div>
         ))}
       </div>
 
-      {/* Step labels */}
-      <div className="flex justify-center gap-6 mb-10">
+      {/* Step labels — repartidas a lo ancho, alineadas bajo sus puntos */}
+      <div className="flex justify-between mb-8">
         {[t('step1'), t('step2'), t('step3'), t('step4')].map((label, i) => (
           <span
             key={i}

@@ -512,7 +512,7 @@ export default function PresupuestoPage() {
                 <p className="text-xs text-neutral-400 mt-0.5">{t(ex.descKey)}</p>
               </div>
               <div
-                className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 flex-shrink-0 ml-4 ${
+                className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 shrink-0 ml-4 ${
                   selected ? 'border-primary bg-primary' : 'border-neutral-300'
                 }`}
               >
@@ -621,41 +621,45 @@ export default function PresupuestoPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(WEB_APP_SCHEMA) }}
       />
 
-      {/* Hero */}
-      <section className="pt-32 pb-16 bg-white">
-        <div className="max-w-3xl mx-auto px-6 text-center" data-animate="fade-up">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-4">
-            Cathedral Group
-          </p>
-          <h1 className="text-fluid-2xl font-light uppercase tracking-wide text-neutral-800 mb-4">
-            {t('heroTitle')}
-          </h1>
-          <p className="text-neutral-500 max-w-xl mx-auto leading-relaxed">
-            {t('heroSubtitle')}
-          </p>
-        </div>
-      </section>
+      {/* Dos columnas: introducción a la izquierda (fija al hacer scroll),
+          calculadora a la derecha. Cada paso tiene poco contenido, así que una
+          sola columna ancha dejaría el control flotando en blanco; repartir el
+          ancho ocupa la pantalla y reduce el apilado vertical. */}
+      <section className="pt-32 pb-24 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-[0.85fr_1.15fr] gap-12 lg:gap-20 items-start">
+            <div className="md:sticky md:top-28" data-animate="fade-up">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-4">
+                Cathedral Group
+              </p>
+              <h1 className="text-fluid-2xl font-light uppercase tracking-wide text-neutral-800 mb-4 leading-tight">
+                {t('heroTitle')}
+              </h1>
+              <p className="text-neutral-500 leading-relaxed">
+                {t('heroSubtitle')}
+              </p>
+            </div>
 
-      {/* Calculator */}
-      <section className="pb-32 md:pb-24 bg-white">
-        <div className="max-w-2xl mx-auto px-6">
-          {!showResult && <ProgressBar />}
+            <div>
+              {!showResult && <ProgressBar />}
 
-          <div className="min-h-[400px]">
-            {/* ResultView() como llamada (no <ResultView />): al ser función anidada,
-                montarla como componente la remontaría en cada render del padre y
-                CalculatorLeadForm perdería estado/foco. Como llamada es JSX inline. */}
-            {showResult ? (
-              ResultView()
-            ) : (
-              <>
-                {step === 1 && <Step1 />}
-                {step === 2 && <Step2 />}
-                {step === 3 && <Step3 />}
-                {step === 4 && <Step4 />}
-                {step === 5 && <Step5 />}
-              </>
-            )}
+              <div className="min-h-[400px]">
+                {/* ResultView() como llamada (no <ResultView />): al ser función anidada,
+                    montarla como componente la remontaría en cada render del padre y
+                    CalculatorLeadForm perdería estado/foco. Como llamada es JSX inline. */}
+                {showResult ? (
+                  ResultView()
+                ) : (
+                  <>
+                    {step === 1 && <Step1 />}
+                    {step === 2 && <Step2 />}
+                    {step === 3 && <Step3 />}
+                    {step === 4 && <Step4 />}
+                    {step === 5 && <Step5 />}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>
