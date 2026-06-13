@@ -7,22 +7,24 @@ import type { BlogPost } from '@/lib/blog'
 
 const ALL = 'todos'
 
+// Filtro por DIVISIÓN (un blog único; chips Todos·Spaces·Capital·Properties·Developments).
+const DIVISIONS = [
+  { key: 'spaces', label: 'Spaces' },
+  { key: 'capital', label: 'Capital' },
+  { key: 'properties', label: 'Properties' },
+  { key: 'developments', label: 'Developments' },
+]
+
 const chipBase =
   'text-xs font-bold uppercase tracking-widest pb-1 cursor-pointer transition-colors'
 const chipActive = 'text-primary border-b-2 border-primary'
 const chipIdle = 'text-neutral-400 hover:text-primary'
 
-export default function BlogList({
-  posts,
-  categories,
-}: {
-  posts: BlogPost[]
-  categories: string[]
-}) {
+export default function BlogList({ posts }: { posts: BlogPost[] }) {
   const [selected, setSelected] = useState<string>(ALL)
 
   const filtered =
-    selected === ALL ? posts : posts.filter((p) => p.category === selected)
+    selected === ALL ? posts : posts.filter((p) => p.division === selected)
 
   return (
     <>
@@ -34,10 +36,10 @@ export default function BlogList({
             Guías y Tendencias
           </h1>
           <p className="text-neutral-600 max-w-2xl">
-            Artículos sobre reformas, interiorismo, normativa y tendencias en arquitectura de alto standing en Madrid.
+            Artículos sobre reformas, inversión, compraventa y promoción de alto standing en Madrid.
           </p>
 
-          {/* Category filters */}
+          {/* Filtros por división */}
           <div className="flex gap-4 mt-8 flex-wrap">
             <button
               type="button"
@@ -47,15 +49,15 @@ export default function BlogList({
             >
               Todos
             </button>
-            {categories.map((cat) => (
+            {DIVISIONS.map((d) => (
               <button
-                key={cat}
+                key={d.key}
                 type="button"
-                onClick={() => setSelected(cat)}
-                aria-pressed={selected === cat}
-                className={`${chipBase} ${selected === cat ? chipActive : chipIdle}`}
+                onClick={() => setSelected(d.key)}
+                aria-pressed={selected === d.key}
+                className={`${chipBase} ${selected === d.key ? chipActive : chipIdle}`}
               >
-                {cat}
+                {d.label}
               </button>
             ))}
           </div>
