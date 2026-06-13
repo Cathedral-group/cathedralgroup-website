@@ -666,13 +666,11 @@ export default function PresupuestoPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(WEB_APP_SCHEMA) }}
       />
 
-      {/* Hero — blanco y centrado (como la intro de las divisiones) */}
+      {/* Hero — blanco y centrado. Sin eyebrow; título en una línea y al mismo
+          tamaño que "Inicie su proyecto" (text-2xl md:text-3xl); explicación debajo. */}
       <section className="pt-32 pb-12 bg-white">
-        <div className="max-w-3xl mx-auto px-6 text-center" data-animate="fade-up">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-4">
-            Cathedral Group
-          </p>
-          <h1 className="text-fluid-2xl font-light uppercase tracking-wide text-neutral-800 mb-4">
+        <div className="max-w-4xl mx-auto px-6 text-center" data-animate="fade-up">
+          <h1 className="text-2xl md:text-3xl font-light uppercase tracking-wide text-neutral-800 mb-3 md:whitespace-nowrap">
             {t('heroTitle')}
           </h1>
           <p className="text-neutral-500 max-w-xl mx-auto leading-relaxed">
