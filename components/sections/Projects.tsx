@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
@@ -32,12 +33,12 @@ export default function Projects() {
               {t('title')}
             </h3>
           </div>
-          <a
-            href="#"
+          <Link
+            href="/proyectos"
             className="hidden md:block text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 hover:border-primary hover:text-primary transition-colors"
           >
             {t('viewAll')}
-          </a>
+          </Link>
         </div>
       </div>
 
