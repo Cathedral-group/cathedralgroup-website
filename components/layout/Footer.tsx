@@ -77,33 +77,43 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Hubs SEO: servicios y zonas enlazados desde toda la web (antes huérfanos) */}
-        <div className="border-t border-neutral-100 pt-10 grid md:grid-cols-2 gap-10 text-center">
-          <div>
-            <h5 className="text-xs font-bold uppercase tracking-widest mb-5">Servicios</h5>
-            <ul className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-neutral-500">
-              <li><a href="/servicios/reformas-integrales-madrid" className="hover:text-primary transition-colors">Reformas integrales</a></li>
-              <li><a href="/servicios/interiorismo-madrid" className="hover:text-primary transition-colors">Interiorismo</a></li>
-              <li><a href="/servicios/arquitectura-madrid" className="hover:text-primary transition-colors">Arquitectura</a></li>
-              <li><a href="/servicios/cambio-uso-local-vivienda-madrid" className="hover:text-primary transition-colors">Cambio de uso de local</a></li>
-              <li><a href="/servicios/obra-nueva-madrid" className="hover:text-primary transition-colors">Obra nueva</a></li>
-              <li><a href="/servicios/promocion-inmobiliaria-madrid" className="hover:text-primary transition-colors">Promoción inmobiliaria</a></li>
-            </ul>
-          </div>
-          <div>
-            <h5 className="text-xs font-bold uppercase tracking-widest mb-5">Zonas</h5>
-            <ul className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-neutral-500">
-              <li><a href="/zonas/reformas-salamanca" className="hover:text-primary transition-colors">Reformas en Salamanca</a></li>
-              <li><a href="/zonas/reformas-chamberi" className="hover:text-primary transition-colors">Reformas en Chamberí</a></li>
-              <li><a href="/zonas/reformas-chamartin" className="hover:text-primary transition-colors">Reformas en Chamartín</a></li>
-              <li><a href="/zonas/reformas-retiro" className="hover:text-primary transition-colors">Reformas en Retiro</a></li>
-              <li><a href="/zonas/reformas-pozuelo" className="hover:text-primary transition-colors">Reformas en Pozuelo</a></li>
-              <li><a href="/zonas/reformas-las-rozas" className="hover:text-primary transition-colors">Reformas en Las Rozas</a></li>
-              <li><a href="/zonas/reformas-majadahonda" className="hover:text-primary transition-colors">Reformas en Majadahonda</a></li>
-              <li><a href="/zonas/reformas-aravaca" className="hover:text-primary transition-colors">Reformas en Aravaca</a></li>
-              <li><a href="/zonas/reformas-la-moraleja" className="hover:text-primary transition-colors">Reformas en La Moraleja</a></li>
-            </ul>
-          </div>
+        {/* Índice SEO compacto: servicios y zonas (enlazado interno discreto,
+            rastreable desde toda la web, sin competir con el footer principal). */}
+        <div className="border-t border-neutral-100 pt-6 space-y-2 text-center">
+          <p className="text-[11px] leading-relaxed text-neutral-400">
+            <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">Servicios</span>{' '}
+            <a href="/servicios/reformas-integrales-madrid" className="hover:text-primary transition-colors">Reformas integrales</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/servicios/interiorismo-madrid" className="hover:text-primary transition-colors">Interiorismo</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/servicios/arquitectura-madrid" className="hover:text-primary transition-colors">Arquitectura</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/servicios/cambio-uso-local-vivienda-madrid" className="hover:text-primary transition-colors">Cambio de uso</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/servicios/obra-nueva-madrid" className="hover:text-primary transition-colors">Obra nueva</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/servicios/promocion-inmobiliaria-madrid" className="hover:text-primary transition-colors">Promoción</a>
+          </p>
+          <p className="text-[11px] leading-relaxed text-neutral-400">
+            <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">Zonas</span>{' '}
+            <a href="/zonas/reformas-salamanca" className="hover:text-primary transition-colors">Salamanca</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/zonas/reformas-chamberi" className="hover:text-primary transition-colors">Chamberí</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/zonas/reformas-chamartin" className="hover:text-primary transition-colors">Chamartín</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/zonas/reformas-retiro" className="hover:text-primary transition-colors">Retiro</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/zonas/reformas-pozuelo" className="hover:text-primary transition-colors">Pozuelo</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/zonas/reformas-las-rozas" className="hover:text-primary transition-colors">Las Rozas</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/zonas/reformas-majadahonda" className="hover:text-primary transition-colors">Majadahonda</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/zonas/reformas-aravaca" className="hover:text-primary transition-colors">Aravaca</a>
+            <span className="mx-1.5 text-neutral-300">·</span>
+            <a href="/zonas/reformas-la-moraleja" className="hover:text-primary transition-colors">La Moraleja</a>
+          </p>
         </div>
       </div>
 
