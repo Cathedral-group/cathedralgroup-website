@@ -668,7 +668,7 @@ export default function PresupuestoPage() {
 
       {/* Hero — blanco y centrado. Sin eyebrow; título en una línea y al mismo
           tamaño que "Inicie su proyecto" (text-2xl md:text-3xl); explicación debajo. */}
-      <section className="pt-32 pb-12 bg-white">
+      <section className="pt-16 pb-12 bg-white">
         <div className="max-w-4xl mx-auto px-6 text-center" data-animate="fade-up">
           <h1 className="text-2xl md:text-3xl font-light uppercase tracking-wide text-neutral-800 mb-3 md:whitespace-nowrap">
             {t('heroTitle')}
