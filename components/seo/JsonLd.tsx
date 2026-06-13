@@ -6,7 +6,7 @@ export default function JsonLd({ data }: JsonLdProps) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, '\\u003c') }}
     />
   )
 }
@@ -76,6 +76,18 @@ export function createBreadcrumbSchema(items: { name: string; url: string }[]) {
       position: i + 1,
       name: item.name,
       item: `https://cathedralgroup.es${item.url}`,
+    })),
+  }
+}
+
+export function createFaqSchema(faqs: { question: string; answer: string }[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.question,
+      acceptedAnswer: { '@type': 'Answer', text: f.answer },
     })),
   }
 }
