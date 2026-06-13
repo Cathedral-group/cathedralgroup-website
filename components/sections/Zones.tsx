@@ -1,10 +1,20 @@
 'use client'
 
+import Link from 'next/link'
 import { useT } from '@/lib/translations'
 
+// Zonas reales con página propia (9). Antes eran texto sin enlace e incluían
+// "Puerta de Hierro" (sin página). Sincronizadas con content/zones.
 const ZONES = [
-  'Salamanca', 'Chamberí', 'Chamartín', 'Retiro',
-  'Pozuelo de Alarcón', 'La Moraleja', 'Aravaca', 'Puerta de Hierro',
+  { name: 'Salamanca', slug: 'reformas-salamanca' },
+  { name: 'Chamberí', slug: 'reformas-chamberi' },
+  { name: 'Chamartín', slug: 'reformas-chamartin' },
+  { name: 'Retiro', slug: 'reformas-retiro' },
+  { name: 'Pozuelo de Alarcón', slug: 'reformas-pozuelo' },
+  { name: 'Las Rozas', slug: 'reformas-las-rozas' },
+  { name: 'Majadahonda', slug: 'reformas-majadahonda' },
+  { name: 'Aravaca', slug: 'reformas-aravaca' },
+  { name: 'La Moraleja', slug: 'reformas-la-moraleja' },
 ]
 
 export default function Zones() {
@@ -30,13 +40,14 @@ export default function Zones() {
           {/* 4 columns × 2 rows */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-12 gap-y-6 max-w-4xl mx-auto" data-animate="stagger">
             {ZONES.map((zone) => (
-              <div
-                key={zone}
-                className="flex items-center gap-3 text-neutral-800"
+              <Link
+                key={zone.slug}
+                href={`/zonas/${zone.slug}`}
+                className="flex items-center gap-3 text-neutral-800 hover:text-primary transition-colors group"
               >
                 <span className="w-1.5 h-1.5 bg-primary flex-shrink-0" />
-                <span className="text-sm tracking-wide">{zone}</span>
-              </div>
+                <span className="text-sm tracking-wide group-hover:underline underline-offset-4">{zone.name}</span>
+              </Link>
             ))}
           </div>
         </div>
