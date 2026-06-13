@@ -1,4 +1,4 @@
-import HeroVideo from '@/components/sections/HeroVideo'
+import Image from 'next/image'
 import Divisions from '@/components/sections/Divisions'
 import JsonLd, { ORGANIZATION_SCHEMA } from '@/components/seo/JsonLd'
 
@@ -17,14 +17,21 @@ export default function HomePage() {
     <>
       <JsonLd data={ORGANIZATION_SCHEMA} />
 
-      {/* H1 de marca (accesible a buscadores; el impacto visual lo da el vídeo) */}
+      {/* H1 de marca (accesible a buscadores; el impacto visual lo da la imagen) */}
       <h1 className="sr-only">
         Cathedral Group — Arquitectura, inversión y desarrollo de alto standing en Madrid
       </h1>
 
-      {/* Hero con brand film, de lado a lado */}
-      <section className="relative w-full h-[90vh] flex items-center justify-center overflow-hidden bg-white">
-        <HeroVideo />
+      {/* Hero con imagen de marca (umbral Japandi de piedra y luz) */}
+      <section className="relative w-full h-[80vh] overflow-hidden bg-white">
+        <Image
+          src="/img/hero-home.jpg"
+          alt="Arquitectura de alto standing de Cathedral Group en Madrid — umbral de piedra natural y luz"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
       </section>
 
       {/* Selector de divisiones */}
