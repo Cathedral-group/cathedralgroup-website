@@ -12,6 +12,7 @@ export interface BlogPost {
   description: string
   descriptionEn: string
   category: string
+  division: string
   tags: string[]
   image: string
   date: string
@@ -43,6 +44,7 @@ export function getAllPosts(): BlogPost[] {
       description: data.description || '',
       descriptionEn: data.descriptionEn || data.description || '',
       category: data.category || 'general',
+      division: data.division || 'spaces',
       tags: data.tags || [],
       image: data.image || '/img/hero_final.jpg',
       date: data.date || new Date().toISOString().split('T')[0],

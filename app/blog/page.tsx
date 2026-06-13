@@ -1,4 +1,4 @@
-import { getAllPosts, getAllCategories } from '@/lib/blog'
+import { getAllPosts } from '@/lib/blog'
 import BlogList from './BlogList'
 
 export const metadata = {
@@ -10,7 +10,6 @@ export const metadata = {
 
 export default function BlogPage() {
   const posts = getAllPosts()
-  const categories = getAllCategories()
 
-  return <BlogList posts={posts} categories={categories} />
+  return <BlogList posts={posts} />
 }
