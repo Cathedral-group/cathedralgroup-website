@@ -87,11 +87,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!service) return {}
 
   const title = locale === 'en' ? service.titleEn : service.titleEs
+  const description = locale === 'en' ? service.descriptionEn : service.descriptionEs
   return {
     // Sin sufijo "| Cathedral Group": lo añade el title.template del root layout
     title,
-    description: locale === 'en' ? service.descriptionEn : service.descriptionEs,
+    description,
     alternates: { canonical: `/servicios/${slug}` },
+    openGraph: {
+      type: 'website',
+      siteName: 'Cathedral Group',
+      locale: 'es_ES',
+      title,
+      description,
+      url: `/servicios/${slug}`,
+      images: [service.heroImage],
+    },
   }
 }
 

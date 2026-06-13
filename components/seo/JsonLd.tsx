@@ -95,10 +95,12 @@ export function createFaqSchema(faqs: { question: string; answer: string }[]) {
 export const ORGANIZATION_SCHEMA = {
   '@context': 'https://schema.org',
   '@type': 'HomeAndConstructionBusiness',
+  '@id': 'https://cathedralgroup.es/#organization',
   name: 'Cathedral Group',
   url: 'https://cathedralgroup.es',
   logo: 'https://cathedralgroup.es/img/logo.png',
-  description: 'Estudio de arquitectura, diseño y reformas de alto standing en Madrid.',
+  image: 'https://cathedralgroup.es/img/proj-atico.jpg',
+  description: 'Grupo inmobiliario en Madrid especializado en arquitectura y reformas de alto standing, inversión estratégica, comercialización selecta y promoción de proyectos singulares.',
   address: {
     '@type': 'PostalAddress',
     streetAddress: 'Paseo de la Castellana 40, 8º',
@@ -106,11 +108,25 @@ export const ORGANIZATION_SCHEMA = {
     postalCode: '28046',
     addressCountry: 'ES',
   },
+  geo: {
+    '@type': 'GeoCoordinates',
+    latitude: 40.4368,
+    longitude: -3.6903,
+  },
   telephone: '+34684725606',
   email: 'info@cathedralgroup.es',
-  areaServed: {
-    '@type': 'City',
-    name: 'Madrid',
-  },
+  priceRange: '€€€€',
+  areaServed: [
+    { '@type': 'City', name: 'Madrid' },
+    'Barrio de Salamanca',
+    'Chamberí',
+    'Chamartín',
+    'Retiro',
+    'Pozuelo de Alarcón',
+    'Las Rozas',
+    'Majadahonda',
+    'Aravaca',
+    'La Moraleja',
+  ],
   sameAs: [],
 }

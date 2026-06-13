@@ -8,6 +8,7 @@ import WhatsAppFloat from '@/components/layout/WhatsAppFloat'
 import SmoothScroll from '@/components/animations/SmoothScroll'
 import ScrollAnimations from '@/components/animations/ScrollAnimations'
 import LocaleInit from '@/components/LocaleInit'
+import JsonLd, { ORGANIZATION_SCHEMA } from '@/components/seo/JsonLd'
 
 const GA_ID = 'G-5FTL67Y0S6'
 
@@ -67,6 +68,8 @@ export default function RootLayout({
         {`gtag('js',new Date());gtag('config','${GA_ID}');`}
       </Script>
       <body className="font-display text-neutral-900 antialiased">
+        {/* Organization/LocalBusiness una sola vez para todo el sitio */}
+        <JsonLd data={ORGANIZATION_SCHEMA} />
         <LayoutSwitch>{children}</LayoutSwitch>
         <LocaleInit />
         <CookieBanner />

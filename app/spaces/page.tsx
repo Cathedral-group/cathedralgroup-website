@@ -5,7 +5,6 @@ import Projects from '@/components/sections/Projects'
 import Zones from '@/components/sections/Zones'
 import About from '@/components/sections/About'
 import ContactForm from '@/components/sections/ContactForm'
-import JsonLd, { ORGANIZATION_SCHEMA } from '@/components/seo/JsonLd'
 
 export const metadata = {
   title: 'Cathedral Spaces: Reformas Integrales e Interiorismo en Madrid',
@@ -19,7 +18,6 @@ export const metadata = {
 export default function SpacesPage() {
   return (
     <>
-      <JsonLd data={ORGANIZATION_SCHEMA} />
       <Hero />
       <Excellence />
       <Divisions />
