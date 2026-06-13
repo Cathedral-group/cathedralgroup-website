@@ -61,7 +61,9 @@ export default function Header() {
             className="h-8 md:h-12 w-auto object-contain"
             priority
           />
-          <span className="text-xs md:text-base font-light uppercase tracking-[0.2em] text-neutral-800">
+          {/* En móviles estrechos (<375px) el wordmark se partía en 2 líneas y
+              chocaba con los botones → se oculta y queda solo el logo. */}
+          <span className="hidden min-[375px]:inline-block whitespace-nowrap text-xs md:text-base font-light uppercase tracking-[0.2em] text-neutral-800">
             Cathedral Group
           </span>
         </Link>
