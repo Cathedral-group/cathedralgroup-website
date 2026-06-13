@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getAllPosts, getPostBySlug } from '@/lib/blog'
 import SmartForm from '@/components/forms/SmartForm'
 import SectionLabel from '@/components/ui/SectionLabel'
+import JsonLd, { createBlogPostSchema, createBreadcrumbSchema } from '@/components/seo/JsonLd'
 
 export function generateStaticParams() {
   return getAllPosts().map((post) => ({ slug: post.slug }))
@@ -18,6 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     description: locale === 'en' ? post.descriptionEn : post.description,
     alternates: { canonical: `/blog/${slug}` },
     openGraph: {
+      type: 'article',
       title: locale === 'en' ? post.titleEn : post.title,
       description: locale === 'en' ? post.descriptionEn : post.description,
       images: [post.image],
@@ -59,6 +61,15 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
   return (
     <>
+      <JsonLd data={createBlogPostSchema(post.title, post.description, post.slug, post.date)} />
+      <JsonLd
+        data={createBreadcrumbSchema([
+          { name: 'Inicio', url: '/' },
+          { name: 'Blog', url: '/blog' },
+          { name: post.title, url: `/blog/${post.slug}` },
+        ])}
+      />
+
       {/* Hero */}
       <section className="relative h-[50vh] flex items-end overflow-hidden">
         <div

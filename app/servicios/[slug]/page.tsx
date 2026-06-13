@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { services, getServiceBySlug } from '@/content/services'
+import { serviceFaqs } from '@/content/services/faqs'
 import SmartForm from '@/components/forms/SmartForm'
 import SectionLabel from '@/components/ui/SectionLabel'
+import JsonLd, { createServiceSchema, createBreadcrumbSchema, createFaqSchema } from '@/components/seo/JsonLd'
 
 const relatedContent: Record<string, { posts: { href: string; labelEs: string; labelEn: string }[]; zones: { href: string; labelEs: string; labelEn: string }[] }> = {
   'reformas-integrales-madrid': {
@@ -102,8 +104,22 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
   const title = locale === 'en' ? service.titleEn : service.titleEs
   const description = locale === 'en' ? service.descriptionEn : service.descriptionEs
 
+  const faqs = serviceFaqs[slug]
+
   return (
     <>
+      <JsonLd data={createServiceSchema(title, description, `/servicios/${slug}`)} />
+      <JsonLd
+        data={createBreadcrumbSchema([
+          { name: 'Inicio', url: '/' },
+          { name: 'Servicios', url: '/servicios' },
+          { name: title, url: `/servicios/${slug}` },
+        ])}
+      />
+      {faqs && faqs.length > 0 && (
+        <JsonLd data={createFaqSchema(faqs.map((f) => ({ question: f.question, answer: f.answer })))} />
+      )}
+
       {/* Hero */}
       <section className="relative h-[60vh] flex items-end overflow-hidden">
         <div
@@ -191,6 +207,34 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
                 </ul>
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* FAQ — preguntas frecuentes (visible + schema FAQPage) */}
+      {faqs && faqs.length > 0 && (
+        <section className="py-16 bg-beige-subtle">
+          <div className="max-w-3xl mx-auto px-6" data-animate="fade-up">
+            <h2 className="text-xl font-medium uppercase tracking-wide mb-8 text-center">
+              {locale === 'en' ? 'Frequently Asked Questions' : 'Preguntas Frecuentes'}
+            </h2>
+            <div className="border-t border-neutral-200">
+              {faqs.map((faq, i) => (
+                <details key={i} className="group border-b border-neutral-200 py-5">
+                  <summary className="flex justify-between items-start gap-4 cursor-pointer list-none">
+                    <h3 className="text-base font-medium">
+                      {locale === 'en' ? faq.questionEn : faq.question}
+                    </h3>
+                    <span className="text-primary text-2xl leading-none shrink-0 transition-transform duration-300 group-open:rotate-45">
+                      +
+                    </span>
+                  </summary>
+                  <p className="text-neutral-700 leading-relaxed mt-3">
+                    {locale === 'en' ? faq.answerEn : faq.answer}
+                  </p>
+                </details>
+              ))}
+            </div>
           </div>
         </section>
       )}
