@@ -313,7 +313,7 @@ export default function PresupuestoPage() {
         <div key={i} className="flex items-center gap-2 flex-1">
           <div
             className={`h-1 flex-1 transition-all duration-500 ${
-              i < step ? 'bg-primary' : 'bg-neutral-300'
+              i < step ? 'bg-primary' : 'bg-white'
             }`}
           />
         </div>
@@ -349,7 +349,7 @@ export default function PresupuestoPage() {
         className={`px-10 py-3.5 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-500 ${
           canAdvance()
             ? 'bg-[#5A5550] text-white hover:bg-[#4A4540]'
-            : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
+            : 'bg-white text-neutral-400 border border-neutral-200 cursor-not-allowed'
         }`}
       >
         {step === TOTAL_STEPS ? t('calculate') : t('next')} →
