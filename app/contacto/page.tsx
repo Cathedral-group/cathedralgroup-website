@@ -42,7 +42,7 @@ export default function ContactoPage() {
 
       {/* SmartForm — banda beige a ancho completo, mismo criterio que /presupuesto
           e "Inicie su proyecto": tarjetas blancas grandes que llenan el ancho. */}
-      <section className="py-10 bg-[#F5F0EB]">
+      <section className="py-10 bg-beige-subtle">
         <div className="px-6 md:px-10">
           <div className="text-center mb-6">
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-primary mb-2">Solicitud de presupuesto</p>

@@ -52,7 +52,7 @@ export default function DivisionLanding({ division }: { division: Division }) {
       </section>
 
       {/* CTA + formulario */}
-      <section className="py-20 bg-[#F5F0EB]" id="contacto">
+      <section className="py-20 bg-beige-subtle" id="contacto">
         <div className="max-w-3xl mx-auto px-6">
           <div className="text-center mb-10">
             <h2 className="text-2xl font-light uppercase tracking-wide text-neutral-800 mb-3">

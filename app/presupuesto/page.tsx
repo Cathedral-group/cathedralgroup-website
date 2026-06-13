@@ -682,7 +682,7 @@ export default function PresupuestoPage() {
       {/* Calculadora — banda beige a todo el ancho, centrada (mismo criterio que
           el contacto de las divisiones). Las tarjetas blancas del wizard
           contrastan sobre el beige y la sección llena la pantalla. */}
-      <section className="pt-6 pb-12 bg-[#F5F0EB]">
+      <section className="pt-6 pb-12 bg-beige-subtle">
         <div className="px-6 md:px-10">
           {!showResult && <ProgressBar />}
 
