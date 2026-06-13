@@ -43,6 +43,7 @@ const PROJECT_TYPES = [
   { key: 'interiorismo', icon: '◈' },
   { key: 'cambioUso', icon: '⬡' },
   { key: 'obraNueva', icon: '△' },
+  { key: 'promocion', icon: '▦' },
 ] as const
 
 const ZONES = [
@@ -305,7 +306,7 @@ export default function PresupuestoPage() {
 
   /* ── Render helpers ── */
   const ProgressBar = () => (
-    <div className="flex items-center gap-2 mb-10">
+    <div className="flex items-center gap-2 mb-6">
       {Array.from({ length: TOTAL_STEPS }, (_, i) => (
         <div key={i} className="flex items-center gap-2 flex-1">
           <div
@@ -319,7 +320,7 @@ export default function PresupuestoPage() {
   )
 
   const StepHeader = ({ titleKey, subtitleKey }: { titleKey: string; subtitleKey: string }) => (
-    <div className="mb-8">
+    <div className="mb-5">
       <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-3">
         {t('step')} {step} {t('of')} {TOTAL_STEPS}
       </p>
@@ -366,7 +367,7 @@ export default function PresupuestoPage() {
   }) => (
     <button
       onClick={onClick}
-      className={`w-full text-left p-5 border transition-all duration-300 group ${
+      className={`w-full text-left p-8 border transition-all duration-300 group ${
         selected
           ? 'border-primary bg-primary/5'
           : 'border-neutral-200 hover:border-primary/50 bg-white'
@@ -380,12 +381,12 @@ export default function PresupuestoPage() {
   const Step1 = () => (
     <div>
       <StepHeader titleKey="step1Title" subtitleKey="step1Subtitle" />
-      <div className="grid md:grid-cols-2 gap-3">
+      <div className="grid md:grid-cols-3 gap-6">
         {PROJECT_TYPES.map(({ key, icon }) => (
           <SelectionCard
             key={key}
             selected={projectType === key}
-            onClick={() => { setProjectType(key); setTimeout(() => setStep(2), 300) }}
+            onClick={() => { setProjectType(key); setTimeout(() => { key === 'promocion' ? setShowResult(true) : setStep(2) }, 300) }}
           >
             <div className="flex items-center gap-4">
               <span className="text-2xl text-primary opacity-60">{icon}</span>
@@ -501,7 +502,7 @@ export default function PresupuestoPage() {
             <button
               key={ex.key}
               onClick={() => toggleExtra(ex.key)}
-              className={`w-full text-left p-5 border transition-all duration-300 flex items-center justify-between ${
+              className={`w-full text-left p-6 border transition-all duration-300 flex items-center justify-between ${
                 selected
                   ? 'border-primary bg-primary/5'
                   : 'border-neutral-200 hover:border-primary/50 bg-white'
@@ -527,6 +528,43 @@ export default function PresupuestoPage() {
         })}
       </div>
       <NavButtons />
+    </div>
+  )
+
+  // Promoción/Desarrollo no se estima por m² (varía mucho): en vez de un número,
+  // se muestra una vista de "presupuesto a medida" que capta el lead para estudio.
+  // Se invoca como CustomQuoteView() (no <CustomQuoteView/>), igual que ResultView,
+  // para no remontar y que CalculatorLeadForm no pierda foco/estado.
+  const CustomQuoteView = () => (
+    <div className="animate-fadeIn">
+      <div className="text-center mb-8">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-3">
+          {t('promocion')}
+        </p>
+        <h2 className="text-fluid-xl font-light uppercase tracking-wide text-neutral-800 mb-3">
+          {t('customTitle')}
+        </h2>
+        <p className="text-neutral-500 text-sm max-w-xl mx-auto leading-relaxed">
+          {t('customText')}
+        </p>
+      </div>
+
+      <CalculatorLeadForm
+        tipoProyecto={t('promocion')}
+        zona=""
+        sqm={0}
+        rango="A medida"
+        detalle="Lead promoción/desarrollo — presupuesto a medida (no estimable por m²)"
+      />
+
+      <div className="text-center mt-8">
+        <button
+          onClick={reset}
+          className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 hover:text-primary transition-colors"
+        >
+          ← {t('recalculate')}
+        </button>
+      </div>
     </div>
   )
 
@@ -639,16 +677,16 @@ export default function PresupuestoPage() {
       {/* Calculadora — banda beige a todo el ancho, centrada (mismo criterio que
           el contacto de las divisiones). Las tarjetas blancas del wizard
           contrastan sobre el beige y la sección llena la pantalla. */}
-      <section className="pt-12 pb-24 bg-[#E7DECF]">
-        <div className="max-w-3xl mx-auto px-6">
+      <section className="pt-6 pb-12 bg-[#F5F0EB]">
+        <div className="px-6 md:px-10">
           {!showResult && <ProgressBar />}
 
-          <div className="min-h-[400px]">
+          <div className="min-h-0">
             {/* ResultView() como llamada (no <ResultView />): al ser función anidada,
                 montarla como componente la remontaría en cada render del padre y
                 CalculatorLeadForm perdería estado/foco. Como llamada es JSX inline. */}
             {showResult ? (
-              ResultView()
+              projectType === 'promocion' ? CustomQuoteView() : ResultView()
             ) : (
               <>
                 {step === 1 && <Step1 />}

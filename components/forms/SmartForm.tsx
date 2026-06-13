@@ -158,7 +158,7 @@ export default function SmartForm({
   const labelClass = 'text-xs font-bold uppercase tracking-widest text-neutral-500 block mb-2'
 
   return (
-    <div className={compact ? '' : 'max-w-3xl mx-auto'}>
+    <div>
       {/* Progress dots */}
       <div className="flex justify-center gap-3 mb-8">
         {Array.from({ length: totalSteps }, (_, i) => (
@@ -205,7 +205,7 @@ export default function SmartForm({
         {/* Step 1: Project Type */}
         <div className={step === 1 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('projectType')}</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {PROJECT_TYPES.map(({ value, label }) => (
               <button
                 key={value}
@@ -214,7 +214,7 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, tipo_proyecto: value }))
                   nextStep()
                 }}
-                className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                className={`p-6 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.tipo_proyecto === value
                     ? 'border-primary bg-white font-medium'
                     : 'border-neutral-300 bg-white'
@@ -227,7 +227,7 @@ export default function SmartForm({
         </div>
 
         {/* Step 2: Location + m² */}
-        <div className={step === 2 ? 'block' : 'hidden'}>
+        <div className={step === 2 ? 'block max-w-2xl mx-auto' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('zone')}</h4>
           <div className="space-y-6">
             <select
@@ -268,7 +268,7 @@ export default function SmartForm({
         {/* Step 3: Budget */}
         <div className={step === 3 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('budget')}</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {BUDGET_RANGES.map(({ value, label }) => (
               <button
                 key={value}
@@ -277,7 +277,7 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, presupuesto_rango: value }))
                   nextStep()
                 }}
-                className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                className={`p-6 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.presupuesto_rango === value
                     ? 'border-primary bg-white font-medium'
                     : 'border-neutral-300 bg-white'
@@ -296,7 +296,7 @@ export default function SmartForm({
         </div>
 
         {/* Step 4: Contact Info */}
-        <div className={step === 4 ? 'block' : 'hidden'}>
+        <div className={step === 4 ? 'block max-w-3xl mx-auto' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">Datos de contacto</h4>
           <div className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">

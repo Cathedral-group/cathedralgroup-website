@@ -10,9 +10,9 @@ export default function ContactForm() {
     // Banda beige a todo el ancho (mismo criterio que el contacto de las
     // divisiones): la sección llena la pantalla y el formulario queda centrado
     // dentro, en columna. Sin columnas laterales, textos centrados.
-    <section className="py-20 bg-[#E7DECF]" id="contacto">
-      <div className="max-w-3xl mx-auto px-6">
-        <div className="text-center mb-10" data-animate="fade-up">
+    <section className="py-10 bg-[#F5F0EB]" id="contacto">
+      <div className="px-6 md:px-10">
+        <div className="text-center mb-6" data-animate="fade-up">
           <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary mb-4">
             Cathedral Spaces
           </p>
