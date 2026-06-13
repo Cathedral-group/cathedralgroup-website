@@ -12,7 +12,7 @@ export default function Footer() {
       <hr className="border-t border-neutral-100" />
 
       <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="grid md:grid-cols-4 gap-12 mb-10 text-center">
+        <div className="grid md:grid-cols-4 gap-12 text-center">
           {/* Columna 1: Logo & Descripción */}
           <div>
             <div className="flex items-center justify-center gap-2 mb-6">
@@ -77,44 +77,48 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Índice SEO compacto: servicios y zonas (enlazado interno discreto,
-            rastreable desde toda la web, sin competir con el footer principal). */}
-        <div className="border-t border-neutral-100 pt-6 space-y-2 text-center">
-          <p className="text-[11px] leading-relaxed text-neutral-400">
-            <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">Servicios</span>{' '}
-            <a href="/servicios/reformas-integrales-madrid" className="hover:text-primary transition-colors">Reformas integrales</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/servicios/interiorismo-madrid" className="hover:text-primary transition-colors">Interiorismo</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/servicios/arquitectura-madrid" className="hover:text-primary transition-colors">Arquitectura</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/servicios/cambio-uso-local-vivienda-madrid" className="hover:text-primary transition-colors">Cambio de uso</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/servicios/obra-nueva-madrid" className="hover:text-primary transition-colors">Obra nueva</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/servicios/promocion-inmobiliaria-madrid" className="hover:text-primary transition-colors">Promoción</a>
-          </p>
-          <p className="text-[11px] leading-relaxed text-neutral-400">
-            <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">Zonas</span>{' '}
-            <a href="/zonas/reformas-salamanca" className="hover:text-primary transition-colors">Salamanca</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/zonas/reformas-chamberi" className="hover:text-primary transition-colors">Chamberí</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/zonas/reformas-chamartin" className="hover:text-primary transition-colors">Chamartín</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/zonas/reformas-retiro" className="hover:text-primary transition-colors">Retiro</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/zonas/reformas-pozuelo" className="hover:text-primary transition-colors">Pozuelo</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/zonas/reformas-las-rozas" className="hover:text-primary transition-colors">Las Rozas</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/zonas/reformas-majadahonda" className="hover:text-primary transition-colors">Majadahonda</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/zonas/reformas-aravaca" className="hover:text-primary transition-colors">Aravaca</a>
-            <span className="mx-1.5 text-neutral-300">·</span>
-            <a href="/zonas/reformas-la-moraleja" className="hover:text-primary transition-colors">La Moraleja</a>
-          </p>
-        </div>
+      </div>
+
+      {/* Línea divisoria full-width (lado a lado), igual que las otras del footer */}
+      <hr className="border-t border-neutral-100" />
+
+      {/* Índice SEO compacto, CENTRADO entre las dos líneas full-width
+          (py-6 simétrico = misma distancia arriba y abajo). */}
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-2 text-center">
+        <p className="text-[11px] leading-relaxed text-neutral-400">
+          <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">Servicios</span>{' '}
+          <a href="/servicios/reformas-integrales-madrid" className="hover:text-primary transition-colors">Reformas integrales</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/servicios/interiorismo-madrid" className="hover:text-primary transition-colors">Interiorismo</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/servicios/arquitectura-madrid" className="hover:text-primary transition-colors">Arquitectura</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/servicios/cambio-uso-local-vivienda-madrid" className="hover:text-primary transition-colors">Cambio de uso</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/servicios/obra-nueva-madrid" className="hover:text-primary transition-colors">Obra nueva</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/servicios/promocion-inmobiliaria-madrid" className="hover:text-primary transition-colors">Promoción</a>
+        </p>
+        <p className="text-[11px] leading-relaxed text-neutral-400">
+          <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">Zonas</span>{' '}
+          <a href="/zonas/reformas-salamanca" className="hover:text-primary transition-colors">Salamanca</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/zonas/reformas-chamberi" className="hover:text-primary transition-colors">Chamberí</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/zonas/reformas-chamartin" className="hover:text-primary transition-colors">Chamartín</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/zonas/reformas-retiro" className="hover:text-primary transition-colors">Retiro</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/zonas/reformas-pozuelo" className="hover:text-primary transition-colors">Pozuelo</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/zonas/reformas-las-rozas" className="hover:text-primary transition-colors">Las Rozas</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/zonas/reformas-majadahonda" className="hover:text-primary transition-colors">Majadahonda</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/zonas/reformas-aravaca" className="hover:text-primary transition-colors">Aravaca</a>
+          <span className="mx-1.5 text-neutral-300">·</span>
+          <a href="/zonas/reformas-la-moraleja" className="hover:text-primary transition-colors">La Moraleja</a>
+        </p>
       </div>
 
       {/* Línea divisoria de lado a lado antes del pie */}
