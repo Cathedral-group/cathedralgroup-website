@@ -83,12 +83,14 @@ function CalculatorLeadForm({
   sqm,
   rango,
   detalle,
+  bare = false,
 }: {
   tipoProyecto: string
   zona: string
   sqm: number
   rango: string
   detalle: string
+  bare?: boolean
 }) {
   const t = useT('calculator')
   const [nombre, setNombre] = useState('')
@@ -126,7 +128,7 @@ function CalculatorLeadForm({
 
   if (status === 'ok') {
     return (
-      <div className="border border-primary/30 bg-white p-8 text-center">
+      <div className={bare ? 'text-center px-6' : 'border border-primary/30 bg-white p-8 text-center'}>
         <div className="w-12 h-12 mx-auto mb-4 border-2 border-primary flex items-center justify-center">
           <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -144,7 +146,7 @@ function CalculatorLeadForm({
     'w-full bg-white border border-neutral-300 focus:border-primary focus:ring-1 focus:ring-primary p-3.5 text-sm text-neutral-900 placeholder:text-neutral-400'
 
   return (
-    <div className="border border-primary/30 bg-white p-8">
+    <div className={bare ? 'px-6' : 'border border-primary/30 bg-white p-8'}>
       <div className="text-center mb-6">
         <h3 className="text-lg font-light uppercase tracking-wide text-neutral-800 mb-2">
           {t('ctaTitle')}
@@ -549,13 +551,18 @@ export default function PresupuestoPage() {
         </p>
       </div>
 
-      <CalculatorLeadForm
-        tipoProyecto={t('promocion')}
-        zona=""
-        sqm={0}
-        rango="A medida"
-        detalle="Lead promoción/desarrollo — presupuesto a medida (no estimable por m²)"
-      />
+      {/* Recuadro blanco a sangre (de lado a lado): rompe el padding de la banda
+          para partir el beige en dos franjas, con el formulario centrado dentro. */}
+      <div className="-mx-6 md:-mx-10 border-y border-primary/30 bg-white py-12">
+        <CalculatorLeadForm
+          tipoProyecto={t('promocion')}
+          zona=""
+          sqm={0}
+          rango="A medida"
+          detalle="Lead promoción/desarrollo — presupuesto a medida (no estimable por m²)"
+          bare
+        />
+      </div>
 
       <div className="text-center mt-8">
         <button
