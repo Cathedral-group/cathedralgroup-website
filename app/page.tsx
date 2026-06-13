@@ -1,6 +1,5 @@
 import Image from 'next/image'
 import Divisions from '@/components/sections/Divisions'
-import JsonLd, { ORGANIZATION_SCHEMA } from '@/components/seo/JsonLd'
 
 export const metadata = {
   title: 'Cathedral Group | Arquitectura, Inversión y Desarrollo de Alto Standing en Madrid',
@@ -15,8 +14,6 @@ export const metadata = {
 export default function HomePage() {
   return (
     <>
-      <JsonLd data={ORGANIZATION_SCHEMA} />
-
       {/* H1 de marca (accesible a buscadores; el impacto visual lo da la imagen) */}
       <h1 className="sr-only">
         Cathedral Group — Arquitectura, inversión y desarrollo de alto standing en Madrid

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { zones, getZoneBySlug } from '@/content/zones'
 import SmartForm from '@/components/forms/SmartForm'
 import SectionLabel from '@/components/ui/SectionLabel'
+import JsonLd, { createBreadcrumbSchema } from '@/components/seo/JsonLd'
 
 const relatedServices: { href: string; labelEs: string; labelEn: string }[] = [
   { href: '/servicios/reformas-integrales-madrid', labelEs: 'Reformas integrales en Madrid', labelEn: 'Complete renovations in Madrid' },
@@ -61,11 +62,22 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!zone) return {}
 
   const name = locale === 'en' ? zone.nameEn : zone.nameEs
+  const title = locale === 'en' ? `Renovations in ${name}` : `Reformas en ${name}`
+  const description = locale === 'en' ? zone.descriptionEn : zone.descriptionEs
   return {
     // Sin sufijo "| Cathedral Group": lo añade el title.template del root layout
-    title: locale === 'en' ? `Renovations in ${name}` : `Reformas en ${name}`,
-    description: locale === 'en' ? zone.descriptionEn : zone.descriptionEs,
+    title,
+    description,
     alternates: { canonical: `/zonas/${slug}` },
+    openGraph: {
+      type: 'website',
+      siteName: 'Cathedral Group',
+      locale: 'es_ES',
+      title,
+      description,
+      url: `/zonas/${slug}`,
+      images: [zone.heroImage],
+    },
   }
 }
 
@@ -80,6 +92,14 @@ export default async function ZonePage({ params }: { params: Promise<{ slug: str
 
   return (
     <>
+      <JsonLd
+        data={createBreadcrumbSchema([
+          { name: 'Inicio', url: '/' },
+          { name: 'Zonas', url: '/zonas' },
+          { name: `Reformas en ${name}`, url: `/zonas/${slug}` },
+        ])}
+      />
+
       {/* Hero */}
       <section className="relative h-[60vh] flex items-end overflow-hidden">
         <div
