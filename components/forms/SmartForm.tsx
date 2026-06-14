@@ -203,7 +203,7 @@ export default function SmartForm({
         {/* Step 1: Project Type — selección: auto-avanza al pulsar, sin botones de navegación */}
         <div className={step === 1 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('projectType')}</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {PROJECT_TYPES.map(({ value, labelKey }) => (
               <button
                 key={value}
@@ -212,7 +212,7 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, tipo_proyecto: value }))
                   nextStep()
                 }}
-                className={`p-4 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                className={`p-6 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.tipo_proyecto === value
                     ? 'border-primary bg-white font-medium'
                     : 'border-neutral-300 bg-white'
@@ -227,7 +227,7 @@ export default function SmartForm({
         {/* Step 2: Zone — selección a ancho completo (3 col), cada zona auto-avanza; nav solo Anterior */}
         <div className={step === 2 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('zone')}</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {ZONES.map((zone) => (
               <button
                 key={zone}
@@ -236,7 +236,7 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, zona: zone }))
                   nextStep()
                 }}
-                className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                className={`p-6 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.zona === zone ? 'border-primary bg-white font-medium' : 'border-neutral-300 bg-white'
                 }`}
               >
@@ -249,7 +249,7 @@ export default function SmartForm({
                 setFormData((prev) => ({ ...prev, zona: 'Otra zona' }))
                 nextStep()
               }}
-              className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+              className={`p-6 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                 formData.zona === 'Otra zona' ? 'border-primary bg-white font-medium' : 'border-neutral-300 bg-white'
               }`}
             >
@@ -306,7 +306,7 @@ export default function SmartForm({
         {/* Step 4: Budget — selección a ancho completo (3 col), auto-avanza; nav solo Anterior */}
         <div className={step === 4 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('budget')}</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {BUDGET_RANGES.map(({ value, labelKey }) => (
               <button
                 key={value}
@@ -315,7 +315,7 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, presupuesto_rango: value }))
                   nextStep()
                 }}
-                className={`p-4 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                className={`p-6 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.presupuesto_rango === value
                     ? 'border-primary bg-white font-medium'
                     : 'border-neutral-300 bg-white'
