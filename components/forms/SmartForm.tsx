@@ -160,25 +160,22 @@ export default function SmartForm({
 
   return (
     <div>
-      {/* Progress dots */}
-      <div className="flex justify-center gap-3 mb-8">
+      {/* Progress bars (estilo calculadora: lineas a ancho completo, no cuadrados) */}
+      <div className="flex items-center gap-2 mb-8">
         {Array.from({ length: totalSteps }, (_, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <button
-              onClick={() => setStep(i + 1)}
-              className={`w-2.5 h-2.5 transition-all duration-300 ${
-                i + 1 <= step ? 'bg-primary' : 'bg-neutral-300'
-              }`}
-            />
-            {i < totalSteps - 1 && (
-              <div className={`w-8 h-px ${i + 1 < step ? 'bg-primary' : 'bg-neutral-300'}`} />
-            )}
-          </div>
+          <button
+            key={i}
+            type="button"
+            onClick={() => setStep(i + 1)}
+            className={`h-1 flex-1 transition-all duration-500 ${
+              i < step ? 'bg-primary' : 'bg-white'
+            }`}
+          />
         ))}
       </div>
 
       {/* Step labels */}
-      <div className="flex justify-center gap-6 mb-10">
+      <div className="flex justify-between gap-2 mb-10">
         {[t('step1'), t('step2'), t('step3'), t('step4'), t('step5')].map((label, i) => (
           <span
             key={i}
@@ -267,19 +264,33 @@ export default function SmartForm({
           </div>
         </div>
 
-        {/* Step 3: m² — input de texto, nav Anterior + Siguiente */}
+        {/* Step 3: m² — slider tipo calculadora (ruleta/linea), sin entrada manual */}
         <div className={step === 3 ? 'block max-w-2xl mx-auto' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('sqm')}</h4>
-          <div>
-            <label className={labelClass}>{t('sqm')}</label>
+          <div className="bg-white border border-neutral-200 p-8">
+            <div className="flex items-end gap-4 mb-8">
+              <span className="text-4xl font-light text-neutral-800">{formData.metros_cuadrados || 120}</span>
+              <span className="text-sm text-neutral-400 pb-2">m²</span>
+            </div>
             <input
-              type="number"
-              name="metros_cuadrados"
-              value={formData.metros_cuadrados}
-              onChange={handleChange}
-              placeholder={t('sqmPlaceholder')}
-              className={inputClass}
+              type="range"
+              min={30}
+              max={1000}
+              step={1}
+              value={Number(formData.metros_cuadrados) || 120}
+              onChange={(e) => setFormData((prev) => ({ ...prev, metros_cuadrados: e.target.value }))}
+              aria-label={t('sqm')}
+              className="w-full h-1 bg-neutral-200 appearance-none cursor-pointer
+                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+                [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
+                [&::-webkit-slider-thumb]:shadow-[0_0_0_4px_rgba(180,168,152,0.2)]
+                [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:bg-primary
+                [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
             />
+            <div className="flex justify-between text-xs text-neutral-400 mt-2">
+              <span>30 m²</span>
+              <span>1.000 m²</span>
+            </div>
           </div>
 
           <div className="flex gap-4 mt-8">
