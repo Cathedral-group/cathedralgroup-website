@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import type { BlogPost } from '@/lib/blog'
+import { categoryLabel, type BlogPost } from '@/lib/blog-categories'
 import { getLocale, useT } from '@/lib/translations'
 import SmartForm from '@/components/forms/SmartForm'
 import SectionLabel from '@/components/ui/SectionLabel'
@@ -34,7 +34,7 @@ export default function BlogPostContent({
         <div className="relative z-10 max-w-3xl mx-auto px-6 pb-12 w-full">
           <div className="flex items-center gap-4 mb-3">
             <span className="text-[10px] font-bold uppercase tracking-widest text-primary bg-white/90 px-2 py-1">
-              {post.category}
+              {categoryLabel(post.category, locale)}
             </span>
             <span className="text-xs text-white/70">{post.readingTime} {t('readingTimeSuffix')}</span>
           </div>
@@ -87,7 +87,7 @@ export default function BlogPostContent({
                       style={{ backgroundImage: `url('${rp.image}')` }}
                     />
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary">{rp.category}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary">{categoryLabel(rp.category, locale)}</span>
                   <h3 className="text-sm font-medium mt-1 group-hover:text-primary transition-colors">
                     {locale === 'en' ? rp.titleEn : rp.title}
                   </h3>

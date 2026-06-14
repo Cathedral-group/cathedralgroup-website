@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import SectionLabel from '@/components/ui/SectionLabel'
 import { getLocale, useT } from '@/lib/translations'
-import type { BlogPost } from '@/lib/blog'
+import { categoryLabel, type BlogPost } from '@/lib/blog-categories'
 
 const ALL = 'todos'
 
@@ -87,7 +87,7 @@ export default function BlogList({ posts }: { posts: BlogPost[] }) {
                 </div>
                 <div className="flex items-center gap-4 mb-2">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                    {post.category}
+                    {categoryLabel(post.category, locale)}
                   </span>
                   <span className="text-[10px] text-neutral-400">
                     {post.readingTime} {t('readingTimeSuffix')}

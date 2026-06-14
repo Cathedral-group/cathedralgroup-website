@@ -1,25 +1,30 @@
 'use client'
 
 import Link from 'next/link'
-import { useT } from '@/lib/translations'
+import { getLocale, useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
+// Nombres de proyecto: el sustantivo descriptivo se traduce (Atico->Penthouse),
+// el nombre propio se mantiene. La ubicacion son toponimos de Madrid (no se traducen).
 const PROJECTS = [
   {
     image: '/img/proj-atico.jpg',
     location: 'Salamanca, Madrid',
     name: 'Ático Velázquez',
+    nameEn: 'Velázquez Penthouse',
     alt: 'Luxury penthouse renovation in Barrio de Salamanca Madrid',
   },
   {
     image: '/img/proj-villa.jpg',
     location: 'Pozuelo de Alarcón',
     name: 'Residencia La Finca',
+    nameEn: 'La Finca Residence',
     alt: 'Minimalist modern villa architecture in Pozuelo de Alarcon',
   },
 ]
 
 export default function Projects() {
+  const locale = getLocale()
   const t = useT('projects')
 
   return (
@@ -60,7 +65,7 @@ export default function Projects() {
                 <p className="text-xs font-bold uppercase tracking-widest mb-2">
                   {project.location}
                 </p>
-                <h5 className="text-xl font-medium">{project.name}</h5>
+                <h5 className="text-xl font-medium">{locale === 'en' ? project.nameEn : project.name}</h5>
               </div>
             </div>
           </div>

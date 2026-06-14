@@ -2,23 +2,16 @@ import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
 import readingTime from 'reading-time'
+import { categoryLabel, type BlogPost } from '@/lib/blog-categories'
+
+// Re-export de los helpers cliente-seguros para los consumidores server que los
+// importaban via este modulo. La logica vive en lib/blog-categories.ts (SIN
+// 'fs') para que los componentes 'use client' no arrastren fs/path/gray-matter
+// al bundle de cliente (rompia el build: "Can't resolve 'fs'").
+export { categoryLabel }
+export type { BlogPost }
 
 const BLOG_DIR = path.join(process.cwd(), 'content/blog')
-
-export interface BlogPost {
-  slug: string
-  title: string
-  titleEn: string
-  description: string
-  descriptionEn: string
-  category: string
-  division: string
-  tags: string[]
-  image: string
-  date: string
-  readingTime: string
-  content: string
-}
 
 // Cache in-memory build-time. Posts MDX no cambian en runtime (Next.js SSG/RSC
 // con archivo system). 1 lectura disk + parse por proceso, no por request.

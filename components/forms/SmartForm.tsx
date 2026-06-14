@@ -46,7 +46,7 @@ export default function SmartForm({
 }: SmartFormProps) {
   const t = useT('form')
   const [step, setStep] = useState(1)
-  const totalSteps = 4
+  const totalSteps = 5
 
   const [formData, setFormData] = useState({
     tipo_proyecto: defaultProjectType,
@@ -79,9 +79,9 @@ export default function SmartForm({
     document.head.appendChild(script)
   }, [])
 
-  // Render Turnstile widget when on step 4
+  // Render Turnstile widget when on the contact step (last step)
   useEffect(() => {
-    if (!TURNSTILE_SITE_KEY || step !== 4 || turnstileRendered) return
+    if (!TURNSTILE_SITE_KEY || step !== 5 || turnstileRendered) return
 
     const interval = setInterval(() => {
       const w = window as any
@@ -179,7 +179,7 @@ export default function SmartForm({
 
       {/* Step labels */}
       <div className="flex justify-center gap-6 mb-10">
-        {[t('step1'), t('step2'), t('step3'), t('step4')].map((label, i) => (
+        {[t('step1'), t('step2'), t('step3'), t('step4'), t('step5')].map((label, i) => (
           <span
             key={i}
             className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
@@ -203,10 +203,10 @@ export default function SmartForm({
           autoComplete="off"
         />
 
-        {/* Step 1: Project Type */}
+        {/* Step 1: Project Type — selección: auto-avanza al pulsar, sin botones de navegación */}
         <div className={step === 1 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('projectType')}</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {PROJECT_TYPES.map(({ value, labelKey }) => (
               <button
                 key={value}
@@ -215,7 +215,7 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, tipo_proyecto: value }))
                   nextStep()
                 }}
-                className={`p-6 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                className={`p-4 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.tipo_proyecto === value
                     ? 'border-primary bg-white font-medium'
                     : 'border-neutral-300 bg-white'
@@ -227,45 +227,59 @@ export default function SmartForm({
           </div>
         </div>
 
-        {/* Step 2: Location + m² */}
-        <div className={step === 2 ? 'block max-w-2xl mx-auto' : 'hidden'}>
+        {/* Step 2: Zone — selección a ancho completo (3 col), cada zona auto-avanza; nav solo Anterior */}
+        <div className={step === 2 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('zone')}</h4>
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {ZONES.map((zone) => (
-                <button
-                  key={zone}
-                  type="button"
-                  onClick={() => setFormData((prev) => ({ ...prev, zona: zone }))}
-                  className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
-                    formData.zona === zone ? 'border-primary bg-white font-medium' : 'border-neutral-300 bg-white'
-                  }`}
-                >
-                  {zone}
-                </button>
-              ))}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {ZONES.map((zone) => (
               <button
+                key={zone}
                 type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, zona: 'Otra zona' }))}
+                onClick={() => {
+                  setFormData((prev) => ({ ...prev, zona: zone }))
+                  nextStep()
+                }}
                 className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
-                  formData.zona === 'Otra zona' ? 'border-primary bg-white font-medium' : 'border-neutral-300 bg-white'
+                  formData.zona === zone ? 'border-primary bg-white font-medium' : 'border-neutral-300 bg-white'
                 }`}
               >
-                {t('zoneOther')}
+                {zone}
               </button>
-            </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setFormData((prev) => ({ ...prev, zona: 'Otra zona' }))
+                nextStep()
+              }}
+              className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                formData.zona === 'Otra zona' ? 'border-primary bg-white font-medium' : 'border-neutral-300 bg-white'
+              }`}
+            >
+              {t('zoneOther')}
+            </button>
+          </div>
 
-            <div>
-              <label className={labelClass}>{t('sqm')}</label>
-              <input
-                type="number"
-                name="metros_cuadrados"
-                value={formData.metros_cuadrados}
-                onChange={handleChange}
-                placeholder={t('sqmPlaceholder')}
-                className={inputClass}
-              />
-            </div>
+          <div className="mt-8">
+            <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-400 text-neutral-700 hover:border-primary hover:text-primary transition-colors">
+              {t('prev')}
+            </button>
+          </div>
+        </div>
+
+        {/* Step 3: m² — input de texto, nav Anterior + Siguiente */}
+        <div className={step === 3 ? 'block max-w-2xl mx-auto' : 'hidden'}>
+          <h4 className="text-lg font-medium mb-6">{t('sqm')}</h4>
+          <div>
+            <label className={labelClass}>{t('sqm')}</label>
+            <input
+              type="number"
+              name="metros_cuadrados"
+              value={formData.metros_cuadrados}
+              onChange={handleChange}
+              placeholder={t('sqmPlaceholder')}
+              className={inputClass}
+            />
           </div>
 
           <div className="flex gap-4 mt-8">
@@ -278,10 +292,10 @@ export default function SmartForm({
           </div>
         </div>
 
-        {/* Step 3: Budget */}
-        <div className={step === 3 ? 'block' : 'hidden'}>
+        {/* Step 4: Budget — selección a ancho completo (3 col), auto-avanza; nav solo Anterior */}
+        <div className={step === 4 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('budget')}</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {BUDGET_RANGES.map(({ value, labelKey }) => (
               <button
                 key={value}
@@ -290,7 +304,7 @@ export default function SmartForm({
                   setFormData((prev) => ({ ...prev, presupuesto_rango: value }))
                   nextStep()
                 }}
-                className={`p-6 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                className={`p-4 text-base text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
                   formData.presupuesto_rango === value
                     ? 'border-primary bg-white font-medium'
                     : 'border-neutral-300 bg-white'
@@ -308,8 +322,8 @@ export default function SmartForm({
           </div>
         </div>
 
-        {/* Step 4: Contact Info */}
-        <div className={step === 4 ? 'block max-w-3xl mx-auto' : 'hidden'}>
+        {/* Step 5: Contact Info */}
+        <div className={step === 5 ? 'block max-w-3xl mx-auto' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('contactDetails')}</h4>
           <div className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">

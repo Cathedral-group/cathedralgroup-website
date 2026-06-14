@@ -1,20 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { useT } from '@/lib/translations'
+import { getLocale, useT } from '@/lib/translations'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 // Cuerpo de la página de proyectos (cliente, para traducir según la cookie de
 // idioma). La metadata/SEO permanece en español en la página servidora.
-// Los nombres de zona son topónimos (no se traducen); el tipo de proyecto sí.
+// Los nombres de zona son topónimos (no se traducen) salvo 'Centro' -> 'City Centre';
+// el sustantivo descriptivo del nombre del proyecto sí se traduce, el nombre propio no.
 const PROJECTS = [
-  { image: '/img/proj-atico.jpg', name: 'Ático Velázquez', zone: 'Salamanca', typeKey: 'typeReformaIntegral', href: '/zonas/reformas-salamanca' },
-  { image: '/img/proj-villa.jpg', name: 'Residencia La Finca', zone: 'Pozuelo', typeKey: 'typeObraNueva', href: '/zonas/reformas-pozuelo' },
-  { image: '/img/proj-castellana.jpg', name: 'Apartamento Castellana', zone: 'Chamberí', typeKey: 'typeInteriorismo', href: '/zonas/reformas-chamberi' },
-  { image: '/img/proj-loft.jpg', name: 'Loft Malasaña', zone: 'Centro', typeKey: 'typeCambioUso', href: '/servicios/cambio-uso-local-vivienda-madrid' },
+  { image: '/img/proj-atico.jpg', name: 'Ático Velázquez', nameEn: 'Velázquez Penthouse', zone: 'Salamanca', typeKey: 'typeReformaIntegral', href: '/zonas/reformas-salamanca' },
+  { image: '/img/proj-villa.jpg', name: 'Residencia La Finca', nameEn: 'La Finca Residence', zone: 'Pozuelo', typeKey: 'typeObraNueva', href: '/zonas/reformas-pozuelo' },
+  { image: '/img/proj-castellana.jpg', name: 'Apartamento Castellana', nameEn: 'Castellana Apartment', zone: 'Chamberí', typeKey: 'typeInteriorismo', href: '/zonas/reformas-chamberi' },
+  { image: '/img/proj-loft.jpg', name: 'Loft Malasaña', nameEn: 'Malasaña Loft', zone: 'Centro', typeKey: 'typeCambioUso', href: '/servicios/cambio-uso-local-vivienda-madrid' },
 ] as const
 
 export default function ProyectosContent() {
+  const locale = getLocale()
   const t = useT('projects')
 
   return (
@@ -42,8 +44,8 @@ export default function ProyectosContent() {
               />
               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end p-10">
                 <div className="text-white">
-                  <p className="text-xs font-bold uppercase tracking-widest mb-1">{project.zone}</p>
-                  <h3 className="text-xl font-medium mb-1">{project.name}</h3>
+                  <p className="text-xs font-bold uppercase tracking-widest mb-1">{locale === 'en' && project.zone === 'Centro' ? 'City Centre' : project.zone}</p>
+                  <h3 className="text-xl font-medium mb-1">{locale === 'en' ? project.nameEn : project.name}</h3>
                   <p className="text-xs text-white/70 uppercase tracking-widest">{t(project.typeKey)}</p>
                 </div>
               </div>
