@@ -178,6 +178,20 @@ const es = {
     leadSuccessTitle: 'Solicitud recibida',
     leadSuccessText: 'Gracias por su interés. Nuestro equipo se pondrá en contacto a la mayor brevedad con su propuesta personalizada.',
   },
+  division: {
+    ourDivision: 'Nuestra División',
+    leaveDetails: 'Déjenos sus datos y un especialista se pondrá en contacto sin compromiso.',
+    backToAll: '← Ver todas las divisiones',
+    name: 'Nombre',
+    email: 'Email',
+    phone: 'Teléfono (opcional)',
+    message: 'Cuéntenos brevemente qué necesita (opcional)',
+    sending: 'Enviando…',
+    submit: 'Enviar solicitud',
+    successTitle: 'Solicitud recibida',
+    successText: 'Gracias por su interés. Nuestro equipo se pondrá en contacto a la mayor brevedad.',
+    error: 'No se pudo enviar la solicitud. Inténtelo de nuevo en unos minutos.',
+  },
 }
 
 const en = {
@@ -359,6 +373,20 @@ const en = {
     leadError: 'Your request could not be sent. Please try again in a few minutes or contact us via the contact page.',
     leadSuccessTitle: 'Request received',
     leadSuccessText: 'Thank you for your interest. Our team will get back to you shortly with your personalised proposal.',
+  },
+  division: {
+    ourDivision: 'Our Division',
+    leaveDetails: 'Leave us your details and a specialist will be in touch at no obligation.',
+    backToAll: '← View all divisions',
+    name: 'Name',
+    email: 'Email',
+    phone: 'Phone (optional)',
+    message: 'Tell us briefly what you need (optional)',
+    sending: 'Sending…',
+    submit: 'Send request',
+    successTitle: 'Request received',
+    successText: 'Thank you for your interest. Our team will get back to you shortly.',
+    error: 'Your request could not be sent. Please try again in a few minutes.',
   },
 }
 

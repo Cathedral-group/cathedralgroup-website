@@ -1,10 +1,16 @@
+'use client'
+
 import Link from 'next/link'
 import type { Division } from '@/content/divisions'
+import { getLocale, useT } from '@/lib/translations'
 import DivisionLeadForm from '@/components/forms/DivisionLeadForm'
 import SectionLabel from '@/components/ui/SectionLabel'
 
 // Landing reutilizable de una división (Capital / Properties / Developments).
+// 'use client' para leer el idioma (getLocale, cookie) como el resto de secciones.
 export default function DivisionLanding({ division }: { division: Division }) {
+  const locale = getLocale()
+  const t = useT('division')
   return (
     <>
       {/* Hero */}
@@ -19,7 +25,7 @@ export default function DivisionLanding({ division }: { division: Division }) {
             {division.name}
           </p>
           <h1 className="text-white text-2xl md:text-4xl font-light uppercase tracking-wide max-w-3xl">
-            {division.tagline}
+            {division.tagline[locale]}
           </h1>
         </div>
       </section>
@@ -27,8 +33,8 @@ export default function DivisionLanding({ division }: { division: Division }) {
       {/* Intro */}
       <section className="py-20 bg-white">
         <div className="max-w-3xl mx-auto px-6 text-center" data-animate="fade-up">
-          <SectionLabel text="Nuestra División" className="mb-6 justify-center" />
-          <p className="text-lg text-neutral-700 leading-relaxed">{division.intro}</p>
+          <SectionLabel text={t('ourDivision')} className="mb-6 justify-center" />
+          <p className="text-lg text-neutral-700 leading-relaxed">{division.intro[locale]}</p>
         </div>
       </section>
 
@@ -37,14 +43,14 @@ export default function DivisionLanding({ division }: { division: Division }) {
         <div className="max-w-5xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10" data-animate="stagger">
             {division.pillars.map((p, i) => (
-              <div key={p.title} className="text-center">
+              <div key={p.title[locale]} className="text-center">
                 <span className="text-3xl font-light text-primary block mb-4">
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-800 mb-3">
-                  {p.title}
+                  {p.title[locale]}
                 </h3>
-                <p className="text-sm text-neutral-600 leading-relaxed">{p.desc}</p>
+                <p className="text-sm text-neutral-600 leading-relaxed">{p.desc[locale]}</p>
               </div>
             ))}
           </div>
@@ -56,11 +62,9 @@ export default function DivisionLanding({ division }: { division: Division }) {
         <div className="max-w-3xl mx-auto px-6">
           <div className="text-center mb-10">
             <h2 className="text-2xl font-light uppercase tracking-wide text-neutral-800 mb-3">
-              {division.ctaTitle}
+              {division.ctaTitle[locale]}
             </h2>
-            <p className="text-sm text-neutral-600">
-              Déjenos sus datos y un especialista se pondrá en contacto sin compromiso.
-            </p>
+            <p className="text-sm text-neutral-600">{t('leaveDetails')}</p>
           </div>
           <DivisionLeadForm source={division.formSource} division={division.name} />
         </div>
@@ -72,7 +76,7 @@ export default function DivisionLanding({ division }: { division: Division }) {
           href="/"
           className="text-xs font-bold uppercase tracking-[0.15em] text-neutral-400 hover:text-primary transition-colors"
         >
-          ← Ver todas las divisiones
+          {t('backToAll')}
         </Link>
       </section>
     </>

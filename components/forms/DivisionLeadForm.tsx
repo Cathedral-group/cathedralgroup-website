@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useT } from '@/lib/translations'
 
 // Formulario de captación para las landings de división. Clon ligero del de la
 // calculadora: pide datos mínimos y un mensaje opcional, y genera el campo
@@ -12,6 +13,7 @@ export default function DivisionLeadForm({
   source: string
   division: string
 }) {
+  const t = useT('division')
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [telefono, setTelefono] = useState('')
@@ -52,11 +54,9 @@ export default function DivisionLeadForm({
           </svg>
         </div>
         <h3 className="text-lg font-light uppercase tracking-wide text-neutral-800 mb-2">
-          Solicitud recibida
+          {t('successTitle')}
         </h3>
-        <p className="text-sm text-neutral-600">
-          Gracias por su interés. Nuestro equipo se pondrá en contacto a la mayor brevedad.
-        </p>
+        <p className="text-sm text-neutral-600">{t('successText')}</p>
       </div>
     )
   }
@@ -73,7 +73,7 @@ export default function DivisionLeadForm({
         maxLength={100}
         value={nombre}
         onChange={(e) => setNombre(e.target.value)}
-        placeholder="Nombre"
+        placeholder={t('name')}
         className={inputClass}
         autoComplete="name"
       />
@@ -83,7 +83,7 @@ export default function DivisionLeadForm({
         maxLength={200}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email"
+        placeholder={t('email')}
         className={inputClass}
         autoComplete="email"
       />
@@ -92,7 +92,7 @@ export default function DivisionLeadForm({
         maxLength={20}
         value={telefono}
         onChange={(e) => setTelefono(e.target.value)}
-        placeholder="Teléfono (opcional)"
+        placeholder={t('phone')}
         className={inputClass}
         autoComplete="tel"
       />
@@ -101,7 +101,7 @@ export default function DivisionLeadForm({
         maxLength={2000}
         value={mensaje}
         onChange={(e) => setMensaje(e.target.value)}
-        placeholder="Cuéntenos brevemente qué necesita (opcional)"
+        placeholder={t('message')}
         className={inputClass}
       />
       {/* Honeypot anti-spam: oculto para humanos */}
@@ -117,7 +117,7 @@ export default function DivisionLeadForm({
       />
       {status === 'error' && (
         <p className="text-xs text-red-600 text-center" role="alert">
-          No se pudo enviar la solicitud. Inténtelo de nuevo en unos minutos.
+          {t('error')}
         </p>
       )}
       <button
@@ -125,7 +125,7 @@ export default function DivisionLeadForm({
         disabled={status === 'sending'}
         className="w-full px-10 py-3.5 border border-neutral-800 text-neutral-800 text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] transition-all duration-500 disabled:opacity-50 disabled:cursor-wait"
       >
-        {status === 'sending' ? 'Enviando…' : 'Enviar solicitud'}
+        {status === 'sending' ? t('sending') : t('submit')}
       </button>
     </form>
   )
