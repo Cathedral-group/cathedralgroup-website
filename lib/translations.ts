@@ -220,6 +220,15 @@ const es = {
     successText: 'Gracias por su interés. Nuestro equipo se pondrá en contacto a la mayor brevedad.',
     error: 'No se pudo enviar la solicitud. Inténtelo de nuevo en unos minutos.',
   },
+  blog: {
+    label: 'Blog',
+    title: 'Guías y Tendencias',
+    intro: 'Artículos sobre reformas, inversión, compraventa y promoción de alto standing en Madrid.',
+    all: 'Todos',
+    home: 'Inicio',
+    relatedArticles: 'Artículos relacionados',
+    startProject: 'Inicie su Proyecto',
+  },
 }
 
 const en = {
@@ -443,6 +452,15 @@ const en = {
     successTitle: 'Request received',
     successText: 'Thank you for your interest. Our team will get back to you shortly.',
     error: 'Your request could not be sent. Please try again in a few minutes.',
+  },
+  blog: {
+    label: 'Blog',
+    title: 'Guides and Trends',
+    intro: 'Articles on renovations, investment, sales and high-end development in Madrid.',
+    all: 'All',
+    home: 'Home',
+    relatedArticles: 'Related articles',
+    startProject: 'Start Your Project',
   },
 }
 

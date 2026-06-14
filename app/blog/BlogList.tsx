@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import SectionLabel from '@/components/ui/SectionLabel'
+import { getLocale, useT } from '@/lib/translations'
 import type { BlogPost } from '@/lib/blog'
 
 const ALL = 'todos'
@@ -22,6 +23,8 @@ const chipIdle = 'text-neutral-400 hover:text-primary'
 
 export default function BlogList({ posts }: { posts: BlogPost[] }) {
   const [selected, setSelected] = useState<string>(ALL)
+  const locale = getLocale()
+  const t = useT('blog')
 
   const filtered =
     selected === ALL ? posts : posts.filter((p) => p.division === selected)
@@ -31,12 +34,12 @@ export default function BlogList({ posts }: { posts: BlogPost[] }) {
       {/* Header */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-6" data-animate="fade-up">
-          <SectionLabel text="Blog" className="mb-4" />
+          <SectionLabel text={t('label')} className="mb-4" />
           <h1 className="text-2xl font-medium uppercase tracking-wide mb-4">
-            Guías y Tendencias
+            {t('title')}
           </h1>
           <p className="text-neutral-600 max-w-2xl">
-            Artículos sobre reformas, inversión, compraventa y promoción de alto standing en Madrid.
+            {t('intro')}
           </p>
 
           {/* Filtros por división */}
@@ -47,7 +50,7 @@ export default function BlogList({ posts }: { posts: BlogPost[] }) {
               aria-pressed={selected === ALL}
               className={`${chipBase} ${selected === ALL ? chipActive : chipIdle}`}
             >
-              Todos
+              {t('all')}
             </button>
             {DIVISIONS.map((d) => (
               <button
@@ -90,14 +93,14 @@ export default function BlogList({ posts }: { posts: BlogPost[] }) {
                     {post.readingTime}
                   </span>
                   <span className="text-[10px] text-neutral-400">
-                    {new Date(post.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {new Date(post.date).toLocaleDateString(locale === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
                 </div>
                 <h2 className="text-lg font-medium leading-snug group-hover:text-primary transition-colors">
-                  {post.title}
+                  {locale === 'en' ? post.titleEn : post.title}
                 </h2>
                 <p className="text-sm text-neutral-600 mt-2 line-clamp-2">
-                  {post.description}
+                  {locale === 'en' ? post.descriptionEn : post.description}
                 </p>
               </Link>
             ))}
