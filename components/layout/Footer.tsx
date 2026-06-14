@@ -100,7 +100,7 @@ export default function Footer() {
           <a href="/servicios/promocion-inmobiliaria-madrid" className="hover:text-primary transition-colors">{t('svcPromocion')}</a>
         </p>
         <p className="text-[11px] leading-relaxed text-neutral-400">
-          <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">{t('zonesIndex')}</span>{' '}
+          <a href="/zonas" className="font-bold uppercase tracking-widest text-neutral-500 mr-1 hover:text-primary transition-colors">{t('zonesIndex')}</a>{' '}
           <a href="/zonas/reformas-salamanca" className="hover:text-primary transition-colors">Salamanca</a>
           <span className="mx-1.5 text-neutral-300">·</span>
           <a href="/zonas/reformas-chamberi" className="hover:text-primary transition-colors">Chamberí</a>
