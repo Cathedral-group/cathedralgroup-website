@@ -294,7 +294,9 @@ export default function PresupuestoPage() {
     </div>
   )
 
-  const NavButtons = () => (
+  // Solo los pasos sin elección única (m² y extras) muestran botón de avance.
+  // Los de elección única (tipo, zona, nivel) avanzan al pulsar la opción.
+  const NavButtons = ({ withNext = false }: { withNext?: boolean }) => (
     <div className="mt-10 pt-6 border-t border-neutral-200 flex items-center justify-between">
       <button
         onClick={goPrev}
@@ -304,17 +306,19 @@ export default function PresupuestoPage() {
       >
         ← {t('prev')}
       </button>
-      <button
-        onClick={goNext}
-        disabled={!canAdvance()}
-        className={`px-10 py-3.5 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-500 ${
-          canAdvance()
-            ? 'bg-[#5A5550] text-white hover:bg-[#4A4540]'
-            : 'bg-white text-neutral-400 border border-neutral-200 cursor-not-allowed'
-        }`}
-      >
-        {step === TOTAL_STEPS ? t('calculate') : t('next')} →
-      </button>
+      {withNext && (
+        <button
+          onClick={goNext}
+          disabled={!canAdvance()}
+          className={`px-10 py-3.5 text-xs font-bold uppercase tracking-[0.15em] transition-all duration-500 ${
+            canAdvance()
+              ? 'bg-[#5A5550] text-white hover:bg-[#4A4540]'
+              : 'bg-white text-neutral-400 border border-neutral-200 cursor-not-allowed'
+          }`}
+        >
+          {step === TOTAL_STEPS ? t('calculate') : t('next')} →
+        </button>
+      )}
     </div>
   )
 
@@ -349,7 +353,7 @@ export default function PresupuestoPage() {
           <SelectionCard
             key={pt.key}
             selected={projectType === pt.key}
-            onClick={() => { setProjectType(pt.key); setTimeout(() => { pt.isCustom ? setShowResult(true) : setStep(2) }, 300) }}
+            onClick={() => { setProjectType(pt.key); pt.isCustom ? setShowResult(true) : setStep(2) }}
           >
             <div className="flex items-center gap-4">
               <span className="text-2xl text-primary opacity-60">{PROJECT_ICONS[pt.key]}</span>
@@ -361,7 +365,6 @@ export default function PresupuestoPage() {
           </SelectionCard>
         ))}
       </div>
-      <NavButtons />
     </div>
   )
 
@@ -370,7 +373,7 @@ export default function PresupuestoPage() {
       <StepHeader titleKey="step2Title" subtitleKey="step2Subtitle" />
       <div className="space-y-3">
         {ZONES.map((z, i) => (
-          <SelectionCard key={z.key} selected={zone === i} onClick={() => setZone(i)}>
+          <SelectionCard key={z.key} selected={zone === i} onClick={() => { setZone(i); setStep(3) }}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-neutral-800">{t(z.key)}</p>
               <span
@@ -386,31 +389,6 @@ export default function PresupuestoPage() {
           </SelectionCard>
         ))}
       </div>
-
-      {/* Casilla opcional: edificio protegido/señorial (sobrecoste real ×1,3) */}
-      <button
-        type="button"
-        onClick={() => setIsProtected((v) => !v)}
-        className={`w-full text-left mt-4 p-6 border transition-all duration-300 flex items-center justify-between ${
-          isProtected ? 'border-primary bg-primary/5' : 'border-neutral-200 hover:border-primary/50 bg-white'
-        }`}
-      >
-        <div>
-          <p className="text-sm font-medium text-neutral-800">{t('protectedLabel')}</p>
-          <p className="text-xs text-neutral-400 mt-0.5">{t('protectedDesc')}</p>
-        </div>
-        <div
-          className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 shrink-0 ml-4 ${
-            isProtected ? 'border-primary bg-primary' : 'border-neutral-300'
-          }`}
-        >
-          {isProtected && (
-            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-        </div>
-      </button>
 
       <NavButtons />
     </div>
@@ -474,7 +452,33 @@ export default function PresupuestoPage() {
           <span className="text-xs text-neutral-400">m²</span>
         </div>
       </div>
-      <NavButtons />
+
+      {/* Casilla opcional: edificio protegido/señorial (sobrecoste real ×1,3) */}
+      <button
+        type="button"
+        onClick={() => setIsProtected((v) => !v)}
+        className={`w-full text-left mt-4 p-6 border transition-all duration-300 flex items-center justify-between ${
+          isProtected ? 'border-primary bg-primary/5' : 'border-neutral-200 hover:border-primary/50 bg-white'
+        }`}
+      >
+        <div>
+          <p className="text-sm font-medium text-neutral-800">{t('protectedLabel')}</p>
+          <p className="text-xs text-neutral-400 mt-0.5">{t('protectedDesc')}</p>
+        </div>
+        <div
+          className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 shrink-0 ml-4 ${
+            isProtected ? 'border-primary bg-primary' : 'border-neutral-300'
+          }`}
+        >
+          {isProtected && (
+            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      </button>
+
+      <NavButtons withNext />
     </div>
   )
 
@@ -483,7 +487,7 @@ export default function PresupuestoPage() {
       <StepHeader titleKey="step4Title" subtitleKey="step4Subtitle" />
       <div className="grid md:grid-cols-2 gap-3">
         {QUALITY_LEVELS.map((lvl, i) => (
-          <SelectionCard key={lvl.key} selected={finishLevel === i} onClick={() => { setFinishLevel(i); setTimeout(() => { lvl.isContact ? setShowResult(true) : setStep(5) }, 300) }}>
+          <SelectionCard key={lvl.key} selected={finishLevel === i} onClick={() => { setFinishLevel(i); lvl.isContact ? setShowResult(true) : setStep(5) }}>
             <p className="text-sm font-medium text-neutral-800 mb-1">{t(lvl.key)}</p>
             <p className="text-xs font-bold text-primary mb-1">{t(`${lvl.key}Range`)}</p>
             <p className="text-xs text-neutral-400">{t(`${lvl.key}Desc`)}</p>
@@ -540,7 +544,7 @@ export default function PresupuestoPage() {
       </button>
       {showHouseExtras && <div className="space-y-3 mt-3">{HOUSE_EXTRAS.map(ExtraRow)}</div>}
 
-      <NavButtons />
+      <NavButtons withNext />
     </div>
   )
 
