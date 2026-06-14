@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useT } from '@/lib/translations'
+import { QUALITY_LEVELS, PROJECT_TYPES, ZONES, EXTRAS, computeEstimate } from '@/lib/pricing'
 
 /* ── Schema.org WebApplication (injected once) ── */
 const WEB_APP_SCHEMA = {
@@ -37,36 +38,19 @@ const WEB_APP_SCHEMA = {
 /* ── Constants ── */
 const TOTAL_STEPS = 5
 
-const PROJECT_TYPES = [
-  { key: 'reformaIntegral', icon: '◻' },
-  { key: 'reformaParcial', icon: '▣' },
-  { key: 'interiorismo', icon: '◈' },
-  { key: 'cambioUso', icon: '⬡' },
-  { key: 'obraNueva', icon: '△' },
-  { key: 'promocion', icon: '▦' },
-] as const
+// Iconos de los tipos de proyecto (solo UI). Los datos de precio viven en lib/pricing.ts.
+const PROJECT_ICONS: Record<string, string> = {
+  reformaIntegral: '◻',
+  reformaParcial: '▣',
+  interiorismo: '◈',
+  cambioUso: '⬡',
+  obraNueva: '△',
+  promocion: '▦',
+}
 
-const ZONES = [
-  { key: 'zonePremiumPlus', tagKey: 'zonePremiumPlusTag', multiplier: 1.15 },
-  { key: 'zonePremium', tagKey: 'zonePremiumTag', multiplier: 1.10 },
-  { key: 'zoneStandard', tagKey: 'zoneStandardTag', multiplier: 1.0 },
-  { key: 'zoneOther', tagKey: 'zoneOtherTag', multiplier: 1.0 },
-] as const
-
-const FINISH_LEVELS = [
-  { key: 'standard', rangeKey: 'standardRange', descKey: 'standardDesc', min: 600, max: 800 },
-  { key: 'premium', rangeKey: 'premiumRange', descKey: 'premiumDesc', min: 800, max: 1200 },
-  { key: 'luxury', rangeKey: 'luxuryRange', descKey: 'luxuryDesc', min: 1200, max: 1800 },
-  { key: 'ultraLuxury', rangeKey: 'ultraLuxuryRange', descKey: 'ultraLuxuryDesc', min: 1800, max: 2500 },
-] as const
-
-const EXTRAS = [
-  { key: 'domotica', descKey: 'domoticaDesc', minCost: 8000, maxCost: 25000 },
-  { key: 'cocinaPremium', descKey: 'cocinaPremiumDesc', minCost: 15000, maxCost: 45000 },
-  { key: 'climatizacion', descKey: 'climatizacionDesc', minCost: 6000, maxCost: 18000 },
-  { key: 'iluminacion', descKey: 'iluminacionDesc', minCost: 4000, maxCost: 15000 },
-  { key: 'mobiliario', descKey: 'mobiliarioDesc', minCost: 12000, maxCost: 40000 },
-] as const
+// Extras por scope: núcleo (siempre) + casa/chalet (sección desplegable).
+const CORE_EXTRAS = EXTRAS.filter((e) => e.scope === 'all')
+const HOUSE_EXTRAS = EXTRAS.filter((e) => e.scope === 'house')
 
 /* ── Helpers ── */
 function formatPrice(n: number) {
@@ -227,6 +211,8 @@ export default function PresupuestoPage() {
   const [finishLevel, setFinishLevel] = useState<number | null>(null)
   const [extras, setExtras] = useState<Set<string>>(new Set())
   const [showResult, setShowResult] = useState(false)
+  const [isProtected, setIsProtected] = useState(false)
+  const [showHouseExtras, setShowHouseExtras] = useState(false)
 
   const toggleExtra = useCallback((key: string) => {
     setExtras(prev => {
@@ -258,43 +244,15 @@ export default function PresupuestoPage() {
   /* calculation */
   const calculateResult = () => setShowResult(true)
 
-  const getResults = () => {
-    const finish = FINISH_LEVELS[finishLevel ?? 0]
-    const zoneMultiplier = ZONES[zone ?? 2].multiplier
-
-    let baseMin = finish.min * sqm * zoneMultiplier
-    let baseMax = finish.max * sqm * zoneMultiplier
-
-    let extrasMin = 0
-    let extrasMax = 0
-    extras.forEach(k => {
-      const e = EXTRAS.find(x => x.key === k)
-      if (e) { extrasMin += e.minCost; extrasMax += e.maxCost }
+  const getResults = () =>
+    computeEstimate({
+      levelIdx: finishLevel ?? 1,
+      projectKey: projectType ?? 'reformaIntegral',
+      zoneIdx: zone ?? ZONES.length - 1,
+      sqm,
+      extraKeys: [...extras],
+      isProtected,
     })
-
-    const totalMin = baseMin + extrasMin
-    const totalMax = baseMax + extrasMax
-
-    // Breakdown percentages (approximate)
-    const obraMin = totalMin * 0.40
-    const obraMax = totalMax * 0.40
-    const matMin = totalMin * 0.30
-    const matMax = totalMax * 0.30
-    const disMin = totalMin * 0.18
-    const disMax = totalMax * 0.18
-    const gestMin = totalMin * 0.12
-    const gestMax = totalMax * 0.12
-
-    return {
-      totalMin, totalMax,
-      breakdown: [
-        { key: 'obraLabel', min: obraMin, max: obraMax, pct: 40 },
-        { key: 'materialesLabel', min: matMin, max: matMax, pct: 30 },
-        { key: 'disenoLabel', min: disMin, max: disMax, pct: 18 },
-        { key: 'gestionLabel', min: gestMin, max: gestMax, pct: 12 },
-      ],
-    }
-  }
 
   const reset = () => {
     setStep(1)
@@ -304,6 +262,8 @@ export default function PresupuestoPage() {
     setFinishLevel(null)
     setExtras(new Set())
     setShowResult(false)
+    setIsProtected(false)
+    setShowHouseExtras(false)
   }
 
   /* ── Render helpers ── */
@@ -384,17 +344,17 @@ export default function PresupuestoPage() {
     <div>
       <StepHeader titleKey="step1Title" subtitleKey="step1Subtitle" />
       <div className="grid md:grid-cols-3 gap-6">
-        {PROJECT_TYPES.map(({ key, icon }) => (
+        {PROJECT_TYPES.map((pt) => (
           <SelectionCard
-            key={key}
-            selected={projectType === key}
-            onClick={() => { setProjectType(key); setTimeout(() => { key === 'promocion' ? setShowResult(true) : setStep(2) }, 300) }}
+            key={pt.key}
+            selected={projectType === pt.key}
+            onClick={() => { setProjectType(pt.key); setTimeout(() => { pt.isCustom ? setShowResult(true) : setStep(2) }, 300) }}
           >
             <div className="flex items-center gap-4">
-              <span className="text-2xl text-primary opacity-60">{icon}</span>
+              <span className="text-2xl text-primary opacity-60">{PROJECT_ICONS[pt.key]}</span>
               <div>
-                <p className="text-sm font-medium text-neutral-800">{t(key)}</p>
-                <p className="text-xs text-neutral-400 mt-0.5">{t(`${key}Desc`)}</p>
+                <p className="text-sm font-medium text-neutral-800">{t(pt.key)}</p>
+                <p className="text-xs text-neutral-400 mt-0.5">{t(`${pt.key}Desc`)}</p>
               </div>
             </div>
           </SelectionCard>
@@ -409,7 +369,7 @@ export default function PresupuestoPage() {
       <StepHeader titleKey="step2Title" subtitleKey="step2Subtitle" />
       <div className="space-y-3">
         {ZONES.map((z, i) => (
-          <SelectionCard key={z.key} selected={zone === i} onClick={() => { setZone(i); setTimeout(() => setStep(3), 300) }}>
+          <SelectionCard key={z.key} selected={zone === i} onClick={() => setZone(i)}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-neutral-800">{t(z.key)}</p>
               <span
@@ -419,12 +379,38 @@ export default function PresupuestoPage() {
                     : 'text-neutral-500 bg-neutral-100'
                 }`}
               >
-                {t(z.tagKey)}
+                {t(`${z.key}Tag`)}
               </span>
             </div>
           </SelectionCard>
         ))}
       </div>
+
+      {/* Casilla opcional: edificio protegido/señorial (sobrecoste real ×1,3) */}
+      <button
+        type="button"
+        onClick={() => setIsProtected((v) => !v)}
+        className={`w-full text-left mt-4 p-6 border transition-all duration-300 flex items-center justify-between ${
+          isProtected ? 'border-primary bg-primary/5' : 'border-neutral-200 hover:border-primary/50 bg-white'
+        }`}
+      >
+        <div>
+          <p className="text-sm font-medium text-neutral-800">{t('protectedLabel')}</p>
+          <p className="text-xs text-neutral-400 mt-0.5">{t('protectedDesc')}</p>
+        </div>
+        <div
+          className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 shrink-0 ml-4 ${
+            isProtected ? 'border-primary bg-primary' : 'border-neutral-300'
+          }`}
+        >
+          {isProtected && (
+            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      </button>
+
       <NavButtons />
     </div>
   )
@@ -482,11 +468,11 @@ export default function PresupuestoPage() {
     <div>
       <StepHeader titleKey="step4Title" subtitleKey="step4Subtitle" />
       <div className="grid md:grid-cols-2 gap-3">
-        {FINISH_LEVELS.map((fl, i) => (
-          <SelectionCard key={fl.key} selected={finishLevel === i} onClick={() => { setFinishLevel(i); setTimeout(() => setStep(5), 300) }}>
-            <p className="text-sm font-medium text-neutral-800 mb-1">{t(fl.key)}</p>
-            <p className="text-xs font-bold text-primary mb-1">{t(fl.rangeKey)}</p>
-            <p className="text-xs text-neutral-400">{t(fl.descKey)}</p>
+        {QUALITY_LEVELS.map((lvl, i) => (
+          <SelectionCard key={lvl.key} selected={finishLevel === i} onClick={() => { setFinishLevel(i); setTimeout(() => { lvl.isContact ? setShowResult(true) : setStep(5) }, 300) }}>
+            <p className="text-sm font-medium text-neutral-800 mb-1">{t(lvl.key)}</p>
+            <p className="text-xs font-bold text-primary mb-1">{t(`${lvl.key}Range`)}</p>
+            <p className="text-xs text-neutral-400">{t(`${lvl.key}Desc`)}</p>
           </SelectionCard>
         ))}
       </div>
@@ -494,41 +480,52 @@ export default function PresupuestoPage() {
     </div>
   )
 
+  // Render de una fila de extra (núcleo y casa comparten el mismo aspecto).
+  const ExtraRow = (ex: (typeof EXTRAS)[number]) => {
+    const selected = extras.has(ex.key)
+    return (
+      <button
+        key={ex.key}
+        type="button"
+        onClick={() => toggleExtra(ex.key)}
+        className={`w-full text-left p-6 border transition-all duration-300 flex items-center justify-between ${
+          selected ? 'border-primary bg-primary/5' : 'border-neutral-200 hover:border-primary/50 bg-white'
+        }`}
+      >
+        <div>
+          <p className="text-sm font-medium text-neutral-800">{t(ex.key)}</p>
+          <p className="text-xs text-neutral-400 mt-0.5">{t(`${ex.key}Desc`)}</p>
+        </div>
+        <div
+          className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 shrink-0 ml-4 ${
+            selected ? 'border-primary bg-primary' : 'border-neutral-300'
+          }`}
+        >
+          {selected && (
+            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      </button>
+    )
+  }
+
   const Step5 = () => (
     <div>
       <StepHeader titleKey="step5Title" subtitleKey="step5Subtitle" />
-      <div className="space-y-3">
-        {EXTRAS.map(ex => {
-          const selected = extras.has(ex.key)
-          return (
-            <button
-              key={ex.key}
-              onClick={() => toggleExtra(ex.key)}
-              className={`w-full text-left p-6 border transition-all duration-300 flex items-center justify-between ${
-                selected
-                  ? 'border-primary bg-primary/5'
-                  : 'border-neutral-200 hover:border-primary/50 bg-white'
-              }`}
-            >
-              <div>
-                <p className="text-sm font-medium text-neutral-800">{t(ex.key)}</p>
-                <p className="text-xs text-neutral-400 mt-0.5">{t(ex.descKey)}</p>
-              </div>
-              <div
-                className={`w-5 h-5 border-2 flex items-center justify-center transition-all duration-300 shrink-0 ml-4 ${
-                  selected ? 'border-primary bg-primary' : 'border-neutral-300'
-                }`}
-              >
-                {selected && (
-                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </div>
-            </button>
-          )
-        })}
-      </div>
+      <div className="space-y-3">{CORE_EXTRAS.map(ExtraRow)}</div>
+
+      {/* Extras de vivienda unifamiliar / chalet — sección desplegable */}
+      <button
+        type="button"
+        onClick={() => setShowHouseExtras((v) => !v)}
+        className="mt-5 mb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary hover:text-[#4A4540] transition-colors"
+      >
+        {showHouseExtras ? '−' : '+'} {t('extrasHouseToggle')}
+      </button>
+      {showHouseExtras && <div className="space-y-3 mt-3">{HOUSE_EXTRAS.map(ExtraRow)}</div>}
+
       <NavButtons />
     </div>
   )
@@ -537,17 +534,29 @@ export default function PresupuestoPage() {
   // se muestra una vista de "presupuesto a medida" que capta el lead para estudio.
   // Se invoca como CustomQuoteView() (no <CustomQuoteView/>), igual que ResultView,
   // para no remontar y que CalculatorLeadForm no pierda foco/estado.
-  const CustomQuoteView = () => (
+  const CustomQuoteView = ({
+    labelKey,
+    titleKey,
+    textKey,
+    tipoProyecto,
+    detalle,
+  }: {
+    labelKey: string
+    titleKey: string
+    textKey: string
+    tipoProyecto: string
+    detalle: string
+  }) => (
     <div className="animate-fadeIn">
       <div className="text-center mb-8">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-3">
-          {t('promocion')}
+          {t(labelKey)}
         </p>
         <h2 className="text-fluid-xl font-light uppercase tracking-wide text-neutral-800 mb-3">
-          {t('customTitle')}
+          {t(titleKey)}
         </h2>
         <p className="text-neutral-500 text-sm max-w-xl mx-auto leading-relaxed">
-          {t('customText')}
+          {t(textKey)}
         </p>
       </div>
 
@@ -555,11 +564,11 @@ export default function PresupuestoPage() {
           para partir el beige en dos franjas, con el formulario centrado dentro. */}
       <div className="-mx-6 md:-mx-10 border-y border-primary/30 bg-white py-12">
         <CalculatorLeadForm
-          tipoProyecto={t('promocion')}
-          zona=""
+          tipoProyecto={tipoProyecto}
+          zona={zone !== null ? t(ZONES[zone].key) : ''}
           sqm={0}
           rango="A medida"
-          detalle="Lead promoción/desarrollo — presupuesto a medida (no estimable por m²)"
+          detalle={detalle}
           bare
         />
       </div>
@@ -637,7 +646,7 @@ export default function PresupuestoPage() {
             projectType ? t(projectType) : null,
             zone !== null ? t(ZONES[zone].key) : null,
             `${sqm} m²`,
-            finishLevel !== null ? t(FINISH_LEVELS[finishLevel].key) : null,
+            finishLevel !== null ? t(QUALITY_LEVELS[finishLevel].key) : null,
             extras.size > 0 ? `Extras: ${[...extras].map((k) => t(k)).join(', ')}` : null,
             `Estimación: ${formatPrice(r.totalMin)} - ${formatPrice(r.totalMax)}`,
           ]
@@ -691,7 +700,30 @@ export default function PresupuestoPage() {
                 montarla como componente la remontaría en cada render del padre y
                 CalculatorLeadForm perdería estado/foco. Como llamada es JSX inline. */}
             {showResult ? (
-              projectType === 'promocion' ? CustomQuoteView() : ResultView()
+              projectType === 'promocion'
+                ? CustomQuoteView({
+                    labelKey: 'promocion',
+                    titleKey: 'customTitle',
+                    textKey: 'customText',
+                    tipoProyecto: t('promocion'),
+                    detalle: 'Lead promoción/desarrollo — presupuesto a medida (no estimable por m²)',
+                  })
+                : finishLevel !== null && QUALITY_LEVELS[finishLevel]?.isContact
+                  ? CustomQuoteView({
+                      labelKey: 'excepcional',
+                      titleKey: 'excepcionalTitle',
+                      textKey: 'excepcionalText',
+                      tipoProyecto: `${projectType ? t(projectType) : ''} · ${t('excepcional')}`,
+                      detalle: [
+                        'Lead calculadora — nivel Excepcional (a medida)',
+                        projectType ? t(projectType) : null,
+                        zone !== null ? t(ZONES[zone].key) : null,
+                        `${sqm} m²`,
+                      ]
+                        .filter(Boolean)
+                        .join(' · '),
+                    })
+                  : ResultView()
             ) : (
               <>
                 {step === 1 && <Step1 />}
