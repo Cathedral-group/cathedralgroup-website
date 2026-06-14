@@ -84,6 +84,8 @@ export const EXTRAS: Extra[] = [
   { key: 'sueloMadera', pricing: 'perM2', min: 80, max: 175, scope: 'all', minLevel: 'economica', inInteriorismo: false },
   { key: 'wallbox', pricing: 'fixed', min: 850, max: 1900, scope: 'all', minLevel: 'economica', inInteriorismo: false }, // sin IVA (corregido auditoría: fuentes daban con IVA)
   { key: 'spa', pricing: 'fixed', min: 2500, max: 12000, scope: 'all', minLevel: 'premium', inInteriorismo: false },
+  { key: 'aireAcondicionado', pricing: 'fixed', min: 2000, max: 6000, scope: 'all', minLevel: 'economica', inInteriorismo: false }, // splits/multisplit, aparte de climatización por conductos
+  { key: 'falsosTechos', pricing: 'perM2', min: 25, max: 80, scope: 'all', minLevel: 'economica', inInteriorismo: false }, // €/m²: liso (25) → decorativo con foseado (80)
   // Solo en "vivienda unifamiliar / chalet"
   { key: 'piscina', pricing: 'fixed', min: 20000, max: 35000, scope: 'house', minLevel: 'economica', inInteriorismo: false },
   { key: 'ascensor', pricing: 'fixed', min: 8000, max: 50000, scope: 'house', minLevel: 'economica', inInteriorismo: false },
