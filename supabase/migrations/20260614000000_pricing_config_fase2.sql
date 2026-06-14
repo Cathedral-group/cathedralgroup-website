@@ -170,3 +170,6 @@ ON CONFLICT (category, item_key) DO NOTHING;
 
 COMMENT ON TABLE public.pricing_config IS
   'Parámetros editables de la calculadora /presupuesto (niveles, factores, zonas, extras, global). Solo service_role. Cada fila lleva explanation (criterio del estudio) + updated_at/updated_by. Fase 2 (14/06/2026).';
+
+-- Refrescar el cache de schema de PostgREST para que la tabla sea visible de inmediato.
+NOTIFY pgrst, 'reload schema';
