@@ -231,18 +231,29 @@ export default function SmartForm({
         <div className={step === 2 ? 'block max-w-2xl mx-auto' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('zone')}</h4>
           <div className="space-y-6">
-            <select
-              name="zona"
-              value={formData.zona}
-              onChange={handleChange}
-              className={inputClass}
-            >
-              <option value="">{t('selectOption')}</option>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {ZONES.map((zone) => (
-                <option key={zone} value={zone}>{zone}</option>
+                <button
+                  key={zone}
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, zona: zone }))}
+                  className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                    formData.zona === zone ? 'border-primary bg-white font-medium' : 'border-neutral-300 bg-white'
+                  }`}
+                >
+                  {zone}
+                </button>
               ))}
-              <option value="Otra zona">{t('zoneOther')}</option>
-            </select>
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, zona: 'Otra zona' }))}
+                className={`p-4 text-sm text-left border transition-all duration-500 hover:bg-[#5A5550] hover:text-white hover:border-[#5A5550] ${
+                  formData.zona === 'Otra zona' ? 'border-primary bg-white font-medium' : 'border-neutral-300 bg-white'
+                }`}
+              >
+                {t('zoneOther')}
+              </button>
+            </div>
 
             <div>
               <label className={labelClass}>{t('sqm')}</label>
