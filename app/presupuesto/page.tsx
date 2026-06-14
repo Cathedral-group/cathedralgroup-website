@@ -208,6 +208,7 @@ export default function PresupuestoPage() {
   const [projectType, setProjectType] = useState<string | null>(null)
   const [zone, setZone] = useState<number | null>(null)
   const [sqm, setSqm] = useState(120)
+  const [sqmText, setSqmText] = useState('120')
   const [finishLevel, setFinishLevel] = useState<number | null>(null)
   const [extras, setExtras] = useState<Set<string>>(new Set())
   const [showResult, setShowResult] = useState(false)
@@ -432,7 +433,11 @@ export default function PresupuestoPage() {
           max={1000}
           step={5}
           value={sqm}
-          onChange={e => setSqm(Number(e.target.value))}
+          onChange={e => {
+            const v = Number(e.target.value)
+            setSqm(v)
+            setSqmText(String(v))
+          }}
           className="w-full h-1 bg-neutral-200 appearance-none cursor-pointer
             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
             [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
@@ -447,13 +452,22 @@ export default function PresupuestoPage() {
         {/* Direct input */}
         <div className="mt-6 flex items-center gap-3">
           <input
-            type="number"
-            min={30}
-            max={1000}
-            value={sqm}
+            type="text"
+            inputMode="numeric"
+            pattern="\d*"
+            value={sqmText}
             onChange={e => {
-              const v = Math.max(30, Math.min(1000, Number(e.target.value) || 30))
-              setSqm(v)
+              const raw = e.target.value.replace(/[^\d]/g, '')
+              setSqmText(raw)
+              const n = Number(raw)
+              if (raw !== '' && n >= 30 && n <= 1000) setSqm(n)
+            }}
+            onBlur={() => {
+              const n = Number(sqmText)
+              const clamped =
+                sqmText === '' || !Number.isFinite(n) ? 30 : Math.max(30, Math.min(1000, n))
+              setSqm(clamped)
+              setSqmText(String(clamped))
             }}
             className="w-24 px-3 py-2 text-sm border border-neutral-200 bg-white text-neutral-800 focus:border-primary focus:ring-0 outline-none transition-colors"
           />
