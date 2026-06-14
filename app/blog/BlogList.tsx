@@ -90,7 +90,7 @@ export default function BlogList({ posts }: { posts: BlogPost[] }) {
                     {post.category}
                   </span>
                   <span className="text-[10px] text-neutral-400">
-                    {post.readingTime}
+                    {post.readingTime} {t('readingTimeSuffix')}
                   </span>
                   <span className="text-[10px] text-neutral-400">
                     {new Date(post.date).toLocaleDateString(locale === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}

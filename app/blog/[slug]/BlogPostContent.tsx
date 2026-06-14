@@ -36,7 +36,7 @@ export default function BlogPostContent({
             <span className="text-[10px] font-bold uppercase tracking-widest text-primary bg-white/90 px-2 py-1">
               {post.category}
             </span>
-            <span className="text-xs text-white/70">{post.readingTime}</span>
+            <span className="text-xs text-white/70">{post.readingTime} {t('readingTimeSuffix')}</span>
           </div>
           <h1 className="text-white text-xl md:text-2xl font-medium leading-tight">
             {locale === 'en' ? post.titleEn : post.title}

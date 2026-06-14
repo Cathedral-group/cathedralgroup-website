@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { useT } from '@/lib/translations'
 
 const CONSENT_KEY = 'cookie_consent'
 
@@ -18,6 +19,7 @@ function gtagConsent(value: 'granted' | 'denied') {
 export default function CookieBanner() {
   const pathname = usePathname()
   const [show, setShow] = useState(false)
+  const t = useT('cookies')
 
   useEffect(() => {
     if (pathname.startsWith('/admin') || pathname.startsWith('/portal') || pathname.startsWith('/itss')) return
@@ -45,9 +47,9 @@ export default function CookieBanner() {
       className="fixed bottom-5 left-5 z-50 max-w-[300px] bg-white border border-neutral-200 shadow-lg p-4"
     >
       <p className="text-[11px] leading-relaxed text-neutral-600 mb-3">
-        Usamos cookies de análisis para mejorar la web.{' '}
+        {t('text')}{' '}
         <a href="/legal#cookies" className="underline underline-offset-2 hover:text-primary">
-          Más información
+          {t('moreInfo')}
         </a>
       </p>
       <div className="flex gap-2">
@@ -55,13 +57,13 @@ export default function CookieBanner() {
           onClick={() => decide(true)}
           className="flex-1 bg-[#5A5550] text-white text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-[#4A4540] transition-colors"
         >
-          Aceptar
+          {t('accept')}
         </button>
         <button
           onClick={() => decide(false)}
           className="flex-1 border border-neutral-300 text-neutral-500 text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-neutral-50 transition-colors"
         >
-          Rechazar
+          {t('reject')}
         </button>
       </div>
     </div>

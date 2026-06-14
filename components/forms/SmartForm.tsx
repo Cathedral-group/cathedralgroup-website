@@ -5,29 +5,30 @@ import { useT } from '@/lib/translations'
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
 
+// Las etiquetas de tipo y presupuesto se traducen en cliente (claves form.*).
+// Los nombres de zona son topónimos (no se traducen); solo "Otra zona" sí.
 const PROJECT_TYPES = [
-  { value: 'reforma', label: 'Reforma integral' },
-  { value: 'interiorismo', label: 'Interiorismo' },
-  { value: 'cambio-uso', label: 'Cambio de uso' },
-  { value: 'obra-nueva', label: 'Obra nueva' },
-  { value: 'promocion', label: 'Promoción inmobiliaria' },
-  { value: 'otro', label: 'Otro' },
+  { value: 'reforma', labelKey: 'typeReforma' },
+  { value: 'interiorismo', labelKey: 'typeInteriorismo' },
+  { value: 'cambio-uso', labelKey: 'typeCambioUso' },
+  { value: 'obra-nueva', labelKey: 'typeObraNueva' },
+  { value: 'promocion', labelKey: 'typePromocion' },
+  { value: 'otro', labelKey: 'typeOtro' },
 ]
 
 const ZONES = [
   'Salamanca', 'Chamberí', 'Chamartín', 'Retiro',
   'El Viso', 'Pozuelo de Alarcón', 'La Moraleja',
   'Aravaca', 'Puerta de Hierro', 'Las Rozas', 'Majadahonda',
-  'Otra zona',
 ]
 
 const BUDGET_RANGES = [
-  { value: '<50k', label: 'Menos de 50.000 €' },
-  { value: '50k-100k', label: '50.000 € - 100.000 €' },
-  { value: '100k-200k', label: '100.000 € - 200.000 €' },
-  { value: '200k-500k', label: '200.000 € - 500.000 €' },
-  { value: '500k-1m', label: '500.000 € - 1.000.000 €' },
-  { value: '>1m', label: 'Más de 1.000.000 €' },
+  { value: '<50k', labelKey: 'budgetLt50' },
+  { value: '50k-100k', labelKey: 'budget50100' },
+  { value: '100k-200k', labelKey: 'budget100200' },
+  { value: '200k-500k', labelKey: 'budget200500' },
+  { value: '500k-1m', labelKey: 'budget5001m' },
+  { value: '>1m', labelKey: 'budgetGt1m' },
 ]
 
 interface SmartFormProps {
@@ -146,9 +147,9 @@ export default function SmartForm({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-xl font-medium uppercase tracking-wide mb-3">Solicitud Recibida</h3>
+        <h3 className="text-xl font-medium uppercase tracking-wide mb-3">{t('successTitle')}</h3>
         <p className="text-neutral-500 text-sm leading-relaxed">
-          Gracias por su interés. Nuestro equipo revisará su solicitud y se pondrá en contacto a la mayor brevedad.
+          {t('successText')}
         </p>
       </div>
     )
@@ -206,7 +207,7 @@ export default function SmartForm({
         <div className={step === 1 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('projectType')}</h4>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-            {PROJECT_TYPES.map(({ value, label }) => (
+            {PROJECT_TYPES.map(({ value, labelKey }) => (
               <button
                 key={value}
                 type="button"
@@ -220,7 +221,7 @@ export default function SmartForm({
                     : 'border-neutral-300 bg-white'
                 }`}
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </div>
@@ -240,6 +241,7 @@ export default function SmartForm({
               {ZONES.map((zone) => (
                 <option key={zone} value={zone}>{zone}</option>
               ))}
+              <option value="Otra zona">{t('zoneOther')}</option>
             </select>
 
             <div>
@@ -249,7 +251,7 @@ export default function SmartForm({
                 name="metros_cuadrados"
                 value={formData.metros_cuadrados}
                 onChange={handleChange}
-                placeholder="Ej: 120"
+                placeholder={t('sqmPlaceholder')}
                 className={inputClass}
               />
             </div>
@@ -257,10 +259,10 @@ export default function SmartForm({
 
           <div className="flex gap-4 mt-8">
             <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-400 text-neutral-700 hover:border-primary hover:text-primary transition-colors">
-              Anterior
+              {t('prev')}
             </button>
             <button type="button" onClick={nextStep} className="flex-1 py-3 text-sm font-medium uppercase tracking-widest bg-[#5A5550] text-white hover:bg-primary transition-colors">
-              Siguiente
+              {t('next')}
             </button>
           </div>
         </div>
@@ -269,7 +271,7 @@ export default function SmartForm({
         <div className={step === 3 ? 'block' : 'hidden'}>
           <h4 className="text-lg font-medium mb-6">{t('budget')}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {BUDGET_RANGES.map(({ value, label }) => (
+            {BUDGET_RANGES.map(({ value, labelKey }) => (
               <button
                 key={value}
                 type="button"
@@ -283,21 +285,21 @@ export default function SmartForm({
                     : 'border-neutral-300 bg-white'
                 }`}
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </div>
 
           <div className="mt-8">
             <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-400 text-neutral-700 hover:border-primary hover:text-primary transition-colors">
-              Anterior
+              {t('prev')}
             </button>
           </div>
         </div>
 
         {/* Step 4: Contact Info */}
         <div className={step === 4 ? 'block max-w-3xl mx-auto' : 'hidden'}>
-          <h4 className="text-lg font-medium mb-6">Datos de contacto</h4>
+          <h4 className="text-lg font-medium mb-6">{t('contactDetails')}</h4>
           <div className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
@@ -308,7 +310,7 @@ export default function SmartForm({
                   value={formData.nombre}
                   onChange={handleChange}
                   required
-                  placeholder="Ej: Javier García"
+                  placeholder={t('namePlaceholder')}
                   className={inputClass}
                 />
               </div>
@@ -368,7 +370,7 @@ export default function SmartForm({
                 value={formData.mensaje}
                 onChange={handleChange}
                 rows={3}
-                placeholder="Describa brevemente su visión..."
+                placeholder={t('messagePlaceholder')}
                 className={inputClass}
               />
             </div>
@@ -383,14 +385,14 @@ export default function SmartForm({
 
           <div className="flex gap-4 mt-8">
             <button type="button" onClick={prevStep} className="px-6 py-3 text-sm font-medium uppercase tracking-widest border border-neutral-400 text-neutral-700 hover:border-primary hover:text-primary transition-colors">
-              Anterior
+              {t('prev')}
             </button>
             <button
               type="submit"
               disabled={submitting}
               className="flex-1 py-3 text-sm font-medium uppercase tracking-widest bg-[#5A5550] text-white hover:bg-primary transition-colors disabled:opacity-50"
             >
-              {submitting ? '...' : t('submit')}
+              {submitting ? t('sending') : t('submit')}
             </button>
           </div>
         </div>

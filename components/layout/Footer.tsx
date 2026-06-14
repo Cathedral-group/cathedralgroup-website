@@ -86,21 +86,21 @@ export default function Footer() {
           (py-6 simétrico = misma distancia arriba y abajo). */}
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-2 text-center">
         <p className="text-[11px] leading-relaxed text-neutral-400">
-          <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">Servicios</span>{' '}
-          <a href="/servicios/reformas-integrales-madrid" className="hover:text-primary transition-colors">Reformas integrales</a>
+          <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">{t('servicesIndex')}</span>{' '}
+          <a href="/servicios/reformas-integrales-madrid" className="hover:text-primary transition-colors">{t('svcReformas')}</a>
           <span className="mx-1.5 text-neutral-300">·</span>
-          <a href="/servicios/interiorismo-madrid" className="hover:text-primary transition-colors">Interiorismo</a>
+          <a href="/servicios/interiorismo-madrid" className="hover:text-primary transition-colors">{t('svcInteriorismo')}</a>
           <span className="mx-1.5 text-neutral-300">·</span>
-          <a href="/servicios/arquitectura-madrid" className="hover:text-primary transition-colors">Arquitectura</a>
+          <a href="/servicios/arquitectura-madrid" className="hover:text-primary transition-colors">{t('svcArquitectura')}</a>
           <span className="mx-1.5 text-neutral-300">·</span>
-          <a href="/servicios/cambio-uso-local-vivienda-madrid" className="hover:text-primary transition-colors">Cambio de uso</a>
+          <a href="/servicios/cambio-uso-local-vivienda-madrid" className="hover:text-primary transition-colors">{t('svcCambioUso')}</a>
           <span className="mx-1.5 text-neutral-300">·</span>
-          <a href="/servicios/obra-nueva-madrid" className="hover:text-primary transition-colors">Obra nueva</a>
+          <a href="/servicios/obra-nueva-madrid" className="hover:text-primary transition-colors">{t('svcObraNueva')}</a>
           <span className="mx-1.5 text-neutral-300">·</span>
-          <a href="/servicios/promocion-inmobiliaria-madrid" className="hover:text-primary transition-colors">Promoción</a>
+          <a href="/servicios/promocion-inmobiliaria-madrid" className="hover:text-primary transition-colors">{t('svcPromocion')}</a>
         </p>
         <p className="text-[11px] leading-relaxed text-neutral-400">
-          <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">Zonas</span>{' '}
+          <span className="font-bold uppercase tracking-widest text-neutral-500 mr-1">{t('zonesIndex')}</span>{' '}
           <a href="/zonas/reformas-salamanca" className="hover:text-primary transition-colors">Salamanca</a>
           <span className="mx-1.5 text-neutral-300">·</span>
           <a href="/zonas/reformas-chamberi" className="hover:text-primary transition-colors">Chamberí</a>
