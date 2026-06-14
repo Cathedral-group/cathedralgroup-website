@@ -445,7 +445,7 @@ export default function PresupuestoPage() {
           type="range"
           min={30}
           max={1000}
-          step={5}
+          step={1}
           value={sqm}
           onChange={e => {
             const v = Number(e.target.value)
@@ -796,11 +796,11 @@ export default function PresupuestoPage() {
                   : ResultView()
             ) : (
               <>
-                {step === 1 && <Step1 />}
-                {step === 2 && <Step2 />}
-                {step === 3 && <Step3 />}
-                {step === 4 && <Step4 />}
-                {step === 5 && <Step5 />}
+                {step === 1 && Step1()}
+                {step === 2 && Step2()}
+                {step === 3 && Step3()}
+                {step === 4 && Step4()}
+                {step === 5 && Step5()}
               </>
             )}
           </div>
