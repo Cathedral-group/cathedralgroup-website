@@ -53,6 +53,56 @@ const zoneRelatedPosts: Record<string, LinkItem[]> = {
     { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
     { href: '/blog/tendencias-interiorismo-2026', labelEs: 'Tendencias en interiorismo 2026', labelEn: 'Interior design trends 2026' },
   ],
+  'reformas-el-viso': [
+    { href: '/blog/reformas-lujo-salamanca-madrid', labelEs: 'Reformas de alto standing en Salamanca', labelEn: 'High-end renovations in Salamanca' },
+    { href: '/blog/reformar-atico-madrid-precio', labelEs: 'Reformar un ático en Madrid: precio', labelEn: 'Penthouse renovation in Madrid: cost' },
+    { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+  ],
+  'reformas-puerta-de-hierro': [
+    { href: '/blog/precio-construccion-chalet-lujo-madrid', labelEs: 'Precio de construir un chalet de alto standing en Madrid', labelEn: 'Cost of building a high-end villa in Madrid' },
+    { href: '/blog/reformas-pozuelo-chalets-lujo', labelEs: 'Reformas de chalets de alto standing en Pozuelo', labelEn: 'High-end villa renovations in Pozuelo' },
+    { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+  ],
+  'reformas-centro-madrid': [
+    { href: '/blog/normativa-reforma-madrid-2026', labelEs: 'Normativa de reformas en Madrid 2026', labelEn: 'Renovation regulations in Madrid 2026' },
+    { href: '/blog/licencia-obra-madrid-guia', labelEs: 'Licencia de obra en Madrid: guía', labelEn: 'Building permits in Madrid: a guide' },
+    { href: '/blog/reforma-integral-vs-parcial', labelEs: 'Reforma integral vs parcial', labelEn: 'Full vs partial renovation' },
+  ],
+  'reformas-conde-de-orgaz': [
+    { href: '/blog/precio-construccion-chalet-lujo-madrid', labelEs: 'Precio de construir un chalet de alto standing en Madrid', labelEn: 'Cost of building a high-end villa in Madrid' },
+    { href: '/blog/reformas-pozuelo-chalets-lujo', labelEs: 'Reformas de chalets de alto standing en Pozuelo', labelEn: 'High-end villa renovations in Pozuelo' },
+    { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+  ],
+  'reformas-boadilla': [
+    { href: '/blog/precio-construccion-chalet-lujo-madrid', labelEs: 'Precio de construir un chalet de alto standing en Madrid', labelEn: 'Cost of building a high-end villa in Madrid' },
+    { href: '/blog/reformas-pozuelo-chalets-lujo', labelEs: 'Reformas de chalets de alto standing en Pozuelo', labelEn: 'High-end villa renovations in Pozuelo' },
+    { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+  ],
+  'reformas-tres-cantos': [
+    { href: '/blog/precio-construccion-chalet-lujo-madrid', labelEs: 'Precio de construir un chalet de alto standing en Madrid', labelEn: 'Cost of building a high-end villa in Madrid' },
+    { href: '/blog/passivhaus-madrid-casa-pasiva', labelEs: 'Passivhaus en Madrid: la casa pasiva', labelEn: 'Passivhaus in Madrid: the passive house' },
+    { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+  ],
+  'reformas-villaviciosa-de-odon': [
+    { href: '/blog/precio-construccion-chalet-lujo-madrid', labelEs: 'Precio de construir un chalet de alto standing en Madrid', labelEn: 'Cost of building a high-end villa in Madrid' },
+    { href: '/blog/reformas-pozuelo-chalets-lujo', labelEs: 'Reformas de chalets de alto standing en Pozuelo', labelEn: 'High-end villa renovations in Pozuelo' },
+    { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+  ],
+  'reformas-galapagar': [
+    { href: '/blog/passivhaus-madrid-casa-pasiva', labelEs: 'Passivhaus en Madrid: la casa pasiva', labelEn: 'Passivhaus in Madrid: the passive house' },
+    { href: '/blog/precio-construccion-chalet-lujo-madrid', labelEs: 'Precio de construir un chalet de alto standing en Madrid', labelEn: 'Cost of building a high-end villa in Madrid' },
+    { href: '/blog/reformas-pozuelo-chalets-lujo', labelEs: 'Reformas de chalets de alto standing en Pozuelo', labelEn: 'High-end villa renovations in Pozuelo' },
+  ],
+  'reformas-collado-villalba': [
+    { href: '/blog/passivhaus-madrid-casa-pasiva', labelEs: 'Passivhaus en Madrid: la casa pasiva', labelEn: 'Passivhaus in Madrid: the passive house' },
+    { href: '/blog/precio-construccion-chalet-lujo-madrid', labelEs: 'Precio de construir un chalet de alto standing en Madrid', labelEn: 'Cost of building a high-end villa in Madrid' },
+    { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+  ],
+  'reformas-san-sebastian-de-los-reyes': [
+    { href: '/blog/precio-construccion-chalet-lujo-madrid', labelEs: 'Precio de construir un chalet de alto standing en Madrid', labelEn: 'Cost of building a high-end villa in Madrid' },
+    { href: '/blog/reformas-pozuelo-chalets-lujo', labelEs: 'Reformas de chalets de alto standing en Pozuelo', labelEn: 'High-end villa renovations in Pozuelo' },
+    { href: '/blog/precio-reforma-integral-madrid-2026', labelEs: 'Precio reforma integral Madrid 2026', labelEn: 'Renovation cost in Madrid 2026' },
+  ],
 }
 
 export default function ZoneContent({ zone }: { zone: Zone }) {
