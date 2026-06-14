@@ -147,6 +147,7 @@ export const SISTEMA_ITEMS: NavLeaf[] = [
   { label: 'Archivo', href: '/admin/archivo' },
   { label: 'Papelera', href: '/admin/papelera' },
   { label: 'Configuración', href: '/admin/configuracion' },
+  { label: 'Calculadora (precios)', href: '/admin/configuracion/calculadora' },
 ]
 
 /** Prefijos que pertenecen a "Sistema" (no a ninguna zona). */
