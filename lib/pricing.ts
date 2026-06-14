@@ -254,13 +254,24 @@ export function computeEstimate(input: EstimateInput, config: PricingConfig = DE
   const totalMin = Math.round(baseMin + extrasMin)
   const totalMax = Math.round(baseMax + extrasMax)
 
-  // Desglose aplicado SOLO sobre la base de obra (los extras se muestran aparte).
+  // Desglose: los % (40/30/18/12...) reparten la OBRA base. Los extras seleccionados
+  // NO son obra → línea propia para que el desglose sume el total (antes no cuadraba).
   const breakdown = breakdownFor(projectKey).map((b) => ({
     key: b.key,
     pct: b.pct,
     min: Math.round(baseMin * (b.pct / 100)),
     max: Math.round(baseMax * (b.pct / 100)),
   }))
+
+  if (Math.round(extrasMax) > 0) {
+    breakdown.push({ key: 'extrasLabel', pct: 0, min: Math.round(extrasMin), max: Math.round(extrasMax) })
+    // Ancho de barra como % del TOTAL (extras incluidos). Sin extras se dejan los %
+    // literales del desglose base (barras y tests intactos).
+    const totMaxForBars = totalMax || 1
+    for (const item of breakdown) {
+      item.pct = Math.round((item.max / totMaxForBars) * 100)
+    }
+  }
 
   return { totalMin, totalMax, breakdown }
 }
