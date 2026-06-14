@@ -673,6 +673,10 @@ export default function PresupuestoPage() {
               {formatPrice(r.totalMin)}<span className="text-neutral-400 mx-3">—</span>{formatPrice(r.totalMax)}
             </p>
           </div>
+          <p className="text-xs text-neutral-400 mt-4 max-w-lg mx-auto leading-relaxed">
+            {projectType === 'interiorismo' ? t('includesDesign') : t('includesBuild')}{' '}
+            <span className="font-medium text-neutral-500">{t('ivaNote')}</span>
+          </p>
         </div>
 
         {/* Breakdown */}

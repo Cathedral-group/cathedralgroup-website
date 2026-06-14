@@ -82,7 +82,7 @@ export const EXTRAS: Extra[] = [
   { key: 'mobiliario', pricing: 'fixed', min: 8000, max: 40000, scope: 'all', minLevel: 'economica', inInteriorismo: true },
   { key: 'ventanas', pricing: 'perM2', min: 90, max: 120, scope: 'all', minLevel: 'economica', inInteriorismo: false }, // Cortizo: 600-800 €/m² ventana × ~15% hueco = €/m² vivienda
   { key: 'sueloMadera', pricing: 'perM2', min: 80, max: 175, scope: 'all', minLevel: 'economica', inInteriorismo: false },
-  { key: 'wallbox', pricing: 'fixed', min: 950, max: 2200, scope: 'all', minLevel: 'economica', inInteriorismo: false },
+  { key: 'wallbox', pricing: 'fixed', min: 850, max: 1900, scope: 'all', minLevel: 'economica', inInteriorismo: false }, // sin IVA (corregido auditoría: fuentes daban con IVA)
   { key: 'spa', pricing: 'fixed', min: 2500, max: 12000, scope: 'all', minLevel: 'premium', inInteriorismo: false },
   // Solo en "vivienda unifamiliar / chalet"
   { key: 'piscina', pricing: 'fixed', min: 20000, max: 35000, scope: 'house', minLevel: 'economica', inInteriorismo: false },
