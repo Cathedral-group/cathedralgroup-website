@@ -14,13 +14,16 @@ export default function BlogPostContent({
   post,
   relatedPosts,
   contentHtml,
+  contentHtmlEn,
 }: {
   post: BlogPost
   relatedPosts: BlogPost[]
   contentHtml: string
+  contentHtmlEn: string
 }) {
   const locale = getLocale()
   const t = useT('blog')
+  const bodyHtml = locale === 'en' ? contentHtmlEn : contentHtml
 
   return (
     <>
@@ -52,7 +55,7 @@ export default function BlogPostContent({
         <div className="max-w-3xl mx-auto px-6">
           <div
             className="prose prose-neutral max-w-none"
-            dangerouslySetInnerHTML={{ __html: contentHtml }}
+            dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         </div>
       </section>

@@ -36,4 +36,5 @@ export interface BlogPost {
   date: string
   readingTime: string
   content: string
+  contentEn: string
 }

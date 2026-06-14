@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getAllPosts, getPostBySlug } from '@/lib/blog'
+import { getAllPosts, getPostBySlug, renderMarkdown } from '@/lib/blog'
 import JsonLd, { createBlogPostSchema, createBreadcrumbSchema } from '@/components/seo/JsonLd'
 import BlogPostContent from './BlogPostContent'
 
@@ -39,26 +39,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     .filter((p) => p.slug !== slug && (p.category === post.category || p.tags.some((t) => post.tags.includes(t))))
     .slice(0, 2)
 
-  // Parse markdown content into HTML (simple approach).
-  // Defensa XSS: escapar `<` `>` `&` en la fuente ANTES de aplicar las regex
-  // que añaden tags HTML válidos. Aunque hoy el contenido es estático del
-  // filesystem (no input usuario), evita que un post comprometido o un
-  // futuro flujo CMS pueda inyectar scripts.
-  const safeSource = post.content
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-  const contentHtml = safeSource
-    .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium mt-8 mb-3">$1</h3>')
-    .replace(/^## (.*$)/gm, '<h2 class="text-xl font-medium mt-10 mb-4">$1</h2>')
-    // Enlaces [texto](url) — solo rutas internas o https, nunca javascript: u otros esquemas
-    .replace(/\[([^\]]+)\]\((\/[^)\s]*|https?:\/\/[^)\s]+)\)/g, '<a href="$2" class="text-primary underline underline-offset-4 hover:no-underline">$1</a>')
-    // Negritas **texto** en cualquier punto de la línea (antes solo al inicio)
-    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/^- (.*$)/gm, '<li class="ml-4 text-neutral-700">• $1</li>')
-    .replace(/^\| (.*$)/gm, '<div class="text-sm text-neutral-600 border-b border-neutral-100 py-1">$1</div>')
-    .replace(/\n\n/g, '</p><p class="text-neutral-700 leading-relaxed mb-4">')
-    .replace(/^(?!<[hl]|<li|<div|<str)/gm, '')
+  const contentHtml = renderMarkdown(post.content)
+  const contentHtmlEn = post.contentEn ? renderMarkdown(post.contentEn) : contentHtml
 
   return (
     <>
@@ -71,7 +53,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         ])}
       />
 
-      <BlogPostContent post={post} relatedPosts={relatedPosts} contentHtml={contentHtml} />
+      <BlogPostContent post={post} relatedPosts={relatedPosts} contentHtml={contentHtml} contentHtmlEn={contentHtmlEn} />
     </>
   )
 }

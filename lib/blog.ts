@@ -21,7 +21,7 @@ let _cachedPosts: BlogPost[] | null = null
 export function getAllPosts(): BlogPost[] {
   if (_cachedPosts) return _cachedPosts
 
-  const files = fs.readdirSync(BLOG_DIR).filter((f) => f.endsWith('.mdx'))
+  const files = fs.readdirSync(BLOG_DIR).filter((f) => f.endsWith('.mdx') && !f.endsWith('.en.mdx'))
 
   const posts = files.map((filename) => {
     const slug = filename.replace('.mdx', '')
@@ -29,6 +29,9 @@ export function getAllPosts(): BlogPost[] {
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     const { data, content } = matter(fileContent)
     const stats = readingTime(content)
+
+    const enPath = path.join(BLOG_DIR, `${slug}.en.mdx`)
+    const contentEn = fs.existsSync(enPath) ? matter(fs.readFileSync(enPath, 'utf-8')).content : ''
 
     return {
       slug,
@@ -43,6 +46,7 @@ export function getAllPosts(): BlogPost[] {
       date: data.date || new Date().toISOString().split('T')[0],
       readingTime: stats.text.replace('min read', 'min'),
       content,
+      contentEn,
     }
   })
 
@@ -61,4 +65,28 @@ export function getPostsByCategory(category: string): BlogPost[] {
 export function getAllCategories(): string[] {
   const posts = getAllPosts()
   return [...new Set(posts.map((p) => p.category))]
+}
+
+// Parse markdown content into HTML (simple approach).
+// Defensa XSS: escapar `<` `>` `&` en la fuente ANTES de aplicar las regex
+// que añaden tags HTML válidos. Aunque hoy el contenido es estático del
+// filesystem (no input usuario), evita que un post comprometido o un
+// futuro flujo CMS pueda inyectar scripts.
+export function renderMarkdown(source: string): string {
+  const safeSource = source
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  const contentHtml = safeSource
+    .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium mt-8 mb-3">$1</h3>')
+    .replace(/^## (.*$)/gm, '<h2 class="text-xl font-medium mt-10 mb-4">$1</h2>')
+    // Enlaces [texto](url) — solo rutas internas o https, nunca javascript: u otros esquemas
+    .replace(/\[([^\]]+)\]\((\/[^)\s]*|https?:\/\/[^)\s]+)\)/g, '<a href="$2" class="text-primary underline underline-offset-4 hover:no-underline">$1</a>')
+    // Negritas **texto** en cualquier punto de la línea (antes solo al inicio)
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.*$)/gm, '<li class="ml-4 text-neutral-700">• $1</li>')
+    .replace(/^\| (.*$)/gm, '<div class="text-sm text-neutral-600 border-b border-neutral-100 py-1">$1</div>')
+    .replace(/\n\n/g, '</p><p class="text-neutral-700 leading-relaxed mb-4">')
+    .replace(/^(?!<[hl]|<li|<div|<str)/gm, '')
+  return contentHtml
 }
