@@ -34,7 +34,7 @@ const es = {
     step1: 'Proyecto', step2: 'Ubicación', step3: 'Presupuesto', step4: 'Contacto',
   },
   footer: {
-    description: 'Holding inmobiliario en Madrid, especializado en arquitectura de alto standing, inversión estratégica y desarrollo de proyectos residenciales exclusivos.',
+    description: 'Holding inmobiliario en Madrid, especializado en arquitectura singular, inversión estratégica y desarrollo de proyectos residenciales exclusivos.',
     divisions: 'Divisiones', contact: 'Contacto', follow: 'Síguenos',
     legal: 'Aviso Legal', privacy: 'Privacidad', cookies: 'Cookies',
     rights: 'Todos los derechos reservados.',
@@ -168,7 +168,7 @@ const en = {
     step1: 'Project', step2: 'Location', step3: 'Budget', step4: 'Contact',
   },
   footer: {
-    description: 'Real estate holding in Madrid, specialising in luxury architecture, strategic investment and exclusive residential project development.',
+    description: 'Real estate holding in Madrid, specialising in distinctive architecture, strategic investment and exclusive residential project development.',
     divisions: 'Divisions', contact: 'Contact', follow: 'Follow Us',
     legal: 'Legal Notice', privacy: 'Privacy', cookies: 'Cookies',
     rights: 'All rights reserved.',
