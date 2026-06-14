@@ -230,6 +230,7 @@ export const TABLES_WITHOUT_COMPANY_ID = new Set<string>([
   'fiscal_models',
   'ai_pricing_table',
   'quality_coefficients',
+  'pricing_config',
   'collective_agreements',
   'quote_items_catalog',
   'supplier_email_whitelist',

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useT } from '@/lib/translations'
-import { QUALITY_LEVELS, PROJECT_TYPES, ZONES, EXTRAS, computeEstimate } from '@/lib/pricing'
+import { DEFAULT_CONFIG, computeEstimate, visibleExtras, type PricingConfig, type Extra } from '@/lib/pricing'
 
 /* ── Schema.org WebApplication (injected once) ── */
 const WEB_APP_SCHEMA = {
@@ -47,10 +47,6 @@ const PROJECT_ICONS: Record<string, string> = {
   obraNueva: '△',
   promocion: '▦',
 }
-
-// Extras por scope: núcleo (siempre) + casa/chalet (sección desplegable).
-const CORE_EXTRAS = EXTRAS.filter((e) => e.scope === 'all')
-const HOUSE_EXTRAS = EXTRAS.filter((e) => e.scope === 'house')
 
 /* ── Helpers ── */
 function formatPrice(n: number) {
@@ -223,6 +219,43 @@ export default function PresupuestoPage() {
     })
   }, [])
 
+  /* Precios/gating: la BD es la fuente única (tabla pricing_config, editable en el
+     panel). Se lee una vez; si falla o la tabla no existe, queda DEFAULT_CONFIG
+     (= las constantes del código) → la calculadora nunca se rompe. */
+  const [config, setConfig] = useState<PricingConfig>(DEFAULT_CONFIG)
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/pricing')
+      .then(r => (r.ok ? r.json() : null))
+      .then((cfg: PricingConfig | null) => {
+        if (alive && cfg && Array.isArray(cfg.levels) && cfg.levels.length) setConfig(cfg)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  /* Si cambia el nivel/tipo (o la config), deselecciona los extras que ya no son
+     visibles en esa gama (p.ej. bajar de Premium a Económica quita spa/gimnasio). */
+  useEffect(() => {
+    const visibleKeys = new Set(
+      visibleExtras(config, {
+        levelIdx: finishLevel ?? 1,
+        projectKey: projectType ?? 'reformaIntegral',
+        showHouse: true,
+      }).map(e => e.key)
+    )
+    setExtras(prev => {
+      let changed = false
+      const next = new Set<string>()
+      for (const k of prev) {
+        if (visibleKeys.has(k)) next.add(k)
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [finishLevel, projectType, config])
+
   /* navigation guards */
   const canAdvance = () => {
     if (step === 1) return projectType !== null
@@ -246,14 +279,17 @@ export default function PresupuestoPage() {
   const calculateResult = () => setShowResult(true)
 
   const getResults = () =>
-    computeEstimate({
-      levelIdx: finishLevel ?? 1,
-      projectKey: projectType ?? 'reformaIntegral',
-      zoneIdx: zone ?? ZONES.length - 1,
-      sqm,
-      extraKeys: [...extras],
-      isProtected,
-    })
+    computeEstimate(
+      {
+        levelIdx: finishLevel ?? 1,
+        projectKey: projectType ?? 'reformaIntegral',
+        zoneIdx: zone ?? config.zones.length - 1,
+        sqm,
+        extraKeys: [...extras],
+        isProtected,
+      },
+      config
+    )
 
   const reset = () => {
     setStep(1)
@@ -349,7 +385,7 @@ export default function PresupuestoPage() {
     <div>
       <StepHeader titleKey="step1Title" subtitleKey="step1Subtitle" />
       <div className="grid md:grid-cols-3 gap-6">
-        {PROJECT_TYPES.map((pt) => (
+        {config.projectTypes.map((pt) => (
           <SelectionCard
             key={pt.key}
             selected={projectType === pt.key}
@@ -372,7 +408,7 @@ export default function PresupuestoPage() {
     <div>
       <StepHeader titleKey="step2Title" subtitleKey="step2Subtitle" />
       <div className="space-y-3">
-        {ZONES.map((z, i) => (
+        {config.zones.map((z, i) => (
           <SelectionCard key={z.key} selected={zone === i} onClick={() => { setZone(i); setStep(3) }}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-neutral-800">{t(z.key)}</p>
@@ -486,7 +522,7 @@ export default function PresupuestoPage() {
     <div>
       <StepHeader titleKey="step4Title" subtitleKey="step4Subtitle" />
       <div className="grid md:grid-cols-2 gap-3">
-        {QUALITY_LEVELS.map((lvl, i) => (
+        {config.levels.map((lvl, i) => (
           <SelectionCard key={lvl.key} selected={finishLevel === i} onClick={() => { setFinishLevel(i); lvl.isContact ? setShowResult(true) : setStep(5) }}>
             <p className="text-sm font-medium text-neutral-800 mb-1">{t(lvl.key)}</p>
             <p className="text-xs font-bold text-primary mb-1">{t(`${lvl.key}Range`)}</p>
@@ -499,7 +535,7 @@ export default function PresupuestoPage() {
   )
 
   // Render de una fila de extra (núcleo y casa comparten el mismo aspecto).
-  const ExtraRow = (ex: (typeof EXTRAS)[number]) => {
+  const ExtraRow = (ex: Extra) => {
     const selected = extras.has(ex.key)
     return (
       <button
@@ -529,24 +565,40 @@ export default function PresupuestoPage() {
     )
   }
 
-  const Step5 = () => (
-    <div>
-      <StepHeader titleKey="step5Title" subtitleKey="step5Subtitle" />
-      <div className="space-y-3">{CORE_EXTRAS.map(ExtraRow)}</div>
+  const Step5 = () => {
+    // Extras visibles según la gama (nivel), el tipo y el ámbito. coreVisible
+    // (piso) siempre; houseVisible (chalet) en sección desplegable, solo si la
+    // gama los permite (p.ej. interiorismo o económica sin lujo no los muestran).
+    const allVisible = visibleExtras(config, {
+      levelIdx: finishLevel ?? 1,
+      projectKey: projectType ?? 'reformaIntegral',
+      showHouse: true,
+    })
+    const coreVisible = allVisible.filter((e) => e.scope === 'all')
+    const houseVisible = allVisible.filter((e) => e.scope === 'house')
+    return (
+      <div>
+        <StepHeader titleKey="step5Title" subtitleKey="step5Subtitle" />
+        <div className="space-y-3">{coreVisible.map(ExtraRow)}</div>
 
-      {/* Extras de vivienda unifamiliar / chalet — sección desplegable */}
-      <button
-        type="button"
-        onClick={() => setShowHouseExtras((v) => !v)}
-        className="mt-5 mb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary hover:text-[#4A4540] transition-colors"
-      >
-        {showHouseExtras ? '−' : '+'} {t('extrasHouseToggle')}
-      </button>
-      {showHouseExtras && <div className="space-y-3 mt-3">{HOUSE_EXTRAS.map(ExtraRow)}</div>}
+        {/* Extras de vivienda unifamiliar / chalet — solo si la gama los permite */}
+        {houseVisible.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowHouseExtras((v) => !v)}
+              className="mt-5 mb-1 text-xs font-bold uppercase tracking-[0.15em] text-primary hover:text-[#4A4540] transition-colors"
+            >
+              {showHouseExtras ? '−' : '+'} {t('extrasHouseToggle')}
+            </button>
+            {showHouseExtras && <div className="space-y-3 mt-3">{houseVisible.map(ExtraRow)}</div>}
+          </>
+        )}
 
-      <NavButtons withNext />
-    </div>
-  )
+        <NavButtons withNext />
+      </div>
+    )
+  }
 
   // Promoción/Desarrollo no se estima por m² (varía mucho): en vez de un número,
   // se muestra una vista de "presupuesto a medida" que capta el lead para estudio.
@@ -583,7 +635,7 @@ export default function PresupuestoPage() {
       <div className="-mx-6 md:-mx-10 border-y border-primary/30 bg-white py-12">
         <CalculatorLeadForm
           tipoProyecto={tipoProyecto}
-          zona={zone !== null ? t(ZONES[zone].key) : ''}
+          zona={zone !== null ? t(config.zones[zone].key) : ''}
           sqm={0}
           rango="A medida"
           detalle={detalle}
@@ -656,15 +708,15 @@ export default function PresupuestoPage() {
         {/* Captura de lead con el contexto de la estimación */}
         <CalculatorLeadForm
           tipoProyecto={projectType ? t(projectType) : ''}
-          zona={zone !== null ? t(ZONES[zone].key) : ''}
+          zona={zone !== null ? t(config.zones[zone].key) : ''}
           sqm={sqm}
           rango={`${formatPrice(r.totalMin)} - ${formatPrice(r.totalMax)}`}
           detalle={[
             'Lead calculadora de presupuesto',
             projectType ? t(projectType) : null,
-            zone !== null ? t(ZONES[zone].key) : null,
+            zone !== null ? t(config.zones[zone].key) : null,
             `${sqm} m²`,
-            finishLevel !== null ? t(QUALITY_LEVELS[finishLevel].key) : null,
+            finishLevel !== null ? t(config.levels[finishLevel].key) : null,
             extras.size > 0 ? `Extras: ${[...extras].map((k) => t(k)).join(', ')}` : null,
             `Estimación: ${formatPrice(r.totalMin)} - ${formatPrice(r.totalMax)}`,
           ]
@@ -726,7 +778,7 @@ export default function PresupuestoPage() {
                     tipoProyecto: t('promocion'),
                     detalle: 'Lead promoción/desarrollo — presupuesto a medida (no estimable por m²)',
                   })
-                : finishLevel !== null && QUALITY_LEVELS[finishLevel]?.isContact
+                : finishLevel !== null && config.levels[finishLevel]?.isContact
                   ? CustomQuoteView({
                       labelKey: 'excepcional',
                       titleKey: 'excepcionalTitle',
@@ -735,7 +787,7 @@ export default function PresupuestoPage() {
                       detalle: [
                         'Lead calculadora — nivel Excepcional (a medida)',
                         projectType ? t(projectType) : null,
-                        zone !== null ? t(ZONES[zone].key) : null,
+                        zone !== null ? t(config.zones[zone].key) : null,
                         `${sqm} m²`,
                       ]
                         .filter(Boolean)

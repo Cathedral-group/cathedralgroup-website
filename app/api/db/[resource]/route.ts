@@ -105,6 +105,7 @@ function tableFor(resource: string): string | null {
     communications: 'communications',
     catalog: 'quote_items_catalog',
     'quality-coefficients': 'quality_coefficients',
+    'pricing-config': 'pricing_config',
     'flipping-operations': 'flipping_operations',
     mortgages: 'mortgages',
     'operation-costs': 'operation_costs',
