@@ -1,83 +1,94 @@
+import type { Locale } from '@/lib/translations'
+
+type LText = Record<Locale, string>
+
 export interface Zone {
   slug: string
-  nameEs: string
-  nameEn: string
-  descriptionEs: string
-  descriptionEn: string
+  name: LText
+  description: LText
   heroImage: string
 }
 
 export const zones: Zone[] = [
   {
     slug: 'reformas-salamanca',
-    nameEs: 'Salamanca',
-    nameEn: 'Salamanca',
-    descriptionEs: 'El barrio más exclusivo de Madrid, con edificios señoriales y una demanda constante de reformas de alto nivel. Especializados en áticos y pisos de representación en las calles Serrano, Velázquez y Ortega y Gasset.',
-    descriptionEn: 'Madrid\'s most exclusive neighborhood, with stately buildings and a constant demand for high-end renovations. Specialized in penthouses and representative apartments on Serrano, Velázquez and Ortega y Gasset streets.',
+    name: { es: 'Salamanca', en: 'Salamanca' },
+    description: {
+      es: 'El barrio más exclusivo de Madrid, con edificios señoriales y una demanda constante de reformas de alto nivel. Especializados en áticos y pisos de representación en las calles Serrano, Velázquez y Ortega y Gasset.',
+      en: 'Madrid’s most exclusive neighbourhood, with stately buildings and a steady demand for high-end renovations. We specialise in penthouses and signature apartments on Serrano, Velázquez and Ortega y Gasset.',
+    },
     heroImage: '/img/zona-salamanca.jpg',
   },
   {
     slug: 'reformas-chamberi',
-    nameEs: 'Chamberí',
-    nameEn: 'Chamberí',
-    descriptionEs: 'Barrio señorial con edificios de principios del siglo XX, techos altos y una arquitectura que invita a reformas que preserven su carácter original con acabados contemporáneos.',
-    descriptionEn: 'A stately neighborhood with early 20th century buildings, high ceilings and architecture that invites renovations preserving its original character with contemporary finishes.',
+    name: { es: 'Chamberí', en: 'Chamberí' },
+    description: {
+      es: 'Barrio señorial con edificios de principios del siglo XX, techos altos y una arquitectura que invita a reformas que preserven su carácter original con acabados contemporáneos.',
+      en: 'A stately district of early twentieth-century buildings, high ceilings and architecture that invites renovations preserving its original character alongside contemporary finishes.',
+    },
     heroImage: '/img/zona-chamberi.jpg',
   },
   {
     slug: 'reformas-chamartin',
-    nameEs: 'Chamartín',
-    nameEn: 'Chamartín',
-    descriptionEs: 'Zona residencial premium con grandes viviendas familiares. Reformas integrales que maximizan el potencial de espacios amplios con distribuciones modernas.',
-    descriptionEn: 'Premium residential area with large family homes. Comprehensive renovations that maximize the potential of spacious areas with modern layouts.',
+    name: { es: 'Chamartín', en: 'Chamartín' },
+    description: {
+      es: 'Zona residencial premium con grandes viviendas familiares. Reformas integrales que maximizan el potencial de espacios amplios con distribuciones modernas.',
+      en: 'A premium residential area of large family homes. Comprehensive renovations that make the most of generous spaces with modern layouts.',
+    },
     heroImage: '/img/zona-chamartin.jpg',
   },
   {
     slug: 'reformas-retiro',
-    nameEs: 'Retiro',
-    nameEn: 'Retiro',
-    descriptionEs: 'Junto al pulmón verde de Madrid, viviendas con vistas al parque que merecen reformas a la altura de su privilegiada ubicación.',
-    descriptionEn: 'Next to Madrid\'s green lung, homes with park views that deserve renovations matching their privileged location.',
+    name: { es: 'Retiro', en: 'Retiro' },
+    description: {
+      es: 'Junto al pulmón verde de Madrid, viviendas con vistas al parque que merecen reformas a la altura de su privilegiada ubicación.',
+      en: 'Beside Madrid’s green lung, homes with views over the park that deserve renovations worthy of their privileged setting.',
+    },
     heroImage: '/img/zona-retiro.jpg',
   },
   {
     slug: 'reformas-pozuelo',
-    nameEs: 'Pozuelo de Alarcón',
-    nameEn: 'Pozuelo de Alarcón',
-    descriptionEs: 'El municipio con mayor renta per cápita de España. Chalets y villas de alto standing que demandan reformas integrales con los más altos estándares.',
-    descriptionEn: 'Spain\'s municipality with the highest per capita income. Luxury chalets and villas demanding comprehensive renovations with the highest standards.',
+    name: { es: 'Pozuelo de Alarcón', en: 'Pozuelo de Alarcón' },
+    description: {
+      es: 'El municipio con mayor renta per cápita de España. Chalets y villas de alto standing que demandan reformas integrales con los más altos estándares.',
+      en: 'The municipality with the highest income per capita in Spain. High-end villas and detached homes that call for comprehensive renovations to the very highest standards.',
+    },
     heroImage: '/img/zona-pozuelo.jpg',
   },
   {
     slug: 'reformas-las-rozas',
-    nameEs: 'Las Rozas',
-    nameEn: 'Las Rozas',
-    descriptionEs: 'Urbanizaciones exclusivas con amplios espacios exteriores. Reformas que integran interior y exterior para crear viviendas contemporáneas.',
-    descriptionEn: 'Exclusive residential developments with spacious outdoor areas. Renovations integrating interior and exterior to create contemporary homes.',
+    name: { es: 'Las Rozas', en: 'Las Rozas' },
+    description: {
+      es: 'Urbanizaciones exclusivas con amplios espacios exteriores. Reformas que integran interior y exterior para crear viviendas contemporáneas.',
+      en: 'Exclusive residential developments with generous outdoor space. Renovations that bring interior and exterior together to create contemporary homes.',
+    },
     heroImage: '/img/zona-las-rozas.jpg',
   },
   {
     slug: 'reformas-majadahonda',
-    nameEs: 'Majadahonda',
-    nameEn: 'Majadahonda',
-    descriptionEs: 'Zona residencial familiar de alto standing. Reformas que combinan funcionalidad para familias con acabados de alto standing.',
-    descriptionEn: 'High-end family residential area. Renovations combining family functionality with luxury finishes.',
+    name: { es: 'Majadahonda', en: 'Majadahonda' },
+    description: {
+      es: 'Zona residencial familiar de alto standing. Reformas que combinan funcionalidad para familias con acabados de alto standing.',
+      en: 'A high-end family residential area. Renovations that combine practical family living with high-end finishes.',
+    },
     heroImage: '/img/zona-majadahonda.jpg',
   },
   {
     slug: 'reformas-aravaca',
-    nameEs: 'Aravaca',
-    nameEn: 'Aravaca',
-    descriptionEs: 'Enclave tranquilo con viviendas unifamiliares de calidad. Reformas que respetan el entorno natural y maximizan la luz y los espacios.',
-    descriptionEn: 'Quiet enclave with quality single-family homes. Renovations respecting the natural environment and maximizing light and spaces.',
+    name: { es: 'Aravaca', en: 'Aravaca' },
+    description: {
+      es: 'Enclave tranquilo con viviendas unifamiliares de calidad. Reformas que respetan el entorno natural y maximizan la luz y los espacios.',
+      en: 'A peaceful enclave of quality detached homes. Renovations that respect the natural surroundings while maximising light and space.',
+    },
     heroImage: '/img/zona-aravaca.jpg',
   },
   {
     slug: 'reformas-la-moraleja',
-    nameEs: 'La Moraleja',
-    nameEn: 'La Moraleja',
-    descriptionEs: 'La urbanización más exclusiva de Madrid. Mansiones y villas que requieren proyectos de reforma y diseño al más alto nivel internacional.',
-    descriptionEn: 'Madrid\'s most exclusive residential area. Mansions and villas requiring renovation and design projects at the highest international level.',
+    name: { es: 'La Moraleja', en: 'La Moraleja' },
+    description: {
+      es: 'La urbanización más exclusiva de Madrid. Mansiones y villas que requieren proyectos de reforma y diseño al más alto nivel internacional.',
+      en: 'Madrid’s most exclusive residential estate. Mansions and villas that demand renovation and design projects at the highest international level.',
+    },
     heroImage: '/img/zona-la-moraleja.jpg',
   },
 ]
